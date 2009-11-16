@@ -97,6 +97,22 @@ unsigned long clk_get_rate(struct clk *clk)
 }
 EXPORT_SYMBOL(clk_get_rate);
 
+static void clk_prcmu_enable(struct clk *clk)
+{
+	void __iomem *cg_set_reg = (void __iomem *)PRCM_YYCLKEN0_MGT_SET
+				   + clk->prcmu_cg_off;
+
+	writel(1 << clk->prcmu_cg_bit, cg_set_reg);
+}
+
+static void clk_prcmu_disable(struct clk *clk)
+{
+	void __iomem *cg_clr_reg = (void __iomem *)PRCM_YYCLKEN0_MGT_CLR
+				    + clk->prcmu_cg_off;
+
+	writel(1 << clk->prcmu_cg_bit, cg_clr_reg);
+}
+
 /* ED doesn't have the combined set/clr registers */
 
 static void clk_prcmu_ed_enable(struct clk *clk)
@@ -116,8 +132,8 @@ static void clk_prcmu_ed_disable(struct clk *clk)
 }
 
 static struct clkops clk_prcmu_ops = {
-	.enable = clk_prcmu_ed_enable,
-	.disable = clk_prcmu_ed_disable,
+	.enable = clk_prcmu_enable,
+	.disable = clk_prcmu_disable,
 };
 
 static void clk_prcc_enable(struct clk *clk)
@@ -157,6 +173,7 @@ static DEFINE_PRCMU_CLK(siaclk, 0x0, 3, SIAMMDSPCLK);
 static DEFINE_PRCMU_CLK(sgaclk, 0x0, 4, SGACLK);
 static DEFINE_PRCMU_CLK_RATE(uartclk, 0x0, 5, UARTCLK, 38400000);
 static DEFINE_PRCMU_CLK(msp02clk, 0x0, 6, MSP02CLK);
+static DEFINE_PRCMU_CLK(msp1clk, 0x0, 7, MSP1CLK); /* v1 */
 static DEFINE_PRCMU_CLK(i2cclk, 0x0, 8, I2CCLK);
 static DEFINE_PRCMU_CLK(sdmmcclk, 0x0, 9, SDMMCCLK);
 static DEFINE_PRCMU_CLK(slimclk, 0x0, 10, SLIMCLK);
@@ -175,9 +192,16 @@ static DEFINE_PRCMU_CLK(apeatclk, 0x0, 22, APEATCLK);
 static DEFINE_PRCMU_CLK(apetraceclk, 0x0, 23, APETRACECLK);
 static DEFINE_PRCMU_CLK(mcdeclk, 0x0, 24, MCDECLK);
 static DEFINE_PRCMU_CLK(ipi2clk, 0x0, 25, IPI2CCLK);
+static DEFINE_PRCMU_CLK(dsialtclk, 0x0, 26, DSIALTCLK); /* v1 */
 static DEFINE_PRCMU_CLK(dmaclk, 0x0, 27, DMACLK);
 static DEFINE_PRCMU_CLK(b2r2clk, 0x0, 28, B2R2CLK);
 static DEFINE_PRCMU_CLK(tvclk, 0x0, 29, TVCLK);
+static DEFINE_PRCMU_CLK(uniproclk, 0x0, 30, UNIPROCLK); /* v1 */
+static DEFINE_PRCMU_CLK(sspclk, 0x0, 31, SSPCLK); /* v1 */
+
+/* Bank 1 */
+static DEFINE_PRCMU_CLK(rngclk, 0x4, 0, RNGCLK); /* v1 */
+static DEFINE_PRCMU_CLK(uiccclk, 0x4, 1, UICCCLK); /* v1 */
 
 /*
  * PRCC level clock gating
@@ -185,12 +209,15 @@ static DEFINE_PRCMU_CLK(tvclk, 0x0, 29, TVCLK);
  */
 
 /* Peripheral Cluster #1 */
+static DEFINE_PRCC_CLK(1, i2c4, 	10, 9, &clk_i2cclk);
 static DEFINE_PRCC_CLK(1, gpio0,	9, -1, NULL);
 static DEFINE_PRCC_CLK(1, slimbus0, 	8,  8, &clk_slimclk);
 static DEFINE_PRCC_CLK(1, spi3_ed, 	7,  7, NULL);
+static DEFINE_PRCC_CLK(1, spi3_v1, 	7, -1, NULL);
 static DEFINE_PRCC_CLK(1, i2c2, 	6,  6, &clk_i2cclk);
 static DEFINE_PRCC_CLK(1, sdi0,		5,  5, &clk_sdmmcclk);
 static DEFINE_PRCC_CLK(1, msp1_ed, 	4,  4, &clk_msp02clk);
+static DEFINE_PRCC_CLK(1, msp1_v1, 	4,  4, &clk_msp1clk);
 static DEFINE_PRCC_CLK(1, msp0, 	3,  3, &clk_msp02clk);
 static DEFINE_PRCC_CLK(1, i2c1, 	2,  2, &clk_i2cclk);
 static DEFINE_PRCC_CLK(1, uart1, 	1,  1, &clk_uartclk);
@@ -211,6 +238,19 @@ static DEFINE_PRCC_CLK(2, spi1_ed, 	 2, -1, NULL);
 static DEFINE_PRCC_CLK(2, spi2_ed, 	 1, -1, NULL);
 static DEFINE_PRCC_CLK(2, i2c3_ed, 	 0,  0, &clk_i2cclk);
 
+static DEFINE_PRCC_CLK(2, gpio1_v1,	11, -1, NULL);
+static DEFINE_PRCC_CLK(2, ssitx_v1, 	10,  7, NULL);
+static DEFINE_PRCC_CLK(2, ssirx_v1, 	 9,  6, NULL);
+static DEFINE_PRCC_CLK(2, spi0_v1, 	 8, -1, NULL);
+static DEFINE_PRCC_CLK(2, sdi3_v1, 	 7,  5, &clk_sdmmcclk);
+static DEFINE_PRCC_CLK(2, sdi1_v1, 	 6,  4, &clk_sdmmcclk);
+static DEFINE_PRCC_CLK(2, msp2_v1, 	 5,  3, &clk_msp02clk);
+static DEFINE_PRCC_CLK(2, sdi4_v1, 	 4,  2, &clk_sdmmcclk);
+static DEFINE_PRCC_CLK(2, pwl_v1,	 3,  1, NULL);
+static DEFINE_PRCC_CLK(2, spi1_v1, 	 2, -1, NULL);
+static DEFINE_PRCC_CLK(2, spi2_v1, 	 1, -1, NULL);
+static DEFINE_PRCC_CLK(2, i2c3_v1, 	 0,  0, &clk_i2cclk);
+
 /* Peripheral Cluster #3 */
 static DEFINE_PRCC_CLK(3, gpio2, 	8, -1, NULL);
 static DEFINE_PRCC_CLK(3, sdi5, 	7,  7, &clk_sdmmcclk);
@@ -220,6 +260,8 @@ static DEFINE_PRCC_CLK(3, sdi2, 	4,  4, &clk_sdmmcclk);
 static DEFINE_PRCC_CLK(3, i2c0, 	3,  3, &clk_i2cclk);
 static DEFINE_PRCC_CLK(3, ssp1_ed, 	2,  2, &clk_i2cclk);
 static DEFINE_PRCC_CLK(3, ssp0_ed, 	1,  1, &clk_i2cclk);
+static DEFINE_PRCC_CLK(3, ssp1_v1, 	2,  2, &clk_sspclk);
+static DEFINE_PRCC_CLK(3, ssp0_v1, 	1,  1, &clk_sspclk);
 static DEFINE_PRCC_CLK(3, fsmc, 	0, -1, NULL);
 
 /* Peripheral Cluster #4 is in the always on domain */
@@ -227,16 +269,22 @@ static DEFINE_PRCC_CLK(3, fsmc, 	0, -1, NULL);
 /* Peripheral Cluster #5 */
 static DEFINE_PRCC_CLK(5, gpio3, 	1, -1, NULL);
 static DEFINE_PRCC_CLK(5, usb_ed, 	0,  0, &clk_i2cclk);
+static DEFINE_PRCC_CLK(5, usb_v1, 	0,  0, NULL);
 
 /* Peripheral Cluster #6 */
 
+static DEFINE_PRCC_CLK(6, mtu1_v1, 	8, -1, NULL);
+static DEFINE_PRCC_CLK(6, mtu0_v1, 	7, -1, NULL);
+static DEFINE_PRCC_CLK(6, cfgreg_v1, 	6,  6, NULL);
 static DEFINE_PRCC_CLK(6, dmc_ed, 	6,  6, NULL);
 static DEFINE_PRCC_CLK(6, hash1, 	5, -1, NULL);
+static DEFINE_PRCC_CLK(6, unipro_v1, 	4,  1, &clk_uniproclk);
 static DEFINE_PRCC_CLK(6, cryp1_ed, 	4, -1, NULL);
 static DEFINE_PRCC_CLK(6, pka, 		3, -1, NULL);
 static DEFINE_PRCC_CLK(6, hash0, 	2, -1, NULL);
 static DEFINE_PRCC_CLK(6, cryp0, 	1, -1, NULL);
 static DEFINE_PRCC_CLK(6, rng_ed, 	0,  0, &clk_i2cclk);
+static DEFINE_PRCC_CLK(6, rng_v1, 	0,  0, &clk_rngclk);
 
 /* Peripheral Cluster #7 */
 
@@ -377,6 +425,59 @@ static struct clk_lookup u8500_ed_clkregs[] = {
 	CLK(cfgreg_ed, "cfgreg", NULL),
 };
 
+static struct clk_lookup u8500_v1_clkregs[] = {
+	/* Peripheral Cluster #1 */
+	CLK(i2c4, "STM-I2C.4", NULL),
+	CLK(spi3_v1, "spi3", NULL),
+	CLK(msp1_v1, "msp1", NULL),
+	CLK(msp1_v1, "MSP_I2S.1", NULL),
+
+	/* Peripheral Cluster #2 */
+	CLK(gpio1_v1, "gpioblock1", NULL),
+	CLK(ssitx_v1, "ssitx", NULL),
+	CLK(ssirx_v1, "ssirx", NULL),
+	CLK(spi0_v1, "spi0", NULL),
+	CLK(sdi3_v1, "sdi3", NULL),
+	CLK(sdi1_v1, "sdi1", NULL),
+	CLK(msp2_v1, "msp2", NULL),
+	CLK(msp2_v1, "MSP_I2S.2", NULL),
+	CLK(sdi4_v1, NULL, "EMMC"), /* remove */
+	CLK(sdi4_v1, "sdi4", NULL),
+	CLK(pwl_v1, "pwl", NULL),
+	CLK(spi1_v1, "spi1", NULL),
+	CLK(spi2_v1, "spi2", NULL),
+	CLK(i2c3_v1, "STM-I2C.3", NULL),
+
+	/* Peripheral Cluster #3 */
+	CLK(ssp1_v1, "ssp1", NULL),
+	CLK(ssp0_v1, "ssp0", NULL),
+
+	/* Peripheral Cluster #5 */
+	CLK(usb_ed, "musb_hdrc.0", "usb"),
+
+	/* Peripheral Cluster #6 */
+	CLK(mtu1_v1, "mtu1", NULL),
+	CLK(mtu0_v1, "mtu0", NULL),
+	CLK(cfgreg_v1, "cfgreg", NULL),
+	CLK(hash1, "hash1", NULL),
+	CLK(unipro_v1, "unipro", NULL),
+	CLK(rng_v1, "rng", NULL),
+
+	/*
+	 * PRCMU level clock gating
+	 */
+
+	/* Bank 0 */
+	CLK(msp1clk, "MSP1", NULL),
+	CLK(uniproclk, "uniproclk", NULL),
+	CLK(sspclk, "SSP", NULL),
+	CLK(dsialtclk, "dsialt", NULL),
+
+	/* Bank 1 */
+	CLK(rngclk, "rng", NULL),
+	CLK(uiccclk, "uicc", NULL),
+};
+
 static void clk_register(struct clk *clk);
 
 static void clks_register(struct clk_lookup *clks, size_t num)
@@ -391,8 +492,17 @@ static void clks_register(struct clk_lookup *clks, size_t num)
 
 static int __init clk_init(void)
 {
+	if (u8500_is_earlydrop()) {
+		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
+		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
+	}
+
 	clks_register(u8500_common_clkregs, ARRAY_SIZE(u8500_common_clkregs));
-	clks_register(u8500_ed_clkregs, ARRAY_SIZE(u8500_ed_clkregs));
+
+	if (u8500_is_earlydrop())
+		clks_register(u8500_ed_clkregs, ARRAY_SIZE(u8500_ed_clkregs));
+	else
+		clks_register(u8500_v1_clkregs, ARRAY_SIZE(u8500_v1_clkregs));
 
 	return 0;
 }
