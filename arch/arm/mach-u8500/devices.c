@@ -54,6 +54,15 @@
 extern void __init add_u8500_platform_devices(void);
 int platform_id = MOP500_PLATFORM_ID;
 
+int u8500_is_earlydrop(void)
+{
+	unsigned int *address = (void *)IO_ADDRESS(U8500_BOOTROM_BASE)
+				+ U8500_BOOTROM_ASIC_ID_OFFSET;
+
+	/* 0x01 for ED, 0xA0 for v1 */
+	return (readl(address) & 0xff) == 0x01;
+}
+
 /* we have equally similar boards with very minimal
  * changes, so we detect the platform during boot
  */
@@ -1548,11 +1557,9 @@ static struct amba_device rtc_device = {
  *  SOC specifc drivers whcih are used as platform devices
  */
 
-static struct map_desc u8500_io_desc[] __initdata = {
-	{IO_ADDRESS(U8500_MTU0_BASE), __phys_to_pfn(U8500_MTU0_BASE), SZ_4K,
-	 MT_DEVICE},
-	{IO_ADDRESS(U8500_MTU1_BASE), __phys_to_pfn(U8500_MTU1_BASE), SZ_4K,
-	 MT_DEVICE},
+static struct map_desc u8500_common_io_desc[] __initdata = {
+	{IO_ADDRESS(U8500_BOOTROM_BASE), __phys_to_pfn(U8500_BOOTROM_BASE), SZ_4K,
+	 MT_DEVICE_CACHED},
 	{IO_ADDRESS(U8500_UART0_BASE), __phys_to_pfn(U8500_UART0_BASE), SZ_4K,
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_MSP0_BASE), __phys_to_pfn(U8500_MSP0_BASE), SZ_4K,
@@ -1625,10 +1632,24 @@ static struct map_desc u8500_io_desc[] __initdata = {
 	 MT_DEVICE},
 };
 
+static struct map_desc u8500_ed_io_desc[] __initdata = {
+	{IO_ADDRESS(U8500_MTU0_BASE_ED), __phys_to_pfn(U8500_MTU0_BASE_ED), SZ_4K,
+	 MT_DEVICE},
+	{IO_ADDRESS(U8500_MTU1_BASE_ED), __phys_to_pfn(U8500_MTU1_BASE_ED), SZ_4K,
+	 MT_DEVICE},
+};
+
+static struct map_desc u8500_v1_io_desc[] __initdata = {
+	{IO_ADDRESS(U8500_MTU0_BASE_V1), __phys_to_pfn(U8500_MTU0_BASE_V1), SZ_4K,
+	 MT_DEVICE},
+	{IO_ADDRESS(U8500_MTU1_BASE_V1), __phys_to_pfn(U8500_MTU1_BASE_V1), SZ_4K,
+	 MT_DEVICE},
+};
+
 static struct resource u8500_dma_resources[] = {
 	[0] = {
-		.start = U8500_DMA_BASE,
-		.end = U8500_DMA_BASE + SZ_4K - 1,
+		.start = U8500_DMA_BASE_V1,
+		.end = U8500_DMA_BASE_V1 + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
@@ -2002,7 +2023,12 @@ static struct platform_device musb_device = {
 
 static void __init u8500_map_io(void)
 {
-	iotable_init(u8500_io_desc, ARRAY_SIZE(u8500_io_desc));
+	iotable_init(u8500_common_io_desc, ARRAY_SIZE(u8500_common_io_desc));
+
+	if (u8500_is_earlydrop())
+		iotable_init(u8500_ed_io_desc, ARRAY_SIZE(u8500_ed_io_desc));
+	else
+		iotable_init(u8500_v1_io_desc, ARRAY_SIZE(u8500_v1_io_desc));
 }
 
 static void __init u8500_gic_init_irq(void)
@@ -2182,9 +2208,18 @@ static int __init u8500_l2x0_init(void)
 early_initcall(u8500_l2x0_init);
 #endif
 
+static void __init u8500_earlydrop_fixup(void)
+{
+	u8500_dma_resources[0].start = U8500_DMA_BASE_ED;
+	u8500_dma_resources[0].end = U8500_DMA_BASE_ED + SZ_4K - 1;
+}
+
 static void __init u8500_platform_init(void)
 {
 	int i;
+
+	if (u8500_is_earlydrop())
+		u8500_earlydrop_fixup();
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];

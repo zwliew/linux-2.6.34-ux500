@@ -12,7 +12,7 @@
 	mrc	p15, 0, \rx, c1, c0
 	tst	\rx, #1			@MMU enabled?
 	moveq	\rx, #0x80000000	@MMU off, Physical address
-	movne	\rx, #0xF0000000	@MMU on, Virtual address
+	movne	\rx, #0xF8000000	@MMU on, Virtual address
 	orr	\rx, \rx, #0x7000
 	.endm
 

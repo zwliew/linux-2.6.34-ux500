@@ -143,8 +143,13 @@ static void __init u8500_timer_init(void)
 	u8500_cycle = (rate + HZ/2) / HZ;
 
 	/* Save global pointer to mtu, used by functions above */
-	mtu0_base = (void *)IO_ADDRESS(U8500_MTU0_BASE);
-	mtu1_base = (void *)IO_ADDRESS(U8500_MTU1_BASE);
+	if (u8500_is_earlydrop()) {
+		mtu0_base = (void *)IO_ADDRESS(U8500_MTU0_BASE_ED);
+		mtu1_base = (void *)IO_ADDRESS(U8500_MTU1_BASE_ED);
+	} else {
+		mtu0_base = (void *)IO_ADDRESS(U8500_MTU0_BASE_V1);
+		mtu1_base = (void *)IO_ADDRESS(U8500_MTU1_BASE_V1);
+	}
 
 	/* Init the timer and register clocksource */
 	u8500_timer_reset();

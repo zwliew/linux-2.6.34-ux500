@@ -15,10 +15,13 @@
 #define IO_START		0x10100000	/* PA of IO */
 
 /*
- * macro to get at IO space when running virtually - Bug in this macro FIXME!
- * 0x1234.0000 0x2234.0000 maps to the same VA which is wrong!!
+ * macro to get at IO space when running virtually
  */
-#define IO_ADDRESS(x) ((x) | IO_BASE)
+#define IO_ADDRESS(x)		(((x) & 0x0fffffff) + (((x) >> 4) & 0x0f000000) + IO_BASE)
+
+#ifndef __ASSEMBLER__
+extern int u8500_is_earlydrop(void);
+#endif
 
 /*
  * Base address definitions for U8500 Onchip IPs. All the
@@ -38,14 +41,15 @@
 
 #define U8500_PER6_BASE		0xa03c0000
 #define U8500_PER5_BASE		0xa03e0000
-#define U8500_PER7_BASE		0xa03d0000
+#define U8500_PER7_BASE_ED	0xa03d0000
 
 #define U8500_SVA_BASE		0xa0100000
 #define U8500_SIA_BASE		0xa0200000
 
 #define U8500_SGA_BASE		0xa0300000
 #define U8500_MCDE_BASE		0xa0350000
-#define U8500_DMA_BASE		0xa0362000
+#define U8500_DMA_BASE_ED	0xa0362000
+#define U8500_DMA_BASE_V1	0x801C0000
 
 #define U8500_SCU_BASE		0xa0410000
 #define U8500_GIC_CPU_BASE	0xa0410100
@@ -76,11 +80,11 @@
 #define GPIO_BANK8_BASE		(U8500_PER5_BASE + 0x1E000)
 
 /* per7 base addressess */
-#define U8500_CR_BASE		(U8500_PER7_BASE + 0x8000)
-#define U8500_MTU0_BASE		(U8500_PER7_BASE + 0xa000)
-#define U8500_MTU1_BASE		(U8500_PER7_BASE + 0xb000)
-#define U8500_TZPC0_BASE	(U8500_PER7_BASE + 0xc000)
-#define U8500_CLKRST7_BASE	(U8500_PER7_BASE + 0xf000)
+#define U8500_CR_BASE_ED	(U8500_PER7_BASE_ED + 0x8000)
+#define U8500_MTU0_BASE_ED	(U8500_PER7_BASE_ED + 0xa000)
+#define U8500_MTU1_BASE_ED	(U8500_PER7_BASE_ED + 0xb000)
+#define U8500_TZPC0_BASE_ED	(U8500_PER7_BASE_ED + 0xc000)
+#define U8500_CLKRST7_BASE	(U8500_PER7_BASE_ED + 0xf000)
 
 /* per6 base addressess */
 #define U8500_RNG_BASE		(U8500_PER6_BASE + 0x0000)
@@ -89,6 +93,10 @@
 #define U8500_CRYPTO0_BASE	(U8500_PER6_BASE + 0xa000)
 #define U8500_CRYPTO1_BASE	(U8500_PER6_BASE + 0xb000)
 #define U8500_CLKRST6_BASE	(U8500_PER6_BASE + 0xf000)
+
+#define U8500_MTU0_BASE_V1	(U8500_PER6_BASE + 0x6000)
+#define U8500_MTU1_BASE_V1	(U8500_PER6_BASE + 0x7000)
+#define U8500_CR_BASE_V1	(U8500_PER6_BASE + 0x8000)
 
 /* per5 base addressess */
 #define U8500_USBOTG_BASE	(U8500_PER5_BASE + 0x00000)
@@ -147,6 +155,10 @@
 #define U8500_ESRAM_BASE	0x40000000
 #define U8500_ESRAM_DMA_LCLA_OFFSET	0x80000
 #define U8500_ESRAM_DMA_LCPA_OFFSET	0x84000
+
+/* Last page of Boot ROM */
+#define U8500_BOOTROM_BASE	0x9001f000
+#define U8500_BOOTROM_ASIC_ID_OFFSET	0x0ff4
 
 #define U8500_DMA_LCLA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCLA_OFFSET)
 #define U8500_DMA_LCPA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCPA_OFFSET)
