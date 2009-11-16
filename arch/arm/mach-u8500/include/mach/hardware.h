@@ -147,6 +147,7 @@ extern int u8500_is_earlydrop(void);
 #define U8500_SDI0_BASE		(U8500_PER1_BASE + 0x6000)
 #define U8500_I2C2_BASE		(U8500_PER1_BASE + 0x8000)
 #define U8500_SPI3_BASE		(U8500_PER1_BASE + 0x9000)
+#define U8500_I2C4_BASE		(U8500_PER1_BASE + 0xa000)
 #define U8500_SLIM0_BASE	(U8500_PER1_BASE + 0xb000)
 #define U8500_CLKRST1_BASE	(U8500_PER1_BASE + 0xf000)
 
@@ -239,6 +240,7 @@ extern int u8500_is_earlydrop(void);
 #define I2C1_LP_OWNADDR 0x60
 #define I2C2_LP_OWNADDR 0x70
 #define I2C3_LP_OWNADDR 0x80
+#define I2C4_LP_OWNADDR 0x90
 
 /* SDMMC specific declarations */
 #define SDI_PER_ID		0x00480180

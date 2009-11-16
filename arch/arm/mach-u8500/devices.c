@@ -99,9 +99,7 @@ __setup("board_id=", board_id_setup);
 	.dev_name = _name }
 
 static struct gpio_altfun_data gpio_altfun_table[] = {
-#if !defined(CONFIG_U8500_ED)
 	__GPIO_ALT(GPIO_ALT_I2C_4, 4, 5, 0, GPIO_ALTF_B, "i2c4"),
-#endif
 	__GPIO_ALT(GPIO_ALT_I2C_1, 16, 17, 0, GPIO_ALTF_B, "i2c1"),
 	__GPIO_ALT(GPIO_ALT_I2C_2, 8, 9, 0, GPIO_ALTF_B, "i2c2"),
 	__GPIO_ALT(GPIO_ALT_I2C_0, 147, 148, 0, GPIO_ALTF_A, "i2c0"),
@@ -490,6 +488,19 @@ static struct resource u8500_i2c_3_resources[] = {
 	}
 };
 
+static struct resource u8500_i2c_4_resources[] = {
+	[0] = {
+		.start = U8500_I2C4_BASE,
+		.end = U8500_I2C4_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+		},
+	[1] = {
+		.start = IRQ_I2C4,
+		.end = IRQ_I2C4,
+		.flags = IORESOURCE_IRQ
+	}
+};
+
 static struct i2c_platform_data u8500_i2c_0_private_data = {
 	.gpio_alt_func = GPIO_ALT_I2C_0,
 	.name = "i2c0",
@@ -586,6 +597,30 @@ static struct i2c_platform_data u8500_i2c_3_private_data = {
 	.i2c_rx_int_threshold = 1
 };
 
+static struct i2c_platform_data u8500_i2c_4_private_data = {
+	.gpio_alt_func = GPIO_ALT_I2C_4,
+	.name = "i2c4",
+	.own_addr = I2C4_LP_OWNADDR,
+	.mode = I2C_FREQ_MODE_STANDARD,
+	.input_freq = STD_F_IN_HZ,
+	.clk_freq = STD_SPEED_IN_HZ,
+	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
+	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
+	.dma_sync_logic_control = I2C_DISABLED,
+	.start_byte_procedure = I2C_DISABLED,
+	.slave_data_setup_time = 0xE,
+	.bus_control_mode = I2C_BUS_MASTER_MODE,
+	.i2c_loopback_mode = I2C_DISABLED,
+#ifdef CONFIG_U8500_I2C_POLLINGMODE
+	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
+#else
+	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
+#endif
+	.high_speed_master_code = 0,
+	.i2c_tx_int_threshold = 1,
+	.i2c_rx_int_threshold = 1
+};
+
 static struct platform_device u8500_i2c_0_controller = {
 	.name = "STM-I2C",
 	.id = 0,
@@ -620,6 +655,15 @@ static struct platform_device u8500_i2c_3_controller = {
 	.resource = u8500_i2c_3_resources,
 	.dev = {
 		.platform_data = &u8500_i2c_3_private_data}
+};
+
+static struct platform_device u8500_i2c_4_controller = {
+	.name = "STM-I2C",
+	.id = 4,
+	.num_resources = 2,
+	.resource = u8500_i2c_4_resources,
+	.dev = {
+		.platform_data = &u8500_i2c_4_private_data}
 };
 #endif
 
@@ -1644,6 +1688,10 @@ static struct map_desc u8500_v1_io_desc[] __initdata = {
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_MTU1_BASE_V1), __phys_to_pfn(U8500_MTU1_BASE_V1), SZ_4K,
 	 MT_DEVICE},
+#if (defined(CONFIG_I2C_STM) || defined(CONFIG_I2C_STM_MODULE))
+	{IO_ADDRESS(U8500_I2C4_BASE), __phys_to_pfn(U8500_I2C4_BASE), SZ_4K,
+	 MT_DEVICE},
+#endif
 };
 
 static struct resource u8500_dma_resources[] = {
@@ -2147,6 +2195,12 @@ static struct platform_device *core_devices[] __initdata = {
 #endif
 };
 
+static struct platform_device *core_v1_devices[] __initdata = {
+#if defined(CONFIG_I2C_STM)
+	&u8500_i2c_4_controller,
+#endif
+};
+
 static struct amba_device *amba_devs[] __initdata = {
 	&gpio0_device,
 	&gpio1_device,
@@ -2226,8 +2280,13 @@ static void __init u8500_platform_init(void)
 		amba_device_register(d, &iomem_resource);
 	}
 	platform_add_devices(core_devices, ARRAY_SIZE(core_devices));
+	if (!u8500_is_earlydrop())
+		platform_add_devices(core_v1_devices,
+				     ARRAY_SIZE(core_v1_devices));
+
 	i2s_register_board_info(stm_i2s_board_info,
 			ARRAY_SIZE(stm_i2s_board_info));
+
 	add_u8500_platform_devices();
 
 	/* enable all the alternate gpio's for all UART's
