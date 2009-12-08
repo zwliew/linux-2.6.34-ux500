@@ -57,7 +57,7 @@
 #define I2C_CR_DMA_SLE_POS	11
 #define I2C_CR_LM_POS		12
 #define I2C_CR_FON_POS		13
-
+#define I2C_CR_FS_POS		15
 
 #define I2C_CR_PE          ((u32)(0x1UL << I2C_CR_PE_POS))
 #define I2C_CR_OM          ((u32)(0x3UL << I2C_CR_OM_POS))
@@ -71,6 +71,7 @@
 #define I2C_CR_DMA_SLE     ((u32)(0x1UL << I2C_CR_DMA_SLE_POS))
 #define I2C_CR_LM          ((u32)(0x1UL << I2C_CR_LM_POS))
 #define I2C_CR_FON         ((u32)(0x3UL << I2C_CR_FON_POS))
+#define I2C_CR_FS		((u32)(0x3UL << I2C_CR_FS_POS))
 
 /*
  * I2C :: Slave Controller Register
@@ -374,7 +375,8 @@ struct i2c_driver_data {
 	struct completion xfer_complete;
 };
 
-#define STD_F_IN_HZ    48000000
+//#define STD_F_IN_HZ    48000000
+#define STD_F_IN_HZ    24000000
 #define STD_SPEED_IN_HZ 100000
 
 #define I2C_FIFO_FLUSH_COUNTER 5000000
