@@ -515,7 +515,7 @@ static struct i2c_platform_data u8500_i2c_0_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_U8500_I2C_POLLINGMODE
+#ifdef CONFIG_STM_I2C_POLLINGMODE
 	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
 #else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
@@ -539,7 +539,7 @@ static struct i2c_platform_data u8500_i2c_1_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_U8500_I2C_POLLINGMODE
+#ifdef CONFIG_STM_I2C_POLLINGMODE
 	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
 #else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
@@ -563,7 +563,7 @@ static struct i2c_platform_data u8500_i2c_2_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_U8500_I2C_POLLINGMODE
+#ifdef CONFIG_STM_I2C_POLLINGMODE
 	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
 #else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
@@ -587,7 +587,7 @@ static struct i2c_platform_data u8500_i2c_3_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_U8500_I2C_POLLINGMODE
+#ifdef CONFIG_STM_I2C_POLLINGMODE
 	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
 #else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
@@ -611,7 +611,7 @@ static struct i2c_platform_data u8500_i2c_4_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_U8500_I2C_POLLINGMODE
+#ifdef CONFIG_STM_I2C_POLLINGMODE
 	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
 #else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
@@ -1867,7 +1867,6 @@ static int mmc_configure(struct amba_device *dev)
 {
 	int i;
 	if (MOP500_PLATFORM_ID == platform_id)	{
-
 		/* enable egpio 18, 19 for enabling level shifter */
 		gpio_set_value(286, 1);
 		gpio_set_value(287, 1);
@@ -1878,10 +1877,12 @@ static int mmc_configure(struct amba_device *dev)
 		gpio_direction_output(EGPIO_PIN_18, GPIO_HIGH);
 		gpio_set_value(EGPIO_PIN_17, GPIO_HIGH);
 		gpio_set_value(EGPIO_PIN_18, GPIO_HIGH);
+#if defined(CONFIG_GPIO_TC35892)
 		/* Enabling the card detection interrupt */
 		tc35892_set_gpio_intr_conf(EGPIO_PIN_3, EDGE_SENSITIVE,
 				TC35892_BOTH_EDGE);
 		tc35892_set_intr_enable(EGPIO_PIN_3, ENABLE_INTERRUPT);
+#endif
 		}
 	}
 	for (i = 18; i <= 28; i++)	{
