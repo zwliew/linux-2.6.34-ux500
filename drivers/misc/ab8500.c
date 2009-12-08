@@ -532,7 +532,10 @@ static int __init ab8500_probe(struct platform_device *pdev)
 	else if (ab8500->revision == 0x10)
 		dev_info(&pdev->dev, "Detected chip: %s, revision = %x\n",
 			ab8500_driver.driver.name, ab8500->revision);
-	else {
+	else if (ab8500->revision == 0x11)
+		dev_info(&pdev->dev, "Detected chip: %s, revision = %x\n",
+			ab8500_driver.driver.name, ab8500->revision);
+	else	{
 		dev_err(&pdev->dev, "unknown chip: 0x%x\n", ab8500->revision);
 		result = -EINTR;
 		goto err_interface;
