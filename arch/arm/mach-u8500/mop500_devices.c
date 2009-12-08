@@ -702,11 +702,14 @@ __init void add_u8500_platform_devices(void)
 	printk(KERN_INFO "%s(): registering device resources\n", __func__);
 
 #ifdef CONFIG_I2C_BOARDINFO
-#if defined(CONFIG_GPIO_STMPE2401) || defined(CONFIG_GPIO_TC35892)
+#if defined(CONFIG_GPIO_STMPE2401)/* || defined(CONFIG_GPIO_TC35892)*/
 	if (MOP500_PLATFORM_ID == platform_id) {
 		i2c_register_board_info(0, nmdk_i2c0_egpio_devices,
 				ARRAY_SIZE(nmdk_i2c0_egpio_devices));
-	} else if (HREF_PLATFORM_ID == platform_id) {
+	}
+#endif
+#if defined(CONFIG_GPIO_TC35892)
+	if (HREF_PLATFORM_ID == platform_id) {
 		i2c_register_board_info(0, nmdk_i2c0_egpio1_devices,
 				ARRAY_SIZE(nmdk_i2c0_egpio1_devices));
 	}
