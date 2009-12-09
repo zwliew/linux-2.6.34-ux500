@@ -2267,6 +2267,8 @@ static void __init u8500_earlydrop_fixup(void)
 {
 	u8500_dma_resources[0].start = U8500_DMA_BASE_ED;
 	u8500_dma_resources[0].end = U8500_DMA_BASE_ED + SZ_4K - 1;
+
+#if defined (CONFIG_U8500_SHRM)
 	/* start and end are same? looks buggy, shrm people? -FIXME */
 	u8500_shrm_resources[1].start = IRQ_CA_WAKE_REQ_ED;
 	u8500_shrm_resources[1].end = IRQ_CA_WAKE_REQ_ED;
@@ -2278,6 +2280,7 @@ static void __init u8500_earlydrop_fixup(void)
 	u8500_shrm_resources[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
 	u8500_shrm_resources[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
 	u8500_shrm_resources[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
+#endif
 }
 
 static void __init u8500_platform_init(void)
