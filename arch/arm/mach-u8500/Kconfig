@@ -42,21 +42,6 @@ config ARCH_HAS_CPU_IDLE_WAIT
 
 choice
 
-prompt "U8500 sub architecture"
-	default MACH_U8500_ED
-	depends on MACH_U8500_MOP
-
-config U8500_V1
-	bool "8500_cut_v1"
-	depends on MACH_U8500_MOP
-	help
-		Supports 8500 silicon cut v1.0 based target platform
-
-config U8500_ED
-	bool "8500_ED"
-	depends on MACH_U8500_MOP
-	help
-		Supports 8500 silicon early drop based target platform
 endchoice
 
 source "arch/arm/mach-u8500/Kconfig-arch"
