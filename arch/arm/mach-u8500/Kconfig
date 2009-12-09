@@ -40,10 +40,6 @@ config U8500_CPUFREQ
 config ARCH_HAS_CPU_IDLE_WAIT
     def_bool y
 
-choice
-
-endchoice
-
 source "arch/arm/mach-u8500/Kconfig-arch"
 source "arch/arm/mach-u8500/sim8500_Kconfig"
 source "arch/arm/mach-u8500/mop500_Kconfig"
