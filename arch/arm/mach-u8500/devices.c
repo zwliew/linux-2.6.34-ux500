@@ -1413,32 +1413,32 @@ static struct resource u8500_shrm_resources[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
-		.start = IRQ_CA_WAKE_REQ,
-		.end = IRQ_CA_WAKE_REQ,
+		.start = IRQ_CA_WAKE_REQ_V1,
+		.end = IRQ_CA_WAKE_REQ_V1,
 		.name = "ca_irq_wake_req",
 		.flags = IORESOURCE_IRQ,
 	},
 	[2] = {
-		.start = IRQ_AC_READ_NOTIFICATION_0,
-		.end = IRQ_AC_READ_NOTIFICATION_0,
+		.start = IRQ_AC_READ_NOTIFICATION_0_V1,
+		.end = IRQ_AC_READ_NOTIFICATION_0_V1,
 		.name = "ac_read_notification_0_irq",
 		.flags = IORESOURCE_IRQ,
 	},
 	[3] = {
-		.start = IRQ_AC_READ_NOTIFICATION_1,
-		.end = IRQ_AC_READ_NOTIFICATION_1,
+		.start = IRQ_AC_READ_NOTIFICATION_1_V1,
+		.end = IRQ_AC_READ_NOTIFICATION_1_V1,
 		.name = "ac_read_notification_1_irq",
 		.flags = IORESOURCE_IRQ,
 	},
 	[4] = {
-		.start = IRQ_CA_MSG_PEND_NOTIFICATION_0,
-		.end = IRQ_CA_MSG_PEND_NOTIFICATION_0,
+		.start = IRQ_CA_MSG_PEND_NOTIFICATION_0_V1,
+		.end = IRQ_CA_MSG_PEND_NOTIFICATION_0_V1,
 		.name = "ca_msg_pending_notification_0_irq",
 		.flags = IORESOURCE_IRQ,
 	},
 	[5] = {
-		.start = IRQ_CA_MSG_PEND_NOTIFICATION_1,
-		.end = IRQ_CA_MSG_PEND_NOTIFICATION_1,
+		.start = IRQ_CA_MSG_PEND_NOTIFICATION_1_V1,
+		.end = IRQ_CA_MSG_PEND_NOTIFICATION_1_V1,
 		.name = "ca_msg_pending_notification_1_irq",
 		.flags = IORESOURCE_IRQ,
 	}
@@ -2267,6 +2267,17 @@ static void __init u8500_earlydrop_fixup(void)
 {
 	u8500_dma_resources[0].start = U8500_DMA_BASE_ED;
 	u8500_dma_resources[0].end = U8500_DMA_BASE_ED + SZ_4K - 1;
+	/* start and end are same? looks buggy, shrm people? -FIXME */
+	u8500_shrm_resources[1].start = IRQ_CA_WAKE_REQ_ED;
+	u8500_shrm_resources[1].end = IRQ_CA_WAKE_REQ_ED;
+	u8500_shrm_resources[2].start = IRQ_AC_READ_NOTIFICATION_0_ED;
+	u8500_shrm_resources[2].end = IRQ_AC_READ_NOTIFICATION_0_ED;
+	u8500_shrm_resources[3].start = IRQ_AC_READ_NOTIFICATION_1_ED;
+	u8500_shrm_resources[3].end = IRQ_AC_READ_NOTIFICATION_1_ED;
+	u8500_shrm_resources[4].start = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
+	u8500_shrm_resources[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
+	u8500_shrm_resources[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
+	u8500_shrm_resources[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
 }
 
 static void __init u8500_platform_init(void)
