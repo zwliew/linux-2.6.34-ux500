@@ -557,7 +557,7 @@ static int __init ab8500_probe(struct platform_device *pdev)
 		ab8500_read(AB8500_INTERRUPT, l_regs[i]);
 		ab8500_write(AB8500_INTERRUPT, m_regs[i], 0xff);
 	}
-	if (ab8500->revision == 0x10)	{
+	if (ab8500->revision == 0x10 || ab8500->revision == 0x11)	{
 		for (i = 5; i <= 9; i++)	{
 			ab8500_read(AB8500_INTERRUPT, l_regs[i]);
 			ab8500_write(AB8500_INTERRUPT, m_regs[i], 0xff);
@@ -567,7 +567,7 @@ static int __init ab8500_probe(struct platform_device *pdev)
 		ab8500_read(AB8500_INTERRUPT, l_regs[i]);
 		ab8500_write(AB8500_INTERRUPT, m_regs[i], 0xff);
 	}
-	if (ab8500->revision == 0x10)	{
+	if (ab8500->revision == 0x10 || ab8500->revision == 0x11)	{
 		for (i = 13; i <= 17; i++)
 			ab8500_write(AB8500_INTERRUPT, m_regs[i], 0xff);
 	}
