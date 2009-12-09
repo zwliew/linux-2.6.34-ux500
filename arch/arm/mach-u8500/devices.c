@@ -1713,21 +1713,6 @@ static struct platform_device u8500_dma_device = {
 	.resource = u8500_dma_resources
 };
 
-#ifdef CONFIG_U8500_RTC
-static struct amba_device rtc_device = {
-	.dev = {
-		.bus_id = "mb:15",
-		},
-	.res = {
-		.start = U8500_RTC_BASE,
-		.end = U8500_RTC_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-		},
-	.irq = {IRQ_RTC_RTT, NO_IRQ},
-	.periphid = RTC_PER_ID,
-};
-#endif
-
 #define NUM_SSP_CLIENTS 10
 
 #if (defined(CONFIG_STM_SSP) || defined(CONFIG_STM_SPI_MODULE))
