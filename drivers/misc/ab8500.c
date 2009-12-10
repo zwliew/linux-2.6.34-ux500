@@ -584,6 +584,12 @@ static int __init ab8500_probe(struct platform_device *pdev)
 				res->start);
 		goto driver_cleanup;
 	}
+
+	/* usb id detection. kick the watch dog timer - FIXME*/
+	ab8500_write(2, 0x201, 1);
+	ab8500_write(2, 0x201, 3);
+	ab8500_write(2, 0x201, 0);
+
 	dev_info(&pdev->dev, "companion chip initialized (in SPI mode)\n");
 	dev_info(&pdev->dev, "rebase this driver to "
 		"http://git.kernel.org/?"
