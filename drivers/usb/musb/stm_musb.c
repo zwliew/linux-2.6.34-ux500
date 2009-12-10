@@ -379,11 +379,14 @@ int __init musb_platform_init(struct musb *musb)
 	ab8500_rev = ab8500_read(AB8500_MISC, 0x1080);
 	#ifdef CONFIG_USB_MUSB_HOST
 		u8 val = 0;
-		if (ab8500_rev == 0x10) {
+		if (ab8500_rev == 0x10 || ab8500_rev == 0x11) {
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, 0xFB);
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
+	ab8500_write(3, 0x382, 0x1);
+	ab8500_write(5, 0x58a, 0x1);
 			ab8500_set_callback_handler(66, usb_host_detect_handler, NULL);
+			ab8500_set_callback_handler(82, usb_host_detect_handler, NULL);
 		} else {
 		#ifndef CONFIG_USB_SERIAL
 			val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG);
@@ -392,7 +395,7 @@ int __init musb_platform_init(struct musb *musb)
 		#endif
 		}
 	#else
-		if (ab8500_rev == 0x10) {
+		if (ab8500_rev == 0x10 || ab8500_rev == 0x11) {
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG, 0x3F);
 			ab8500_set_callback_handler(15, usb_device_detect_handler, NULL);
 			ab8500_set_callback_handler(14, usb_device_remove_handler, NULL);
