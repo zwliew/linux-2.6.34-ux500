@@ -205,40 +205,21 @@ static void print_allocation_map(void)
  */
 static inline void initialize_dma_regs(void)
 {
-#ifndef CONFIG_STM_SECURITY
-	/*Following registers can only be touched in secure mode.
-	 *Normally, we will not modify these registers, as xloader would
-	 *initialize these registers for us.
-	 */
-
-	REG_WR_BITS(io_addr(DREG_GCC), 0x0, FULL32_MASK, NO_SHIFT);
-
-	/* Following registers are giving abort in 8500 even though they are a
-	 * ccessible in non secure mode
-	 * */
-	/*All resources are standard */
-	REG_WR_BITS(io_addr(DREG_PRTYP), 0x55, FULL32_MASK, NO_SHIFT);
-
 	/*
-	 *Following registers can be read in non secure, to determine which mode
-	 *We are in
-	 */
-	REG_WR_BITS(io_addr(DREG_PRSME), 0xaa, FULL32_MASK, NO_SHIFT);
-	REG_WR_BITS(io_addr(DREG_PRSMO), 0xaa, FULL32_MASK, NO_SHIFT);
-
-	/* Following registers can be modified only according to their secure
-	 * bit settings
+	 * Some registers can only be touched in secure mode.  Normally, we
+	 * will not modify these registers, as xloader would initialize these
+	 * registers for us.
+	 *
+	 * It appears that we are allowed a write if we don't change the value
+	 * of the register.
 	 */
 
-#if 0
-	REG_WR_BITS(io_addr(DREG_PRMSE), 0x55, FULL32_MASK, NO_SHIFT);
-	REG_WR_BITS(io_addr(DREG_PRMSO), 0x55, FULL32_MASK, NO_SHIFT);
-	REG_WR_BITS(io_addr(DREG_PRMOE), 0x55, FULL32_MASK, NO_SHIFT);
-	REG_WR_BITS(io_addr(DREG_PRMOO), 0x55, FULL32_MASK, NO_SHIFT);
-
-#endif
+#ifndef CONFIG_STM_SECURITY
+	REG_WR_BITS(io_addr(DREG_GCC), 0xff01, FULL32_MASK, NO_SHIFT);
 #else
 	REG_WR_BITS(io_addr(DREG_GCC), 0x0, FULL32_MASK, NO_SHIFT);
+#endif
+
 	/*All resources are standard */
 	REG_WR_BITS(io_addr(DREG_PRTYP), 0x55555555, FULL32_MASK, NO_SHIFT);
 	/*All in non secure mode */
@@ -288,7 +269,6 @@ static inline void initialize_dma_regs(void)
 	REG_WR_BITS(io_addr(DREG_LCTIS(1)), 0xFFFFFFFF, FULL32_MASK, NO_SHIFT);
 	REG_WR_BITS(io_addr(DREG_LCTIS(2)), 0xFFFFFFFF, FULL32_MASK, NO_SHIFT);
 	REG_WR_BITS(io_addr(DREG_LCTIS(3)), 0xFFFFFFFF, FULL32_MASK, NO_SHIFT);
-#endif
 }
 
 /**
