@@ -38,7 +38,8 @@
 
 #include <mach/dma.h>
 
-#define CONFIG_STM_SECURITY
+/* Define this macro if in non-secure mode */
+/* #define CONFIG_STM_SECURITY */
 #define DRIVER_NAME            "DRIVER DMA"
 
 /* enables/disables debug msgs */
