@@ -1818,6 +1818,20 @@ static int emmc_configure(struct amba_device *dev)
 		gpio_set_value(i, GPIO_PULLUP_DIS);
 	}
 	stm_gpio_altfuncenable(GPIO_ALT_EMMC);
+
+
+	/* FIXME: Move to board file! */
+	if (!u8500_is_earlydrop()) {
+		int val;
+
+		/* On V1 MOP, regulator to on-board eMMC is off by default */
+		val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG);
+		ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG, val | 0x4);
+
+		val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX2_SEL_REG);
+		ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX2_SEL_REG, 0x0C);
+	}
+
 	return 0;
 }
 
