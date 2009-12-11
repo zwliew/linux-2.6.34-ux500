@@ -1883,30 +1883,39 @@ static void mmc_restore_default(struct amba_device *dev)
 {
 
 }
-int mmc_card_detect(void (*callback)(void* parameter), void * host)
+
+static int mmc_card_detect(void (*callback)(void* parameter), void * host)
 {
 	/*
 	 * Card detection interrupt request
 	 */
-	if(MOP500_PLATFORM_ID==platform_id)
+#if defined(CONFIG_GPIO_STMPE2401)
+	if (MOP500_PLATFORM_ID == platform_id)
 		stmpe2401_set_callback(EGPIO_PIN_16,callback,host);
-	else if(HREF_PLATFORM_ID==platform_id) {
+#endif
+
+#if defined(CONFIG_GPIO_TC35892)
+	if (HREF_PLATFORM_ID == platform_id) {
 		tc35892_set_gpio_intr_conf(EGPIO_PIN_3, EDGE_SENSITIVE, TC35892_BOTH_EDGE);
-		tc35892_set_intr_enable(EGPIO_PIN_3,ENABLE_INTERRUPT);
+		tc35892_set_intr_enable(EGPIO_PIN_3, ENABLE_INTERRUPT);
 		tc35892_set_callback(EGPIO_PIN_3, callback, host);
 	}
+#endif
 	return 0;
 }
 
-int mmc_get_carddetect_intr_value(void)
+static int mmc_get_carddetect_intr_value(void)
 {
 	int status;
-	if(MOP500_PLATFORM_ID==platform_id)
+
+	if (MOP500_PLATFORM_ID == platform_id)
 		status = gpio_get_value(EGPIO_PIN_16);
-	else if(HREF_PLATFORM_ID==platform_id)
+	else if (HREF_PLATFORM_ID == platform_id)
 		status = gpio_get_value(EGPIO_PIN_3);
+
 	return status;
 }
+
 static struct mmc_board mmc_data = {
 	.init = mmc_configure,
 	.exit = mmc_restore_default,
