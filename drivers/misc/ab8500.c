@@ -34,26 +34,30 @@ static void ab8500_work(struct work_struct *work);
 static struct ab8500 *ab8500;
 static struct platform_driver ab8500_driver;
 
-static unsigned int s_regs[11] = {
+static unsigned int s_regs[] = {
 	AB8500_IT_SOURCE1_REG,
 	AB8500_IT_SOURCE2_REG,
 	AB8500_IT_SOURCE3_REG,
 	AB8500_IT_SOURCE4_REG,
 	AB8500_IT_SOURCE5_REG,
+	AB8500_IT_SOURCE6_REG,
 	AB8500_IT_SOURCE7_REG,
 	AB8500_IT_SOURCE8_REG,
 	AB8500_IT_SOURCE19_REG,
 	AB8500_IT_SOURCE20_REG,
 	AB8500_IT_SOURCE21_REG,
-	AB8500_IT_SOURCE22_REG
+	AB8500_IT_SOURCE22_REG,
+	AB8500_IT_SOURCE23_REG,
+	AB8500_IT_SOURCE24_REG
 };
 
-static unsigned int l_regs[13] = {
+static unsigned int l_regs[] = {
 	AB8500_IT_LATCH1_REG,
 	AB8500_IT_LATCH2_REG,
 	AB8500_IT_LATCH3_REG,
 	AB8500_IT_LATCH4_REG,
 	AB8500_IT_LATCH5_REG,
+	AB8500_IT_LATCH6_REG,
 	AB8500_IT_LATCH7_REG,
 	AB8500_IT_LATCH8_REG,
 	AB8500_IT_LATCH9_REG,
@@ -61,15 +65,18 @@ static unsigned int l_regs[13] = {
 	AB8500_IT_LATCH19_REG,
 	AB8500_IT_LATCH20_REG,
 	AB8500_IT_LATCH21_REG,
-	AB8500_IT_LATCH22_REG
+	AB8500_IT_LATCH22_REG,
+	AB8500_IT_LATCH23_REG,
+	AB8500_IT_LATCH24_REG
 };
 
-static unsigned int m_regs[21] = {
+static unsigned int m_regs[] = {
 	AB8500_IT_MASK1_REG,
 	AB8500_IT_MASK2_REG,
 	AB8500_IT_MASK3_REG,
 	AB8500_IT_MASK4_REG,
 	AB8500_IT_MASK5_REG,
+	AB8500_IT_MASK6_REG,
 	AB8500_IT_MASK7_REG,
 	AB8500_IT_MASK8_REG,
 	AB8500_IT_MASK9_REG,
@@ -85,7 +92,9 @@ static unsigned int m_regs[21] = {
 	AB8500_IT_MASK19_REG,
 	AB8500_IT_MASK20_REG,
 	AB8500_IT_MASK21_REG,
-	AB8500_IT_MASK22_REG
+	AB8500_IT_MASK22_REG,
+	AB8500_IT_MASK23_REG,
+	AB8500_IT_MASK24_REG
 };
 
 /*
@@ -248,7 +257,8 @@ static void ab8500_work(struct work_struct *work)
 	unsigned long int_src;
 
 	/* read the source interrupt registers */
-	for (i = 0; i < AB8500_MAX_INT_SOURCE; i++) {
+	/* for (i = 0; i < AB8500_MAX_INT_SOURCE; i++) { */
+	for (i = 0; i < ARRAY_SIZE(s_regs); i++) {
 		int_src = ab8500_read(AB8500_INTERRUPT, s_regs[i]);
 		if (!int_src)	{
 			count += 8;
@@ -526,13 +536,8 @@ static int __init ab8500_probe(struct platform_device *pdev)
 	/* read the revision register */
 	ab8500->revision = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 
-	if (ab8500->revision == 0x0)
-		dev_info(&pdev->dev, "Detected chip: %s, revision = %x\n",
-			ab8500_driver.driver.name, ab8500->revision);
-	else if (ab8500->revision == 0x10)
-		dev_info(&pdev->dev, "Detected chip: %s, revision = %x\n",
-			ab8500_driver.driver.name, ab8500->revision);
-	else if (ab8500->revision == 0x11)
+	if (ab8500->revision == 0x0 || ab8500->revision == 0x10
+			|| ab8500->revision == 0x11)
 		dev_info(&pdev->dev, "Detected chip: %s, revision = %x\n",
 			ab8500_driver.driver.name, ab8500->revision);
 	else	{
@@ -584,17 +589,13 @@ static int __init ab8500_probe(struct platform_device *pdev)
 				res->start);
 		goto driver_cleanup;
 	}
-
+#if 0
 	/* usb id detection. kick the watch dog timer - FIXME*/
 	ab8500_write(2, 0x201, 1);
 	ab8500_write(2, 0x201, 3);
 	ab8500_write(2, 0x201, 0);
-
+#endif
 	dev_info(&pdev->dev, "companion chip initialized (in SPI mode)\n");
-	dev_info(&pdev->dev, "rebase this driver to "
-		"http://git.kernel.org/?"
-		"p=linux/kernel/git/sameo/mfd-2.6.git\n");
-
 	return result;
 
 err_interface:
