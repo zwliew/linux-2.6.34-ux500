@@ -495,6 +495,9 @@ static int __init clk_init(void)
 	if (u8500_is_earlydrop()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
+
+		/* FIXME Confirm clock rate and remove this if necessary */
+		clk_sdmmcclk.rate = 50000000;
 	} else {
 		void __iomem *sdmmclkmgt = (void __iomem *) PRCM_SDMMCCLK_MGT;
 		unsigned int val;
