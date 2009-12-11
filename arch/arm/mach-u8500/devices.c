@@ -62,7 +62,6 @@ int u8500_is_earlydrop(void)
 	/* 0x01 for ED, 0xA0 for v1 */
 	return (readl(address) & 0xff) == 0x01;
 }
-EXPORT_SYMBOL(u8500_is_earlydrop);
 
 /* we have equally similar boards with very minimal
  * changes, so we detect the platform during boot
