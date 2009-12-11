@@ -1848,9 +1848,9 @@ static struct mmc_board emmc_data = {
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM4_TX,
 };
 
-static struct amba_device emmc_device = {
+static struct amba_device sdi4_device = {
 	.dev = {
-		.bus_id = "EMMC",
+		.bus_id = "sdi4",
 		.platform_data = &emmc_data,
 	},
 	.res = {
@@ -1870,7 +1870,7 @@ static int mmc_configure(struct amba_device *dev)
 		/* enable egpio 18, 19 for enabling level shifter */
 		gpio_set_value(286, 1);
 		gpio_set_value(287, 1);
-	} else	{
+	} else {
 	if (HREF_PLATFORM_ID == platform_id)	{
 		/* enable egpio 17, 18 for enabling level shifter */
 		gpio_direction_output(EGPIO_PIN_17, GPIO_HIGH);
@@ -1941,9 +1941,9 @@ static struct mmc_board mmc_data = {
 	.level_shifter = 1,
 };
 
-static struct amba_device mmc_device = {
+static struct amba_device sdi0_device = {
 	.dev = {
-		.bus_id = "MMC",
+		.bus_id = "sdi0",
 		.platform_data = &mmc_data,
 	},
 	.res = {
@@ -1954,7 +1954,6 @@ static struct amba_device mmc_device = {
 	.irq = {IRQ_SDMMC0, NO_IRQ },
 		.periphid = SDI_PER_ID,
 };
-
 
 static struct mmc_board sdio_data = {
         .init = mmc_configure,
@@ -1981,6 +1980,45 @@ static struct amba_device sdio_device = {
                 .periphid = SDI_PER_ID,
 };
 
+static int sdi2_init(struct amba_device *dev)
+{
+	int i;
+
+	for (i = 128; i <= 138; i++)	{
+		gpio_set_value(i, GPIO_HIGH);
+		gpio_set_value(i, GPIO_PULLUP_DIS);
+	}
+	stm_gpio_altfuncenable(GPIO_ALT_SDMMC2);
+	return 0;
+}
+
+static void sdi2_exit(struct amba_device *dev)
+{
+	stm_gpio_altfuncdisable(GPIO_ALT_SDMMC2);
+}
+
+static struct mmc_board sdi2_data = {
+	.init = sdi2_init,
+	.exit = sdi2_exit,
+	.dma_fifo_addr = U8500_SDI2_BASE + SD_MMC_TX_RX_REG_OFFSET,
+	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM2_RX,
+	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM2_TX,
+	.level_shifter = 0,
+};
+
+static struct amba_device sdi2_device = {
+	.dev = {
+		.bus_id = "sdi2",
+		.platform_data = &sdi2_data,
+	},
+	.res = {
+		.start = U8500_SDI2_BASE,
+		.end = U8500_SDI2_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	.irq = {IRQ_SDMMC2, NO_IRQ},
+	.periphid = SDI_PER_ID,
+};
 #endif
 
 static struct resource ab8500_resources[] = {
@@ -2211,6 +2249,12 @@ static struct platform_device *core_v1_devices[] __initdata = {
 #endif
 };
 
+static struct amba_device *amba_v1_devs[] __initdata = {
+#if defined(CONFIG_MMC)
+	&sdi2_device,	/* POP eMMC */
+#endif
+};
+
 static struct amba_device *amba_devs[] __initdata = {
 	&gpio0_device,
 	&gpio1_device,
@@ -2230,11 +2274,11 @@ static struct amba_device *amba_devs[] __initdata = {
 	&msp2_device,
 #endif
 #if defined(CONFIG_MMC)
-	&emmc_device,
+	&sdi4_device,	/* On-board eMMC */
 #ifdef CONFIG_U8500_SDIO
 	&sdio_device,
 #else
-	&mmc_device,
+	&sdi0_device,	/* SD/MMC card */
 #endif
 #endif
 #ifdef CONFIG_U8500_RTC
@@ -2292,21 +2336,32 @@ static void __init u8500_earlydrop_fixup(void)
 #endif
 }
 
+static void __init amba_add_devices(struct amba_device *devs[], int num)
+{
+	int i;
+
+	for (i = 0; i < num; i++) {
+		struct amba_device *d = devs[i];
+		amba_device_register(d, &iomem_resource);
+	}
+}
+
 static void __init u8500_platform_init(void)
 {
 	int i;
 
 	if (u8500_is_earlydrop())
 		u8500_earlydrop_fixup();
-
-	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
-		struct amba_device *d = amba_devs[i];
-		amba_device_register(d, &iomem_resource);
-	}
-	platform_add_devices(core_devices, ARRAY_SIZE(core_devices));
-	if (!u8500_is_earlydrop())
+	else {
+		amba_add_devices(amba_v1_devs, ARRAY_SIZE(amba_v1_devs));
 		platform_add_devices(core_v1_devices,
 				     ARRAY_SIZE(core_v1_devices));
+	}
+
+	amba_add_devices(amba_devs, ARRAY_SIZE(amba_devs));
+	platform_add_devices(core_devices, ARRAY_SIZE(core_devices));
+
+	if (!u8500_is_earlydrop())
 
 	i2s_register_board_info(stm_i2s_board_info,
 			ARRAY_SIZE(stm_i2s_board_info));
