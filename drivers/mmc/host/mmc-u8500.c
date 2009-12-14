@@ -1329,9 +1329,15 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		if (ios->clock >= host->mclk)
 			clk |= (MCI_CLK_BYPASS | MCI_NEG_EDGE);
 		else {
-			clk = (host->mclk / ios->clock) - 2;
-			if (clk > 255)
-				clk = 255;
+			u32 div = host->mclk / ios->clock;
+
+			if (div > 2) {
+				clk = div - 2;
+				if (clk > 255)
+					clk = 255;
+			} else
+				clk = 0;
+
 			host->cclk = host->mclk / (clk + 2);
 			if (host->cclk > ios->clock) {
 				clk += 1;
