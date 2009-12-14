@@ -407,7 +407,7 @@ static struct platform_device msp2_device = {
 
 #define NUM_MSP_CLIENTS 10
 
-static struct nmdk_spi_master_cntlr msp2_platform_data = {
+static struct nmdk_spi_master_cntlr msp2_spi_platform_data = {
 	.enable_dma = 1,
 	.id = MSP_2_CONTROLLER,
 	.num_chipselect = NUM_MSP_CLIENTS,
@@ -420,10 +420,10 @@ static struct nmdk_spi_master_cntlr msp2_platform_data = {
 	.device_name = "msp2",
 };
 
-static struct amba_device msp2_device = {
+static struct amba_device msp2_spi_device = {
 	.dev = {
 		.bus_id = "msp2",
-		.platform_data = &msp2_platform_data,
+		.platform_data = &msp2_spi_platform_data,
 		},
 	.res = {
 		.start = U8500_MSP2_BASE,
@@ -2271,7 +2271,7 @@ static struct amba_device *amba_devs[] __initdata = {
 	&spi0_device,
 #endif
 #if (defined(CONFIG_STM_MSP_SPI) || defined(CONFIG_STM_MSP_SPI_MODULE))
-	&msp2_device,
+	&msp2_spi_device,
 #endif
 #if defined(CONFIG_MMC)
 	&sdi4_device,	/* On-board eMMC */
