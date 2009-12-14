@@ -175,7 +175,7 @@ static DEFINE_PRCMU_CLK_RATE(uartclk, 0x0, 5, UARTCLK, 38400000);
 static DEFINE_PRCMU_CLK(msp02clk, 0x0, 6, MSP02CLK);
 static DEFINE_PRCMU_CLK(msp1clk, 0x0, 7, MSP1CLK); /* v1 */
 static DEFINE_PRCMU_CLK(i2cclk, 0x0, 8, I2CCLK);
-static DEFINE_PRCMU_CLK_RATE(sdmmcclk, 0x0, 9, SDMMCCLK, 52000000);
+static DEFINE_PRCMU_CLK_RATE(sdmmcclk, 0x0, 9, SDMMCCLK, 50000000);
 static DEFINE_PRCMU_CLK(slimclk, 0x0, 10, SLIMCLK);
 static DEFINE_PRCMU_CLK(per1clk, 0x0, 11, PER1CLK);
 static DEFINE_PRCMU_CLK(per2clk, 0x0, 12, PER2CLK);
@@ -495,9 +495,6 @@ static int __init clk_init(void)
 	if (u8500_is_earlydrop()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
-
-		/* FIXME Confirm clock rate and remove this if necessary */
-		clk_sdmmcclk.rate = 50000000;
 	} else {
 		void __iomem *sdmmclkmgt = (void __iomem *) PRCM_SDMMCCLK_MGT;
 		unsigned int val;
