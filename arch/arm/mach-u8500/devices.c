@@ -56,7 +56,7 @@ int platform_id = MOP500_PLATFORM_ID;
 
 int u8500_is_earlydrop(void)
 {
-	unsigned int *address = (void *)IO_ADDRESS(U8500_BOOTROM_BASE)
+	void __iomem *address = (void *)IO_ADDRESS(U8500_BOOTROM_BASE)
 				+ U8500_BOOTROM_ASIC_ID_OFFSET;
 
 	/* 0x01 for ED, 0xA0 for v1 */
