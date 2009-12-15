@@ -245,7 +245,6 @@ typedef enum {
  * @name: Name of this I2C controller
  * @own_addr: Own address of this I2C controller on the i2c bus
  * @mode: Freq mode in which this controller will operate(std, fast, highspeed)
- * @input_freq: Input frequency of the I2C controller
  * @clk_freq: Frequenct at which SCL line is driven (e.g. 100 KHz)
  * @slave_addressing_mode: seven or 10 bit addressing
  * @digital_filter_control: Digital Filters to be applied
@@ -265,7 +264,6 @@ struct i2c_platform_data {
 	char name[48];
 	u32 own_addr;
 	i2c_freq_mode_t mode;
-	u32 input_freq;
 	u32 clk_freq;
 	i2c_addr_t slave_addressing_mode;
 	i2c_digital_filter_t digital_filter_control;
@@ -291,7 +289,6 @@ struct i2c_platform_data {
  * @slave_data_setup_time: Slave set up time
  * @slave_addressing_mode: seven or 10 bit addressing
  * @high_speed_master_code: Code for high speed master mode
- * @input_freq: Input frequency of the I2C controller
  * @mode: Standard/fast/Highspeed mode
  * @bus_control_mode: Master/Slave/Dual
  * @i2c_loopback_mode: Loopback mode
@@ -313,7 +310,6 @@ struct i2c_controller_config {
 	u16 slave_data_setup_time;
 	i2c_addr_t slave_addressing_mode;
 	u8 high_speed_master_code;
-	u32 input_freq;
 	i2c_freq_mode_t mode;
 	i2c_bus_control_mode_t bus_control_mode;
 	i2c_control_t i2c_loopback_mode;

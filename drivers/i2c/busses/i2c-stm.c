@@ -989,7 +989,6 @@ static int stm_i2c_probe(struct platform_device *pdev)
 	/*Copy Controller config from Platform data*/
 	drv_data->cfg.own_addr = pdata->own_addr;
 	drv_data->cfg.mode = pdata->mode;
-	drv_data->cfg.input_freq = pdata->input_freq;
 	drv_data->cfg.clk_freq = pdata->clk_freq;
 	drv_data->cfg.slave_addressing_mode = pdata->slave_addressing_mode;
 	drv_data->cfg.digital_filter_control = pdata->digital_filter_control;
