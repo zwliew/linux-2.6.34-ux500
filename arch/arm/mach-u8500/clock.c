@@ -495,6 +495,8 @@ static int __init clk_init(void)
 	if (u8500_is_earlydrop()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
+		/* On the early drop the I2C clock is 24 MHz */
+		clk_i2cclk.rate = 24000000;
 	} else {
 		void __iomem *sdmmclkmgt = (void __iomem *) PRCM_SDMMCCLK_MGT;
 		unsigned int val;
@@ -503,6 +505,8 @@ static int __init clk_init(void)
 		val = readl(sdmmclkmgt);
 		val = (val & ~0x1f) | 16;
 		writel(val, sdmmclkmgt);
+		/* On the V1 ASIC the I2C clock is 48 MHz */
+		clk_i2cclk.rate = 48000000;
 	}
 
 	clks_register(u8500_common_clkregs, ARRAY_SIZE(u8500_common_clkregs));

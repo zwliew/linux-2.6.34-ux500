@@ -303,7 +303,7 @@ static inline void setup_i2c_controller(struct i2c_driver_data *priv)
 	brcr1 =  GEN_MASK(0, I2C_BRCR_BRCNT1, 16);
 	/* modified for touch screen client */
 	if (priv->adap.nr != 3)
-		brcr2 = GEN_MASK((u32)(STD_F_IN_HZ/(priv->cfg.clk_freq*2)),
+		brcr2 = GEN_MASK((u32)(clk_get_rate(priv->clk)/(priv->cfg.clk_freq*2)),
 			I2C_BRCR_BRCNT2, 0);
 	else
 		brcr2 = 0x20;

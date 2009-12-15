@@ -371,8 +371,6 @@ struct i2c_driver_data {
 	struct completion xfer_complete;
 };
 
-#define STD_F_IN_HZ    48000000
-
 #define I2C_FIFO_FLUSH_COUNTER 5000000
 #define I2C_STATUS_UPDATE_COUNTER 5000000
 
