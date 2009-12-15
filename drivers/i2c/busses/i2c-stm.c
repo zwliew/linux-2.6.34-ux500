@@ -343,8 +343,6 @@ void read_index_from_i2c_msg(struct i2c_driver_data *priv, struct i2c_msg *msg)
 	}
 }
 
-
-#ifdef CONFIG_STM_I2C_POLLINGMODE
 /**
  * wait_for_data - Wait till some data arrives in Rx FIFO
  * @priv: private data of I2C Driver
@@ -491,8 +489,6 @@ static inline int transmit_data_polling(struct i2c_driver_data *priv)
 	return 0;
 }
 
-#endif
-
 /**
  * read_i2c_master_mode - Read from I2C client device when cntlr is in M mode
  *
@@ -517,13 +513,11 @@ static inline int read_i2c_master_mode(struct i2c_driver_data *priv)
 	enable_controller(priv);
 
 	switch (priv->cfg.xfer_mode) {
-#ifdef CONFIG_STM_I2C_POLLINGMODE
 	case I2C_TRANSFER_MODE_POLLING:
 	{
 		status = i2c_master_receive_data_polling(priv);
 		break;
 	}
-#else
 	case I2C_TRANSFER_MODE_INTERRUPT:
 	{
 		u32 irq_mask = 0;
@@ -552,7 +546,6 @@ init_completion(&priv->xfer_complete);
 		}
 		break;
 	}
-#endif
 	case I2C_TRANSFER_MODE_DMA:
 	{
 		stm_error("DMA Mode not supported....\n");
@@ -639,13 +632,11 @@ static inline int write_i2c_master_mode(struct i2c_driver_data *priv)
 	enable_controller(priv);
 
 	switch (priv->cfg.xfer_mode) {
-#ifdef CONFIG_STM_I2C_POLLINGMODE
 	case I2C_TRANSFER_MODE_POLLING:
 	{
 		status = transmit_data_polling(priv);
 		break;
 	}
-#else
 	case I2C_TRANSFER_MODE_INTERRUPT:
 	{
 		u32 irq_mask = 0;
@@ -670,8 +661,7 @@ init_completion(&priv->xfer_complete);
 		if (timeout == 0)
 			status = -EIO;
 		break;
-		}
-#endif
+	}
 	case I2C_TRANSFER_MODE_DMA:
 	{
 		stm_error("DMA mode not supported...\n");
@@ -801,9 +791,6 @@ static int stm_i2c_xfer(struct i2c_adapter *i2c_adap,
 	}
 	return status;
 }
-
-
-#ifndef CONFIG_STM_I2C_POLLINGMODE
 
 int disable_i2c_irq_line(void __iomem *regs, int bus_num, u32 irq_line)
 {
@@ -942,7 +929,6 @@ static irqreturn_t stm_i2c_irq_handler(int irq, void *arg)
 	process_interrupt(drv_data);
 	return IRQ_HANDLED;
 }
-#endif
 
 static int stm_i2c_probe(struct platform_device *pdev)
 {
@@ -1026,7 +1012,6 @@ static int stm_i2c_probe(struct platform_device *pdev)
 		goto clk_disable;
 	}
 
-#ifndef CONFIG_STM_I2C_POLLINGMODE
 	retval = request_irq(drv_data->irq, stm_i2c_irq_handler, 0,
 						p_adap->name, drv_data);
 	if (retval < 0) {
@@ -1036,7 +1021,7 @@ static int stm_i2c_probe(struct platform_device *pdev)
 		i2c_del_adapter(p_adap);
 		goto altfuncdisable;
 	}
-#endif
+
 	reset_i2c_controller(drv_data);
 
 	platform_set_drvdata(pdev, drv_data);
@@ -1073,9 +1058,7 @@ static int stm_i2c_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	pdata = pdev->dev.platform_data;
 	i2c_del_adapter(&(drv_data->adap));
-#ifndef CONFIG_STM_I2C_POLLINGMODE
 	free_irq(drv_data->irq, drv_data);
-#endif
 	clk_disable(drv_data->clk);
 	clk_put(drv_data->clk);
 	iounmap(drv_data->regs);

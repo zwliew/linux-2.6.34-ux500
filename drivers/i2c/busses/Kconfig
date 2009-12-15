@@ -27,14 +27,6 @@ config I2C_STM
 	  If you say yes to this option, support will be included for the i2c
 	  controller on U8500 based on the kernel I2C framework.
 
-config  STM_I2C_POLLINGMODE
-      bool "STM I2C support with polling"
-      depends on I2C_STM
-      help
-      If you say yes to this option, the i2c controller on U8500 would run in
-      polling mode.
-
-
 config I2C_ALI1563
 	tristate "ALI 1563"
 	depends on PCI && EXPERIMENTAL

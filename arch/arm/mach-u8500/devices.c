@@ -516,11 +516,7 @@ static struct i2c_platform_data u8500_i2c_0_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_STM_I2C_POLLINGMODE
-	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
-#else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-#endif
 	.high_speed_master_code = 0,
 	.i2c_tx_int_threshold = 1,
 	.i2c_rx_int_threshold = 1
@@ -540,11 +536,7 @@ static struct i2c_platform_data u8500_i2c_1_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_STM_I2C_POLLINGMODE
-	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
-#else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-#endif
 	.high_speed_master_code = 0,
 	.i2c_tx_int_threshold = 1,
 	.i2c_rx_int_threshold = 1
@@ -564,11 +556,7 @@ static struct i2c_platform_data u8500_i2c_2_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_STM_I2C_POLLINGMODE
-	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
-#else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-#endif
 	.high_speed_master_code = 0,
 	.i2c_tx_int_threshold = 1,
 	.i2c_rx_int_threshold = 1
@@ -588,11 +576,7 @@ static struct i2c_platform_data u8500_i2c_3_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_STM_I2C_POLLINGMODE
-	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
-#else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-#endif
 	.high_speed_master_code = 0,
 	.i2c_tx_int_threshold = 1,
 	.i2c_rx_int_threshold = 1
@@ -612,11 +596,7 @@ static struct i2c_platform_data u8500_i2c_4_private_data = {
 	.slave_data_setup_time = 0xE,
 	.bus_control_mode = I2C_BUS_MASTER_MODE,
 	.i2c_loopback_mode = I2C_DISABLED,
-#ifdef CONFIG_STM_I2C_POLLINGMODE
-	.xfer_mode = I2C_TRANSFER_MODE_POLLING,
-#else
 	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-#endif
 	.high_speed_master_code = 0,
 	.i2c_tx_int_threshold = 1,
 	.i2c_rx_int_threshold = 1
