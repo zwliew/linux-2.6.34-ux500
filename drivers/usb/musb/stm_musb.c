@@ -20,6 +20,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
+#include <linux/delay.h>
 
 #include "musb_core.h"
 #include "stm_musb.h"
@@ -37,12 +38,14 @@ void usb_host_detect_handler(void);
 void usb_host_detect_handler(void)
 {
 	u8 val = 0;
+	printk("usb_host_detect_handler start \n");
 	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_LATCH20_REG);
 	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
 	if ((val & AB8500_USB_HOST) == AB8500_USB_HOST)
 		printk("host cable is detected \n");
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
+	printk("usb_host_detect_handler done \n");
 }
 #else
 void usb_device_detect_handler(void);
@@ -51,7 +54,9 @@ void usb_device_detect_handler(void)
 {
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x1);
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x3);
+	mdelay(10);
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x0);
+	mdelay(10);
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
 }
@@ -376,17 +381,14 @@ int __init musb_platform_init(struct musb *musb)
 	if (is_peripheral_enabled(musb))
 		musb->xceiv.set_power = set_power;
 
-	ab8500_rev = ab8500_read(AB8500_MISC, 0x1080);
+	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 	#ifdef CONFIG_USB_MUSB_HOST
 		u8 val = 0;
-		if (ab8500_rev == 0x10 || ab8500_rev == 0x11) {
+		if ((ab8500_rev == 0x10) || (ab8500_rev == 0x11)) {
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, 0xFB);
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-	ab8500_write(3, 0x382, 0x1);
-	ab8500_write(5, 0x58a, 0x1);
 			ab8500_set_callback_handler(66, usb_host_detect_handler, NULL);
-			ab8500_set_callback_handler(82, usb_host_detect_handler, NULL);
 		} else {
 		#ifndef CONFIG_USB_SERIAL
 			val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG);
@@ -395,7 +397,7 @@ int __init musb_platform_init(struct musb *musb)
 		#endif
 		}
 	#else
-		if (ab8500_rev == 0x10 || ab8500_rev == 0x11) {
+		if ((ab8500_rev == 0x10) || (ab8500_rev == 0x11)) {
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG, 0x3F);
 			ab8500_set_callback_handler(15, usb_device_detect_handler, NULL);
 			ab8500_set_callback_handler(14, usb_device_remove_handler, NULL);
