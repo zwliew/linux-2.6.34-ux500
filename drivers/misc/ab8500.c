@@ -246,7 +246,7 @@ static irqreturn_t ab8500_interrupt_handler(int irq, void *dev_id)
  * ab8500_work()  - work queue bottom hanlf handler for ab8500
  * @work:	pointer to the work queue.
  *
- * The interrupt handler reads the source register to find the interrupt source
+ * The interrupt handler reads the latch register to find the interrupt source
  * and calculates the bit positions and calls the corresponding
  * callback handler of client device. The handler also takes care of
  * of clearing the interrupt source by reading the latch register.
@@ -254,18 +254,17 @@ static irqreturn_t ab8500_interrupt_handler(int irq, void *dev_id)
 static void ab8500_work(struct work_struct *work)
 {
 	int bit, i, count = 0;
-	unsigned long int_src;
+	unsigned long intl;
 
-	/* read the source interrupt registers */
-	/* for (i = 0; i < AB8500_MAX_INT_SOURCE; i++) { */
-	for (i = 0; i < ARRAY_SIZE(s_regs); i++) {
-		int_src = ab8500_read(AB8500_INTERRUPT, s_regs[i]);
-		if (!int_src)	{
+	/* read the latch interrupt registers */
+	for (i = 0; i < ARRAY_SIZE(l_regs); i++) {
+		intl = ab8500_read(AB8500_INTERRUPT, l_regs[i]);
+		if (!intl)	{
 			count += 8;
 			continue;
 		}
 		/* check if any bit is set */
-		bit = find_first_bit(&int_src, 8);
+		bit = find_first_bit(&intl, 8);
 
 		while (bit < 8) {
 			if ((ab8500->c_callback[bit + count]).
@@ -273,11 +272,8 @@ static void ab8500_work(struct work_struct *work)
 				(ab8500->c_callback[bit + count]).
 				    callback((ab8500->
 					      c_callback[bit + count]).data);
-			bit = find_next_bit(&int_src, 8, bit + 1);
+			bit = find_next_bit(&intl, 8, bit + 1);
 		}
-
-		/* clear the interrupt */
-		ab8500_read(AB8500_INTERRUPT, l_regs[i]);
 		count = count + 8;
 	}
 	enable_irq(ab8500->irq);
