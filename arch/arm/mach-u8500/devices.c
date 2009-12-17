@@ -1553,7 +1553,7 @@ static struct platform_device pmem_hwb_device = {
 #endif
 
 
-#ifdef CONFIG_U8500_RTC
+#ifdef CONFIG_RTC_DRV_PL031
 static struct amba_device rtc_device = {
 	.dev = {
 		.bus_id = "mb:15",
@@ -2256,7 +2256,7 @@ static struct amba_device *amba_devs[] __initdata = {
 	&sdi0_device,	/* SD/MMC card */
 #endif
 #endif
-#ifdef CONFIG_U8500_RTC
+#ifdef CONFIG_RTC_DRV_PL031
 	&rtc_device,
 #endif
 };
