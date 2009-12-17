@@ -2358,8 +2358,12 @@ extern struct sys_timer u8500_timer;
  * till that time I'm forced to keep NOMADIK - srinidhi
  */
 MACHINE_START(NOMADIK, "ST Ericsson U8500 Platform")
-    /* Maintainer: ST-Ericsson */
-    .phys_io = U8500_UART2_BASE, .io_pg_offst =
-    (IO_ADDRESS(U8500_UART2_BASE) >> 18) & 0xfffc, .boot_params =
-    0x00000100, .map_io = u8500_map_io, .init_irq = u8500_gic_init_irq, .timer =
-    &u8500_timer, .init_machine = u8500_platform_init, MACHINE_END
+	/* Maintainer: ST-Ericsson */
+	.phys_io = U8500_UART2_BASE,
+	.io_pg_offst = (IO_ADDRESS(U8500_UART2_BASE) >> 18) & 0xfffc,
+	.boot_params = 0x00000100,
+	.map_io = u8500_map_io,
+	.init_irq = u8500_gic_init_irq,
+	.timer = &u8500_timer,
+	.init_machine = u8500_platform_init,
+MACHINE_END
