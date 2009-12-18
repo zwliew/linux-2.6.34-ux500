@@ -3666,6 +3666,14 @@ static int stm_dma_probe(struct platform_device *pdev)
 		    dma_drv_data->lchan_params_base.phys_addr,
 		    FULL32_MASK, NO_SHIFT);
 #else
+	if (ioread32(io_addr(DREG_LCPA)) == 0) {
+		printk(KERN_WARNING "LCPA not set, writing!\n");
+
+		REG_WR_BITS(io_addr(DREG_LCPA),
+			U8500_DMA_LCPA_BASE,
+			FULL32_MASK, NO_SHIFT);
+	}
+
 	/* LCPA value cannot be programmed(we are in non-secure mode).
 	 * We make use of ESRAM memory for this.
 	 * (xloader programs this register with the value(ESRAM address)
