@@ -3561,6 +3561,9 @@ void process_logical_channel_inerrupt(void)
 					info =
 					    dma_drv_data->dma_chan_info[j * 32 +
 									k];
+					if (!info)
+						continue;
+
 					if ((info->lli_interrupt == 1)
 					    && (info->sg_dest)
 					    && ((info->dir == PERIPH_TO_MEM)
