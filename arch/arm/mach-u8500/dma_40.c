@@ -3666,14 +3666,6 @@ static int stm_dma_probe(struct platform_device *pdev)
 		    dma_drv_data->lchan_params_base.phys_addr,
 		    FULL32_MASK, NO_SHIFT);
 #else
-	if (ioread32(io_addr(DREG_LCPA)) == 0) {
-		printk(KERN_WARNING "LCPA not set, writing!\n");
-
-		REG_WR_BITS(io_addr(DREG_LCPA),
-			U8500_DMA_LCPA_BASE,
-			FULL32_MASK, NO_SHIFT);
-	}
-
 	/* LCPA value cannot be programmed(we are in non-secure mode).
 	 * We make use of ESRAM memory for this.
 	 * (xloader programs this register with the value(ESRAM address)
@@ -3682,6 +3674,10 @@ static int stm_dma_probe(struct platform_device *pdev)
 	dma_drv_data->lchan_params_base.log_addr =
 	    ioremap(U8500_DMA_LCPA_BASE, 4096);
 	dma_drv_data->lchan_params_base.phys_addr = U8500_DMA_LCPA_BASE;
+
+	REG_WR_BITS(io_addr(DREG_LCPA),
+		U8500_DMA_LCPA_BASE,
+		FULL32_MASK, NO_SHIFT);
 #endif
 
 	dma_drv_data->pchan_lli_pool = create_elem_pool("PCHAN_LLI_POOL",
