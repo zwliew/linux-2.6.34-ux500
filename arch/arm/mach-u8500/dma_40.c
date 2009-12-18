@@ -340,6 +340,7 @@ static void print_dma_regs(void)
 		ioread32(io_addr(DREG_LCPA)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_lcla)=%x\n",
 		ioread32(io_addr(DREG_LCLA)));
+#ifndef CONFIG_STM_SECURITY
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_slcpa)=%x\n",
 		ioread32(io_addr(DREG_SLCPA)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_slcla)	=%x\n",
@@ -360,6 +361,7 @@ static void print_dma_regs(void)
 		ioread32(io_addr(DREG_SCEG(2))));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_sceg[3])=%x\n",
 		ioread32(io_addr(DREG_SCEG(3))));
+#endif
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_active)=%x\n",
 		ioread32(io_addr(DREG_ACTIVE)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_activo)=%x\n",
@@ -376,6 +378,7 @@ static void print_dma_regs(void)
 		ioread32(io_addr(DREG_PCTIS)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_pceis)=%x\n",
 		ioread32(io_addr(DREG_PCEIS)));
+#ifndef CONFIG_STM_SECURITY
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_spcmis)=%x\n",
 		ioread32(io_addr(DREG_SPCMIS)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_spcicr)=%x\n",
@@ -384,6 +387,7 @@ static void print_dma_regs(void)
 		ioread32(io_addr(DREG_SPCTIS)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_spceis)=%x\n",
 		ioread32(io_addr(DREG_SPCEIS)));
+#endif
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_lcmis[0])=%x\n",
 		ioread32(io_addr(DREG_LCMIS(0))));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_lcmis[1])=%x\n",
@@ -416,6 +420,7 @@ static void print_dma_regs(void)
 		ioread32(io_addr(DREG_LCEIS(2))));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_lceis[3])=%x\n",
 		ioread32(io_addr(DREG_LCEIS(3))));
+#ifndef CONFIG_STM_SECURITY
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_slcmis[0])=%x\n",
 		ioread32(io_addr(DREG_SLCMIS(0))));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_slcmis[1])=%x\n",
@@ -448,6 +453,7 @@ static void print_dma_regs(void)
 		ioread32(io_addr(DREG_SLCEIS(2))));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_slceis[3])=%x\n",
 		ioread32(io_addr(DREG_SLCEIS(3))));
+#endif
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_stfu)=%x\n",
 		ioread32(io_addr(DREG_STFU)));
 	stm_dbg(DBG_ST.dma, "DMA_REGS (dmac_icfg)=%x\n",
