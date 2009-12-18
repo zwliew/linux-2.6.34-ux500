@@ -1307,14 +1307,16 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	/* Set the bus and power modes */
 	switch (ios->power_mode) {
 	case MMC_POWER_OFF:
-		if (host->level_shifter)
-			clk_disable(host->clk);
+		if (!host->level_shifter) {
+			writel(0x40, host->base + MMCIPOWER);
+		} else {
+			writel(0xBC, host->base + MMCIPOWER);
+		}
 	break;
 	case MMC_POWER_UP:
 		if (!host->level_shifter) {
 			writel(0x42, host->base + MMCIPOWER);
 		} else {
-			clk_enable(host->clk);
 			writel(0xBE, host->base + MMCIPOWER);
 		}
 	break;
