@@ -38,8 +38,11 @@
 
 #include <mach/dma.h>
 
+#ifndef CONFIG_U8500_SECURE
 /* Define this macro if in non-secure mode */
-/* #define CONFIG_STM_SECURITY */
+#define CONFIG_STM_SECURITY
+#endif
+
 #define DRIVER_NAME            "DRIVER DMA"
 
 /* enables/disables debug msgs */
