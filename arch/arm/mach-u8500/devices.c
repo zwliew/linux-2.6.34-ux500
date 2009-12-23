@@ -1824,32 +1824,49 @@ static struct amba_device sdi4_device = {
 /* mmc specific configurations */
 static int mmc_configure(struct amba_device *dev)
 {
+	int pin[2];
+	int ret;
 	int i;
+
+	/* Level-shifter GPIOs */
 	if (MOP500_PLATFORM_ID == platform_id)	{
-		/* enable egpio 18, 19 for enabling level shifter */
-		gpio_set_value(286, 1);
-		gpio_set_value(287, 1);
-	} else {
-	if (HREF_PLATFORM_ID == platform_id)	{
-		/* enable egpio 17, 18 for enabling level shifter */
-		gpio_direction_output(EGPIO_PIN_17, GPIO_HIGH);
-		gpio_direction_output(EGPIO_PIN_18, GPIO_HIGH);
-		gpio_set_value(EGPIO_PIN_17, GPIO_HIGH);
-		gpio_set_value(EGPIO_PIN_18, GPIO_HIGH);
+		pin[0] = EGPIO_PIN_18;
+		pin[1] = EGPIO_PIN_19;
+	} else if (HREF_PLATFORM_ID == platform_id) {
+		pin[0] = EGPIO_PIN_17;
+		pin[1] = EGPIO_PIN_18;
+	} else
+		BUG();
+
+	ret = gpio_request(pin[0], "level shifter");
+	if (!ret)
+		ret = gpio_request(pin[1], "level shifter");
+
+	if (!ret) {
+		gpio_direction_output(pin[0], 1);
+		gpio_direction_output(pin[1], 1);
+
+		gpio_set_value(pin[0], 1);
+		gpio_set_value(pin[1], 1);
+	} else
+		dev_err(&dev->dev, "unable to configure gpios\n");
+
 #if defined(CONFIG_GPIO_TC35892)
+	if (HREF_PLATFORM_ID == platform_id) {
 		/* Enabling the card detection interrupt */
 		tc35892_set_gpio_intr_conf(EGPIO_PIN_3, EDGE_SENSITIVE,
 				TC35892_BOTH_EDGE);
 		tc35892_set_intr_enable(EGPIO_PIN_3, ENABLE_INTERRUPT);
-#endif
-		}
 	}
+#endif
+
 	for (i = 18; i <= 28; i++)	{
 		gpio_set_value(i, GPIO_HIGH);
 		gpio_set_value(i, GPIO_PULLUP_DIS);
 	}
+
 	stm_gpio_altfuncenable(GPIO_ALT_SDMMC);
-	return 0;
+	return ret;
 }
 
 static void mmc_restore_default(struct amba_device *dev)
