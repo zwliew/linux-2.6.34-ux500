@@ -1486,8 +1486,8 @@ static int u8500_mmci_probe(struct amba_device *dev, void *id)
 		mmc->max_hw_segs = 1;
 		mmc->max_phys_segs = 1;
 	} else {
-		mmc->max_hw_segs = NR_SG;
-		mmc->max_phys_segs = NR_SG;
+		mmc->max_hw_segs = 1;
+		mmc->max_phys_segs = 1;
 	}
 	mmc->ocr_avail = OCR_AVAIL;
 	/* XXX No errors in Tx/Rx but writes garbage data with
