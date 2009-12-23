@@ -1588,16 +1588,6 @@ static struct map_desc u8500_common_io_desc[] __initdata = {
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_MSP2_BASE), __phys_to_pfn(U8500_MSP2_BASE), SZ_4K,
 	 MT_DEVICE},
-#if (defined(CONFIG_I2C_STM) || defined(CONFIG_I2C_STM_MODULE))
-	{IO_ADDRESS(U8500_I2C0_BASE), __phys_to_pfn(U8500_I2C0_BASE), SZ_4K,
-	 MT_DEVICE},
-	{IO_ADDRESS(U8500_I2C1_BASE), __phys_to_pfn(U8500_I2C1_BASE), SZ_4K,
-	 MT_DEVICE},
-	{IO_ADDRESS(U8500_I2C2_BASE), __phys_to_pfn(U8500_I2C2_BASE), SZ_4K,
-	 MT_DEVICE},
-	{IO_ADDRESS(U8500_I2C3_BASE), __phys_to_pfn(U8500_I2C3_BASE), SZ_4K,
-	 MT_DEVICE},
-#endif
 	{IO_ADDRESS(U8500_UART1_BASE), __phys_to_pfn(U8500_UART1_BASE), SZ_4K,
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_UART2_BASE), __phys_to_pfn(U8500_UART2_BASE), SZ_4K,
@@ -1607,8 +1597,6 @@ static struct map_desc u8500_common_io_desc[] __initdata = {
 	{IO_ADDRESS(U8500_GIC_DIST_BASE), __phys_to_pfn(U8500_GIC_DIST_BASE),
 	 SZ_4K, MT_DEVICE},
 	{IO_ADDRESS(U8500_L2CC_BASE), __phys_to_pfn(U8500_L2CC_BASE), SZ_4K,
-	 MT_DEVICE},
-	{IO_ADDRESS(U8500_RTC_BASE), __phys_to_pfn(U8500_RTC_BASE), SZ_4K,
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_GPIO_BASE), __phys_to_pfn(U8500_GPIO_BASE), SZ_4K,
 	 MT_DEVICE},
@@ -1664,10 +1652,6 @@ static struct map_desc u8500_v1_io_desc[] __initdata = {
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_MTU1_BASE_V1), __phys_to_pfn(U8500_MTU1_BASE_V1), SZ_4K,
 	 MT_DEVICE},
-#if (defined(CONFIG_I2C_STM) || defined(CONFIG_I2C_STM_MODULE))
-	{IO_ADDRESS(U8500_I2C4_BASE), __phys_to_pfn(U8500_I2C4_BASE), SZ_4K,
-	 MT_DEVICE},
-#endif
 };
 
 static struct resource u8500_dma_resources[] = {
