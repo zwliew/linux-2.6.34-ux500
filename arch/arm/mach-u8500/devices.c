@@ -2337,8 +2337,6 @@ static void __init u8500_platform_init(void)
 	amba_add_devices(amba_devs, ARRAY_SIZE(amba_devs));
 	platform_add_devices(core_devices, ARRAY_SIZE(core_devices));
 
-	if (!u8500_is_earlydrop())
-
 	i2s_register_board_info(stm_i2s_board_info,
 			ARRAY_SIZE(stm_i2s_board_info));
 
