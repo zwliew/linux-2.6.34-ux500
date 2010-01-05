@@ -1896,7 +1896,7 @@ static int mmc_card_detect(void (*callback)(void* parameter), void * host)
 
 static int mmc_get_carddetect_intr_value(void)
 {
-	int status;
+	int status = 0;
 
 	if (MOP500_PLATFORM_ID == platform_id)
 		status = gpio_get_value(EGPIO_PIN_16);
@@ -2324,8 +2324,6 @@ static void __init amba_add_devices(struct amba_device *devs[], int num)
 
 static void __init u8500_platform_init(void)
 {
-	int i;
-
 	if (u8500_is_earlydrop())
 		u8500_earlydrop_fixup();
 	else {
