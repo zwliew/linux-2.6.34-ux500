@@ -108,6 +108,42 @@ static void gic_unmask_irq(unsigned int irq)
 	spin_unlock(&irq_controller_lock);
 }
 
+static int gic_set_type(unsigned int irq, unsigned int type)
+{
+	void __iomem *base = gic_dist_base(irq);
+	u32 enablemask = 1 << (irq % 32);
+	u32 enableoff = (gic_irq(irq) / 32) * 4;
+	u32 confmask = 0x2 << ((irq % 16) * 2);
+	u32 confoff = (gic_irq(irq) / 16) * 4;
+	bool enabled = false;
+	u32 val;
+
+	if (type != IRQ_TYPE_LEVEL_HIGH && type != IRQ_TYPE_EDGE_RISING)
+		return -EINVAL;
+
+	spin_lock(&irq_controller_lock);
+
+	val = readl(base + GIC_DIST_CONFIG + confoff);
+	if (type == IRQ_TYPE_LEVEL_HIGH)
+		val &= ~confmask;
+	else if (type == IRQ_TYPE_EDGE_RISING)
+		val |= confmask;
+
+	if (readl(base + GIC_DIST_ENABLE_SET + enableoff) & enablemask) {
+		writel(enablemask, base + GIC_DIST_ENABLE_CLEAR + enableoff);
+		enabled = true;
+	}
+
+	writel(val, base + GIC_DIST_CONFIG + confoff);
+
+	if (enabled)
+		writel(enablemask, base + GIC_DIST_ENABLE_SET + enableoff);
+
+	spin_unlock(&irq_controller_lock);
+
+	return 0;
+}
+
 #ifdef CONFIG_SMP
 static int gic_set_cpu(unsigned int irq, const struct cpumask *mask_val)
 {
@@ -161,6 +197,7 @@ static struct irq_chip gic_chip = {
 	.ack		= gic_ack_irq,
 	.mask		= gic_mask_irq,
 	.unmask		= gic_unmask_irq,
+	.set_type	= gic_set_type,
 #ifdef CONFIG_SMP
 	.set_affinity	= gic_set_cpu,
 #endif
