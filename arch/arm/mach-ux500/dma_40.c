@@ -1470,7 +1470,7 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 
 	if (type == DMA_SRC_HALF_CHANNEL) {
 		struct dma_logical_src_lli_info *lli_ptr = NULL;
-		u32 slos;
+		u32 slos = 0;
 		step_size = (0x1 << info->src_info.data_width);
 		sg = info->sg_src;
 		lli_count = info->sgcount_src;
@@ -1483,7 +1483,8 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 			return -1;
 		}
 
-		slos = info->lli_block_id_src * NUM_LLI_PER_LOG_CHANNEL + 1;
+		if (lli_count > 1)
+			slos = info->lli_block_id_src * NUM_LLI_PER_LOG_CHANNEL + 1;
 		/*********************************************************/
 		/*Use first SG item to fill params register */
 		REG_WR_BITS(cio_addr(info->phys_chan_id, CHAN_REG_SSELT),
@@ -1500,56 +1501,45 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 		MEM_WRITE_BITS(params->dmac_lcsp1,
 			       (0xFFFF0000 & (u32) (sg_dma_address(sg))) >> 16,
 			       MEM_LCSP1_SPTR_MASK, MEM_LCSP1_SPTR_POS);
-		if ((info->lli_interrupt == 1) && (info->dir == PERIPH_TO_MEM))
-			MEM_WRITE_BITS(params->dmac_lcsp1, DMA_TRUE,
-				       MEM_LCSP1_SCFG_TIM_MASK,
-				       MEM_LCSP1_SCFG_TIM_POS);
-		else
-			MEM_WRITE_BITS(params->dmac_lcsp1, DMA_FALSE,
-				       MEM_LCSP1_SCFG_TIM_MASK,
-				       MEM_LCSP1_SCFG_TIM_POS);
+		MEM_WRITE_BITS(params->dmac_lcsp1, DMA_FALSE,
+			       MEM_LCSP1_SCFG_TIM_MASK,
+			       MEM_LCSP1_SCFG_TIM_POS);
 		sg++;
 		lli_count--;
 		/***********************************************************/
-		lli_ptr = (struct dma_logical_src_lli_info *)base + slos;
+		if (lli_count) {
+			lli_ptr = (struct dma_logical_src_lli_info *)base + slos;
 
-		for (idx = 0; idx < lli_count; idx++) {
-			lli_ptr[idx].dmac_lcsp1 = params->dmac_lcsp1;
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp0,
-				       (sg_dma_len(sg) >> info->
-					src_info.data_width),
-				       MEM_LCSP0_ECNT_MASK, MEM_LCSP0_ECNT_POS);
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp0,
-				       (0x0000FFFFUL &
-					(u32) (sg_dma_address(sg))),
-				       MEM_LCSP0_SPTR_MASK, MEM_LCSP0_SPTR_POS);
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp1,
-				       (0xFFFF0000UL &
-					(u32) (sg_dma_address(sg))) >> 16,
-				       MEM_LCSP1_SPTR_MASK, MEM_LCSP1_SPTR_POS);
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp1,
-				       (slos + idx + 1), MEM_LCSP1_SLOS_MASK,
-				       MEM_LCSP1_SLOS_POS);
-			if ((info->lli_interrupt == 1)
-			    && (info->dir == PERIPH_TO_MEM))
+			for (idx = 0; idx < lli_count; idx++) {
+				lli_ptr[idx].dmac_lcsp1 = params->dmac_lcsp1;
+				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp0,
+					       (sg_dma_len(sg) >> info->
+						src_info.data_width),
+					       MEM_LCSP0_ECNT_MASK, MEM_LCSP0_ECNT_POS);
+				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp0,
+					       (0x0000FFFFUL &
+						(u32) (sg_dma_address(sg))),
+					       MEM_LCSP0_SPTR_MASK, MEM_LCSP0_SPTR_POS);
 				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp1,
-					       DMA_TRUE,
-					       MEM_LCSP1_SCFG_TIM_MASK,
-					       MEM_LCSP1_SCFG_TIM_POS);
-			else
+					       (0xFFFF0000UL &
+						(u32) (sg_dma_address(sg))) >> 16,
+					       MEM_LCSP1_SPTR_MASK, MEM_LCSP1_SPTR_POS);
+				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp1,
+					       (slos + idx + 1), MEM_LCSP1_SLOS_MASK,
+					       MEM_LCSP1_SLOS_POS);
 				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp1,
 					       DMA_FALSE,
 					       MEM_LCSP1_SCFG_TIM_MASK,
 					       MEM_LCSP1_SCFG_TIM_POS);
-			sg++;
+				sg++;
+			}
+
+			MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp1, 0x0,
+				       MEM_LCSP1_SLOS_MASK, MEM_LCSP1_SLOS_POS);
 		}
-		MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp1, 0x0,
-			       MEM_LCSP1_SLOS_MASK, MEM_LCSP1_SLOS_POS);
-		MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp1, DMA_TRUE,
-			       MEM_LCSP1_SCFG_TIM_MASK, MEM_LCSP1_SCFG_TIM_POS);
 	} else {
 		struct dma_logical_dest_lli_info *lli_ptr = NULL;
-		u32 dlos;
+		u32 dlos = 0;
 		step_size = (0x1 << info->dst_info.data_width);
 		lli_count = info->sgcount_dest;
 		sg = info->sg_dest;
@@ -1562,7 +1552,9 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 			stm_error("Free LLI's not available\n");
 			return -1;
 		}
-		dlos = info->lli_block_id_dest * NUM_LLI_PER_LOG_CHANNEL + 1;
+
+		if (lli_count > 1)
+			dlos = info->lli_block_id_dest * NUM_LLI_PER_LOG_CHANNEL + 1;
 		/**********************************************************/
 		/*Use first SG item to fill params register */
 		REG_WR_BITS(cio_addr(info->phys_chan_id, CHAN_REG_SDELT),
@@ -1579,7 +1571,7 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 		MEM_WRITE_BITS(params->dmac_lcsp3,
 			       (0xFFFF0000UL & (u32) (sg_dma_address(sg))) >>
 			       16, MEM_LCSP3_DPTR_MASK, MEM_LCSP3_DPTR_POS);
-		if (info->lli_interrupt == 1)
+		if (info->lli_interrupt == 1 || lli_count == 1)
 			MEM_WRITE_BITS(params->dmac_lcsp3, DMA_TRUE,
 				       MEM_LCSP3_DCFG_TIM_MASK,
 				       MEM_LCSP3_DCFG_TIM_POS);
@@ -1590,41 +1582,45 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 		sg++;
 		lli_count--;
 		/************************************************************/
-		lli_ptr = (struct dma_logical_dest_lli_info *)base + dlos;
 
-		for (idx = 0; idx < lli_count; idx++) {
-			lli_ptr[idx].dmac_lcsp3 = params->dmac_lcsp3;
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp2,
-				       (sg_dma_len(sg) >> info->
-					dst_info.data_width),
-				       MEM_LCSP2_ECNT_MASK, MEM_LCSP2_ECNT_POS);
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp2,
-				       (0x0000FFFFUL &
-					(u32) (sg_dma_address(sg))),
-				       MEM_LCSP2_DPTR_MASK, MEM_LCSP2_DPTR_POS);
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp3,
-				       (0xFFFF0000UL &
-					(u32) (sg_dma_address(sg))) >> 16,
-				       MEM_LCSP3_DPTR_MASK, MEM_LCSP3_DPTR_POS);
-			MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp3,
-				       (dlos + idx + 1), MEM_LCSP3_DLOS_MASK,
-				       MEM_LCSP3_DLOS_POS);
-			if (info->lli_interrupt == 1)
+		if (lli_count) {
+			lli_ptr = (struct dma_logical_dest_lli_info *)base + dlos;
+
+			for (idx = 0; idx < lli_count; idx++) {
+				lli_ptr[idx].dmac_lcsp3 = params->dmac_lcsp3;
+				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp2,
+					       (sg_dma_len(sg) >> info->
+						dst_info.data_width),
+					       MEM_LCSP2_ECNT_MASK, MEM_LCSP2_ECNT_POS);
+				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp2,
+					       (0x0000FFFFUL &
+						(u32) (sg_dma_address(sg))),
+					       MEM_LCSP2_DPTR_MASK, MEM_LCSP2_DPTR_POS);
 				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp3,
-					       DMA_TRUE,
-					       MEM_LCSP3_DCFG_TIM_MASK,
-					       MEM_LCSP3_DCFG_TIM_POS);
-			else
+					       (0xFFFF0000UL &
+						(u32) (sg_dma_address(sg))) >> 16,
+					       MEM_LCSP3_DPTR_MASK, MEM_LCSP3_DPTR_POS);
 				MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp3,
-					       DMA_FALSE,
-					       MEM_LCSP3_DCFG_TIM_MASK,
-					       MEM_LCSP3_DCFG_TIM_POS);
-			sg++;
+					       (dlos + idx + 1), MEM_LCSP3_DLOS_MASK,
+					       MEM_LCSP3_DLOS_POS);
+				if (info->lli_interrupt == 1)
+					MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp3,
+						       DMA_TRUE,
+						       MEM_LCSP3_DCFG_TIM_MASK,
+						       MEM_LCSP3_DCFG_TIM_POS);
+				else
+					MEM_WRITE_BITS(lli_ptr[idx].dmac_lcsp3,
+						       DMA_FALSE,
+						       MEM_LCSP3_DCFG_TIM_MASK,
+						       MEM_LCSP3_DCFG_TIM_POS);
+				sg++;
+			}
+
+			MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp3, 0x0,
+				       MEM_LCSP3_DLOS_MASK, MEM_LCSP3_DLOS_POS);
+			MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp3, DMA_TRUE,
+				       MEM_LCSP3_DCFG_TIM_MASK, MEM_LCSP3_DCFG_TIM_POS);
 		}
-		MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp3, 0x0,
-			       MEM_LCSP3_DLOS_MASK, MEM_LCSP3_DLOS_POS);
-		MEM_WRITE_BITS(lli_ptr[idx - 1].dmac_lcsp3, DMA_TRUE,
-			       MEM_LCSP3_DCFG_TIM_MASK, MEM_LCSP3_DCFG_TIM_POS);
 	}
 	return 0;
 }
