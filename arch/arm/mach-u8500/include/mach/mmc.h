@@ -275,6 +275,7 @@ struct u8500_mmci_host {
 #ifdef CONFIG_U8500_SDIO
 	unsigned int is_sdio;
 #endif
+	struct mmc_board *board;
 };
 
 /* Define the current mode  */
@@ -313,6 +314,7 @@ enum card_state {
 struct mmc_board {
 	int (*init) (struct amba_device *dev);
 	void (*exit) (struct amba_device *dev);
+	int (*set_power) (struct device *dev, int power_on);
 	int (*card_detect)(void (*callback)(void *parameter), void *);
 	int (*card_detect_intr_value) (void);
 	unsigned int dma_fifo_addr;

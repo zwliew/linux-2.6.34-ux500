@@ -1869,6 +1869,14 @@ static int mmc_configure(struct amba_device *dev)
 	return ret;
 }
 
+static void mmc_set_power(struct device *dev, int power_on)
+{
+	if (platform_id == MOP500_PLATFORM_ID)
+		gpio_set_value(EGPIO_PIN_18, !!power_on);
+	else if (platform_id == HREF_PLATFORM_ID)
+		gpio_set_value(EGPIO_PIN_17, !!power_on);
+}
+
 static void mmc_restore_default(struct amba_device *dev)
 {
 
@@ -1909,6 +1917,7 @@ static int mmc_get_carddetect_intr_value(void)
 static struct mmc_board mmc_data = {
 	.init = mmc_configure,
 	.exit = mmc_restore_default,
+	.set_power = mmc_set_power,
 	.card_detect = mmc_card_detect,
 	.card_detect_intr_value = mmc_get_carddetect_intr_value,
 	.dma_fifo_addr = U8500_SDI0_BASE + SD_MMC_TX_RX_REG_OFFSET,

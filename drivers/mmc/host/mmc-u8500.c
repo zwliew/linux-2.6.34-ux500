@@ -1312,6 +1312,9 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		} else {
 			writel(0xBC, host->base + MMCIPOWER);
 		}
+
+		if (host->board->set_power)
+			host->board->set_power(mmc_dev(mmc), 0);
 	break;
 	case MMC_POWER_UP:
 		if (!host->level_shifter) {
@@ -1319,6 +1322,9 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		} else {
 			writel(0xBE, host->base + MMCIPOWER);
 		}
+
+		if (host->board->set_power)
+			host->board->set_power(mmc_dev(mmc), 1);
 	break;
 	case MMC_POWER_ON:
 		if (!host->level_shifter)
@@ -1446,6 +1452,7 @@ static int u8500_mmci_probe(struct amba_device *dev, void *id)
 	host->oldstat = -1;
 	host->mclk = CLK_MAX;
 	host->mmc = mmc;
+	host->board = board;
 	host->dma_fifo_addr = board->dma_fifo_addr;
 	host->dma_fifo_dev_type_rx = board->dma_fifo_dev_type_rx;
 	host->dma_fifo_dev_type_tx = board->dma_fifo_dev_type_tx;
