@@ -985,7 +985,7 @@ static struct amba_driver spi023_driver = {
 static int __init stm_spi_init(void)
 {
 	int retval = 0;
-	printk(KERN_INFO "\nLoading SPI Controller Driver Version "
+	printk(KERN_INFO "Loading SPI Controller Driver Version "
 		SPI_DRIVER_VERSION "\n");
 	retval = amba_driver_register(&spi023_driver);
 	if (retval)
