@@ -858,11 +858,6 @@ static int stm_ssp_probe(struct amba_device *adev, struct amba_id *id)
 	master->transfer = stm_spi_transfer;
 
 	stm_dbg(DBG_ST.ssp, ":::: BUSNO: %d\n", master->bus_num);
-	status = spi_register_master(master);
-	if (status != 0) {
-		stm_error("probe - problem registering spi master\n");
-		goto err_spi_register;
-	}
 
 	/* Initialize and start queue */
 	status = init_queue(drv_data);
@@ -903,13 +898,20 @@ static int stm_ssp_probe(struct amba_device *adev, struct amba_id *id)
 		goto err_irq;
 	}
 
+	status = spi_register_master(master);
+	if (status != 0) {
+		stm_error("probe - problem registering spi master\n");
+		goto err_spi_register;
+	}
+
 	return 0;
 
+err_spi_register:
+	free_irq(drv_data->adev->irq[0], drv_data);
 err_irq:
 	stm_gpio_altfuncdisable(drv_data->master_info->gpio_alt_func);
 err_init_queue:
 err_start_queue:
-err_spi_register:
 	destroy_queue(drv_data);
 err_no_iores:
 	iounmap(drv_data->regs);
