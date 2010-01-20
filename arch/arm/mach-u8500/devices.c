@@ -93,7 +93,7 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 #if !defined(CONFIG_U8500_ED)
 	__GPIO_ALT(GPIO_ALT_I2C_4, 4, 5, 0, GPIO_ALTF_B, "i2c4"),
 #endif
-	__GPIO_ALT(GPIO_ALT_I2C_1, 6, 7, 0, GPIO_ALTF_B, "i2c1"),
+	__GPIO_ALT(GPIO_ALT_I2C_1, 16, 17, 0, GPIO_ALTF_B, "i2c1"),
 	__GPIO_ALT(GPIO_ALT_I2C_2, 8, 9, 0, GPIO_ALTF_B, "i2c2"),
 	__GPIO_ALT(GPIO_ALT_I2C_0, 147, 148, 0, GPIO_ALTF_A, "i2c0"),
 	__GPIO_ALT(GPIO_ALT_I2C_3, 229, 230, 0, GPIO_ALTF_C, "i2c3"),
@@ -105,8 +105,7 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_UART_0_NO_MODEM, 0, 3, 0, GPIO_ALTF_A, "uart0"),
 	__GPIO_ALT(GPIO_ALT_UART_0_MODEM, 0, 3, 1, GPIO_ALTF_A, "uart0"),
 	__GPIO_ALT(GPIO_ALT_UART_0_MODEM, 33, 36, 0, GPIO_ALTF_C, "uart0"),
-	__GPIO_ALT(GPIO_ALT_MSP_0, 12, 17, 1, GPIO_ALTF_A, "msp0"),
-	__GPIO_ALT(GPIO_ALT_MSP_0, 21, 21, 0, GPIO_ALTF_B, "msp0"),
+	__GPIO_ALT(GPIO_ALT_MSP_0, 12, 15, 0, GPIO_ALTF_A, "msp0"),
 	__GPIO_ALT(GPIO_ALT_MSP_1, 33, 36, 0, GPIO_ALTF_A, "msp1"),
 	__GPIO_ALT(GPIO_ALT_MSP_2, 192, 196, 0, GPIO_ALTF_A, "msp2"),
 	__GPIO_ALT(GPIO_ALT_HSIR, 219, 221, 0, GPIO_ALTF_A, "hsir"),

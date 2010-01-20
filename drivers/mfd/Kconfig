@@ -182,6 +182,19 @@ config MFD_TC6393XB
 	help
 	  Support for Toshiba Mobile IO Controller TC6393XB
 
+config MFD_AB3550_CORE
+	bool "ST-Ericsson AB3550 Mixed Signal Circuit core functions"
+	depends on I2C && MACH_U8500_MOP
+	help
+	  Select this to enable the AB3550 Mixed Signal IC core
+	  functionality. This connects to a AB3550 on the I2C bus
+	  and expose a number of symbols needed for dependent devices
+	  to read and write registers and subscribe to events from
+	  this multi-functional IC. This is needed to use other features
+	  of the AB3550 such as battery-backed RTC, charging control,
+	  LEDs, vibrator, system power and temperature, power management
+	  and ALSA sound.
+
 config PMIC_DA903X
 	bool "Dialog Semiconductor DA9030/DA9034 PMIC Support"
 	depends on I2C=y

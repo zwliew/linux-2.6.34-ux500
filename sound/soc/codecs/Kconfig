@@ -260,6 +260,13 @@ config SND_SOC_WM9712
 config SND_SOC_WM9713
 	tristate
 
+config SND_SOC_AB3550
+	tristate "ST-Ericsson AB3550 Mixed Signal Circuit CODEC"
+	depends on SND_SOC_U8500 && MFD_AB3550_CORE
+	default m
+	help
+	  Select this to support the AB3550 codec block.
+
 # Amp
 config SND_SOC_MAX9877
 	tristate

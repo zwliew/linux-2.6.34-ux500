@@ -533,9 +533,10 @@ static inline int read_i2c_master_mode(struct i2c_driver_data *priv)
 
 		irq_mask = create_irq_mask(priv->adap.nr, irq_mask);
 		irq_mask = (I2C_IRQ_SRC_ALL & irq_mask);
+init_completion(&priv->xfer_complete);
 		writel(readl(I2C_IMSCR(priv->regs)) | irq_mask,
 							I2C_IMSCR(priv->regs));
-		init_completion(&priv->xfer_complete);
+
 		timeout = wait_for_completion_interruptible_timeout(
 				&priv->xfer_complete, I2C_TIMEOUT);
 		if (timeout == 0) {
@@ -654,9 +655,10 @@ static inline int write_i2c_master_mode(struct i2c_driver_data *priv)
 
 		irq_mask = create_irq_mask(priv->adap.nr, irq_mask);
 		irq_mask = (I2C_IRQ_SRC_ALL & irq_mask);
+init_completion(&priv->xfer_complete);
 		writel(readl(I2C_IMSCR(priv->regs)) | irq_mask,
 						I2C_IMSCR(priv->regs));
-		init_completion(&priv->xfer_complete);
+
 		timeout = wait_for_completion_interruptible_timeout(
 				&priv->xfer_complete, I2C_TIMEOUT);
 		if (timeout == 0)
@@ -778,8 +780,7 @@ static int stm_i2c_xfer(struct i2c_adapter *i2c_adap,
 			priv->cli_data.operation = I2C_READ;
 			status = read_i2c(priv);
 		} else {
-			if ((i == 0) && (num_msgs > 1)
-					&& (msgs[1].flags & I2C_M_RD))
+			if ((i == 0) && (num_msgs > 1) && (msgs[1].flags & I2C_M_RD))
 				read_index_from_i2c_msg(priv, &msgs[0]);
 			priv->cli_data.operation = I2C_WRITE;
 			status = write_i2c(priv);
@@ -1019,13 +1020,6 @@ static int stm_i2c_probe(struct platform_device *pdev)
 		goto clk_disable;
 	}
 
-	retval = i2c_add_numbered_adapter(p_adap);
-	if (retval) {
-		stm_error("STM I2C[%d] Error: failed to add adapter\n",
-				pdev->id);
-		goto altfuncdisable;
-	}
-
 #ifndef CONFIG_STM_I2C_POLLINGMODE
 	retval = request_irq(drv_data->irq, stm_i2c_irq_handler, 0,
 						p_adap->name, drv_data);
@@ -1040,6 +1034,13 @@ static int stm_i2c_probe(struct platform_device *pdev)
 	reset_i2c_controller(drv_data);
 
 	platform_set_drvdata(pdev, drv_data);
+
+	retval = i2c_add_numbered_adapter(p_adap);
+	if (retval) {
+		stm_error("STM I2C[%d] Error: failed to add adapter\n",
+				pdev->id);
+		goto altfuncdisable;
+	}
 
 	printk(KERN_INFO "I2C master cntlr [%s] intialized with irq %d, GPIO pin %d\n",
 			pdata->name, drv_data->irq,

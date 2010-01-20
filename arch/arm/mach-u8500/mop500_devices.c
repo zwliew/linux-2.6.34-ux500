@@ -270,12 +270,17 @@ static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
 	}
 #endif
 };
-
 static struct i2c_board_info __initdata u8500_i2c1_devices[] = {
 #if defined(CONFIG_U8500_AUDIO_GPS)
 	{
 	 /* GPS - Address TBD, FIXME */
 	 I2C_BOARD_INFO("gps", 0x68),
+	},
+#endif
+#if defined(CONFIG_MFD_AB3550_CORE)
+	{
+		/* AB3550 */
+		I2C_BOARD_INFO("ab3550", 0x4A),
 	}
 #endif
 };
