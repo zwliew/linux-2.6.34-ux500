@@ -1,27 +1,25 @@
 if ARCH_U8500
 
-choice
-
-prompt "U8500 target board"
-	default MACH_U8500_MOP
+menu "8500 target platform"
 
 config MACH_U8500_SIMULATOR
-	bool "sim8500"
+	bool "8500 Simulator platform"
 	select CPU_V7
 	select ARM_GIC
 	select SMP
+	select MACH_U8500_MOP
 	help
 		Supports Simulation for u8500 platform
 
 config MACH_U8500_MOP
-	bool "MOP500"
+	bool "MOP500 platform"
 	select CPU_V7
 	select ARM_GIC
 	select SMP
+	default y
 	help
 		Supports MOP500 target board
-
-endchoice
+endmenu
 
 config U8500_CPUIDLE
     tristate "CPUIdle support"

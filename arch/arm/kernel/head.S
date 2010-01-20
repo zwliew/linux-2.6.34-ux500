@@ -76,6 +76,17 @@
  */
 	__HEAD
 ENTRY(stext)
+#if defined(CONFIG_MACH_U8500_SIMULATOR)
+	mrc p15, 0, r3, c0, c0, 5
+	ands r3, r3, #0xf
+	bne u8500_secondary_startup
+	mrc p15, 0, r1, c1, c0, 0
+	orr r1, r1, #1 << 10        @ Set the 10th bit in the System Control register as 1 to enable SWP ins
+	mcr p15, 0, r1, c1, c0, 0
+	mov r1, #0x100
+	add r1, r1,#0xa4
+	mov r2, #0x100
+#endif
 	setmode	PSR_F_BIT | PSR_I_BIT | SVC_MODE, r9 @ ensure svc mode
 						@ and irqs disabled
 	mrc	p15, 0, r9, c0, c0		@ get processor id
