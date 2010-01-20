@@ -90,8 +90,12 @@ unsigned long clk_get_rate(struct clk *clk)
 		return clk->ops->get_rate(clk);
 
 	rate = clk->rate;
-	if (!rate && clk->parent_periph)
-		rate = clk_get_rate(clk->parent_periph);
+	if (!rate) {
+		if (clk->parent_periph)
+			rate = clk_get_rate(clk->parent_periph);
+		else if (clk->parent_cluster)
+			rate = clk_get_rate(clk->parent_cluster);
+	}
 
 	return rate;
 }
