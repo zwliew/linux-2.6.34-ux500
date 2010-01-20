@@ -16,6 +16,8 @@
 #include <linux/irq.h>
 #include <linux/io.h>
 #include <linux/clockchips.h>
+#include <linux/clk.h>
+#include <linux/err.h>
 #include <linux/jiffies.h>
 #include <asm/mach/time.h>
 #include <mach/mtu.h>
@@ -134,12 +136,24 @@ static void u8500_timer_reset(void)
 static void __init u8500_timer_init(void)
 {
 	unsigned long rate;
+	struct clk *clk0;
+	struct clk *clk1;
 	int bits;
 
 #ifdef CONFIG_LOCAL_TIMERS
 	twd_base = (void *)IO_ADDRESS(U8500_TWD_BASE);
 #endif
-	rate = CLOCK_TICK_RATE;
+
+	clk0 = clk_get_sys("mtu0", NULL);
+	BUG_ON(IS_ERR(clk0));
+
+	clk1 = clk_get_sys("mtu1", NULL);
+	BUG_ON(IS_ERR(clk1));
+
+	clk_enable(clk0);
+	clk_enable(clk1);
+
+	rate = clk_get_rate(clk0);
 	u8500_cycle = (rate + HZ/2) / HZ;
 
 	/* Save global pointer to mtu, used by functions above */
