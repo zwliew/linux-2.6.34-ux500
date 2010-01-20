@@ -490,7 +490,7 @@ static void clks_register(struct clk_lookup *clks, size_t num)
 	}
 }
 
-static int __init clk_init(void)
+int __init clk_init(void)
 {
 	if (u8500_is_earlydrop()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
@@ -514,7 +514,6 @@ static int __init clk_init(void)
 
 	return 0;
 }
-arch_initcall(clk_init);
 
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>

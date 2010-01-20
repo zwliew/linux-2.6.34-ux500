@@ -6,6 +6,8 @@
  * published by the Free Software Foundation.
  */
 
+extern int __init clk_init(void);
+
 struct clkops {
 	void (*enable) (struct clk *);
 	void (*disable) (struct clk *);
