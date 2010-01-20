@@ -65,8 +65,8 @@ struct t_isadev_context {
 struct t_isa_driver_context {
 	u8 modemState;
 	u8 linkState;
-	atomic_t isOpen[2];
-	struct t_isadev_context *p_isadev[2];
+	atomic_t isOpen[4];
+	struct t_isadev_context *p_isadev[4];
 	struct cdev cdev;/* Char device structure */
 	spinlock_t op_lock;
 };

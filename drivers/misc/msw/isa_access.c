@@ -46,7 +46,7 @@
 #define ISA_DEVICES 4
 #define CREATE_QUEUES_BOOT_TIME 1
 /**debug functionality*/
-#define ISA_DEBUG 0
+#define ISA_DEBUG 1
 #define dbg_printk(format, arg...)	(ISA_DEBUG & 1) ? \
 	(printk(KERN_ALERT NAME ": " format , ## arg)) : \
 	({do {} while (0); })
@@ -830,7 +830,8 @@ static int isa_open(struct inode *inode, struct file *filp)
 
 	if ((m != ISI_MESSAGING) && \
 		(m != RPC_MESSAGING) && \
-		(m != AUDIO_MESSAGING)) {
+		(m != AUDIO_MESSAGING) && \
+		(m != SEC_MESSAGING)) {
 		printk(KERN_ALERT NAME ":No such device present\n");
 		mutex_unlock(&isa_lock);
 		return -ENODEV;

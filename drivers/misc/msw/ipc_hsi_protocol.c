@@ -56,11 +56,13 @@
 u8 current_boot_state;
 u8 current_boot_state_audio;
 u32 modem_response;
-u32 host_request;
+u32 host_request,boot_info_resp;
 u32 modem_response_audio;
 u32 rcv_start;
 
 static struct t_l1_desc dev_desc[MAX_CHANNELS_MONITORED];
+
+static int do_modem_boot(void);
 
 static inline int align_4byte(int len)
 {
@@ -197,9 +199,9 @@ static void rx_common_data_handler(void)
 		rx_params->rx_state = L1_RX_BUSY_STATE;
 		rx_params->rx_msg.length = pdu_length;
 
-		/*hsimode=HSI_DMA_MODE;*/
-		/*hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, \
-					&hsimode);*/
+		hsimode=HSI_DMA_MODE;
+		hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, \
+					&hsimode);
 		mdelay(1);
 		hsi_read(rx_params->rx_dev, (hsimode == HSI_DMA_MODE) ? \
 					(void *)msgptr->phys_address : \
@@ -227,9 +229,9 @@ static void rx_common_data_handler(void)
 		rx_params->rx_state = L1_RX_WAITING_ST_STATE;
 		/** start searching for start again */
 		rcv_start = 0;
-		/*hsimode=HSI_DMA_MODE;*/
-		/*hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, & \
-			hsimode);*/
+		hsimode=HSI_DMA_MODE;
+		hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, & \
+			hsimode);
 		hsi_read(rx_params->rx_dev, (hsimode != HSI_DMA_MODE) ? \
 				(void *)&rcv_start : \
 				(void *)rx_params->rx_msg.rx_st.phys_address,
@@ -332,6 +334,27 @@ static void rx_audio_data_handler(void)
 	dbg_printk("rx_audio_data_handler-- \n");
 }
 
+void state_change_audio(u8 state)
+{
+u32 hsimode = HSI_DMA_MODE;
+static struct t_l1_desc *rx_params;
+rx_params = &dev_desc[2]; /** Common data channel */
+
+if(state==MODEM_SSI_BOOT_DONE){
+
+			rx_params->rx_state = L1_RX_WAITING_ST_STATE;
+			hsimode = HSI_DMA_MODE;
+			hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, \
+				&hsimode);
+			hsi_read(rx_params->rx_dev, \
+				(hsimode != HSI_DMA_MODE) ? \
+				(void *)&rcv_start : \
+				(void *)rx_params->rx_msg.rx_st.phys_address, \
+				32, 4);
+		  }
+
+}
+
 /**
  * rx_audio_control_handler - Audio control channel callback handler
  *
@@ -339,63 +362,109 @@ static void rx_audio_data_handler(void)
  */
 static void rx_audio_control_handler(void)
 {
-	u32 hsimode = 1;
-	u32 rx_command, boot_info_resp;
-	u8  command_ID, modem_ssi_version, modem_config_info;
+	int err=0;
+	static struct t_l1_desc *ch1;
+	u32 hsimode = HSI_INTERRUPT_MODE;
+	u32 rx_command;
+	u8  command_ID,modem_ssi_version,modem_config_info;
 
-	dbg_printk("rx_audio_control_handler++\n");
+	dbg_printk("rx_common_control_handler Read buff %x\n", modem_response);
 
-	rx_command = modem_response_audio;
+
+	ch1 = &dev_desc[1];
+
+	rx_command = modem_response;
+
 	command_ID = (rx_command >> 28);
 
 	switch (command_ID) {
-	case MODEM_BOOT_INFO_REQ_ID: {
-		if (MODEM_SSI_BOOT_INFO_SYNC != current_boot_state_audio) {
-			printk(KERN_ALERT NAME ":Invalid boot state\n");
-			BUG();
-		} else {
-			modem_ssi_version = (u8)rx_command;
-			if (modem_ssi_version != NDK_SSI_VERSION) {
-				printk(KERN_ALERT NAME ":Invalid HSI ver\n");
-				BUG();
-			} else {
-				modem_config_info = (rx_command & 0xff00) >> 8;
-				boot_info_resp = BOOT_INFO_RESP | \
-					(NDK_SSI_CONFIGURATION & \
-					modem_config_info) << 8 | \
-					modem_ssi_version;
 
-				hsimode = HSI_INTERRUPT_MODE;
-				hsi_ioctl(dev_desc[1].tx_dev, \
-					HSI_IOCTL_SET_CURRMODE, \
-					&hsimode);
-				hsi_write(dev_desc[1].tx_dev, &boot_info_resp, \
-					32, 4);
-				dlp_ssi_boot_state_audio(MODEM_SSI_BOOT_DONE);
-			}
-		}
+	case MODEM_BOOT_INFO_REQ_ID:
+
+
+	     modem_ssi_version = (u8)rx_command;
+	             if (modem_ssi_version != NDK_SSI_VERSION) {
+	             dbg_printk(KERN_ALERT NAME ":Unsup SSI version\n");
+	     BUG();
+	     }
+
+	     host_request = BOOT_INFO_RESP;
+
+
+
+	     modem_config_info = (rx_command & \
+				  0x0000ff00) >> 8;
+
+	     boot_info_resp = BOOT_INFO_RESP|
+				(NDK_SSI_CONFIGURATION & \
+				 modem_config_info) << 8 |
+				 modem_ssi_version;
+
+
+
+	     hsi_ioctl(ch1->tx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
+
+	     err = hsi_write(ch1->tx_dev, &boot_info_resp, 32, 4);
+
+	     printk(KERN_ALERT NAME ":Audio:SYNC ->DONE!\n");
+
+	     current_boot_state_audio = MODEM_SSI_BOOT_DONE;
+
+	     /** Start common data channel receive */
+	     state_change_audio(current_boot_state_audio);
+
 	break;
+
+	case MODEM_BOOT_INFO_RESP_ID:
+	     modem_ssi_version = (u8)rx_command;
+		     if (modem_ssi_version != NDK_SSI_VERSION) {
+		     dbg_printk(KERN_ALERT NAME ":Unsup SSI version\n");
+		     BUG();
+	     }
+
+	     printk(KERN_ALERT NAME ":Audio:SYNC ->DONE!\n");
+
+	     current_boot_state_audio = MODEM_SSI_BOOT_DONE;
+
+	     /** Start common data channel receive */
+	     state_change_audio(current_boot_state_audio);
+
+	break;
+
+	default:
+
+	     dbg_printk(" Error Corrupted response\n");
+
+
+
+	break;
+
 	}
-	case MODEM_BOOT_INFO_RESP_ID: {
-		if (MODEM_SSI_BOOT_INFO_SYNC != current_boot_state_audio) {
-			printk(KERN_ALERT NAME ":Invalid boot state\n");
-			BUG();
-		} else {
-			modem_ssi_version = (u8)rx_command;
-			if (modem_ssi_version != NDK_SSI_VERSION) {
-				printk(KERN_ALERT NAME ":Invalid HSI ver\n");
-				BUG();
-			} else
-				dlp_ssi_boot_state_audio(MODEM_SSI_BOOT_DONE);
-		}
-		break;
-	}
-	default: {
-		dbg_printk("Error:Unknown command received\n");
-		break;
-	}
-	};
-	dbg_printk("rx_audio_control_handler--\n");
+
+
+}
+
+
+void state_change_common(u8 state)
+{
+u32 hsimode = HSI_DMA_MODE;
+static struct t_l1_desc *rx_params;
+
+rx_params = &dev_desc[3]; /** Common data channel */
+
+if(state==MODEM_SSI_BOOT_DONE){
+
+			rx_params->rx_state = L1_RX_WAITING_ST_STATE;
+			hsimode = HSI_DMA_MODE;
+			hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, \
+				&hsimode);
+			hsi_read(rx_params->rx_dev, \
+				(hsimode != HSI_DMA_MODE) ? \
+				(void *)&rcv_start : \
+				(void *)rx_params->rx_msg.rx_st.phys_address, \
+				32, 4);
+		  }
+
 }
 
 /**
@@ -404,65 +473,88 @@ static void rx_audio_control_handler(void)
  */
 static void rx_common_control_handler(void)
 {
-	u32 hsimode = 1;
-	u32 rx_command, boot_info_resp;
-	u8  command_ID, modem_ssi_version, modem_config_info;
+	int err=0;
+	static struct t_l1_desc *ch0;
+	u32 hsimode = HSI_INTERRUPT_MODE;
+	u32 rx_command;
+	u8  command_ID,modem_ssi_version,modem_config_info;
 
-	dbg_printk("rx_common_control_handler++\n");
+	dbg_printk("rx_common_control_handler Read buff %x\n", modem_response);
+
+
+	ch0 = &dev_desc[0];
 
 	rx_command = modem_response;
+
 	command_ID = (rx_command >> 28);
 
 	switch (command_ID) {
-	case MODEM_BOOT_INFO_REQ_ID: {
-		if (MODEM_SSI_BOOT_INFO_SYNC != current_boot_state) {
-			printk(KERN_ALERT NAME ":Invalid boot state\n");
-			BUG();
-		} else {
-			modem_ssi_version = (u8)rx_command;
-			if (modem_ssi_version != NDK_SSI_VERSION) {
-				printk(KERN_ALERT NAME ":Unsup SSI version\n");
-				BUG();
-			} else {
-				modem_config_info = (rx_command & \
-					0x0000ff00) >> 8;
-					boot_info_resp = BOOT_INFO_RESP|
-					(NDK_SSI_CONFIGURATION & \
-					modem_config_info) << 8 |
-					modem_ssi_version;
 
-				hsimode = HSI_INTERRUPT_MODE;
-				hsi_ioctl(dev_desc[0].tx_dev, \
-					HSI_IOCTL_SET_CURRMODE, &hsimode);
-				hsi_write(dev_desc[0].tx_dev, \
-					&boot_info_resp, 32, 4);
+	case MODEM_BOOT_INFO_REQ_ID:
 
-				dlp_ssi_boot_state(MODEM_SSI_BOOT_DONE);
-			}
-		}
+
+	     modem_ssi_version = (u8)rx_command;
+	             if (modem_ssi_version != NDK_SSI_VERSION) {
+	             dbg_printk(KERN_ALERT NAME ":Unsup SSI version\n");
+	     BUG();
+	     }
+
+	     host_request = BOOT_INFO_RESP;
+
+
+
+	     modem_config_info = (rx_command & \
+				  0x0000ff00) >> 8;
+
+	     boot_info_resp = BOOT_INFO_RESP|
+				(NDK_SSI_CONFIGURATION & \
+				 modem_config_info) << 8 |
+				 modem_ssi_version;
+
+
+	     hsi_ioctl(ch0->tx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
+
+	     err = hsi_write(ch0->tx_dev, &boot_info_resp, 32, 4);
+
+	     printk(KERN_ALERT NAME ":Common:SYNC ->DONE!\n");
+
+	     current_boot_state = MODEM_SSI_BOOT_DONE;
+
+	     /** Start common data channel receive */
+	     state_change_common(current_boot_state);
+
 	break;
-	}
-	case MODEM_BOOT_INFO_RESP_ID: {
-		if (MODEM_SSI_BOOT_INFO_SYNC != current_boot_state) {
-			printk(KERN_ALERT NAME ":Invalid boot state\n");
-			BUG();
-		} else {
-			modem_ssi_version = (u8)rx_command;
-			if (modem_ssi_version != NDK_SSI_VERSION) {
-				printk(KERN_ALERT NAME ": Invalid HSI ver\n");
-				BUG();
-			} else
-				dlp_ssi_boot_state(MODEM_SSI_BOOT_DONE);
-		}
+
+	case MODEM_BOOT_INFO_RESP_ID:
+	     modem_ssi_version = (u8)rx_command;
+		     if (modem_ssi_version != NDK_SSI_VERSION) {
+		     dbg_printk(KERN_ALERT NAME ":Unsup SSI version\n");
+		     BUG();
+	     }
+
+	     printk(KERN_ALERT NAME ":Common:SYNC ->DONE!\n");
+
+	     current_boot_state = MODEM_SSI_BOOT_DONE;
+
+	     /** Start common data channel receive */
+	     state_change_common(current_boot_state);
+
 	break;
-	}
-	default: {
-		dbg_printk("Error:Unknown command received\n");
+
+	default:
+
+	     dbg_printk(" Error Corrupted response\n");
+
+
+
 	break;
+
 	}
-	};
-	dbg_printk("rx_common_control_handler--\n");
+
+
 }
+
+
 
 static void tx_common_control_handler(void)
 {
@@ -479,95 +571,7 @@ u8 dlp_ssi_get_boot_state(void)
 	return current_boot_state;
 }
 
-void dlp_ssi_boot_state_audio(u8 event)
-{
-	struct t_l1_desc *rx_params;
-	u32 hsimode = 1;
 
-	rx_params = &dev_desc[2];
-
-	switch (current_boot_state_audio) {
-	case MODEM_SSI_BOOT_INIT: {
-		if (MODEM_SSI_BOOT_INFO_SYNC == event) {
-			printk(KERN_ALERT NAME ":Audio: INIT->SYNC!\n");
-			current_boot_state_audio = MODEM_SSI_BOOT_INFO_SYNC;
-		} else
-			printk(KERN_ALERT NAME ":Failure in HSI SM!\n");
-		break;
-	}
-	case MODEM_SSI_BOOT_INFO_SYNC: {
-		if (MODEM_SSI_BOOT_DONE == event) {
-			printk(KERN_ALERT NAME ":Audio:SYNC ->DONE!\n");
-			current_boot_state_audio = MODEM_SSI_BOOT_DONE;
-			dbg_printk("Modem Boot Finished\n");
-
-			rx_params->rx_state = L1_RX_WAITING_ST_STATE;
-			hsimode = HSI_DMA_MODE;
-			hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, \
-					&hsimode);
-			hsi_read(rx_params->rx_dev, \
-				(hsimode != HSI_DMA_MODE) ? \
-				(void *)&rcv_start : \
-				(void *)rx_params->rx_msg.rx_st.phys_address, \
-				32, 4);
-
-		} else
-			printk(KERN_ALERT NAME ":Failure in HSI SM!\n");
-		break;
-	}
-	case MODEM_SSI_BOOT_DONE:
-		 printk(KERN_ALERT NAME ":State change prohibit %d!\n", event);
-		 break;
-	default:
-		 printk(KERN_ALERT NAME ":Wrong state %d!\n", event);
-		 break;
-	};
-}
-
-void dlp_ssi_boot_state(u8 event)
-{
-	struct t_l1_desc *rx_params;
-	u32 hsimode = 1;
-
-	rx_params = &dev_desc[3];
-
-	switch (current_boot_state) {
-	case MODEM_SSI_BOOT_INIT: {
-		if (MODEM_SSI_BOOT_INFO_SYNC == event) {
-			printk(KERN_ALERT NAME ":INIT->SYNC!\n");
-				current_boot_state = MODEM_SSI_BOOT_INFO_SYNC;
-		} else
-			printk(KERN_ALERT NAME ":Failure in \
-			bootstatemachine!\n");
-	break;
-	}
-	case MODEM_SSI_BOOT_INFO_SYNC: {
-		if (MODEM_SSI_BOOT_DONE == event) {
-			printk(KERN_ALERT NAME ":SYNC->DONE!\n");
-			current_boot_state = MODEM_SSI_BOOT_DONE;
-			dbg_printk("Modem Boot Finished\n");
-
-			rx_params->rx_state = L1_RX_WAITING_ST_STATE;
-			hsimode = HSI_DMA_MODE;
-			hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, \
-				&hsimode);
-			hsi_read(rx_params->rx_dev, \
-				(hsimode != HSI_DMA_MODE) ? \
-				(void *)&rcv_start : \
-				(void *)rx_params->rx_msg.rx_st.phys_address, \
-				32, 4);
-		 } else
-			printk(KERN_ALERT NAME ":Failure HSI SM!\n");
-	break;
-	}
-	case MODEM_SSI_BOOT_DONE:
-		printk(KERN_ALERT NAME ": illegal %d!\n", event);
-		break;
-	default:
-		printk(KERN_ALERT NAME ":wrong state %d!\n", event);
-		break;
-	};
-}
 
 static void read_callbk(struct hsi_device *dev)
 {
@@ -860,6 +864,7 @@ int dlp_protocol_deinit(void)
 	return 0;
 }
 
+
 static int do_modem_boot(void)
 {
 	int err = 0;
@@ -871,25 +876,31 @@ static int do_modem_boot(void)
 
 	printk(KERN_ALERT "Trying to boot modem\n");
 
-	current_boot_state = MODEM_SSI_BOOT_INIT;
-	dlp_ssi_boot_state(MODEM_SSI_BOOT_INFO_SYNC);
 
+	current_boot_state = MODEM_SSI_BOOT_INIT;
 	current_boot_state_audio = MODEM_SSI_BOOT_INIT;
-	dlp_ssi_boot_state_audio(MODEM_SSI_BOOT_INFO_SYNC);
+
 	host_request = BOOT_INFO_REQ;
 	hsimode = HSI_INTERRUPT_MODE;
-	hsi_ioctl(dev_desc[0].tx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
-	hsi_ioctl(dev_desc[1].tx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
-	hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
-	hsi_ioctl(rx_params_audio->rx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
 
+	printk(KERN_ALERT NAME ":Common: INIT->SYNC!\n");
+	hsi_ioctl(dev_desc[0].tx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
 	err = hsi_write(dev_desc[0].tx_dev, &host_request, 32, 4);
-	err = hsi_write(dev_desc[1].tx_dev, &host_request, 32, 4);
+
+
+	hsi_ioctl(rx_params->rx_dev, HSI_IOCTL_SET_CURRMODE, &hsimode);
 	err = hsi_read(rx_params->rx_dev, &modem_response, 32, 4);
+
+	printk(KERN_ALERT NAME ":Audio: INIT->SYNC!\n");
+	err = hsi_write(dev_desc[1].tx_dev, &host_request, 32, 4);
 	err = hsi_read(rx_params_audio->rx_dev, &modem_response_audio, 32, 4);
 
 	return err;
 }
+
+
+
+
 /**
  * dlp_protocol_start() - HSI Protocol Start
  *
