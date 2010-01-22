@@ -29,34 +29,31 @@
 
 #include <mach/u8500_tsc.h>
 
-#define BOARD_NAME      "BOARD MOP500"
 #define MOP500_PLATFORM_ID 0
 #define HREF_PLATFORM_ID 1
 #define IRQ_KP 1 /*To DO*/
+
 extern int platform_id;
 
 static struct stmpe2401_platform_data stmpe_data = {
 	.gpio_base = 268,
 	.irq    = GPIO_TO_IRQ(217),
 };
+
 static struct av8100_platform_data av8100_plat_data = {
-	/*.gpio_base = 224,*/
 	.irq    = GPIO_TO_IRQ(192),
 };
 
-#ifdef CONFIG_I2C_BOARDINFO
-#ifdef CONFIG_GPIO_STMPE1601
 static struct stmpe1601_platform_data stmpe1601_data = {
 	.gpio_base = (268 + 24), /* 268 GPIOs + 24 extended GPIOs ofSTMPE2401*/
 	.irq    = GPIO_TO_IRQ(218),
 };
-#endif
+
 static struct tc35892_platform_data tc35892_data = {
 	.gpio_base = 268,
 	.irq    = GPIO_TO_IRQ(217),
 };
 
-#if defined(CONFIG_GPIO_STMPE2401)
 static struct i2c_board_info __initdata nmdk_i2c0_egpio_devices[] = {
 	{
 		/* stmpe2401 @ 0x84(w),0x85(r) */
@@ -64,9 +61,7 @@ static struct i2c_board_info __initdata nmdk_i2c0_egpio_devices[] = {
 		.platform_data = &stmpe_data,
 	}
 };
-#endif
 
-#if defined(CONFIG_GPIO_TC35892)
 static struct i2c_board_info __initdata nmdk_i2c0_egpio1_devices[] = {
 	{
 
@@ -74,7 +69,6 @@ static struct i2c_board_info __initdata nmdk_i2c0_egpio1_devices[] = {
 		.platform_data = &tc35892_data,
 	}
 };
-#endif
 
 /**
  * Touch panel related platform specific initialization
@@ -246,79 +240,57 @@ static struct tp_device tsc_plat_device = {
 #endif
 
 static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
-#if defined(CONFIG_GPIO_STMPE1601)
 	{
 		I2C_BOARD_INFO("stmpe1601", 0x40),
 		.platform_data = &stmpe1601_data,
 	},
-#endif
-#if defined(CONFIG_U8500_HDMI)
 	{
 		I2C_BOARD_INFO("av8100", 0x70),
 	},
-#endif
-#if defined(CONFIG_U8500_UIB_KEYPAD)
 	{
 	 /* FIXME - address TBD, TODO */
 	 I2C_BOARD_INFO("uib-kpd", 0x45),
 	},
-#endif
-#if defined(CONFIG_U8500_AUDIO_STEPUP)
 	{
 	 /* Audio step-up */
 	 I2C_BOARD_INFO("tps61052", 0x33),
 	}
-#endif
 };
 static struct i2c_board_info __initdata u8500_i2c1_devices[] = {
-#if defined(CONFIG_U8500_AUDIO_GPS)
 	{
 	 /* GPS - Address TBD, FIXME */
 	 I2C_BOARD_INFO("gps", 0x68),
 	},
-#endif
-#if defined(CONFIG_MFD_AB3550_CORE)
 	{
 		/* AB3550 */
 		I2C_BOARD_INFO("ab3550", 0x4A),
 	}
-#endif
 };
 
 static struct i2c_board_info __initdata u8500_i2c2_devices[] = {
-#if defined(CONFIG_U8500_AUDIO_MEMS)
 	{
 	 /* ST 3D accelerometer @ 0x3A(w),0x3B(r) */
 	 I2C_BOARD_INFO("lis302dl", 0x1D),
 	},
-#endif
-#if defined(CONFIG_U8500_MAGNETOMETER)
 	{
 	 /* ASAHI KASEI AK8974 magnetometer, addr TBD FIXME */
 	 I2C_BOARD_INFO("ak8974", 0x1),
 	},
-#endif
-#if defined(CONFIG_U8500_LIGHT_SENSOR)
 	{
 	 /* Rohm BH1780GLI light sensor addr TBD, FIXME */
 	 I2C_BOARD_INFO("bh1780gli", 0x45),
 	},
-#endif
-#if defined(CONFIG_U8500_LED)
 	{
 	 /* RGB LED driver, there are 1st and 2nd, TODO */
 	 I2C_BOARD_INFO("lp5521tmx", 0x33),
 	}
-#endif
 };
 
 static struct i2c_board_info __initdata u8500_i2c3_devices[] = {
-#if defined(CONFIG_U8500_NFC)
 	{
 	 /* NFC - Address TBD, FIXME */
 	 I2C_BOARD_INFO("nfc", 0x68),
 	},
-#endif
 #if defined(CONFIG_U8500_TSC)
 	{
 		/* Touschscreen */
@@ -328,7 +300,6 @@ static struct i2c_board_info __initdata u8500_i2c3_devices[] = {
 #endif
 
 };
-#endif
 
 #ifdef CONFIG_KEYPAD_U8500
 
@@ -579,22 +550,22 @@ int u8500_kp_key_irqen(struct keypad_t *kp)
  * codes to be passed to upper layer with respective key codes
  */
 u8 const kpd_lookup_tbl[MAX_KPROW][MAX_KPROW] = {
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_POWER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
-	KEY_VOLUMEUP, KEY_6, KEY_BACK, KEY_RESERVED},
-	{KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_8,
-	KEY_4, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_5,
-	KEY_RESERVED, KEY_RESERVED, KEY_SEND, KEY_RESERVED},
-	{KEY_MENU, KEY_RESERVED, KEY_END, KEY_VOLUMEDOWN,
-	KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_ENTER},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
+        {KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+        KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
+        {KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+        KEY_POWER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
+        {KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
+        KEY_VOLUMEUP, KEY_RIGHT, KEY_BACK, KEY_RESERVED},
+        {KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_DOWN,
+        KEY_LEFT, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
+        {KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_UP,
+        KEY_RESERVED, KEY_RESERVED, KEY_SEND, KEY_RESERVED},
+        {KEY_MENU, KEY_RESERVED, KEY_END, KEY_VOLUMEDOWN,
+        KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
+        {KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+        KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_ENTER},
+        {KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+        KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
 };
 
 /*
@@ -651,7 +622,6 @@ static struct platform_device keypad_device = {
 };
 #endif /* CONFIG_KEYPAD_U8500 */
 
-#ifdef CONFIG_STM_I2S
 static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	{
 	 .modalias = "i2s_device.0",
@@ -667,10 +637,8 @@ static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	 },
 
 };
-#endif
 
 static struct hsi_board_info __initdata stm_hsi_devices[] = {
-#ifdef CONFIG_HSI
 	{.type = "HSI_LOOPBACK", .flags = 0, .controller_id = 0,
 	 .chan_num = 0, .mode = 1},
 	{.type = "HSI_LOOPBACK", .flags = 0, .controller_id = 1,
@@ -687,7 +655,6 @@ static struct hsi_board_info __initdata stm_hsi_devices[] = {
 	 .chan_num = 3, .mode = 1},
 	{.type = "HSI_LOOPBACK", .flags = 0, .controller_id = 1,
 	 .chan_num = 3, .mode = 1},
-#endif
 };
 
 static struct platform_device *u8500_platform_devices[] __initdata = {
@@ -697,23 +664,18 @@ static struct platform_device *u8500_platform_devices[] __initdata = {
 #endif
 
 };
-__init void add_u8500_platform_devices(void)
+
+void __init add_u8500_platform_devices(void)
 {
 	printk(KERN_INFO "%s(): registering device resources\n", __func__);
 
-#ifdef CONFIG_I2C_BOARDINFO
-#if defined(CONFIG_GPIO_STMPE2401)/* || defined(CONFIG_GPIO_TC35892)*/
-	if (MOP500_PLATFORM_ID == platform_id) {
+	if (MOP500_PLATFORM_ID == platform_id)
 		i2c_register_board_info(0, nmdk_i2c0_egpio_devices,
 				ARRAY_SIZE(nmdk_i2c0_egpio_devices));
-	}
-#endif
-#if defined(CONFIG_GPIO_TC35892)
-	if (HREF_PLATFORM_ID == platform_id) {
+	else if (HREF_PLATFORM_ID == platform_id)
 		i2c_register_board_info(0, nmdk_i2c0_egpio1_devices,
 				ARRAY_SIZE(nmdk_i2c0_egpio1_devices));
-	}
-#endif
+
 	i2c_register_board_info(0, u8500_i2c0_devices,
 				ARRAY_SIZE(u8500_i2c0_devices));
 	i2c_register_board_info(1, u8500_i2c1_devices,
@@ -722,11 +684,8 @@ __init void add_u8500_platform_devices(void)
 				ARRAY_SIZE(u8500_i2c2_devices));
 	i2c_register_board_info(3, u8500_i2c3_devices,
 				ARRAY_SIZE(u8500_i2c3_devices));
-#endif
-#ifdef CONFIG_STM_I2S
 	i2s_register_board_info(stm_i2s_board_info,
 				ARRAY_SIZE(stm_i2s_board_info));
-#endif
 	hsi_register_board_info(stm_hsi_devices, ARRAY_SIZE(stm_hsi_devices));
 
 	platform_add_devices(u8500_platform_devices,
