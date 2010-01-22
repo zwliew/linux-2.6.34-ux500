@@ -209,6 +209,7 @@ static int mmc_read_switch(struct mmc_card *card)
 		return -ENOMEM;
 	}
 
+	udelay(10);
 	err = mmc_sd_switch(card, 0, 0, 1, status);
 	if (err) {
 		/* If the host or the card can't do the switch,
@@ -444,6 +445,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		/*
 		 * Fetch switch information from card.
 		 */
+		udelay(10);
 		err = mmc_read_switch(card);
 		if (err)
 			goto free_card;
