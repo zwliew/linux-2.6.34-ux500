@@ -1460,6 +1460,7 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	host->dma_fifo_addr = board->dma_fifo_addr;
 	host->dma_fifo_dev_type_rx = board->dma_fifo_dev_type_rx;
 	host->dma_fifo_dev_type_tx = board->dma_fifo_dev_type_tx;
+	host->caps = board->caps;
 	if (board->level_shifter)
 		host->level_shifter = board->level_shifter;
 	if (devicemode == MCI_POLLINGMODE) {
@@ -1478,8 +1479,8 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	mmc->f_max = min(host->mclk, fmax);
 	mmc->f_min = CLK_MAX / (CLK_DIV + 2);
 	if (devicemode == MCI_DMAMODE)
-		mmc->caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA |
-					MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
+		mmc->caps = host->caps;
+
 #ifdef CONFIG_U8500_SDIO
 	if(strcmp(dev->dev.bus_id,"SDIO") == 0){
 		host->is_sdio = 1;

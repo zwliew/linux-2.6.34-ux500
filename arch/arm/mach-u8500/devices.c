@@ -32,6 +32,7 @@
 #include <mach/dma.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-stm.h>
+#include <linux/mmc/host.h>
 #include <mach/mcde.h>
 #include <mach/mcde_common.h>
 #if defined(CONFIG_ANDROID_PMEM)
@@ -1795,6 +1796,7 @@ static struct mmc_board emmc_data = {
 	.dma_fifo_addr = U8500_SDI4_BASE + SD_MMC_TX_RX_REG_OFFSET,
 	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM4_RX,
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM4_TX,
+	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA | MMC_CAP_MMC_HIGHSPEED,
 };
 
 static struct amba_device sdi4_device = {
@@ -1914,6 +1916,8 @@ static struct mmc_board mmc_data = {
 	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM0_RX,
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM0_TX,
 	.level_shifter = 1,
+	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_SD_HIGHSPEED |
+					MMC_CAP_MMC_HIGHSPEED,
 };
 
 static struct amba_device sdi0_device = {
@@ -1979,6 +1983,7 @@ static struct mmc_board sdi2_data = {
 	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM2_RX,
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM2_TX,
 	.level_shifter = 0,
+	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
 };
 
 static struct amba_device sdi2_device = {

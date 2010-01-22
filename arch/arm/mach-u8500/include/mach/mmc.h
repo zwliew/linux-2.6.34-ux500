@@ -262,7 +262,7 @@ struct u8500_mmci_host {
 	unsigned int dma_fifo_dev_type_tx;
 	unsigned int level_shifter;
 	dma_addr_t dma;
-
+	unsigned long	caps;		/* Host capabilities */
 	unsigned int sg_len;
 	/* pio stuff */
 	struct scatterlist *sg_ptr;
@@ -321,6 +321,7 @@ struct mmc_board {
 	unsigned int dma_fifo_dev_type_rx;
 	unsigned int dma_fifo_dev_type_tx;
 	unsigned int level_shifter;
+	unsigned long	caps;		/* Host capabilities */
 };
 
 
