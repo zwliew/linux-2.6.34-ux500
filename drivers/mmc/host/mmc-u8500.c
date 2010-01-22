@@ -1523,8 +1523,8 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	else
 		mmc->max_blk_count = 64;
 	spin_lock_init(&host->lock);
-	host->clk = clk_get(NULL, dev->dev.bus_id);
-	if (!host->clk) {
+	host->clk = clk_get(&dev->dev, NULL);
+	if (IS_ERR(host->clk)) {
 		ret = PTR_ERR(host->clk);
 		goto unmap;
 	}
