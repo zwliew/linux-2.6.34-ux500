@@ -617,11 +617,12 @@ static int u8500_mmci_read(struct u8500_mmci_host *host, u32 * buffer,
 	void __iomem *base;
 	int count, max_count;
 	unsigned int data_xfered = 0;
-	base = host->base;
 	u8* char_buf;
 	u16* word_buf;
 	int temp;
 	u32 flag = MCI_DATA_IRQ;
+
+	base = host->base;
 #ifdef CONFIG_U8500_SDIO
 	if(host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
 		flag = MCI_DATA_ERR; /*required for SDIO CMD53*/
@@ -689,9 +690,9 @@ static int u8500_mmci_write(struct u8500_mmci_host *host, u32 * buffer,
 	unsigned int data_xfered = 0;
 	u16* buf16;
 	u8* buf8;
+	u32 flag = MCI_DATA_IRQ;
 
 	base = host->base;
-	u32 flag = MCI_DATA_IRQ;
 #ifdef CONFIG_U8500_SDIO
 	if(host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
 		flag = MCI_DATA_ERR; /*required for SDIO CMD53*/
@@ -758,6 +759,7 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 	unsigned long flags;
 
 	int devicemode = mmc_mode;
+	u32 temp_flag = MCI_TXFIFOHALFEMPTY | MCI_RXDATAAVLBL;
 #ifdef CONFIG_U8500_SDIO
 	/*check sdio_mode variable for SDIO card*/
 	struct mmc_host *mmc;
@@ -770,7 +772,6 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 	data = host->data;
 
 	hoststatus = readl(base + MMCISTATUS);
-	u32 temp_flag = MCI_TXFIFOHALFEMPTY | MCI_RXDATAAVLBL;
 #ifdef CONFIG_U8500_SDIO
 	if(host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
 		temp_flag |=  MCI_DATAEND | MCI_DATABLOCKEND;
@@ -879,7 +880,10 @@ static void start_data_xfer(struct u8500_mmci_host *host)
 	void __iomem *base;
 	struct mmc_data *data;
 	unsigned int size;
-	u32 nmdk_reg, clk_reg;
+	u32 nmdk_reg;
+#ifdef CONFIG_U8500_SDIO
+	u32 clk_reg;
+#endif
 	unsigned int temp;
 	int devicemode = mmc_mode;
 #ifdef CONFIG_U8500_SDIO
@@ -1142,7 +1146,7 @@ static irqreturn_t u8500_mmci_irq(int irq, void *dev_id)
 			u8500_mmc_disableirqsrc(base, MCI_SDIOIT);
 			u8500_mmc_clearirqsrc(base, MCI_SDIOIT);
 			 printk("\n START SDIO IRQ handler");
-			 printk("\nfunc[0] = %x, func[1] = %x",
+			 printk("\nfunc[0] = %p, func[1] = %p",
 			host->mmc->card->sdio_func[0], host->mmc->card->sdio_func[1]);
 			if(host->mmc->card && host->mmc->card->sdio_func[1] && host->mmc->card->sdio_func[1]->irq_handler){
 				struct sdio_func *func = host->mmc->card->sdio_func[1];
@@ -1172,7 +1176,7 @@ static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 {
 	DECLARE_COMPLETION_ONSTACK(complete);
 	void __iomem *base;
-	u32 nmdk_reg, temp_reg;
+	u32 nmdk_reg;
 	u32 polling_freq_clk_div = 0x0;
 	unsigned long flag_lock = 0;
 	int devicemode = mmc_mode;
@@ -1294,9 +1298,9 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct u8500_mmci_host *host = mmc_priv(mmc);
 	u32 clk = 0;
+#ifdef CONFIG_U8500_SDIO
 	int devicemode = mmc_mode;
 
-#ifdef CONFIG_U8500_SDIO
 	/*check sdio_mode variable for SDIO card*/
 	if(host->is_sdio == 1)
 		devicemode = sdio_mode;
@@ -1412,7 +1416,7 @@ static void u8500_mmci_check_status(void *data)
  *  the device, allocate the memory for the device,request the memory region with the
  *  device name and scan the device
  */
-static int u8500_mmci_probe(struct amba_device *dev, void *id)
+static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 {
 	struct u8500_mmci_host *host;
 	struct mmc_host *mmc;
