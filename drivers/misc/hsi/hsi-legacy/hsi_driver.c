@@ -475,6 +475,9 @@ static int __init hsi_probe(struct platform_device *pdev)
 	int err = 0;
 	int i=0;
 
+	/* FIXME : need to do tis in better way */
+	*((unsigned int *)((void __iomem *)ioremap_nocache(0x8011f000, 32))) = 0x7fff;
+	*((unsigned int *)((void __iomem *)ioremap_nocache(0x8011f008, 32))) = 0x7fff;
 
 	if ((pdev == NULL) || (pdev->dev.platform_data == NULL)) {
 		printk( "No device/platform_data found on HSI device\n");
@@ -487,6 +490,16 @@ static int __init hsi_probe(struct platform_device *pdev)
 		printk("Could not allocate memory for struct hsi_dev\n");
 		return -ENOMEM;
 	}
+
+	#if 1
+	hsi_ctrlr->clk = clk_get(&pdev->dev, NULL);
+	if (IS_ERR(hsi_ctrlr->clk)) {
+			printk(" DBG_ST.hsi Could not get HSI clock\n");
+			err = PTR_ERR(hsi_ctrlr->clk);
+			goto rollback_alloc;
+	}
+	clk_enable(hsi_ctrlr->clk);
+	#endif
 
 	/** initialise the HSI controller and channels (tx and rx) */
 	hsi_ctrlr->dev_type = pdev->id;
@@ -581,6 +594,8 @@ rollback_map:
 	iounmap(hsi_ctrlr->regbase);
 rollback_gpio:
 	stm_gpio_altfuncdisable(pdata->gpio_alt_func);
+rollback_clock:
+	clk_put(hsi_ctrlr->clk);
 rollback_alloc:
 	pdata->hsi_ctrlr = NULL;
 	kfree(hsi_ctrlr);
@@ -598,6 +613,7 @@ static int __exit hsi_remove(struct platform_device *pdev)
 	hsi_close_all_ch(hsi_ctrlr);
 	free_hsi_irq(hsi_ctrlr);
 	iounmap(hsi_ctrlr->regbase);
+	clk_put(hsi_ctrlr->clk);
 	pdata->hsi_ctrlr = NULL;
 	kfree(hsi_ctrlr);
 

@@ -49,6 +49,7 @@ int hsi_open(struct hsi_device *dev)
 		spin_unlock_bh(&ch->hsi_ch_lock);
 		return -EBUSY;
 	}
+	clk_enable(hsi_ctrlr->clk);
 	ch->flags |= HSI_CH_OPEN;
 	hsi_base=hsi_ctrlr->regbase;
 	if (hsi_ctrlr->dev_type == 0x0) /** HSI transmit controller*/
@@ -351,6 +352,7 @@ void hsi_close(struct hsi_device *dev)
 			writel((readl(hsi_base+HSI_RX_BUFSTATE) &
 				~((unsigned long)(1 << ch->channel_number))),hsi_base+HSI_RX_BUFSTATE);
 		}
+	  clk_disable(hsi_ctrlr->clk);
 	}
 	else
 		printk("Trying to close an unopened HSI device : ctrlr %d chnl %d \n",dev->ctrlrid,dev->chid);

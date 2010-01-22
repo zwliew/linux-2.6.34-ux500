@@ -191,6 +191,7 @@ struct hsi_dev {
 	u8 irqexcep;
 	u8 irq_choverrun[HSI_MAX_CHANNELS];
 	void __iomem *regbase;
+	struct clk *clk;
 	spinlock_t lock;
 	u32 tx_wmark_intrstatus;
 	struct tasklet_struct hsi_tx_tasklet;
