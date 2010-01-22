@@ -35,6 +35,12 @@
 #include <mach/shrm.h>
 
 
+#ifdef CONFIG_HIGH_RES_TIMERS
+#include <linux/hrtimer.h>
+static struct hrtimer timer;
+#endif
+
+
 #define NAME "IPC_ISA"
 #define ISA_DEVICES 4
 /**debug functionality*/
@@ -72,6 +78,7 @@ struct t_isa_driver_context *p_isa_context;
 rx_cb common_rx;
 rx_cb audio_rx;
 
+
 struct shrm_dev *pshm_dev;
 
 static void isi_receive(void *p_data, u32 n_bytes);
@@ -82,7 +89,7 @@ static void security_receive(void *p_data, u32 n_bytes);
 static void rx_common_l2msg_handler(unsigned char l2_header,
 				 void *msg, unsigned int length)
 {
-#ifdef CONFIG_STN8500_SHM_LOOP_BACK
+#ifdef CONFIG_U8500_SHRM_LOOP_BACK
 	unsigned char *pdata;
 #endif
     dbgprintk("++ \n");
@@ -98,7 +105,7 @@ static void rx_common_l2msg_handler(unsigned char l2_header,
 	case 3:
 		security_receive(msg, length);
 	break;
-#ifdef CONFIG_STN8500_SHM_LOOP_BACK
+#ifdef CONFIG_U8500_SHRM_LOOP_BACK
 	case 0xC0:
 		pdata = (unsigned char *)msg;
 		if ((*pdata == 0x50) || (*pdata == 0xAF))
@@ -133,8 +140,9 @@ static int __init shm_initialise_irq(struct shrm_dev *shm_dev_data)
 
 	shm_protocol_init(rx_common_l2msg_handler, rx_audio_l2msg_handler);
 
-	err = request_irq(shm_dev_data->ca_wake_irq, ca_wake_irq_handler,
-						0, "ca_wake-up", shm_dev_data);
+	err = request_irq(shm_dev_data->ca_wake_irq,
+			ca_wake_irq_handler, IRQF_TRIGGER_RISING,
+				 "ca_wake-up", shm_dev_data);
 		if (err < 0) {
 			printk("Unable to allocate shm tx interrupt line\n");
 			err = -EBUSY;
@@ -665,43 +673,44 @@ static ssize_t isa_write(struct file *filp, const char __user *buf,
 	case 0:
 		dbg_printk("ISI \n");
 		addr = (void *)wr_isi_msg;
-#ifdef CONFIG_STN8500_SHM_LOOP_BACK
+#ifdef CONFIG_U8500_SHRM_LOOP_BACK
+		printk(KERN_INFO "Loopback \n");
 		l2_header = 0xC0;
 #else
-	   l2_header = p_isadev->device_id;
- #endif
-	 break;
-	 case 1:
+		l2_header = p_isadev->device_id;
+#endif
+		break;
+	case 1:
 		dbg_printk("RPC \n");
 		addr = (void *)wr_rpc_msg;
-#ifdef CONFIG_STN8500_SHM_LOOP_BACK
+#ifdef CONFIG_U8500_SHRM_LOOP_BACK
 		l2_header = 0xC0;
 #else
-	   l2_header = p_isadev->device_id;
+		l2_header = p_isadev->device_id;
 #endif
-	 break;
-	 case 2:
+		break;
+	case 2:
 		dbg_printk("Audio \n");
 		addr = (void *)wr_audio_msg;
-#ifdef CONFIG_STN8500_SHM_LOOP_BACK
+#ifdef CONFIG_U8500_SHRM_LOOP_BACK
 		l2_header = 0x80;
 #else
-	    l2_header = p_isadev->device_id;
+		l2_header = p_isadev->device_id;
 #endif
 
-	 break;
-	 case 3:
+		break;
+	case 3:
 		dbg_printk("Security \n");
 		addr = (void *)wr_sec_msg;
-#ifdef CONFIG_STN8500_SHM_LOOP_BACK
+#ifdef CONFIG_U8500_SHRM_LOOP_BACK
 		l2_header = 0xC0;
 #else
-	    l2_header = p_isadev->device_id;
+		l2_header = p_isadev->device_id;
 #endif
-	 break;
+		break;
 	default:
 		dbgprintk("Wrong device \n");
-	 break;
+		break;
 	}
 
 	if (copy_from_user(addr, buf, len)) {
@@ -711,6 +720,9 @@ static ssize_t isa_write(struct file *filp, const char __user *buf,
 
 	/*Write msg to Fifo*/
 	 shm_write_msg(l2_header, addr, len);
+
+	 /*hrtimer_start(&timer, ktime_set(0, 2*NSEC_PER_MSEC),
+					HRTIMER_MODE_REL);*/
 
 	up(&q->tx_mutex);
 	dbgprintk("--\n");
@@ -895,6 +907,7 @@ static int isa_open(struct inode *inode, struct file *filp)
 	return err;
 }
 
+
 /*
  * struct shm_driver: SHRM platform structure
  * @owner:	The probe funtion to be called
@@ -1015,6 +1028,13 @@ static void isa_exit(void)
 	printk(KERN_ALERT NAME ": Driver removed\n");
 }
 
+#ifdef CONFIG_HIGH_RES_TIMERS
+static enum hrtimer_restart callback(struct hrtimer *timer)
+{
+	return HRTIMER_NORESTART;
+}
+#endif
+
 
 static int __init shrm_probe(struct platform_device *pdev)
 {
@@ -1088,12 +1108,6 @@ static int __init shrm_probe(struct platform_device *pdev)
 
 	shm_dev_data->intr_base = (void __iomem *)ioremap_nocache(res->start, \
 					res->end - res->start + 1);
-#if 1/*Needs to be removed this configuring interrupts in edge trigger*/
-	p_edge = (unsigned int *)((void __iomem *)ioremap_nocache(0xA0411C10, \
-									32));
-	p_edge = (p_edge+2);
-	*p_edge = 0xFFFFFFFF;
-#endif
 
 	if (!(shm_dev_data->intr_base)) {
 		printk(KERN_ALERT "Unable to map register base \n");
@@ -1242,6 +1256,13 @@ static int __init shrm_probe(struct platform_device *pdev)
 		printk(KERN_ALERT "shm error in interrupt registration \n");
 		goto rollback_irq;
 	}
+
+#ifdef CONFIG_HIGH_RES_TIMERS
+	hrtimer_init(&timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	timer.function = callback;
+
+	hrtimer_start(&timer, ktime_set(0, 2*NSEC_PER_MSEC), HRTIMER_MODE_REL);
+#endif
 
 	return err;
 

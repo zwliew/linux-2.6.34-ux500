@@ -91,7 +91,7 @@ void shm_ca_msgpending_0_tasklet(unsigned long tasklet_data)
 					/*send MsgPending notification*/
 					write_boot_info_resp(config, version);
 					boot_state = BOOT_INFO_SYNC;
-					printk(KERN_ALERT "BOOT_INFO_SYNC\n");
+					printk(KERN_ALERT "u8500-shrm : BOOT_INFO_SYNC\n");
 					send_ac_msg_pending_notification_0();
 				 } else {
 					 printk(KERN_ALERT "pshm_dev Null\n");
@@ -99,7 +99,7 @@ void shm_ca_msgpending_0_tasklet(unsigned long tasklet_data)
 				 }
 			} else {
 				ca_msg_read_notification_0();
-				printk(KERN_ALERT "BOOT_INFO_SYNC + \n");
+				printk(KERN_ALERT "u8500-shrm : BOOT_INFO_SYNC\n");
 			}
 		}
 	} else {
@@ -167,7 +167,7 @@ void shm_ac_read_notif_0_tasklet(unsigned long tasklet_data)
 		if (boot_state == BOOT_INFO_SYNC) {
 			/* BOOT_RESP sent by APE has been received by CMT*/
 			boot_state = BOOT_DONE;
-			printk(KERN_ALERT "BOOT_DONE\n");
+			printk(KERN_ALERT "u8500-shrm : IPC_ISA BOOT_DONE\n");
 		} else if (boot_state == BOOT_DONE) {
 			if (writer_local_rptr != writer_local_wptr)
 				send_ac_msg_pending_notification_0();
@@ -218,7 +218,7 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 		      received_msg_handler audio_rx_handler)
 {
 	boot_state = BOOT_INIT;
-	printk(KERN_ALERT "BOOT_INIT\n");
+	printk(KERN_ALERT "u8500-shrm: IPC_ISA BOOT_INIT\n");
 	p_common_rx_handler = common_rx_handler;
 	p_audio_rx_handler = audio_rx_handler;
 	spin_lock_init(&ca_common_lock);
