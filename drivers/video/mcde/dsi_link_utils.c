@@ -412,59 +412,49 @@ int mcde_dsi_test_LP_directcommand_mode(struct fb_info *info,u32 key)
 
 void mcde_dsi_taaldisplay_init(struct fb_info *info)
 {
-    //u32 ret_val;
-    struct mcdefb_info *currentpar = info->par;
-    volatile u32 __iomem *mcde_dsi_clk;
+	struct mcdefb_info *currentpar = info->par;
+	int timeout;	volatile u32 __iomem *mcde_dsi_clk;
 
-	if(currentpar->chid==MCDE_CH_C0)
-
-	{
-
+	if(currentpar->chid==MCDE_CH_C0) {
 		//currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_data_ctl|=0x380;
 
+		/* Link enable */
+		printk(KERN_ERR "mctl_main_data_ctl\n");
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_data_ctl=0x1;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_phy_ctl=0x5;
 
 		//currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_data_ctl|=0x380;
 
+		/* PLL start */
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en=0x438;
 
 		mdelay(100);
 
-
-        /**  mcde dsi clock */
-		mcde_dsi_clk=(u32 *) ioremap(0xA0350EF0, (0xA0350EF0+3)-0xA0350EF0 + 1);
-		*mcde_dsi_clk=0xA1010C;
-		iounmap(mcde_dsi_clk);
-
-		mdelay(100);
-
-
-        /** configure DSI link2 which is having plls */
-
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_data_ctl=0x1;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_phy_ctl=0x1;
-
-#ifndef CONFIG_FB_MCDE_MULTIBUFFER
-
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl=0x104A0;//0x104A2;
-#else
-
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl=0x1049E;//0x104A2;
-
-#endif
-
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en=0x9;
+		/**  mcde dsi clock */
+		//mcde_dsi_clk=(u32 *) ioremap(0xA0350EF0, (0xA0350EF0+3)-0xA0350EF0 + 1);
+		//*mcde_dsi_clk=0xA1010C;
+		//iounmap(mcde_dsi_clk);
 
 		mdelay(100);
 
-		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_pll_ctl=0x10000;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_pll_ctl=0x00000001;//0x10000;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en=0x439;
 
-		mdelay(100); /** check for pll lock */
+		/* wait for lanes ready */
+		timeout=0xFFFF;
+		while(!((currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_sts) & 0xE) && (timeout > 0))
+		{
+			timeout--;
+		}
+		if(timeout == 0) {
+			printk(KERN_INFO "DSI CLK LANE DAT1 DAT2 NOT READY\n");
+		}
+		else {
+			printk(KERN_INFO "DSI CLK LANE DAT1 DAT2 READY %x\n", timeout);
+		}
 
 		currentpar->dsi_lnk_registers[DSI_LINK0]->cmd_mode_ctl=0x3FF0040;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_dphy_static=0x3c0;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_dphy_static=0x300;//0x3c0;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_dphy_timeout=0xffffffff;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_ulpout_time=0x201;
 
@@ -473,96 +463,57 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 
 		/** send DSI commands to make display up */
 
-        /** make the display up ~ send commands */
+		/** make the display up ~ send commands */
 
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x11;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x11;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
 
-		 mdelay(150); /** sleep for 150 ms */
+		mdelay(150); /** sleep for 150 ms */
 
+		/** send teaing command with low power mode */
 
-		 /** send teaing command with low power mode */
-
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x35;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-
-		 mdelay(100);
-
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
-        /*  LP, size=2 */
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
-        /*  Rotate 270 degrees */
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xA036;
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-
-        mdelay(100);
-
-        /*  LP, size=5 */
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x253908;
-        /*  Column Address Set 0-0x1DF (0-479) */
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x0100002A;
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat1=0x000000DF;
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-        mdelay(100);
-
-        /*  LP, size=5 */
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x253908;
-        /*  Page Address Set 0-0x35F (0-863) */
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x0300002B;
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat1=0x0000005F;
-        currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-        mdelay(100);
-#endif
-
-		 /** send color mode */
-
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xf73a;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-
-		 mdelay(100);
-
-		 /** send power on command */
-
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xF729;
-		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-
-		 mdelay(100); /** check for display to up ok ~ primary display */
-
-	}
-
-
-	if(currentpar->chid==MCDE_CH_C1)
-	{
-
-
-		if(currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en!=0x9)
-		{
-		mcde_dsi_clk=(u32 *) ioremap(0xA0350EF0, (0xA0350EF0+3)-0xA0350EF0 + 1);
-		*mcde_dsi_clk =0xA1010C;
-		iounmap(mcde_dsi_clk);
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x35;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
 
 		mdelay(100);
 
+		/** send color mode */
 
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_data_ctl |=0x1;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_phy_ctl|=0x1;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xf73a;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
+
+		mdelay(100);
+
+		/** send power on command */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xF729;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
+
+		mdelay(100); /** check for display to up ok ~ primary display */
+	}
+
+	if(currentpar->chid==MCDE_CH_C1) {
+		if(currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en!=0x9) {
+			mcde_dsi_clk=(u32 *) ioremap(0xA0350EF0, (0xA0350EF0+3)-0xA0350EF0 + 1);
+			*mcde_dsi_clk =0xA1010C;
+			iounmap(mcde_dsi_clk);
+
+			mdelay(100);
+
+			currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_data_ctl |=0x1;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_phy_ctl|=0x1;
 #ifndef CONFIG_FB_MCDE_MULTIBUFFER
-
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl |=0x104A0;//0x104A2;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl |=0x104A0;//0x104A2;
 #else
-
-        currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl |=0x1049E;//0x104A2;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl |=0x1049E;//0x104A2;
 #endif
-
-		currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en |=0x9;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en |=0x9;
 	    }
 
 		mdelay(100);
-
 
 		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_data_ctl|=0x380;
 
@@ -605,32 +556,6 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 
 		mdelay(100);
 
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1_DISPLAY_WVGA_PORTRAIT
-        /*  LP, size=2 */
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
-        /*  Rotate 270 degrees */
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0xA036;
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
-
-        mdelay(100);
-
-        /*  LP, size=5 */
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x253908;
-        /*  Column Address Set 0-0x1DF (0-479) */
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x0100002A;
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat1=0x000000DF;
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
-        mdelay(100);
-
-        /*  LP, size=5 */
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x253908;
-        /*  Page Address Set 0-0x35F (0-863) */
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x0300002B;
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat1=0x0000005F;
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
-        mdelay(100);
-#endif
-
 		/** send color mode */
 
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
@@ -644,13 +569,12 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
 
 		mdelay(100); /** check for display to up ok ~ secondary display */
-
 	}
 
-
-  dbgprintk(MCDE_ERROR_INFO, "\n>> TAAL Dispaly Initialisation done\n\n\n");
-
+	dbgprintk(MCDE_ERROR_INFO, "\n>> TAAL Dispaly Initialisation done\n\n\n");
 }
+
+
 void mcde_dsi_tpodisplay_init(struct fb_info *info)
 {
     u32 ret_val;

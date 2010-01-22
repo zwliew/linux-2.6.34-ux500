@@ -25,6 +25,7 @@ extern "C" {
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <mach/mcde_common.h>
+#include <mach/mcde_a0.h>
 extern struct mcdefb_info *gpar[];
 
 /** bitmap of which overlays are in use (set) and unused (cleared) */
@@ -50,6 +51,7 @@ void release_mcde_lock(mcde_ch_id chid, unsigned long flags)
 {
 	spin_unlock_irqrestore(&(gpar[chid]->mcde_spin_lock), flags);
 }
+
 int convertbpp(u8 bpp)
 {
 	int hw_bpp = 0;
@@ -94,15 +96,16 @@ int convertbpp(u8 bpp)
 
 	return hw_bpp;
 }
+
 /** channel specific enable*/
 void mcdefb_enable(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 
-	/** ---- turn on FLOWEN for this channel */
+	/* Turn on FLOWEN for this channel */
 	mcdesetchnlXflowmode(currentpar->chid, MCDE_FLOW_ENABLE);
 
-	/** ---- turn on POWEREN for this channel */
+	/* Turn on POWEREN for this channel */
 	mcdesetchnlXpowermode(currentpar->chid, MCDE_POWER_ENABLE);
 }
 
@@ -111,30 +114,32 @@ void mcdefb_disable(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 
-	/** ---- turn off POWEREN for this channel */
+	/* Turn off POWEREN for this channel */
 	mcdesetchnlXpowermode(currentpar->chid, MCDE_POWER_DISABLE);
 
-	/** ---- turn off FLOWEN for this channel */
+	/* Turn off FLOWEN for this channel */
 	mcdesetchnlXflowmode(currentpar->chid, MCDE_FLOW_DISABLE);
 
 }
+
 int mcde_enable(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 	u32 retVal=0;
 
-	/** ---- enable MCDE */
+	/* Enable MCDE */
 	mcdesetstate(currentpar->chid, MCDE_ENABLE);
-	gpar[currentpar->chid]->regbase->mcde_cr |= 0x80000000;
+	gpar[currentpar->chid]->regbase->mcde_cr |= MCDE_CR_MCDEEN;
 	mcdefb_enable(info);
 	return retVal;
 }
+
 int mcde_disable(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 	u32 retVal=0;
 
-	/** ---- enable MCDE */
+	/* Disable MCDE */
 	mcdesetstate(currentpar->chid, MCDE_DISABLE);
 	mcdefb_disable(info);
 	return retVal;
@@ -202,6 +207,7 @@ int  mcde_alloc_source_buffer(struct mcde_sourcebuffer_alloc source_buff ,struct
 
 	return retVal;
 }
+
 int  mcde_dealloc_source_buffer(struct fb_info *info, u32 srcbufferindex, u8 isUserRequest)
 {
 	u32 retVal = MCDE_OK;
@@ -215,7 +221,10 @@ int  mcde_dealloc_source_buffer(struct fb_info *info, u32 srcbufferindex, u8 isU
 
 	mcde_ovl_bmp &= ~(1 << srcbufferindex);
 	if (currentpar->buffaddr[srcbufferindex].dmaaddr != 0x0)
-		dma_free_coherent(info->dev, currentpar->buffaddr[srcbufferindex].bufflength, (void*)currentpar->buffaddr[srcbufferindex].cpuaddr, currentpar->buffaddr[srcbufferindex].dmaaddr);
+		dma_free_coherent(info->dev, currentpar->buffaddr[srcbufferindex].bufflength,
+                      (void*)currentpar->buffaddr[srcbufferindex].cpuaddr,
+                      currentpar->buffaddr[srcbufferindex].dmaaddr);
+
 	currentpar->buffaddr[srcbufferindex].cpuaddr = 0x0 ;
 	currentpar->buffaddr[srcbufferindex].dmaaddr = 0x0;
 	currentpar->buffaddr[srcbufferindex].bufflength = 0x0;
@@ -225,6 +234,7 @@ int  mcde_dealloc_source_buffer(struct fb_info *info, u32 srcbufferindex, u8 isU
 		currentpar->mcde_cur_ovl_bmp = currentpar->mcde_ovl_bmp_arr[currentpar->tot_ovl_used - 1];
 		currentpar->mcde_ovl_bmp_arr[currentpar->tot_ovl_used] = -1;
 	}
+
 	return retVal;
 }
 
@@ -234,23 +244,24 @@ int  mcde_conf_extsource(struct mcde_ext_conf ext_src_config ,struct fb_info *in
 	struct mcde_ext_src_ctrl control;
 	u32 retVal = 0;
 
-	/** requested overlay id is not equal to the current overlay id */
+	/* requested overlay id is not equal to the current overlay id */
 	if(ext_src_config.provr_id != currentpar->mcde_cur_ovl_bmp)
 	{
 		dbgprintk(MCDE_ERROR_INFO, "mcde_conf_extsource: Not a valid overlay ID\n");
 		return -1;
 	}
 
-	/**---- ext src config registers */
+	/* Ext src config registers */
 	mcdesetextsrcconf(currentpar->chid, currentpar->mcde_cur_ovl_bmp, ext_src_config);
 
 	control.fs_ctrl = MCDE_FS_FREQ_UNCHANGED;
 	control.fs_div = MCDE_FS_FREQ_DIV_ENABLE;
 	control.ovr_ctrl = MCDE_MULTI_CH_CTRL_PRIMARY_OVR;
 	control.sel_mode = MCDE_BUFFER_SOFTWARE_SELECT;
-	/**---- ext src control registers */
+
+  /* Ext src control registers */
 	mcdesetextsrcctrl(currentpar->chid, currentpar->mcde_cur_ovl_bmp, control);
-	/** set the source buffer address */
+	/* Set the source buffer address */
 	mcdesetbufferaddr(currentpar->chid, currentpar->mcde_cur_ovl_bmp, ext_src_config.buf_id, currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr);
 
 	return retVal;
@@ -263,8 +274,10 @@ int  mcde_conf_channel_color_key(struct fb_info *info, struct mcde_channel_color
 
 	mcdesetcolorkey(currentpar->chid, chnannel_color_key.color_key, chnannel_color_key.color_key_type);
 	mcdesetcflowXcolorkeyctrl(currentpar->chid, chnannel_color_key.key_ctrl);
+
 	return retVal;
 }
+
 int  mcde_conf_blend_ctrl(struct fb_info *info, struct mcde_blend_control blend_ctrl)
 {
 	struct mcdefb_info *currentpar = info->par;
@@ -299,25 +312,34 @@ int  mcde_conf_blend_ctrl(struct fb_info *info, struct mcde_blend_control blend_
 	ovr_comp.ovr_zlevel = blend_ctrl.ovr2_blend_ctrl.ovr_zlevel;
 	mcdesetovrcomp(currentpar->chid, blend_ctrl.ovr2_id, ovr_comp);
 	}
+
 	mcdesetblendctrl(currentpar->chid, blend_ctrl);
+
 	return retVal;
 }
+
 int  mcde_conf_rotation(struct fb_info *info, mcde_rot_dir rot_dir, mcde_roten rot_ctrl, u32 rot_addr0, u32 rot_addr1)
 {
 	struct mcdefb_info *currentpar = info->par;
 	int retVal = MCDE_OK;
+
 	mcdesetrotation(currentpar->chid, rot_dir, rot_ctrl);
 	mcdesetrotaddr(currentpar->chid, rot_addr0, MCDE_ROTATE0);
 	mcdesetrotaddr(currentpar->chid, rot_addr1, MCDE_ROTATE1);
+
 	return retVal;
 }
+
 int  mcde_set_buffer(struct fb_info *info, u32 buffer_address, mcde_buffer_id buff_id)
 {
 	struct mcdefb_info *currentpar = info->par;
 	int retVal = MCDE_OK;
+
 	mcdesetbufferaddr(currentpar->chid, currentpar->mcde_cur_ovl_bmp, buff_id, buffer_address);
+
 	return retVal;
 }
+
 int  mcde_conf_color_conversion(struct fb_info *info, struct mcde_conf_color_conv color_conv_ctrl)
 {
 	struct mcdefb_info *currentpar = info->par;
@@ -377,19 +399,19 @@ int  mcde_conf_color_conversion(struct fb_info *info, struct mcde_conf_color_con
 
 	return retVal;
 }
+
 int  mcde_conf_overlay(struct mcde_conf_overlay ovrlayConfig ,struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 	struct mcde_ovr_control ovr_cr;
 	struct mcde_ovr_config ovr_conf;
 	struct mcde_ovr_conf2 ovr_conf2;
-	//struct mcde_ovr_clip ovr_clip;
 	struct mcde_ovr_comp ovr_comp;
 	struct mcde_conf_color_conv color_conv_ctrl;
 	u32  lineJump;
 	u32 retVal = 0;
 
-	/** SET OVERLAY REGISTERS */
+	/* Set overlay registers */
 	ovr_cr.ovr_state = ovrlayConfig.ovr_state;
 	ovr_cr.col_ctrl = ovrlayConfig.col_ctrl;
 	ovr_cr.pal_control = ovrlayConfig.pal_control;
@@ -401,14 +423,14 @@ int  mcde_conf_overlay(struct mcde_conf_overlay ovrlayConfig ,struct fb_info *in
 	ovr_cr.alpha = ovrlayConfig.alpha;
 	ovr_cr.clip = ovrlayConfig.clip;
 
-	/**---- overlay ctrl registers */
+	/* Overlay ctrl registers */
 	mcdesetovrctrl(currentpar->chid, currentpar->mcde_cur_ovl_bmp, ovr_cr);
 
-	ovr_conf.line_per_frame = ovrlayConfig.yheight;//info->var.yres;
-	ovr_conf.ovr_ppl = ovrlayConfig.xwidth;//info->var.xres;
+	ovr_conf.line_per_frame = ovrlayConfig.yheight;
+	ovr_conf.ovr_ppl = ovrlayConfig.xwidth;
 	ovr_conf.src_id = currentpar->mcde_cur_ovl_bmp;
 
-	/**---- overlay config registers */
+	/* Overlay config registers */
 	mcdesetovrlayconf(currentpar->chid, currentpar->mcde_cur_ovl_bmp, ovr_conf);
 
 	ovr_conf2.alpha_value = ovrlayConfig.alpha_value;
@@ -426,8 +448,8 @@ int  mcde_conf_overlay(struct mcde_conf_overlay ovrlayConfig ,struct fb_info *in
 
 	mcdesetovrljinc(currentpar->chid, currentpar->mcde_cur_ovl_bmp, lineJump);
 
-	/**---- overlay composition registers */
-	/** base overlay is always in background */
+	/* Overlay composition registers */
+	/* Base overlay is always in background */
 
 	ovr_comp.ch_id = currentpar->chid;
 	ovr_comp.ovr_xpos = ovrlayConfig.ovr_xpos;
@@ -441,6 +463,7 @@ int  mcde_conf_overlay(struct mcde_conf_overlay ovrlayConfig ,struct fb_info *in
 
 	return retVal;
 }
+
 int  mcde_extsrc_ovl_create(struct mcde_overlay_create *extsrc_ovl ,struct fb_info *info, u32 *pkey)
 {
 	struct mcde_sourcebuffer_alloc source_buff;
@@ -467,12 +490,13 @@ int  mcde_extsrc_ovl_create(struct mcde_overlay_create *extsrc_ovl ,struct fb_in
 	if (hw_bpp <= MCDE_PAL_8_BIT)
 		info->fix.visual = FB_VISUAL_PSEUDOCOLOR;
 
-	/**cant be bigger than the base overlay*/
+	/* Can't be bigger than the base overlay*/
 	if ((extsrc_ovl->xwidth > info->var.xres) || (extsrc_ovl->yheight > info->var.yres))
 		return -EINVAL;
+
 	if (extsrc_ovl->usedefault == 0)
 	{
-	  /** allocate memory */
+	  /* Allocate memory */
 	  source_buff.xwidth = extsrc_ovl->xwidth;
 	  source_buff.yheight = extsrc_ovl->yheight;
 	  source_buff.bpp = extsrc_ovl->bpp;
@@ -484,7 +508,7 @@ int  mcde_extsrc_ovl_create(struct mcde_overlay_create *extsrc_ovl ,struct fb_in
 	} else
 	  *pkey = currentpar->mcde_cur_ovl_bmp;
 
-	/** SET EXTERNAL SRC REGISTERS */
+	/* Set external source registers */
 	config.ovr_pxlorder = MCDE_PIXEL_ORDER_LITTLE;
 	config.endianity = MCDE_BYTE_LITTLE;
 	config.rgb_format = currentpar->bgrinput;
@@ -494,16 +518,18 @@ int  mcde_extsrc_ovl_create(struct mcde_overlay_create *extsrc_ovl ,struct fb_in
 	config.buf_id = MCDE_BUFFER_ID_0;
 	mcde_conf_extsource(config ,info);
 
-	/** SET OVERLAY REGISTERS */
+	/* Set overlay registers */
 	ovrlayConfig.ovr_state = MCDE_OVERLAY_ENABLE;
 	if (convert_format == COLOR_CONV_YUV_RGB)
 		ovrlayConfig.col_ctrl = MCDE_COL_CONV_NOT_SAT;
 	else
 		ovrlayConfig.col_ctrl = MCDE_COL_CONV_DISABLE;
+
 	if (currentpar->actual_bpp <= MCDE_PAL_8_BIT)
 		ovrlayConfig.pal_control = MCDE_PAL_ENABLE;
 	else
 		ovrlayConfig.pal_control = MCDE_PAL_GAMA_DISABLE;
+
 	ovrlayConfig.priority = 0x0;
 	ovrlayConfig.color_key = MCDE_COLOR_KEY_DISABLE;
 	ovrlayConfig.rot_burst_req = MCDE_ROTATE_BURST_WORD_4;
@@ -541,7 +567,7 @@ int mcde_extsrc_ovl_remove(struct fb_info *info,u32 key)
 	unsigned long flags;
 	u32 retVal = MCDE_OK;
 
-	/** SPINLOCK in use : deal with the global variables now */
+	/* SPINLOCK in use : deal with the global variables now */
 	flags = claim_mcde_lock(currentpar->chid);
 
 	if ((key != currentpar->mcde_cur_ovl_bmp) || (currentpar->tot_ovl_used == 1))
@@ -550,8 +576,9 @@ int mcde_extsrc_ovl_remove(struct fb_info *info,u32 key)
 		release_mcde_lock(currentpar->chid, flags);
 		return -EINVAL;
 	}
-	/** reset ext src and ovrlay registers to default value */
+	/* Reset ext src and ovrlay registers to default value */
 	mcderesetextsrcovrlay(currentpar->chid);
+
 #ifdef TESTING
 	currentpar->tot_ovl_used--;
 	//mcde_ovl_bmp--;
@@ -565,10 +592,13 @@ int mcde_extsrc_ovl_remove(struct fb_info *info,u32 key)
 	currentpar->buffaddr[key].bufflength = 0x0;
 	currentpar->mcde_ovl_bmp_arr[currentpar->tot_ovl_used] = -1;
 #endif
+
         retVal = mcde_dealloc_source_buffer(info, key, FALSE);
         release_mcde_lock(currentpar->chid, flags);
+
 	return retVal;
 }
+
 int  mcde_conf_channel(struct mcde_ch_conf ch_config ,struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
@@ -652,7 +682,10 @@ int  mcde_conf_chnlc(struct mcde_chc_config chnlc_config, struct mcde_chc_ctrl c
 	mcdesetchnlCconf(currentpar->chid, panel_id, chnlc_config);
 	mcdesetchnlCctrl(currentpar->chid, chnlc_control);
 #endif
-	currentpar->ch_c_reg->mcde_chc_crc = 0x1d7d0017;//0x387b0027;
+	currentpar->ch_c_reg->mcde_crc = /*MCDE_CRC_FLOEN | MCDE_CRC_POWEREN | MCDE_CRC_C1EN | MCDE_CRC_WMLVL1 |
+                                   MCDE_CRC_CS1EN | MCDE_CRC_RESEN | MCDE_CRC_CS1POL | MCDE_CRC_CS2POL |
+                                   MCDE_CRC_CD1POL | MCDE_CRC_CD2POL | MCDE_CRC_WR2POL | MCDE_CRC_RD2POL |
+                                   MCDE_CRC_RES1POL | MCDE_CRC_RES2POL;//*/0x1d7d0017;//0x387b0027;
 	/** Add any Channel "C' extra configuration */
 
 	return retVal;

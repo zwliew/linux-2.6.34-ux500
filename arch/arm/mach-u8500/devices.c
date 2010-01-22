@@ -646,71 +646,68 @@ static struct platform_device u8500_i2c_4_controller = {
 static struct resource mcde2_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
-		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
-		.name = "mcde_base",
+		.end   = U8500_MCDE_BASE + (U8500_MCDE_BASE_SIZE  - 1),
+		.name  = "mcde_top",
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
 		.start = U8500_MCDE_EXTSRC_BASE,
-		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
-		.name = "mcde_extsrc_base",
+		.end   = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name  = "mcde_extsrc",
 		.flags = IORESOURCE_MEM,
 	},
-	[2] = {
-		.start = U8500_MCDE_OVL_BASE,
-		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
-		.name = "mcde_overlay_base",
+  [2] = {
+		.start = U8500_MCDE_OVERLAY_BASE,
+		.end   = U8500_MCDE_OVERLAY_BASE + (U8500_MCDE_OVERLAY_SIZE - 1),
+		.name  = "mcde_overlay",
 		.flags = IORESOURCE_MEM,
 	},
 	[3] = {
 		.start = U8500_MCDE_CHANNELC0_CONFIG_BASE,
-		.end = U8500_MCDE_CHANNELC0_CONFIG_BASE +
-			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
-		.name = "chc0_config",
+    .end   = U8500_MCDE_CHANNELC0_CONFIG_BASE +	(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name  = "mcde_chc0_config",
 		.flags = IORESOURCE_MEM,
 	},
 	[4] = {
-		.start = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE,
-		.end = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE +
-			(U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_SIZE - 1),
-		.name = "chb_specific",
+		.start = U8500_MCDE_CHANNELC0C1_SPECIFIC_REGISTER_BASE,
+		.end   = U8500_MCDE_CHANNELC0C1_SPECIFIC_REGISTER_BASE +	(U8500_MCDE_CHANNELC0C1_SPECIFIC_REGISTER_SIZE - 1),
+		.name  = "mcde_chc0c1_specific",
 		.flags = IORESOURCE_MEM,
 	},
 	[5] = {
 		.start = U8500_MCDE_DSI_CHANNEL_BASE,
-		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
-		.name = "mcde_dsi_channel_base",
+		.end   = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_CHANNEL_SIZE - 1),
+		.name  = "mcde_dsi_channel",
 		.flags = IORESOURCE_MEM,
 	},
 	[6] = {
 		.start = U8500_DSI_LINK1_BASE,
-		.end = U8500_DSI_LINK1_BASE +
-			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
-		.name = "dsi_link_base",
+		.end   = U8500_DSI_LINK1_BASE + ((U8500_DSI_LINK_SIZE * U8500_DSI_LINK_COUNT) - 1),
+		.name  = "dsi_link",
 		.flags = IORESOURCE_MEM,
 	},
 	[7] = {
 		.start = PRCM_MCDECLK_MGT_REG,
-		.end = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
-		.name = "prcm_mcde_clk",
+		.end   = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
+		.name  = "prcm_mcde_clk",
 		.flags = IORESOURCE_MEM,
 	},
 	[8] = {
 		.start = PRCM_HDMICLK_MGT_REG,
-		.end = PRCM_HDMICLK_MGT_REG + (sizeof(u32) - 1),
-		.name = "prcm_hdmi_clk",
+		.end   = PRCM_HDMICLK_MGT_REG + (sizeof(u32) - 1),
+		.name  = "prcm_hdmi_clk",
 		.flags = IORESOURCE_MEM,
 	},
 	[9] = {
 		.start = PRCM_TVCLK_MGT_REG,
-		.end = PRCM_TVCLK_MGT_REG + (sizeof(u32) - 1),
-		.name = "prcm_tv_clk",
+		.end   = PRCM_TVCLK_MGT_REG + (sizeof(u32) - 1),
+		.name  = "prcm_tv_clk",
 		.flags = IORESOURCE_MEM,
 	},
 	[10] = {
 		.start = IRQ_DISP,
-		.end = IRQ_DISP,
-		.name = "mcde_irq",
+		.end   = IRQ_DISP,
+		.name  = "mcde_irq",
 		.flags = IORESOURCE_IRQ
 	},
 };
@@ -746,50 +743,48 @@ static struct platform_device mcde2_device = {
 	.resource = mcde2_resources
 };
 
+/* Channel C1 */
 static struct resource mcde3_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
-		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
-		.name = "mcde_base",
+		.end   = U8500_MCDE_BASE + (U8500_MCDE_BASE_SIZE  - 1),
+		.name  = "mcde_top",
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
 		.start = U8500_MCDE_EXTSRC_BASE,
-		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
-		.name = "mcde_extsrc_base",
+		.end   = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name  = "mcde_extsrc",
 		.flags = IORESOURCE_MEM,
 	},
 	[2] = {
-		.start = U8500_MCDE_OVL_BASE,
-		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
-		.name = "mcde_overlay_base",
+		.start = U8500_MCDE_OVERLAY_BASE,
+		.end   = U8500_MCDE_OVERLAY_BASE + (U8500_MCDE_OVERLAY_SIZE - 1),
+		.name  = "mcde_overlay",
 		.flags = IORESOURCE_MEM,
 	},
 	[3] = {
 		.start = U8500_MCDE_CHANNELC1_CONFIG_BASE,
-		.end = U8500_MCDE_CHANNELC1_CONFIG_BASE +
-			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
-		.name = "chc1_config",
+    .end   = U8500_MCDE_CHANNELC1_CONFIG_BASE +	(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name  = "mcde_chc1_config",
 		.flags = IORESOURCE_MEM,
 	},
 	[4] = {
-		.start = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE,
-		.end = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE +
-			(U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_SIZE - 1),
-		.name = "chb_specific",
+		.start = U8500_MCDE_CHANNELC0C1_SPECIFIC_REGISTER_BASE,
+		.end   = U8500_MCDE_CHANNELC0C1_SPECIFIC_REGISTER_BASE + (U8500_MCDE_CHANNELC0C1_SPECIFIC_REGISTER_SIZE - 1),
+		.name  = "mcde_chc0c1_specific",
 		.flags = IORESOURCE_MEM,
 	},
 	[5] = {
 		.start = U8500_MCDE_DSI_CHANNEL_BASE,
-		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
-		.name = "mcde_dsi_channel_base",
+		.end   = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name  = "mcde_dsi_channel",
 		.flags = IORESOURCE_MEM,
 	},
 	[6] = {
 		.start = U8500_DSI_LINK1_BASE,
-		.end = U8500_DSI_LINK1_BASE +
-			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
-		.name = "dsi_link_base",
+		.end   = U8500_DSI_LINK1_BASE +	((U8500_DSI_LINK_SIZE * U8500_DSI_LINK_COUNT) - 1),
+		.name  = "dsi_link",
 		.flags = IORESOURCE_MEM,
 	},
 	[7] = {
@@ -853,53 +848,50 @@ static struct platform_device mcde3_device = {
 static struct resource mcde1_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
-		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
-		.name = "mcde_base",
+		.end   = U8500_MCDE_BASE + (U8500_MCDE_BASE_SIZE  - 1),
+		.name  = "mcde_base",
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
 		.start = U8500_MCDE_EXTSRC_BASE,
-		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
-		.name = "mcde_extsrc_base",
+		.end   = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name  = "mcde_extsrc",
 		.flags = IORESOURCE_MEM,
 	},
 	[2] = {
-		.start = U8500_MCDE_OVL_BASE,
-		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
-		.name = "mcde_overlay_base",
+		.start = U8500_MCDE_OVERLAY_BASE,
+		.end   = U8500_MCDE_OVERLAY_BASE + (U8500_MCDE_OVERLAY_SIZE - 1),
+		.name  = "mcde_overlay",
 		.flags = IORESOURCE_MEM,
 	},
 	[3] = {
 		.start = U8500_MCDE_CHANNELB_CONFIG_BASE,
-		.end = U8500_MCDE_CHANNELB_CONFIG_BASE +
-			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
-		.name = "chb_config",
+		.end   = U8500_MCDE_CHANNELB_CONFIG_BASE + (U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name  = "mcde_chb_config",
 		.flags = IORESOURCE_MEM,
 	},
 	[4] = {
 		.start = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE,
-		.end = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE +
-			 (U8500_MCDE_CHANNEL_SPECIFIC_REGISTER_SIZE - 1),
-		.name = "chb_specific",
+		.end   = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE + (U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_SIZE - 1),
+		.name  = "mcde_chb_specific",
 		.flags = IORESOURCE_MEM,
 	},
 	[5] = {
 		.start = U8500_MCDE_DSI_CHANNEL_BASE,
-		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
-		.name = "mcde_dsi_channel_base",
+		.end   = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name  = "mcde_dsi_channel",
 		.flags = IORESOURCE_MEM,
 	},
 	[6] = {
 		.start = U8500_DSI_LINK1_BASE,
-		.end = U8500_DSI_LINK1_BASE +
-			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
-		.name = "dsi_link_base",
+		.end   = U8500_DSI_LINK1_BASE + ((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
+		.name  = "dsi_link",
 		.flags = IORESOURCE_MEM,
 	},
 	[7] = {
 		.start = PRCM_MCDECLK_MGT_REG,
-		.end = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
-		.name = "prcm_mcde_clk",
+		.end   = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
+		.name  = "prcm_mcde_clk",
 		.flags = IORESOURCE_MEM,
 	},
 	[8] = {
@@ -956,50 +948,48 @@ static struct platform_device mcde1_device = {
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 
+/* Channel A */
 static struct resource mcde0_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
-		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
-		.name = "mcde_base",
+		.end   = U8500_MCDE_BASE + (U8500_MCDE_BASE_SIZE  - 1),
+		.name  = "mcde_base",
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
 		.start = U8500_MCDE_EXTSRC_BASE,
-		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
-		.name = "mcde_extsrc_base",
+		.end   = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name  = "mcde_extsrc",
 		.flags = IORESOURCE_MEM,
 	},
 	[2] = {
-		.start = U8500_MCDE_OVL_BASE,
-		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
-		.name = "mcde_overlay_base",
+		.start = U8500_MCDE_OVERLAY_BASE,
+		.end   = U8500_MCDE_OVERLAY_BASE + (U8500_MCDE_OVERLAY_SIZE - 1),
+		.name  = "mcde_overlay",
 		.flags = IORESOURCE_MEM,
 	},
 	[3] = {
 		.start = U8500_MCDE_CHANNELA_CONFIG_BASE,
-		.end = U8500_MCDE_CHANNELA_CONFIG_BASE +
-			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
-		.name = "cha_config",
+		.end   = U8500_MCDE_CHANNELA_CONFIG_BASE + (U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name  = "mcde_cha_config",
 		.flags = IORESOURCE_MEM,
 	},
 	[4] = {
 		.start = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE,
-		.end = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE +
-			(U8500_MCDE_CHANNEL_SPECIFIC_REGISTER_SIZE - 1),
-		.name = "cha_specific",
+		.end   = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE + (U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_SIZE - 1),
+		.name  = "mcde_cha_specific",
 		.flags = IORESOURCE_MEM,
 	},
 	[5] = {
 		.start = U8500_MCDE_DSI_CHANNEL_BASE,
-		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
-		.name = "mcde_dsi_channel_base",
+		.end   = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name  = "mcde_dsi_channel",
 		.flags = IORESOURCE_MEM,
 	},
 	[6] = {
 		.start = U8500_DSI_LINK1_BASE,
-		.end = U8500_DSI_LINK1_BASE +
-			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
-		.name = "dsi_link_base",
+		.end   = U8500_DSI_LINK1_BASE +	((U8500_DSI_LINK_SIZE * U8500_DSI_LINK_COUNT) - 1),
+		.name  = "dsi_link",
 		.flags = IORESOURCE_MEM,
 	},
 	[7] = {

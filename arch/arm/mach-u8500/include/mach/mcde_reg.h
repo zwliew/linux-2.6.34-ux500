@@ -540,57 +540,91 @@ struct mcde_ovl_reg
     volatile u32 mcde_ovl_conf2;
     volatile u32 mcde_ovl_ljinc;
     volatile u32 mcde_ovl_crop;
-    volatile u32 mcde_ovl_top_left_clip;
-    volatile u32 mcde_ovl_bot_rht_clip;
     volatile u32 mcde_ovl_comp;
+    volatile u32 mcde_unused1[2];
 };
 
-struct mcde_ch_synch_reg
+struct mcde_chnl_conf_reg
 {
-    volatile u32 mcde_ch_conf;
-    volatile u32 mcde_ch_stat;
-    volatile u32 mcde_chsyn_mod;
-    volatile u32 mcde_chsyn_sw;
-    volatile u32 mcde_chsyn_bck;
-    volatile u32 mcde_chsyn_prio;
-    volatile u32 mcde_unused3[2];
+  volatile u32 mcde_chnl_conf;
+  volatile u32 mcde_chnl_stat;
+  volatile u32 mcde_chnl_synchmod;
+  volatile u32 mcde_chnl_synchsw;
+  volatile u32 mcde_chnl_bckgndcol;
+  volatile u32 mcde_chnl_prio;
+  volatile u32 mcde_unused[2];
 };
 
-struct mcde_ch_reg
+struct mcde_chAB_reg
 {
-    volatile u32 mcde_ch_cr0;
-    volatile u32 mcde_ch_cr1;
-    volatile u32 mcde_ch_colkey;
-    volatile u32 mcde_ch_fcolkey;
-    volatile u32 mcde_ch_rgbconv1;
-    volatile u32 mcde_ch_rgbconv2;
-    volatile u32 mcde_ch_rgbconv3;
-    volatile u32 mcde_ch_rgbconv4;
-    volatile u32 mcde_ch_rgbconv5;
-    volatile u32 mcde_ch_rgbconv6;
-    volatile u32 mcde_ch_ffcoef0;
-    volatile u32 mcde_ch_ffcoef1;
-    volatile u32 mcde_ch_ffcoef2;
-    volatile u32 unused;
-    volatile u32 mcde_ch_tvcr;
-    volatile u32 mcde_ch_tvbl1;
-    volatile u32 mcde_ch_tvisl;
-    volatile u32 mcde_ch_tvdvo;
-    volatile u32 mcde_ch_tvswh;
-    volatile u32 mcde_ch_tvtim1;
-    volatile u32 mcde_ch_tvbalw;
-    volatile u32 mcde_ch_tvbl2;
-    volatile u32 mcde_ch_tvblu;
-    volatile u32 mcde_ch_lcdtim0;
-    volatile u32 mcde_ch_lcdtim1;
-    volatile u32 mcde_ch_ditctrl;
-    volatile u32 mcde_ch_ditoff;
-    volatile u32 mcde_ch_pal;
-    volatile u32 mcde_ch_gam;
+    volatile u32 mcde_cr0;
+    volatile u32 mcde_cr1;
+    volatile u32 mcde_colkey;
+    volatile u32 mcde_fcolkey;
+    volatile u32 mcde_rgbconv1;
+    volatile u32 mcde_rgbconv2;
+    volatile u32 mcde_rgbconv3;
+    volatile u32 mcde_rgbconv4;
+    volatile u32 mcde_rgbconv5;
+    volatile u32 mcde_rgbconv6;
+    volatile u32 mcde_ffcoef0;
+    volatile u32 mcde_ffcoef1;
+    volatile u32 mcde_ffcoef2;
+    volatile u32 mcde_unused1[1];
+    volatile u32 mcde_tvcr;
+    volatile u32 mcde_tvbl1;
+    volatile u32 mcde_tvisl;
+    volatile u32 mcde_tvdvo;
+    volatile u32 mcde_unused2[1];
+    volatile u32 mcde_tvtim1;
+    volatile u32 mcde_tvlbalw;
+    volatile u32 mcde_tvbl2;
+    volatile u32 mcde_tvblu;
+    volatile u32 mcde_lcdtim0;
+    volatile u32 mcde_lcdtim1;
+    volatile u32 mcde_ditctrl;
+    volatile u32 mcde_ditoff;
+    volatile u32 mcde_pal0;
+    volatile u32 mcde_pal1;
     volatile u32 mcde_rotadd0;
     volatile u32 mcde_rotadd1;
-    volatile u32 mcde_chsyn_con;
-    volatile u32 mcde_unused7[96];
+    volatile u32 mcde_rot_conf;
+    volatile u32 mcde_synchconf;
+    volatile u32 mcde_unused3[1];
+    volatile u32 mcde_gam0;
+    volatile u32 mcde_gam1;
+    volatile u32 mcde_gam2;
+    volatile u32 mcde_oledconv1;
+    volatile u32 mcde_oledconv2;
+    volatile u32 mcde_oledconv3;
+    volatile u32 mcde_oledconv4;
+    volatile u32 mcde_oledconv5;
+    volatile u32 mcde_oledconv6;
+    volatile u32 mcde_unused4[85];
+};
+
+struct mcde_chC0C1_reg
+{
+    volatile u32 mcde_crc;
+    volatile u32 mcde_pbccrc[2];
+    volatile u32 mcde_pbcbmrc0[5];
+    volatile u32 mcde_pbcbmrc1[5];
+    volatile u32 mcde_pbcbcrc0[2];
+    volatile u32 mcde_unused1[3];
+    volatile u32 mcde_pbcbcrc1[2];
+    volatile u32 mcde_unused2[3];
+    volatile u32 mcde_vscrc[2];
+    volatile u32 mcde_sctrc;
+    volatile u32 mcde_scsrc;
+    volatile u32 mcde_bcnr[2];
+    volatile u32 mcde_cscdtr[2];
+    volatile u32 mcde_rdwrtr[2];
+    volatile u32 mcde_dotr[2];
+    volatile u32 mcde_wcmdc[2];
+    volatile u32 mcde_wdatadc[2];
+    volatile u32 mcde_rdatadc[2];
+    volatile u32 mcde_statc;
+    volatile u32 mcde_ctrlc[2];
 };
 
 struct mcde_dsi_reg
@@ -599,45 +633,37 @@ struct mcde_dsi_reg
     volatile u32 mcde_dsi_frame;
     volatile u32 mcde_dsi_pkt;
     volatile u32 mcde_dsi_sync;
-    volatile u32 mcde_dsi_cmd;
-    volatile u32 mcde_reserved2[3];
+    volatile u32 mcde_dsi_cmdw;
+    volatile u32 mcde_dsi_delay0;
+    volatile u32 mcde_dsi_delay1;
+    volatile u32 mcde_unused1[1];
 };
 
-struct mcde_chc_reg
-{
-    volatile u32 mcde_chc_crc;
-    volatile u32 mcde_chc_pbcrc0;
-    volatile u32 mcde_chc_pbcrc1;
-    volatile u32 mcde_chc_pbcbmrc0[5];
-    volatile u32 mcde_chc_pbcbmrc1[5];
-    volatile u32 mcde_chc_pbcbcrc0[2];
-    volatile u32 mcde_unused5[3];
-    volatile u32 mcde_chc_pbcbcrc1[2];
-    volatile u32 mcde_unused6[3];
-    volatile u32 mcde_chc_vscrc[2];
-    volatile u32 mcde_chc_sctrc;
-    volatile u32 mcde_chc_scsr;
-    volatile u32 mcde_chc_bcnr[2];
-    volatile u32 mcde_chc_cscdtr[2];
-    volatile u32 mcde_chc_rdwrtr[2];
-    volatile u32 mcde_chc_dotr[2];
-    volatile u32 mcde_chc_wcmd[2];
-    volatile u32 mcde_chc_wd[2];
-    volatile u32 mcde_chc_rdata[2];
-};
-
-struct mcde_register_base
+struct mcde_top_reg
 {
     volatile u32 mcde_cr;
-    volatile u32 mcde_cfg0;
-    volatile u32 mcde_reserved1[62];
+    volatile u32 mcde_conf0;
+    volatile u32 mcde_ssp;
+    volatile u32 mcde_reserved1[61];
     volatile u32 mcde_ais;
-    volatile u32 mcde_imsc;
-    volatile u32 mcde_ris;
-    volatile u32 mcde_mis;
-    volatile u32 mcde_sis;
-    volatile u32 mcde_ssi;
-    volatile u32 mcde_reserved2[57];
+    volatile u32 mcde_imscpp;
+    volatile u32 mcde_imscovl;
+    volatile u32 mcde_imscchnl;
+    volatile u32 mcde_imscerr;
+    volatile u32 mcde_rispp;
+    volatile u32 mcde_risovl;
+    volatile u32 mcde_rischnl;
+    volatile u32 mcde_riserr;
+    volatile u32 mcde_mispp;
+    volatile u32 mcde_misovl;
+    volatile u32 mcde_mischnl;
+    volatile u32 mcde_miserr;
+    volatile u32 mcde_sispp;
+    volatile u32 mcde_sisovl;
+    volatile u32 mcde_sischnl;
+    volatile u32 mcde_siserr;
+    volatile u32 mcde_reserved2[46];
     volatile u32 mcde_pid;
 };
+
 #endif

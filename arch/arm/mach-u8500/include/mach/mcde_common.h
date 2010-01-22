@@ -59,9 +59,9 @@ MODULE_PARM_DESC(mcde_debug,"Debug level for messages");
 #define MAX_LPF 1024
 #define MAX_PPL 1280
 #define NUM_MCDE_FLOWS 4
-#define NUM_OVERLAYS	16
-#define NUM_EXT_SRC	16
-#define NUM_MCDE_CHANNELS	16
+#define NUM_OVERLAYS	6
+#define NUM_EXT_SRC	10
+#define NUM_MCDE_CHANNELS	4
 #define NUM_FLOWS_A_B	2
 #define NUM_DSI_LINKS	3
 #define NUM_DSI_CHANNEL	6
@@ -113,12 +113,12 @@ struct mcdefb_info {
 	struct clcd_event_struct clcd_event;
 	u8 tvout;
 	u32 actual_bpp;
-	struct mcde_register_base __iomem * regbase;
+	struct mcde_top_reg __iomem       *regbase;
 	struct mcde_ext_src_reg __iomem * extsrc_regbase[NUM_EXT_SRC];
 	struct mcde_ovl_reg __iomem * ovl_regbase[NUM_OVERLAYS];
-	struct mcde_ch_synch_reg __iomem *ch_regbase1[NUM_MCDE_CHANNELS];
-	struct mcde_ch_reg __iomem *ch_regbase2[NUM_FLOWS_A_B];
-	struct mcde_chc_reg __iomem *ch_c_reg;
+	struct mcde_chnl_conf_reg __iomem *ch_regbase1[NUM_MCDE_CHANNELS];
+	struct mcde_chAB_reg __iomem      *ch_regbase2[NUM_FLOWS_A_B];
+	struct mcde_chC0C1_reg __iomem    *ch_c_reg;
 	struct mcde_dsi_reg __iomem *mcde_dsi_channel_reg[NUM_DSI_CHANNEL];
 	volatile u32 __iomem *mcde_clkdsi;
 	struct dsi_link_registers __iomem *dsi_lnk_registers[NUM_DSI_LINKS];
