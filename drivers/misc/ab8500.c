@@ -542,7 +542,10 @@ static int __init ab8500_probe(struct platform_device *pdev)
 		goto err_interface;
 	}
 #ifdef CONFIG_USB_MUSB_HOST
-	if (ab8500->revision == 0x10) {
+	/*
+	 * Fix for USB host
+	 */
+	if ((ab8500->revision == 0x10) || (ab8500->revision == 0x11)) {
 		ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x1);
 		ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x3);
 		ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x0);
@@ -585,12 +588,6 @@ static int __init ab8500_probe(struct platform_device *pdev)
 				res->start);
 		goto driver_cleanup;
 	}
-#if 0
-	/* usb id detection. kick the watch dog timer - FIXME*/
-	ab8500_write(2, 0x201, 1);
-	ab8500_write(2, 0x201, 3);
-	ab8500_write(2, 0x201, 0);
-#endif
 	dev_info(&pdev->dev, "companion chip initialized (in SPI mode)\n");
 	return result;
 

@@ -38,14 +38,12 @@ void usb_host_detect_handler(void);
 void usb_host_detect_handler(void)
 {
 	u8 val = 0;
-	printk("usb_host_detect_handler start \n");
 	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_LATCH20_REG);
 	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
 	if ((val & AB8500_USB_HOST) == AB8500_USB_HOST)
 		printk("host cable is detected \n");
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
-	printk("usb_host_detect_handler done \n");
 }
 #else
 void usb_device_detect_handler(void);
@@ -388,7 +386,7 @@ int __init musb_platform_init(struct musb *musb)
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, 0xFB);
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-			ab8500_set_callback_handler(66, usb_host_detect_handler, NULL);
+			ab8500_set_callback_handler(90, usb_host_detect_handler, NULL);
 		} else {
 		#ifndef CONFIG_USB_SERIAL
 			val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG);
