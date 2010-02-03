@@ -548,7 +548,9 @@ static int __init ab8500_probe(struct platform_device *pdev)
 	if ((ab8500->revision == 0x10) || (ab8500->revision == 0x11)) {
 		ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x1);
 		ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x3);
+		mdelay(10);
 		ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x0);
+		mdelay(10);
 	}
 #endif
 	/*
