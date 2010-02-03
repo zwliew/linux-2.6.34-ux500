@@ -1368,13 +1368,8 @@ static struct mmc_host_ops u8500_mmci_ops = {
 static void u8500_mmci_check_status(void *data)
 {
 	struct u8500_mmci_host *host = (struct u8500_mmci_host *) data;
-	char status;
-
-	status = host->card_detect_intr_value();
-	status ^= host->oldstat;
-	if (status)
-		mmc_detect_change(host->mmc, 0);
-	host->oldstat = status;
+	mdelay(50);
+	mmc_detect_change(host->mmc, 30);
 	return;
 }
 
