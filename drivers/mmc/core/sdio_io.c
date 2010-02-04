@@ -338,6 +338,10 @@ static int sdio_io_rw_ext_helper(struct sdio_func *func, int write,
 	while (remainder > 0) {
 		size = min(remainder, sdio_max_byte_size(func));
 
+		// Some of host controllers does not support non-power-of-two block sizes
+		if (func->card->host->caps & MMC_CAP_POWER_OF_TWO_BLKSIZE)
+			size = 1 << (fls(size) - 1);
+
 		ret = mmc_io_rw_extended(func->card, write, func->num, addr,
 			 incr_addr, buf, 1, size);
 		if (ret)
