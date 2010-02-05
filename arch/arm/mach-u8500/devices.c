@@ -136,7 +136,11 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_TRACE, 70, 74, 0, GPIO_ALTF_C, "stm"),
 	__GPIO_ALT(GPIO_ALT_SDMMC2, 128, 138, 0, GPIO_ALTF_A, "mmc2"),
 #ifndef CONFIG_FB_NOMADIK_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
+#ifndef CONFIG_TOUCH_HREF_V1
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 85, 1, GPIO_ALTF_A, "mcde tvout"),
+#else   //CONFIG_TOUCH_HREF_V1
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 81, 1, GPIO_ALTF_A, "mcde tvout"),
+#endif  //CONFIG_TOUCH_HREF_V1
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 150, 150, 0, GPIO_ALTF_B, "mcde tvout"),
 #else
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 153, 171, 1, GPIO_ALTF_B, "mcde tvout"),
@@ -145,6 +149,9 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_MMIO_INIT_BOARD, 141, 142, 0, GPIO_ALTF_B,"mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, GPIO_ALTF_A,"mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_EXT_CLK, 227, 228, 0, GPIO_ALTF_A, "mmio"),
+#ifdef CONFIG_TOUCHP_EXT_CLK
+	__GPIO_ALT(GPIO_ALT_TP_SET_EXT_CLK, 228, 228, 0, GPIO_ALTF_A, "u8500_tp1"),
+#endif
 };
 
 static struct gpio_block_data gpio0_block_data[] = {

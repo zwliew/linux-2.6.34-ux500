@@ -25,144 +25,33 @@
 #include <linux/input.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/gpio.h>
 #include <asm/io.h>
 #include <asm/types.h>
 #include <mach/debug.h>
 #include <mach/u8500_tsc.h>
+#include <linux/timer.h>
 
 static void tsc_timer_wq(struct work_struct *_chip);
 
 static struct i2c_driver tp_driver;
-
 static tsc_error tsc_write_byte(struct i2c_client *i2c, u8 reg, unsigned char data);
 static tsc_error bu21013_tsc_init(struct i2c_client *i2c);
 static tsc_error tsc_config(struct u8500_tsc_data *pdev_data);
 static void tsc_clear_irq(struct i2c_client *i2c);
 static void tsc_en_irq(struct i2c_client *i2c);
+#ifndef CONFIG_TOUCH_HREF_V1
 static void tsc_callback(void *tsc);
+#else  //CONFIG_TOUCH_HREF_V1
+static irqreturn_t tsc_callback(int irq,  void *device_data);
+#endif //CONFIG_TOUCH_HREF_V1
 static int tsc_driver_register(struct u8500_tsc_data *pdata);
 static void tsc_timer_callback(unsigned long data);
+
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 static tsc_error tsc_read_byte(struct i2c_client *i2c, u8 reg, unsigned char *val);
 #endif
-#ifdef CONFIG_TOUCHP_TEST
-unsigned long penup_timer = PENUP_TIMEOUT;
-unsigned long g_tool_width = 1;
-static struct kobject *touchp_kobj;
-struct u8500_tsc_data *pdev_data;
-static ssize_t touchp_attr_show(struct kobject *kobj,
-				struct attribute *attr, char *buf)
-{
-	int error = 0;
-	u8 timeout = 0;
-	u8 th_on = 0;
-	u8 th_off = 0;
-	u8 tool_width = 0;
-	int filter = 0;
-	int mode2 = 0;
 
-	if (strcmp(attr->name, "timeout_value") == 0) {
-		timeout = penup_timer;
-		sprintf(buf, "%d\n", timeout);
-	} else if (strcmp(attr->name, "th_on") == 0) {
-		th_on = i2c_smbus_read_byte_data(pdev_data->client, 0x8C);
-		sprintf(buf, "%d\n", th_on);
-	} else if (strcmp(attr->name, "th_off") == 0) {
-		th_off = i2c_smbus_read_byte_data(pdev_data->client, 0x8D);
-		sprintf(buf, "%d\n", th_off);
-	} else if (strcmp(attr->name, "tool_width") == 0) {
-		tool_width = g_tool_width;
-		sprintf(buf, "%d\n", tool_width);
-	} else if (strcmp(attr->name, "filter") == 0) {
-		filter = i2c_smbus_read_byte_data(pdev_data->client, 0x8B);
-		sprintf(buf, "%d\n", filter);
-	} else if (strcmp(attr->name, "mode2") == 0) {
-		mode2 = i2c_smbus_read_byte_data(pdev_data->client, 0x84);
-		sprintf(buf, "%d\n", mode2);
-	}
-	return error == 0 ? strlen(buf) : 0;
-}
-static ssize_t touchp_attr_store(struct kobject *kobj, struct attribute *attr, const char *buf, size_t len)
-{
-	int error = 0;
-	int timeout = 0;
-	int th_on = 0;
-	int th_off = 0;
-	int tool_width = 0;
-	int filter = 0;
-	int mode2 = 0;
-
-	if (strcmp(attr->name, "timeout_value") == 0) {
-		error = sscanf(buf, "%d", &timeout);
-		if (error != 1)
-			goto err;
-		penup_timer = timeout;
-	} else if (strcmp(attr->name, "th_on") == 0) {
-		error = sscanf(buf, "%d", &th_on);
-		if (error != 1)
-			goto err;
-		if ((th_on > 0) && (th_on < 0xFF))
-			i2c_smbus_write_byte_data(pdev_data->client,
-							0xFC, th_on);
-	} else if (strcmp(attr->name, "th_off") == 0) {
-		error = sscanf(buf, "%d", &th_off);
-		if (error != 1)
-			goto err;
-		th_on = i2c_smbus_read_byte_data(pdev_data->client, 0x8C);
-		if ((th_off > 0) && (th_off < 0xFF) && (th_off < th_on))
-			i2c_smbus_write_byte_data(pdev_data->client,
-							0xFD, th_off);
-	} else if (strcmp(attr->name, "tool_width") == 0) {
-		error = sscanf(buf, "%d", &tool_width);
-		if (error != 1)
-			goto err;
-		g_tool_width = tool_width;
-	} else if (strcmp(attr->name, "filter") == 0) {
-		error = sscanf(buf, "%d", &filter);
-		if (error != 1)
-			goto err;
-		i2c_smbus_write_byte_data(pdev_data->client,
-						0xFB, filter);
-	} else if (strcmp(attr->name, "mode2") == 0) {
-		error = sscanf(buf, "%d", &mode2);
-		if (error != 1)
-			goto err;
-		i2c_smbus_write_byte_data(pdev_data->client,
-							0xF4, mode2);
-	}
-err:
-	return error == 1 ? len : -EINVAL;
-}
-
-static struct attribute touchp_timeout = {.name = "timeout_value",
-						.mode = 0666};
-static struct attribute touchp_th_on = {.name = "th_on", .mode = 0666};
-static struct attribute touchp_th_off = {.name = "th_off", .mode = 0666};
-static struct attribute touchp_tool_width = {.name = "tool_width",
-						.mode = 0666};
-static struct attribute touchp_filter = {.name = "filter", .mode = 0666};
-static struct attribute touchp_mode2 = {.name = "mode2", .mode = 0666};
-
-static struct attribute *touchp_attribute[] = {
-	&touchp_timeout,
-	&touchp_th_on,
-	&touchp_th_off,
-	&touchp_tool_width,
-	&touchp_filter,
-	&touchp_mode2,
-	NULL
-};
-
-static struct sysfs_ops touchp_sysfs_ops = {
-	.show = touchp_attr_show,
-	.store = touchp_attr_store,
-};
-
-static struct kobj_type ktype_touchp = {
-	.sysfs_ops = &touchp_sysfs_ops,
-	.default_attrs = touchp_attribute,
-};
-#endif
 /**
  * tsc_write_byte() - Write a single byte to touch screen
  * through i2c interface.
@@ -206,6 +95,24 @@ static tsc_error tsc_read_byte(struct i2c_client *i2c, u8 reg,
 }
 #endif
 /**
+ * tsc_read()-read data from touch panel
+ * @i2c:i2c client structure pointer
+ * @reg:register offset
+ * @buf:read the data in this buffer
+ * @nbytes:number of bytes to read
+ *
+ * This funtion uses smbus read block API to read multiple bytes from the reg offset.
+ **/
+static int tsc_read_block(struct i2c_client *i2c, u8 reg, u8 *buf, u8 nbytes)
+{
+	int ret;
+
+	ret = i2c_smbus_read_i2c_block_data(i2c, reg, nbytes, buf);
+	if (ret < nbytes)
+		return ret;
+	return TSC_OK;
+}
+/**
  * tsc_read_10bit() - read 10 bit data from touch screen(bu21013)
  * through i2c interface
  * @i2c:i2c client structure
@@ -218,37 +125,18 @@ static tsc_error tsc_read_byte(struct i2c_client *i2c, u8 reg,
 static tsc_error tsc_read_10bit(struct i2c_client *i2c,
 				 u8 reg, unsigned int *val)
 {
-	unsigned int data = 0;
+	u16 data = 0;
 	int retval = 0;
-	retval = i2c_smbus_read_byte_data(i2c, reg);
+	u8 buf[2];
+	retval = tsc_read_block(i2c, reg, buf, 2);
 	if (retval < 0)
 		return retval;
-	data = (unsigned short)(retval << 2);
-	retval = i2c_smbus_read_byte_data(i2c, (reg + 1));
-	if (retval < 0)
-		return retval;
-	data |= retval;
+	data = buf[0];
+	data = (data << 2) | buf[1];
 	*val = data;
 	return TSC_OK;
 }
-/**
- * tsc_read()-read data from touch panel
- * @i2c:i2c client structure pointer
- * @reg:register offset
- * @buf:read the data in this buffer
- * @nbytes:number of bytes to read
- *
- * This funtion uses smbus read block API to read multiple bytes from the reg offset.
- **/
-static int tsc_read(struct i2c_client *i2c, u8 reg, u8 *buf, u8 nbytes)
-{
-	int ret;
 
-	ret = i2c_smbus_read_i2c_block_data(i2c, reg, nbytes, buf);
-	if (ret < nbytes)
-		return ret;
-	return TSC_OK;
-}
 /**
  * touch_calculation(): Get the exact co-ordinates of the touch interrupt
  * @p_gesture_info:  gesture_info structure pointer
@@ -278,11 +166,11 @@ void touch_calculation(struct gesture_info *p_gesture_info)
 	p_gesture_info->pt[0].y = y1;
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 	x2 = p_gesture_info->pt[1].x;
-	x2 = x2 * tmpx / 100000;
+	x2 = x2 * tmpx / 1000;
 	p_gesture_info->pt[1].x = x2;
 
 	y2 = p_gesture_info->pt[1].y;
-	y2 = y2 * tmpy / 100000;
+	y2 = y2 * tmpy / 1000;
 	p_gesture_info->pt[1].y = y2;
 #endif
 }
@@ -310,7 +198,7 @@ void get_touch(struct u8500_tsc_data *data)
 			"get_touch:: i2c client has no data \n");
 		return;
 	}
-	retval = tsc_read(i2c, 0x73, buf, 4);
+	retval = tsc_read_block(i2c, 0x73, buf, 4);
 	if (retval != 0)
 		return;
 	tmp1x = buf[0];
@@ -324,6 +212,7 @@ void get_touch(struct u8500_tsc_data *data)
 
 	if (tmp1x > TOUCH_XMAX || tmp1y > TOUCH_YMAX)
 		data->touch_en = FALSE;
+
 	if (data->touch_en) {
 		data->x1 = tmp1x;
 		data->y1 = tmp1y;
@@ -336,6 +225,7 @@ void get_touch(struct u8500_tsc_data *data)
 		data->y2 = 0;
 		return;
 	}
+
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 	count = 0;
 	retval = tsc_read_byte(i2c, 0x70, &xH);
@@ -360,7 +250,7 @@ void get_touch(struct u8500_tsc_data *data)
 		tmp2x = 0;
 		tmp2y = 0;
 	} else {
-		retval = tsc_read(i2c, 0x77, buf, 4);
+		retval = tsc_read_block(i2c, 0x77, buf, 4);
 		if (retval != 0)
 			return;
 		tmp2x = buf[0];
@@ -399,6 +289,7 @@ int get_touch_message(struct u8500_tsc_data *data)
 	struct gesture_info *p_gesture_info = &data->gesture_info;
 	struct i2c_client *i2c = data->client;
 	unsigned int ret = TRUE;
+
 	unsigned char flick_series_flag = TRUE;
 	signed short x_delta, y_delta;
 	unsigned char dir_left_right, dir_up_down;
@@ -635,11 +526,7 @@ int get_touch_message(struct u8500_tsc_data *data)
  */
 static inline void tsc_restart_pen_up_timer(struct u8500_tsc_data *data)
 {
-#ifdef CONFIG_TOUCHP_TEST
-	mod_timer(&data->penirq_timer, jiffies + (penup_timer * HZ) / 1000);
-#else
 	mod_timer(&data->penirq_timer, jiffies + (PENUP_TIMEOUT * HZ) / 1000);
-#endif
 }
 
 /**
@@ -682,6 +569,7 @@ static void tsc_en_irq(struct i2c_client *i2c)
 static void tsc_input_report(struct u8500_tsc_data *data, unsigned int value)
 {
 	if (value) {
+		if(data->gesture_info.pt[0].x && data->gesture_info.pt[0].y) {
 	#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
 		input_report_abs(data->pin_dev, ABS_X,
 					data->gesture_info.pt[0].x);
@@ -694,13 +582,10 @@ static void tsc_input_report(struct u8500_tsc_data *data, unsigned int value)
 					data->gesture_info.pt[0].x);
 	#endif
 		input_report_abs(data->pin_dev, ABS_PRESSURE, 1);
-	#ifdef CONFIG_TOUCHP_TEST
-		input_report_abs(data->pin_dev, ABS_TOOL_WIDTH, g_tool_width);
-	#else
 		input_report_abs(data->pin_dev, ABS_TOOL_WIDTH, 1);
-	#endif
 		input_report_key(data->pin_dev, BTN_TOUCH, 1);
 		input_sync(data->pin_dev);
+		}
 	} else {
 		input_report_abs(data->pin_dev, ABS_PRESSURE, 0);
 		input_report_abs(data->pin_dev, ABS_TOOL_WIDTH, 0);
@@ -731,12 +616,23 @@ static void tsc_task(struct u8500_tsc_data *data)
  * This funtion calls, when we get the Pen down interrupt from Egpio Pin
  * and assigns the task and returns none.
  */
+#ifndef CONFIG_TOUCH_HREF_V1
 static void tsc_callback(void *device_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
 	data->touchp_flag = 1;
 	wake_up_interruptible(&data->touchp_event);
 }
+#else //CONFIG_TOUCH_HREF_V1
+static irqreturn_t tsc_callback(int irq, void *device_data)
+{
+	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
+	data->touchp_flag = 1;
+	wake_up_interruptible(&data->touchp_event);
+	return IRQ_HANDLED;
+}
+#endif //CONFIG_TOUCH_HREF_V1
+
 
 /**
  * tsc_timer_callback() - callback handler for Timer
@@ -766,11 +662,12 @@ static void tsc_timer_wq(struct work_struct *work)
 	int retval;
 	struct task_struct *tsk = current;
 
+
 	set_task_state(tsk, TASK_INTERRUPTIBLE);
 	pin_value = data->chip->pirq_read_val();
-	retval = i2c_smbus_read_byte_data(data->client, TSC_INTR_STATUS);
-	if ((pin_value == 1) && (retval == 0)) {
+	if (pin_value == 1) {
 		/* The pen is up */
+		//printk("pen is up value = %d \n",pin_value);
 		tsc_clear_irq(data->client);
 		tsc_en_irq(data->client);
 		return ;
@@ -784,7 +681,6 @@ static void tsc_timer_wq(struct work_struct *work)
 
 	if (pin_value == 0)
 		tsc_restart_pen_up_timer(data);
-
 	return;
 }
 
@@ -826,7 +722,13 @@ int getCalibStatus(struct i2c_client *i2c)
 	unsigned int value;
 	u8 i;
 
-	for (i = 0x10; i <= 0x3F; i += 2) {
+	for (i = 0x40; i <= 0x4B; i += 2) {
+		retval = tsc_read_10bit(i2c, i, &value);
+		if (retval < 0)
+			dev_err(&i2c->dev,
+			"getCalibStatus:failed retval=0x%x \n", retval);
+	}
+	for (i = 0x54; i <= 0x69; i += 2) {
 		retval = tsc_read_10bit(i2c, i, &value);
 		if (retval < 0)
 			dev_err(&i2c->dev,
@@ -960,12 +862,20 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c)
 		goto err;
 	}
 #endif
+#ifdef CONFIG_TOUCHP_EXT_CLK
+	retval = i2c_smbus_write_byte_data(i2c, TSC_CLK_MODE, 0x83);
+	if (retval < TSC_OK) {
+		dev_err(&i2c->dev, "F5 reg i2c smbus write byte failed\n");
+		goto err;
+	}
+#else
 	retval = i2c_smbus_write_byte_data(i2c, TSC_CLK_MODE, 0x81);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "F5 reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_IDLE, 0x11);
+#endif
+	retval = i2c_smbus_write_byte_data(i2c, TSC_IDLE, 0x12);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FA reg i2c smbus write byte failed\n");
 		goto err;
@@ -980,17 +890,17 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c)
 		dev_err(&i2c->dev, "FB reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x46);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x50 );
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FC reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_OFF, 0x37);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_OFF, 0x40);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FD reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_GAIN, 0x05);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_GAIN, 0x06);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "EA reg i2c smbus write byte failed\n");
 		goto err;
@@ -1079,6 +989,7 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 	retval = bu21013_tsc_init(pdev_data->client);
 	if (retval == TSC_OK) {
 		init_config(pdev_data);
+#ifndef CONFIG_TOUCH_HREF_V1
 		if ((pdev_data->chip->pirq_en) && (pdev_data->chip->pirq_dis)
 				&& (pdev_data->chip->irq_init)) {
 			retval = pdev_data->chip->pirq_dis();
@@ -1101,6 +1012,17 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 				goto err_init_irq;
 			}
 		}
+#else //CONFIG_TOUCH_HREF_V1
+		printk(" HREF v1 irq=%d \n",pdev_data->chip->irq);
+		retval = request_irq(pdev_data->chip->irq, tsc_callback,
+						IRQF_TRIGGER_FALLING, DRIVER_TP1, pdev_data);
+		if (retval) {
+				dev_err(&pdev_data->client->dev,
+						"unable to request for the irq %d\n", pdev_data->chip->irq);
+				gpio_free(pdev_data->chip->irq);
+				return retval;
+		}
+#endif //CONFIG_TOUCH_HREF_V1
 		retval = getCalibStatus(pdev_data->client);
 		if (retval < 0) {
 			dev_err(&pdev_data->client->dev,
@@ -1203,10 +1125,10 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	tsc_data->client = i2c;
 
 	init_timer(&tsc_data->penirq_timer);
-	INIT_WORK(&tsc_data->workq, tsc_timer_wq);
 	tsc_data->penirq_timer.data = (unsigned long)tsc_data;
 	tsc_data->penirq_timer.function = tsc_timer_callback;
 
+	INIT_WORK(&tsc_data->workq, tsc_timer_wq);
 	i2c_set_clientdata(i2c, tsc_data);
 	init_waitqueue_head(&tsc_data->touchp_event);
 
@@ -1228,21 +1150,6 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		if (retval)
 			goto err_init;
 	}
-#ifdef CONFIG_TOUCHP_TEST
-	/* Registering touchp device  for sysfs */
-	pdev_data = tsc_data;
-	touchp_kobj = kzalloc(sizeof(struct kobject), GFP_KERNEL);
-	if (touchp_kobj == NULL)
-		retval = -ENOMEM;
-	touchp_kobj->ktype = &ktype_touchp;
-	kobject_init(touchp_kobj, touchp_kobj->ktype);
-	retval = kobject_set_name(touchp_kobj, "touchp_attribute");
-	if (retval)
-		kfree(touchp_kobj);
-	retval = kobject_add(touchp_kobj, NULL, "touchp_attribute");
-	if (retval)
-		kfree(touchp_kobj);
-#endif
 	dev_dbg(&i2c->dev, "u8500_tsc_probe : done \n");
 	return retval;
 err_init:

@@ -126,7 +126,7 @@
 #define SMA_ARRAY 81
 #define THRESHOLD_SMA_N SMA_N
 #define MULTITOUCH_SIN_N 6
-#define PENUP_TIMEOUT 20 /* msec */
+#define PENUP_TIMEOUT 1 /* msec */
 
 /**
  * Error handling messages
@@ -154,6 +154,7 @@ struct tp_device {
 	int (*pirq_en) (void);
 	int (*pirq_dis)(void);
 	int (*pirq_read_val)(void);
+	unsigned int irq;
 };
 
 /**

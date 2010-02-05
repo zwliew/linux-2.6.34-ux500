@@ -145,6 +145,7 @@ typedef enum {
 	GPIO_ALT_MMIO_CAM_SET_I2C,
 	GPIO_ALT_MMIO_CAM_SET_EXT_CLK,
 	GPIO_ALT_SDMMC2,
+	GPIO_ALT_TP_SET_EXT_CLK,
 	GPIO_ALT_FUNMAX		/* Add new alt func before this */
 
 

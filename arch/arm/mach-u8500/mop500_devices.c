@@ -83,7 +83,10 @@ static struct i2c_board_info __initdata nmdk_i2c0_egpio1_devices[] = {
 int tp_gpio_board_init(void)
 {
 	int val;
-
+#ifdef CONFIG_TOUCHP_EXT_CLK
+	void __iomem *clk_base;
+	unsigned int  clk_value;
+#endif
 	/** Set the voltage for Bu21013 controller */
 	val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG);
 
@@ -93,6 +96,13 @@ int tp_gpio_board_init(void)
 
 	ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX1_SEL_REG, 0x0C);
 
+#ifdef CONFIG_TOUCHP_EXT_CLK
+	stm_gpio_altfuncenable(GPIO_ALT_TP_SET_EXT_CLK);
+	clk_base = (void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + 0x1CC);
+	clk_value = readl(clk_base);
+	writel(0x880000 , clk_base);
+	clk_value = readl(clk_base);
+#endif
 	if (platform_id == MOP500_PLATFORM_ID)	{
 		/** why set directtion is not working ~ FIXME */
 		/* gpio_direction_output(270,1); */
@@ -143,10 +153,12 @@ int tp_init_irq(void (*callback)(void *parameter), void *data)
 		if (retval < 0)
 			printk(KERN_ERR "tp_init_irq: stmpe2401_set_callback failed \n");
 	} else if (platform_id == HREF_PLATFORM_ID) {
+#ifndef CONFIG_TOUCH_HREF_V1
 		retval = tc35892_set_callback(EGPIO_PIN_12, callback,
 			(void *)data);
 		if (retval < 0)
 			printk(KERN_ERR "tp_init_irq: tc35892_set_callback failed \n");
+#endif
 	}
 	return retval;
 }
@@ -162,8 +174,9 @@ int tp_exit_irq(void)
 	if (platform_id == MOP500_PLATFORM_ID)
 		stmpe2401_remove_callback(TOUCHP_IRQ);
 	else if (platform_id == HREF_PLATFORM_ID)
+#ifndef CONFIG_TOUCH_HREF_V1
 		tc35892_remove_callback(EGPIO_PIN_12);
-
+#endif
 	return retval;
 }
 
@@ -177,6 +190,7 @@ int tp_pen_down_irq_enable(void)
 	if (platform_id == MOP500_PLATFORM_ID)	{
 		/* do nothing */
 	} else if (platform_id == HREF_PLATFORM_ID) {
+#ifndef CONFIG_TOUCH_HREF_V1
 		retval = tc35892_set_gpio_intr_conf(EGPIO_PIN_12,
 			EDGE_SENSITIVE,	TC35892_FALLING_EDGE_OR_LOWLEVEL);
 		if (retval < 0)
@@ -185,6 +199,7 @@ int tp_pen_down_irq_enable(void)
 			ENABLE_INTERRUPT);
 		if (retval < 0)
 			printk(KERN_ERR "tc35892_set_intr_enable failed \n");
+#endif
 	}
 	return retval;
 }
@@ -202,11 +217,13 @@ int tp_pen_down_irq_disable(void)
 	if (platform_id == MOP500_PLATFORM_ID) {
 		/* do nothing */
 	} else if (platform_id == HREF_PLATFORM_ID) {
+#ifndef CONFIG_TOUCH_HREF_V1
 		retval = tc35892_set_intr_enable(EGPIO_PIN_12,
 				DISABLE_INTERRUPT);
 		if (retval < 0)
 			printk(KERN_ERR "tsc_irqdis:"
 			"tc35892_set_intr_enable failed \n");
+#endif
 	}
 	return retval;
 }
@@ -219,12 +236,16 @@ int tp_pen_down_irq_disable(void)
 int tp_read_pin_val(void)
 {
 	int data = 0;
+	unsigned int touch_gpio_pin = 84;
 
 	if (platform_id == MOP500_PLATFORM_ID)
 		data = gpio_get_value(TOUCHP_IRQ);
 	else if (platform_id == HREF_PLATFORM_ID)
+#ifndef CONFIG_TOUCH_HREF_V1
 		data = gpio_get_value(EGPIO_PIN_12);
-
+#else
+		data = gpio_get_value(touch_gpio_pin);
+#endif
 	return data;
 }
 
@@ -236,6 +257,7 @@ static struct tp_device tsc_plat_device = {
 	.pirq_en  = tp_pen_down_irq_enable,
 	.pirq_dis = tp_pen_down_irq_disable,
 	.pirq_read_val = tp_read_pin_val,
+	.irq = GPIO_TO_IRQ(84),
 };
 #endif
 
