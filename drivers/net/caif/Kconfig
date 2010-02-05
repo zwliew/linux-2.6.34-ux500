@@ -1,0 +1,90 @@
+#
+# CAIF physical drivers
+#
+
+if CAIF
+
+comment "CAIF transport drivers"
+
+config CAIF_TTY
+	tristate "CAIF TTY transport driver"
+	default n
+	---help---
+	The CAIF TTY transport driver.
+
+#official-kernel-patch-cut-here
+
+config CAIF_PHYIF_MSPI
+	tristate "CAIF SPI transport driver for master interface"
+	default n
+	---help---
+	The CAIF SPI transport driver. Master SPI interface.
+
+config CAIF_PHYIF_SSPI
+	tristate "CAIF SPI transport driver for slave interface"
+	default n
+	---help---
+	The CAIF SPI transport driver. Slave SPI interface.
+
+config CAIF_SHM
+	tristate "CAIF shared memory transport driver"
+	default n
+	---help---
+	The caif low level driver for the shared memory driver.
+	Be aware that if you enable this then you also need to enable a low-level shared memory driver.
+        The default is to include the CAIF shared memory loopback driver (for testing).
+
+config CAIF_LOOPBACK
+	tristate "CAIF loopback test driver"
+	default n
+	---help---
+	Loopback test driver
+
+if CAIF_PHYIF_MSPI || CAIF_PHYIF_SSPI
+
+comment "CAIF SPI physical drivers"
+
+config CAIF_SIM_MSPI
+	tristate "Use simulated SPI device, master interface"
+	default n
+	---help---
+	Simulated SPI master interface device.
+
+config CAIF_SIM_SSPI
+	tristate "Use simulated SPI device, slave interface"
+	default n
+	---help---
+	Simulated SPI slave interface device.
+
+endif # CAIF_PHYIF_MSPI | CAIF_PHYIF_SSPI
+
+if CAIF_SHM
+
+comment "CAIF shared memory physical drivers"
+
+config CAIF_SHM_LOOPBACK
+	tristate "CAIF shared memory loopback driver"
+	default CAIF_USE_SHM
+	---help---
+	Loopback driver that emulates a real shared memory transport.
+	Mainly used for debugging.
+	Uses the mailbox interface.
+
+config CAIF_MBXIF
+	tristate "CAIF shared mailbox interface"
+	default CAIF_SHM
+	---help---
+	Generic shared mailbox interface
+
+config CAIF_SMBX
+	tristate "Use Simulated Mailbox"
+	default CAIF_MBXIF
+	---help---
+	Answer y if you want to use a simulated mailbox interface for the CAIF shared memory transport.
+	Mainly used for debugging and as example driver.
+	This can also be built as a module.
+
+endif # CAIF_USE_SHM
+
+#official-kernel-patch-resume-here
+endif # CAIF

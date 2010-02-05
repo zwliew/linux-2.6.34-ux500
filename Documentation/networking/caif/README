@@ -1,0 +1,33 @@
+copyright (C) ST-Ericsson AB 2009
+Author: Sjur Brendeland/ sjur.brandeland@stericsson.com
+        Kim Lilliestierna Kim.xx.Lilliestierna@ericsson.com
+License terms: GNU General Public License (GPL) version 2
+
+=== Start ===
+Copy the .ko files onto the board, and do insmod:
+
+insmod caif.ko
+insmod caif_loop.ko
+insmod chnl_net.ko
+ifconfig caif0 <your-home-address> up
+
+
+=== Test Loopback on net device ===
+insmod chnl_net.ko loop=yes
+ifconfig caif0 192.168.0.1 up
+ping -c 10 -s 1000 192.168.0.2
+
+=== Preparing the setup.===
+
+Make sure that the kernel is built with module support.
+
+There are some things that need to be tweaked to get the host TTY
+correctly set up to talk to the modem.
+Since the CAIF stack is running in the kernel and we want to use the existing
+TTY, we are installing our physical serial driver as a line discipline above
+the TTY device. The TTY device used to communicate to modem must be specified
+as a module parameter to caif_ser.
+If the modem is using Start-of-frame-extension (STX) this must also be set as
+module parameter.
+
+$ insmod caif_ser.ko ser_ttyname=/dev/ttyS0 ser_use_stx=yes

@@ -1,0 +1,404 @@
+.TH  caif 7  "November, 2009" "version 0.1" "ST Ericsson"
+.SH NAME
+CAIF \- CAIF protocol family
+.SH SYNOPSIS
+.nf
+.B #include <sys/socket.h>
+.B #include <caif/caif_socket.h>
+.fi
+.SH DESCRIPTION
+CAIF socket implements the standard Linux networking
+.BR socket (7)
+mechanism for communicating with a ST-Ericsson modem using the CAIF protocol.
+
+The programming interface is BSD socket compatible.
+
+A CAIF socket is created by calling the
+.BR socket (2)
+function as
+.BR socket(PF_CAIF ,
+.IR socket_type ,
+.IB protocol ).
+
+Using
+.I socket_type
+.B SOCK_SEQPACKET
+will provide a reliable CAIF connection. The valid values for
+.I protocols
+are
+.B CAIFPROTO_AT, CAIFPROTO_DATAGRAM, CAIFPROTO_UTIL, CAIFPROTO_RFM.
+When a client wants to open a CAIF connection it must call
+.BR connect (2).
+CAIF socket supports
+.BR getsockopt (2),
+.BR setsockopt (2),
+.BR poll (2),
+.BR select (2),
+.BR ioctrl (2),
+.BR read (2),
+.BR write (2),
+.BR recv (2),
+.BR send (2),
+.BR recvmsg (2),
+.BR sendmsg (2).
+
+.SH LIMITATIONS
+.BR listen (2),
+.BR accept (2),
+.BR bind (2)
+are not supported because CAIF socket only can initiate connections,
+but not accept connections.
+
+The error code
+.B EMSGSIZE
+is returned by the functions
+.BR read (2), recv (2),
+.BR recvmsg (2)
+if the provided buffer is too small to hold the received CAIF message.
+The length can be retrieved by using socket option
+.BR CAIFSO_PACKET_LEN .
+
+.B EMSGSIZE
+is returned for
+.BR write (2), send (2), sendmsg (2)
+if trying to send a message larger than the maximum packet size.
+
+.SH OVERVIEW
+In order to use CAIF socket the function
+.BR socket (2)
+must be called initially.
+Then optionally socket operations
+can be set with
+.BR setsockopt (2),
+if no socket options are set default
+values will be used. Relevant options are
+.BR CAIFSO_CHANNEL_CONFIG,
+and for
+the utility protocol the socket option
+.BR CAIFSO_REQ_PARAM .
+
+The
+.BR connect (2)
+will send a CAIF channel connect request to the modem.
+In blocking mode connect will also wait for the response from the modem.
+The CAIF channel connect request is build based on the arguments to
+.BR socket (2),
+.BR setsockopt (2),
+and
+.BR connect (2).
+
+After a successful connect, information about the CAIF connection
+can be read using
+.BR getsockopt (2).
+Relevant options for getsockopt are
+.B CAIFSO_CONN_ID
+to read the unique CAIF channel ID.
+For a CAIF utility link
+.RB ( CAIFPROTO_UTIL )
+.B CAIFSO_RSP_PARAM
+can be used to read response parameters.
+
+When connected, CAIF packets can be sent with
+.BR send (2),
+.BR sendmsg (2),
+.BR recvmsg (2),
+and read with
+.BR read (2),
+.BR recv (2),
+.BR recvmsg (2).
+
+.SH BLOCKING/NON_BLOCKING
+The
+.BR fcntl (2)
+.BR O_NDELAY " and " O_NONBLOCK
+flags (defined in <fcntl.h>) are supported by sockets. If the
+.B O_NONBLOCK
+flag is set, the socket is put into POSIX-style non-blocking mode.
+If the
+.B O_NDELAY
+flag is set, the socket is put into non-blocking mode. Otherwise,
+the socket is put into blocking mode. Blocking mode is the default.
+See
+.BR socket (7), accept (2), connect (2), recv (2), send (2)
+for an explanation of how these forms of non-blocking mode are used.
+.SH ADDRESS FORMAT
+CAIF is a connection oriented protocol where the address is used to specify
+a modem service.
+.I family
+must always be set to
+.BR AF_CAIF .
+CAIF addressing is dependent of the protocol specified in the initial
+.BR socket (2)
+call. The union
+.I u
+is used according to this.
+
+.nf
+struct sockaddr_caif {
+	sa_family_t  family;
+	union {
+		struct {
+			u_int8_t type; 	/* type: enum caif_at_type */
+		}at;				/* CAIFPROTO_AT */
+		union {
+			u_int32_t connection_id;
+			u_int8_t  nsapi;
+		} dgm;				/* CAIFPROTO_DATAGRAM */
+		struct {
+			char service[16];
+		} util;				/* CAIFPROTO_UTIL */
+		struct {
+			u_int32_t connection_id;
+			char      volume[16];
+		} rfm;				/* CAIFPROTO_RFM */
+	} u;
+};
+.fi
+
+.SH PROTOCOL TYPES
+.TP
+.B CAIFPROTO_AT
+Specifies an AT channel type.
+.B caif_at_type
+enum value
+.B CAIF_ATTYPE_PLAIN (0)
+is the only endpoint type supported.
+
+.TP
+.B CAIFPROTO_RFM
+Specifies a RFM channel type.
+.I connection_id
+and
+.I volume[16]
+must be supplied.
+.TP
+.B CAIFPROTO_UTIL
+Specifies a utility channel type that will connect to a utility service.
+.I service[16]
+identifies the remote process implementing the service.
+.TP
+.B CAIFPROTO_DATAGRAM
+Specifies a datagram channel type.
+.I connection_id
+specifies the PDP context connection ID.
+.I nsapi
+is future functionality.
+.TP
+.B CAIFPROTO_DATAGRAM_LOOP
+Specifies a loopback channel (packet reflector).
+
+.SH SOCKET OPTIONS
+CAIF supports some protocol specific socket options that can be set with
+.BR setsockopt (2)
+and read with
+.BR getsockopt (2).
+The
+.I level
+parameter to
+.BR setsockopt (2)
+or
+.BR getsockopt (2)
+must be one of the supported protocols defined by the
+.B CAIFPROTO_*
+enum.
+
+.TP
+.B CAIFSO_CHANNEL_CONFIG
+When connecting a CAIF socket, the address given in sockaddr_caif is not
+the only parameters in the
+actual CAIF connect message. It also contains priority on the connection
+and specification of which physical link to use for the connection.
+If this options is not set default values will be used for the connection.
+
+.nf
+struct caif_channel_opt {
+        u_int16_t  priority;
+        u_int16_t  link_selector;
+        char       link_name[16];
+};
+.fi
+The structure
+.B caif_channel_opt
+is used for the socket option
+.B CAIFSO_CHANNEL_CONFIG.
+When setting up a CAIF connection the socket option can be used to specify the
+priority and the physical link to use for the specific connection.
+.I priority
+is a number between 0 and 31 where 0 is the lowest priority of the channel.
+If
+.I link_name[16]
+is specified, the connection will use the specified physical link.
+Otherwise
+.I link_selector
+should be set to
+.B CAIF_LINK_LOW_LATENCY
+for low latency connections and
+.B CAIF_LINK_HIGH_BANDW
+for high bandwidth connections.
+.TP
+.B CAIFSO_REQ_PARAM
+For connections of type
+.B CAIFPROTO_UTIL
+additional request parameters may be supplied with this socket option.
+The actual parameters are send using
+the struct
+.I caif_param.
+
+.nf
+struct caif_param {
+        u_int16_t size;
+        u_int8_t  data[256];
+};
+.fi
+.I size
+and
+.I data
+specifies the request parameter length and value.
+.TP
+.B CAIFSO_RSP_PARAM
+For connections of type
+.B CAIFPROTO_UTIL
+the modem may supply extra response parameters in the connect response.
+The response is returned in struct
+.IR caif_param .
+If no response parameters are supplied,
+.I size
+will be set to zero.
+.TP
+.B CAIFSO_CONN_ID
+Every open connection has a unique CAIF connection ID.
+This is assigned by the modem and is unique for every CAIF connection in the system.
+This socket option allows connection ID (u_int32_t) to be read after a successful connect.
+.TP
+.B CAIFSO_NEXT_PACKET_LEN
+The length of the next packet in the socket's receive queue can be read using
+this socket option. If no packet is available, zero is returned.
+The type is u_int32_t.
+.TP
+.B CAIFSO_MAX_PACKET_LEN
+The maximum transfer and receive packet size can be read using this
+socket option.
+The type is u_int32_t.
+
+.SH ERROR CODES
+.TP
+.B [ENOTSUP]
+Generally used when using unsupported functionality in the CAIF socket layer.
+.TP
+.B [EINVAL]
+Invalid argument passed.
+.TP
+.B [EPIPE]
+Connection is closed.
+.TP
+.B [EAGAIN]
+Only valid for non-blocking sockets.
+Operation would either block or a receive timeout had been
+set and the timeout expired before any data were received.
+E.g. used for send operations when CAIF channel is in state FLOW-OFF.
+.TP
+.B [EMSGSIZE]
+Sending (
+.BR write (2), send (2), sendmsg (2)
+)fails with this error code if the message length is less than or equal to 0 or greater than maximum CAIF packet size.
+
+Receiving (
+.BR  read (2), recv (2), recvmsg (2)
+) fails with this error code if the CAIF packet size is larger than the provided buffer.
+
+.TP
+.B [EBADF]
+ The argument socket is an invalid descriptor.
+.TP
+.B [EFAULT]
+ The receive buffer pointer(s) points outside the address space of the process.
+.TP
+.B [EINTR]
+ The receive was interrupted by delivery of a signal
+ before any data were available.
+.TP
+.B [ENOBUFS]
+The CAIF link layer cannot send packets due to full packet queues or
+flow stop. This may indicate that the link layer has stopped sending,
+but may be caused by transient congestion.
+.TP
+.B [ENOTCONN]
+ The CAIF socket is not connected (see
+.BR connect (2)).
+.TP
+.B [ENOTSOCK]
+ The argument socket does not refer to a socket.
+.TP
+.B [EOPNOTSUPP]
+ The type and/or protocol of the socket does not support the option(s) specified in the flags.
+.TP
+.B [ENOMEM]
+ Insufficient memory is available.
+
+
+.SH EXAMPLES (1)
+.nf
+  ...
+  struct sockaddr_caif addr = {
+    .family = AF_CAIF,
+    .u.at.type = CAIF_ATTYPE_PLAIN
+  };
+  /* Create a CAIF socket for AT Service */
+  s = socket(AF_CAIF, SOCK_SEQPACKET, CAIFPROTO_AT);
+
+  /* Connect to the AT Service at the modem */
+  connect(s, (struct sockaddr *) &addr, sizeof(addr));
+  ...
+.fi
+
+.SH EXAMPLES (2)
+
+.nf
+ struct sockaddr_caif addr = {
+    .family = AF_CAIF,
+    .u.util.service = "psock_test",
+  };
+  struct caif_channel_opt conf = {
+    .priority = 10,
+    .link_selector = CAIF_LINK_HIGH_BANDW,
+  };
+  struct caif_param rsp,req = {
+    .size = 1,
+    .data = {1}
+  };
+  u_int32_t connid;
+
+  /* Create a CAIF socket for Utility Service */
+  s = socket(PF_CAIF, SOCK_SEQPACKET, CAIFPROTO_UTIL);
+
+  /* Set the Channel Options */
+  setsockopt(s, SOL_CAIF, CAIFSO_CHANNEL_CONFIG, &conf, sizeof(conf));
+
+  /* Set the Request Parameters on the Utility Link */
+  setsockopt(s, SOL_CAIF, CAIFSO_REQ_PARAM, &req, sizeof(req));
+
+  /* Connect to the Utility Service */
+  connect(s, (struct sockaddr *) &addr, sizeof(addr));
+
+  /* Read out Parameter Responses and CAIF Connection ID */
+  len = sizeof(rsp);
+  getsockopt(s, SOL_CAIF, CAIFSO_RSP_PARAM, &rsp, &len);
+  len = sizeof(connid);
+  getsockopt(s, SOL_CAIF, CAIFSO_CONN_ID, &connid, &len);
+.fi
+.PP
+.SH AUTHOR
+Sjur Brandeland <sjur.brandeland@stericsson.com>
+.SH COPYRIGHT
+Copyright (C) ST-Ericsson AB 2009
+.SH SEE ALSO
+.BR socket (2),
+.BR connect (2),
+.BR setsockopt (2),
+.BR getsockopt (2),
+.BR read (2),
+.BR write (2),
+.BR recv (2),
+.BR recvmsg (2),
+.BR send (2),
+.BR sendmsg (2)

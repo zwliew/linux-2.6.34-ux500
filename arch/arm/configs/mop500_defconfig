@@ -452,6 +452,24 @@ CONFIG_DEFAULT_TCP_CONG="cubic"
 # CONFIG_NET_9P is not set
 
 #
+# CAIF Support
+#
+CONFIG_CAIF=m
+# CONFIG_CAIF_DEBUG is not set
+CONFIG_CAIF_SOCK=m
+CONFIG_CAIF_NETDEV=m
+CONFIG_CAIF_CHARDEV=m
+
+#
+# CAIF transport drivers
+#
+CONFIG_CAIF_TTY=m
+# CONFIG_CAIF_PHYIF_MSPI is not set
+# CONFIG_CAIF_PHYIF_SSPI is not set
+# CONFIG_CAIF_SHM is not set
+# CONFIG_CAIF_LOOPBACK is not set
+
+#
 # Device Drivers
 #
 

@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPEbook PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+	"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"[]>
+
+<book id="GuidtoCAIF">
+<bookinfo>
+<title>CAIF Programming Guide</title>
+
+<authorgroup>
+<author>
+<firstname>Sjur</firstname>
+<surname>Brendeland/</surname>
+<affiliation>
+<address>
+<email>sjur.brandeland@stericsson.com</email>
+</address>
+</affiliation>
+</author>
+</authorgroup>
+
+<copyright>
+<year>2009</year>
+<holder>ST-Ericsson AB</holder>
+</copyright>
+
+<legalnotice>
+<para>
+This documentation is free software; you can redistribute
+it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation; either
+version 2 of the License, or (at your option) any later
+version.
+</para>
+
+<para>
+This program is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+</para>
+
+<para>
+You should have received a copy of the GNU General Public
+License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+MA 02111-1307 USA
+</para>
+
+<para>
+For more details see the file COPYING in the source
+distribution of Linux.
+</para>
+</legalnotice>
+</bookinfo>
+
+<toc></toc>
+
+<chapter id="intro">
+<title>Introduction</title>
+<para>
+
+
+ !!!!!!! WARNING this document is a work in progress and is not
+ !!!!!!! complete or accurate at this point in time.
+
+
+CAIF is a MUX protocol used by ST-Ericsson cellular modems for
+communication between Modem and host.
+The host processes can open virtual AT channels, initiate
+GPRS Data connections, Video channels and Utility Channels.
+The Utility Channels are general purpose pipes between modem
+and host.
+
+ST-Ericsson modems support a number of transports between modem
+and host; currently UART and Shared Memory are available for Linux.
+
+</para>
+
+ <sect1 id="architecture">
+            <title>Architecture</title>
+<para>
+The Implementation of CAIF is divided into:
+<itemizedlist>
+  <listitem> CAIF Drivers: Character Device, Net Device and Kernel API.</listitem>
+  <listitem>CAIF Generic Protocol Implementation</listitem>
+  <listitem>CAIF Link Layer</listitem>
+</itemizedlist>
+</para>
+<para>
+CAIF is using IOCTLs to manage the CAIF Drivers.
+<programlisting>
+  IOCTL
+   !
+   !     +------+   +------+   +------+
+   !    +------+!  +------+!  +------+!
+   !    ! Char !!  !Kernel!!  ! Net  !!
+   !    ! Dev  !+  ! API  !+  ! Dev  !+   <- CAIF Drivers
+   !    +------+   +------!   +------+
+   !       !          !          !
+   !       +----------!----------+
+   !               +------+               <- CAIF Protocol Implementation
+   +------->       ! CAIF !                  /dev/caifconfig
+                   +------+
+             +--------!--------+
+             !                 !
+          +------+          +-----+
+          !ShMem !          ! TTY !       <- Link Layer
+          +------+          +-----+
+</programlisting>
+</para>
+</sect1>
+
+
+</chapter>
+
+<chapter id="bugs">
+<title>Known Bugs And Assumptions</title>
+<para>
+<variablelist>
+
+<varlistentry><term>CAIF is minimal</term>
+<listitem>
+<para>
+	The current CAIF implementation is very basic.
+</para>
+</listitem></varlistentry>
+
+<varlistentry><term>Quirks</term>
+<listitem>
+<para>
+	listquirks here
+</para>
+</listitem></varlistentry>
+</variablelist>
+
+</para>
+</chapter>
+
+<chapter id="config">
+<title>Public Functions Provided</title>
+
+  <para>
+   caif_config.h
+   This file defines the types needed for channel configuration.
+   The CAIF Channel configuration is held in the structure \ref
+   caif_channel_config .
+   The configured character devices will be visible in /dev/caifXXXX.
+  </para>
+
+
+    <para>
+      Example AT channel configuration
+      <programlisting>
+struct caif_channel_config at_config = {
+	.channel	= CAIF_CHTY_AT,
+	.phy_ref	= CAIF_PHYPREF_LOW_LAT,
+	.priority	= CAIF_PRIO_HIGH
+};
+      </programlisting>
+      </para>
+
+      <para>
+        Example Datagram channel configuration
+	<programlisting>
+struct caif_channel_config dgm_config = {
+	.channel		= CAIF_CHTY_DATAGRAM,
+	.phy_ref		= CAIF_PHYPREF_HIGH_BW,
+	.priority		= CAIF_PRIO_NORMAL,
+	.u.dgm.connection_id	= my_connection_id
+};
+		</programlisting>
+		</para>
+
+		<para>
+		Example RFM channel configuration
+		<programlisting>
+struct caif_channel_config rfm_config = {
+	.channel		= CAIF_CHTY_RFM,
+	.phy_ref		= CAIF_PHYPREF_LOW_LAT,
+	.priority 		= CAIF_PRIO_HIGH,
+	.u.rfm.connection_id 	= my_connection_id,
+	.u.rfm.name 		= "/rfm"
+};
+		</programlisting>
+		</para>
+
+		<para>
+		Example Utility channel configuration
+		<programlisting>
+struct caif_channel_config rfm_config = {
+	.channel		= CAIF_CHTY_UTILITY,
+	.phy_ref		= CAIF_PHYPREF_LOW_LAT,
+	.priority		= CAIF_PRIO_HIGH,
+	.u.utility.name		= "PSOCK_TEST_PROC",
+	.u.utility.params	= {0x01},
+	.u.utility.paramlen	= 1,
+	.u.utility.fifosize_kb	= 0,Architecture:
+------------
+The implementation of CAIF is divided into:
+* CAIF Drivers: Character Device, Net Device and Kernel API.
+* CAIF Generic Protocol Implementation
+* CAIF Link Layer
+
+CAIF is using IOCTLs to manage the CAIF Drivers.
+
+
+  IOCTL
+   !
+   !     +------+   +------+   +------+
+   !    +------+!  +------+!  +------+!
+   !    ! Char !!  !Kernel!!  ! Net  !!
+   !    ! Dev  !+  ! API  !+  ! Dev  !+   <- CAIF Drivers
+   !    +------+   +------!   +------+
+   !       !          !          !
+   !       +----------!----------+
+   !               +------+               <- CAIF Protocol Implementation
+   +------->       ! CAIF !                  /dev/caifconfig
+                   +------+
+             +--------!--------+
+             !                 !
+          +------+          +-----+
+          !ShMem !          ! TTY !       <- Link Layer
+          +------+          +-----+
+
+	.u.utility.fifosize_bufs= 0
+};
+		</programlisting>
+		</para>
+
+!Iinclude/linux/caif/caif_config.h
+!Enet/caif/caif_chnlif.c
+
+</chapter>
+
+
+</book>
