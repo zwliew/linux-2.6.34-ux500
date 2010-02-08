@@ -15,6 +15,7 @@
 #include <mach/dma.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-stm.h>
+#include <mach/prcmu-fw-api.h>
 /*
  * AB8500 bank addresses
  */

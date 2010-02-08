@@ -1,19 +1,12 @@
 /*
- * Copyright (c) 2009 STEricsson
+ * Copyright (c) 2009 ST-Ericsson
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
  */
+
+
 
 #ifndef __MACH_PRCMU_REGS_H
 #define __MACH_PRCMU_REGS_H
@@ -31,6 +24,11 @@
 #define PRCM_ARM_LS_CLAMP	(_PRCMU_BASE + 0x30c)
 #define PRCM_SRAM_A9		(_PRCMU_BASE + 0x308)
 
+/* ARM WFI Standby signal register */
+#define PRCM_ARM_WFI_STANDBY    (_PRCMU_BASE + 0x130) //FIXME : rename to PRCM_ARMSTANDBY_STATUS
+#define PRCMU_IOCR              (_PRCMU_BASE + 0x310)
+
+
 /* CPU mailbox registers */
 #define PRCM_MBOX_CPU_VAL	(_PRCMU_BASE + 0x0fc)
 #define PRCM_MBOX_CPU_SET	(_PRCMU_BASE + 0x100)
@@ -43,6 +41,28 @@
 #define PRCM_ARMITMSK63TO32	(_PRCMU_BASE + 0x120)
 #define PRCM_ARMITMSK95TO64	(_PRCMU_BASE + 0x124)
 #define PRCM_ARMITMSK127TO96 (_PRCMU_BASE + 0x128)
+#define PRCM_ARMITVAL31TO0	(_PRCMU_BASE + 0x260)
+#define PRCM_ARMITVAL63TO32	(_PRCMU_BASE + 0x264)
+#define PRCM_ARMITVAL95TO64	(_PRCMU_BASE + 0x268)
+#define PRCM_ARMITVAL127TO96	(_PRCMU_BASE + 0x26C)
+
+#define PRCM_HOSTACCESS_REQ 	(_PRCMU_BASE + 0x334)
+#define ARM_WAKEUP_MODEM	0x1
+
+/* register for Ack mailbox interrupts */
+#define PRCM_ARM_IT1_CLEAR	(_PRCMU_BASE + 0x48C)
+#define PRCM_ARM_IT1_VAL	(_PRCMU_BASE + 0x494)
+#define PRCM_HOLD_EVT		(_PRCMU_BASE + 0x174)
+
+#define PRCM_ITSTATUS0		(_PRCMU_BASE + 0x148)
+#define PRCM_ITSTATUS1		(_PRCMU_BASE + 0x150)
+#define PRCM_ITSTATUS2		(_PRCMU_BASE + 0x158)
+#define PRCM_ITSTATUS3		(_PRCMU_BASE + 0x160)
+#define PRCM_ITSTATUS4		(_PRCMU_BASE + 0x168)
+#define PRCM_ITSTATUS5		(_PRCMU_BASE + 0x484)
+#define PRCM_ITCLEAR5		(_PRCMU_BASE + 0x488)
+#define PRCM_ARMIT_MASKXP70_IT	(_PRCMU_BASE + 0x1018)
+
 
 /* Clock management */
 #define PRCM_YYCLKEN0_MGT_SET	(_PRCMU_BASE + 0x510)

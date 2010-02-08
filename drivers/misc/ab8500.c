@@ -402,6 +402,14 @@ int ab8500_write(u8 block, u32 adr, u8 data)
 		return -1;
 	}
 
+#if 0
+	/* disabled as prcmu i2c not tested */
+	if (!u8500_is_earlydrop()) {
+		if ( block == AB8500_REGU_CTRL2 )
+			return prcmu_i2c_write(block, adr, data);
+	}
+#endif
+
 	/**
 	 *   AB8500 SPI 24 bits frame format
 	 *
@@ -452,6 +460,14 @@ int ab8500_read(u8 block, u32 adr)
 		printk(KERN_ERR "Invalid bank address\n");
 		return -1;
 	}
+
+#if 0
+	/* disabled as prcmu i2c not tested */
+	if (!u8500_is_earlydrop()) {
+		if ( block == AB8500_REGU_CTRL2 )
+			return prcmu_i2c_read(block, adr);
+	}
+#endif
 
 	data = 1 << 23 | block << 18 | adr << 10;
 

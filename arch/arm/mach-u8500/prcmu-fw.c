@@ -19,73 +19,194 @@
 #include <asm/io.h>
 #include <mach/hardware.h>
 #include <mach/prcmu-regs.h>
-#include "prcmu-fw.h"
+#include "prcmu-fw_ed.h"
+#include "prcmu-fw_v1.h"
+
+#define NAME "PRCMU"
+#define PM_DEBUG 0
+#define dbg_printk(format, arg...) (PM_DEBUG & 1) ? \
+	(printk(KERN_ALERT NAME ": " format , ## arg)) : \
+		({do {} while (0); })
+
+void __iomem *rtc_register_base ;
+
+/* TASKLET declarations */
+static void prcmu_ack_mb7_status_tasklet(unsigned long);
+DECLARE_TASKLET(prcmu_ack_mb7_tasklet, prcmu_ack_mb7_status_tasklet, 0);
+
+static void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long);
+DECLARE_TASKLET(prcmu_ack_mb0_wkuph_tasklet, \
+		prcmu_ack_mb0_wkuph_status_tasklet, 0);
+
+
+/* WAITQUEUES */
+DECLARE_WAIT_QUEUE_HEAD(ack_mb0_queue);
+DECLARE_WAIT_QUEUE_HEAD(ack_mb5_queue);
+DECLARE_WAIT_QUEUE_HEAD(ack_mb7_queue);
+
+
+/* function pointer for shrm callback sequence for modem waking up arm */
+static void (*prcmu_modem_wakes_arm_shrm)(void);
+
+/* function pointer for shrm callback sequence for modem requesting reset */
+static void (*prcmu_modem_reset_shrm)(void);
+
 
 /* Internal functions */
-int32_t _wait_for_req_complete(mailbox_t num)
+
+/**
+ * _wait_for_req_complete () -  used for PWRSTTRH for AckMb0 and AckMb1 on V1
+ * @num:			Mailbox number to operate on
+ *
+ * Polling loop to ensure that PRCMU FW has completed the requested op
+ */
+int _wait_for_req_complete(mailbox_t num)
 {
 	int timeout = 1000;
 
-	/* Clear any error/status */
-	writel(0, PRCM_ACK_MB0);
-	/* Set an interrupt to XP70 */
-	writel(1 << num, PRCM_MBOX_CPU_SET);
-	/* As of now only polling method, need to check if interrupt
-	 * possible ?? TODO */
-	while ((readl(PRCM_MBOX_CPU_VAL) & (1 << num)) && timeout--)
-		cpu_relax();
+	if (u8500_is_earlydrop()) {
 
-	if (!timeout)
-		return -EBUSY;
-	else
-		return readl(PRCM_ACK_MB0);
-	/*TODO sent error from std. linux list */
+		/* Clear any error/status */
+		writel(0, PRCM_ACK_MB0_ED);
+		/* Set an interrupt to XP70 */
+		writel(1 << num, PRCM_MBOX_CPU_SET);
+		/* As of now only polling method, need to check if interrupt
+		 * possible ?? TODO */
+		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << num)) && timeout--)
+			cpu_relax();
+
+		if (!timeout)
+			return -EBUSY;
+		else
+			return readl(PRCM_ACK_MB0_ED);
+
+
+	} else {
+
+		/* checking any already on-going transaction */
+		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << num)) && timeout--)
+			cpu_relax();
+
+		timeout = 1000;
+
+
+		/* Clear any error/status */
+		if (num == REQ_MB0) {
+			writeb(0, PRCM_ACK_MB0_AP_PWRST_STATUS);
+		} else if (num == REQ_MB1) {
+			writel(0, PRCM_ACK_MB1);
+		}
+
+
+		/* Set an interrupt to XP70 */
+		writel(1 << num, PRCM_MBOX_CPU_SET);
+		/* As of now only polling method, need to check if interrupt
+		 * possible ?? TODO */
+		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << num)) && timeout--)
+			cpu_relax();
+
+
+		if (!timeout)
+			return -EBUSY;
+
+		return 0;
+
+	}
+
 }
 
-int32_t prcmu_request_mailbox0(req_mb0_t *req)
+/**
+ * prcmu_request_mailbox0 - request op on mailbox0
+ * @req:		    mailbox0 type param
+ *
+ * Fill up the mailbox 0 required fields and call polling loop
+ */
+int prcmu_request_mailbox0(req_mb0_t *req)
 {
-	writel(req->complete_field, PRCM_REQ_MB0);
-	return _wait_for_req_complete(REQ_MB0);
+	if (u8500_is_earlydrop()) {
+		writel(req->complete_field, PRCM_REQ_MB0_ED);
+		return _wait_for_req_complete(REQ_MB0_ED);
+
+	} else {
+		writel(req->complete_field, PRCM_REQ_MB0);
+		return _wait_for_req_complete(REQ_MB0);
+	}
 }
 
-int32_t prcmu_request_mailbox1(req_mb1_t *req)
+/**
+ * prcmu_request_mailbox1 - request op on mailbox1
+ * @req:		    mailbox1 type param
+ *
+ * Fill up the mailbox 1 required fields and call polling loop
+ */
+int prcmu_request_mailbox1(req_mb1_t *req)
 {
-	writew(req->complete_field, PRCM_REQ_MB1);
-	return _wait_for_req_complete(REQ_MB1);
+	if (u8500_is_earlydrop()) {
+		writew(req->complete_field, PRCM_REQ_MB1_ED);
+		return _wait_for_req_complete(REQ_MB1_ED);
+	} else {
+		writew(req->complete_field, PRCM_REQ_MB1);
+		return _wait_for_req_complete(REQ_MB1);
+	}
 }
 
-int32_t prcmu_request_mailbox2(req_mb2_t *req)
+/**
+ * prcmu_request_mailbox2 - request op on mailbox2
+ * @req:		    mailbox2 type param
+ *
+ * Fill up the mailbox 2 required fields and call polling loop
+ */
+int prcmu_request_mailbox2(req_mb2_t *req)
 {
-	writel(req->complete_field[0], PRCM_REQ_MB2);
-	writel(req->complete_field[1], PRCM_REQ_MB2 + 4);
-	writel(req->complete_field[2], PRCM_REQ_MB2 + 8);
-	return _wait_for_req_complete(REQ_MB2);
+	if (u8500_is_earlydrop()) {
+		writel(req->complete_field[0], PRCM_REQ_MB2_ED);
+		writel(req->complete_field[1], PRCM_REQ_MB2_ED + 4);
+		writel(req->complete_field[2], PRCM_REQ_MB2_ED + 8);
+		return _wait_for_req_complete(REQ_MB2_ED);
+
+	} else {
+		writel(req->complete_field[0], PRCM_REQ_MB2);
+		writel(req->complete_field[1], PRCM_REQ_MB2 + 4);
+		writel(req->complete_field[2], PRCM_REQ_MB2 + 8);
+		return _wait_for_req_complete(REQ_MB2);
+	}
+
 }
 
 /* Exported APIs */
 
 /**
  * prcmu_get_boot_status - PRCMU boot status checking
- *
  * Returns: the current PRCMU boot status
- **/
-uint8_t prcmu_get_boot_status(void)
+ */
+int prcmu_get_boot_status(void)
 {
-	return readb(PRCM_BOOT_STATUS);
+	if (u8500_is_earlydrop()) {
+		return readb(PRCM_BOOT_STATUS_ED);
+	} else {
+		return readb(PRCM_BOOT_STATUS);
+	}
 }
 EXPORT_SYMBOL(prcmu_get_boot_status);
 
 /**
  * prcmu_set_rc_a2p - This function is used to run few power state sequences
- *
- * @val: Value to be set, i.e. transition requested
+ * @val: 	Value to be set, i.e. transition requested
  * Returns: 0 on success, -EINVAL on invalid argument
  *
  * This function is used to run the following power state sequences -
  * any state to ApReset,  ApDeepSleep to ApExecute, ApExecute to ApDeepSleep
- **/
-int32_t prcmu_set_rc_a2p(romcode_write_t val)
+ */
+int prcmu_set_rc_a2p(romcode_write_t val)
 {
+	if (u8500_is_earlydrop()) {
+		if (val < RDY_2_DS_ED || val > RDY_2_XP70_RST_ED)
+			return -EINVAL;
+		writeb(val, PRCM_ROMCODE_A2P_ED);
+		return 0;
+	}
+
+
 	if (val < RDY_2_DS || val > RDY_2_XP70_RST)
 		return -EINVAL;
 	writeb(val, PRCM_ROMCODE_A2P);
@@ -95,43 +216,57 @@ EXPORT_SYMBOL(prcmu_set_rc_a2p);
 
 /**
  * prcmu_get_rc_p2a - This function is used to get power state sequences
- *
  * Returns: the power transition that has last happened
  *
  * This function can return the following transitions-
  * any state to ApReset,  ApDeepSleep to ApExecute, ApExecute to ApDeepSleep
- **/
+ */
 romcode_read_t prcmu_get_rc_p2a(void)
 {
+	if (u8500_is_earlydrop()) {
+		return readb(PRCM_ROMCODE_P2A_ED);
+	}
+
 	return readb(PRCM_ROMCODE_P2A);
 }
 EXPORT_SYMBOL(prcmu_get_rc_p2a);
 
 /**
- * prcmu_get_current_mode - Return the current AP power mode
- *
+ * prcmu_get_current_mode - Return the current XP70 power mode
  * Returns: Returns the current AP(ARM) power mode: init,
  * apBoot, apExecute, apDeepSleep, apSleep, apIdle, apReset
- **/
-ap_pwrst_t prcmu_get_current_mode(void)
+ */
+ap_pwrst_t prcmu_get_xp70_current_state(void)
 {
-	return readb(PRCM_AP_PWR_STATE);
+	if (u8500_is_earlydrop()) {
+		return readb(PRCM_AP_PWR_STATE_ED);
+	}
+
+	return readb(PRCM_XP70_CUR_PWR_STATE);
 }
-EXPORT_SYMBOL(prcmu_get_current_mode);
+EXPORT_SYMBOL(prcmu_get_xp70_current_state);
 
 /**
  * prcmu_set_ap_mode - set the appropriate AP power mode
- *
  * @ap_pwrst_trans: Transition to be requested to move to new AP power mode
  * Returns: 0 on success, non-zero on failure
  *
  * This function set the appropriate AP power mode.
  * The caller can check the status following this call.
- **/
-int32_t prcmu_set_ap_mode(ap_pwrst_trans_t ap_pwrst_trans)
+ */
+int prcmu_set_ap_mode(ap_pwrst_trans_t ap_pwrst_trans)
 {
-	req_mb0_t request = { {0}
-	};
+	req_mb0_t request = { {0} };
+
+	if (u8500_is_earlydrop()) {
+		if (ap_pwrst_trans
+				&& (ap_pwrst_trans < APEXECUTE_TO_APSLEEP_ED
+				|| ap_pwrst_trans > APEXECUTE_TO_APIDLE_ED))
+			return -EINVAL;
+		request.req_field.ap_pwrst_trans = ap_pwrst_trans;
+		return prcmu_request_mailbox0(&request);
+	}
+
 	if (ap_pwrst_trans
 	    && (ap_pwrst_trans < APEXECUTE_TO_APSLEEP
 		|| ap_pwrst_trans > APEXECUTE_TO_APIDLE))
@@ -143,17 +278,24 @@ EXPORT_SYMBOL(prcmu_set_ap_mode);
 
 /**
  * prcmu_set_fifo_4500wu - Configures 4500 fifo interrupt as wake-up events
- *
  * @fifo_4500wu: The 4500 fifo interrupt to be configured as wakeup or not
  * Returns: 0 on success, non-zero on failure
  *
  * This function de/configures 4500 fifo interrupt as wake-up events
  * The caller can check the status following this call.
- **/
-int32_t prcmu_set_fifo_4500wu(intr_wakeup_t fifo_4500wu)
+ */
+int prcmu_set_fifo_4500wu(intr_wakeup_t fifo_4500wu)
 {
-	req_mb0_t request = { {0}
-	};
+	req_mb0_t request = { {0} };
+
+	if (u8500_is_earlydrop()) {
+		if (fifo_4500wu < INTR_NOT_AS_WAKEUP_ED \
+				|| fifo_4500wu > INTR_AS_WAKEUP_ED)
+			return -EINVAL;
+		request.req_field.fifo_4500wu = fifo_4500wu;
+		return prcmu_request_mailbox0(&request);
+	}
+
 	if (fifo_4500wu < INTR_NOT_AS_WAKEUP || fifo_4500wu > INTR_AS_WAKEUP)
 		return -EINVAL;
 	request.req_field.fifo_4500wu = fifo_4500wu;
@@ -163,17 +305,25 @@ EXPORT_SYMBOL(prcmu_set_fifo_4500wu);
 
 /**
  * prcmu_set_ddr_pwrst - set the appropriate DDR power mode
- *
  * @ddr_pwrst: Power mode of DDR to which DDR needs to be switched
  * Returns: 0 on success, non-zero on failure
  *
  * This function is not supported on ED by the PRCMU firmware
- **/
-int32_t prcmu_set_ddr_pwrst(ddr_pwrst_t ddr_pwrst)
+ */
+int prcmu_set_ddr_pwrst(ddr_pwrst_t ddr_pwrst)
 {
-	req_mb0_t request = { {0}
-	};
-	if (ddr_pwrst < DDR_PWR_STATE_UNCHANGED || ddr_pwrst > TOBEDEFINED)
+	req_mb0_t request = { {0} };
+
+	if (u8500_is_earlydrop()) {
+		if (ddr_pwrst < DDR_PWR_STATE_UNCHANGED_ED || \
+				ddr_pwrst > TOBEDEFINED_ED)
+			return -EINVAL;
+		request.req_field.ddr_pwrst = ddr_pwrst;
+		return prcmu_request_mailbox0(&request);
+	}
+
+	if (ddr_pwrst < DDR_PWR_STATE_UNCHANGED ||  \
+			ddr_pwrst > DDR_PWR_STATE_OFFHIGHLAT)
 		return -EINVAL;
 	request.req_field.ddr_pwrst = ddr_pwrst;
 	return prcmu_request_mailbox0(&request);
@@ -182,72 +332,115 @@ EXPORT_SYMBOL(prcmu_set_ddr_pwrst);
 
 /**
  * prcmu_set_arm_opp - set the appropriate ARM OPP
- *
  * @arm_opp: The new ARM operating point to which transition is to be made
  * Returns: 0 on success, non-zero on failure
  *
  * This function set the appropriate ARM operation mode
  * The caller can check the status following this call.
- **/
-#if 0
-int32_t prcmu_set_arm_opp(arm_opp_t arm_opp)
-{
-	req_mb1_t request = { {0}
-	};
-	if (arm_opp < ARM_NO_CHANGE || arm_opp > ARM_EXTCLK)
-		return -EINVAL;
-	request.req_field.arm_opp = arm_opp;
-	return prcmu_request_mailbox1(&request);
-}
-EXPORT_SYMBOL(prcmu_set_arm_opp);
-#endif
-int32_t prcmu_set_arm_opp(arm_opp_t arm_opp)
+ * NOTE : THE PRCMU DOES NOT ISSUE AN IT TO ARM FOR A DVFS
+ *	  XISITION REQUEST. HENCE WE DO NOT NEED A MAILBOX
+ *	  TIMEOUT WAIT HERE FOR OPP DVFS
+ */
+int prcmu_set_arm_opp(arm_opp_t arm_opp)
 {
 	int timeout = 200;
+
+	if (u8500_is_earlydrop()) {
+		if (arm_opp < ARM_NO_CHANGE_ED || arm_opp > ARM_EXTCLK_ED)
+			return -EINVAL;
+		/* check for any ongoing AP state transitions */
+		while ((readl(PRCM_MBOX_CPU_VAL) & 1) && timeout--)
+			cpu_relax();
+		if (!timeout)
+			return -EBUSY;
+		/* check for any ongoing ARM DVFS */
+		timeout = 200;
+		while ((readb(PRCM_M2A_DVFS_STAT_ED) == 0xff) && timeout--)
+			cpu_relax();
+		if (!timeout)
+			return -EBUSY;
+
+		/* Clear any error/status */
+		writel(0, PRCM_ACK_MB0_ED);
+
+		writeb(arm_opp, PRCM_ARM_OPP_ED);
+		writeb(APE_NO_CHANGE, PRCM_APE_OPP_ED);
+		writel(2, PRCM_MBOX_CPU_SET);
+
+		timeout = 1000;
+		while ((readl(PRCM_MBOX_CPU_VAL) & 2) && timeout--)
+			cpu_relax();
+
+		/* TODO: read mbox to ARM error here.. */
+		return 0;
+	}
+
+
 	if (arm_opp < ARM_NO_CHANGE || arm_opp > ARM_EXTCLK)
 		return -EINVAL;
-/* check for any ongoing AP state transitions */
+
+	/* check for any ongoing AP state transitions */
 	while ((readl(PRCM_MBOX_CPU_VAL) & 1) && timeout--)
 		cpu_relax();
 	if (!timeout)
 		return -EBUSY;
-/* check for any ongoing ARM DVFS */
+
+	/* check for any ongoing ARM DVFS */
 	timeout = 200;
-	while ((readb(PRCM_M2A_DVFS_STAT) == 0xff) && timeout--)
+	while ((readb(PRCM_ACK_MB1_CURR_DVFS_STATUS) == 0xff) && timeout--)
 		cpu_relax();
 	if (!timeout)
 		return -EBUSY;
 
-	/* Clear any error/status */
-	writel(0, PRCM_ACK_MB0);
+	/* clear the mailbox */
+	writel(0, PRCM_ACK_MB1);
 
-	writeb(arm_opp, PRCM_ARM_OPP);
-	writeb(APE_NO_CHANGE, PRCM_APE_OPP);
-	writel(2, PRCM_MBOX_CPU_SET);
+	/* write 0x0 into the header for ARM/APE operating point mgmt */
+	writel(0x0, _PRCM_MBOX_HEADER);
 
-	timeout = 1000;
-	while ((readl(PRCM_MBOX_CPU_VAL) & 2) && timeout--)
-		cpu_relax();
+	/* write ARMOPP request into the mailbox */
+	writel(arm_opp, PRCM_REQ_MB1_ARMOPP);
+	writel(APE_NO_CHANGE, PRCM_REQ_MB1_APEOPP);
 
-	/* TODO: read mbox to ARM error here.. */
-	return 0;
+	_wait_for_req_complete(REQ_MB1);
 
+	/* wait for the dvfs status */
+	printk(KERN_INFO "DVFS status : 0x%x\n", \
+			readb(PRCM_ACK_MB1_CURR_DVFS_STATUS));
+
+	switch (readb(PRCM_ACK_MB1_CURR_DVFS_STATUS)) {
+
+	case DVFS_ARM50OPPOK:
+	case DVFS_ARM100OPPOK:
+	case DVFS_ARMEXTCLKOK:
+	case DVFS_NOCHGTCLKOK:
+		return 0;
+	default:
+		printk(KERN_WARNING "PRCMU : DVFS Request Not Complete!!\n");
+		return -EINVAL;
+	};
 }
 EXPORT_SYMBOL(prcmu_set_arm_opp);
 
 /**
  * prcmu_set_ape_opp - set the appropriate APE OPP
- *
  * @ape_opp: The new APE operating point to which transition is to be made
  * Returns: 0 on success, non-zero on failure
  *
  * This function set the appropriate APE operation mode
  * The caller can check the status following this call.
- **/
-int32_t prcmu_set_ape_opp(ape_opp_t ape_opp)
+ */
+int prcmu_set_ape_opp(ape_opp_t ape_opp)
 {
-	req_mb1_t request = { {0}
-	};
+	req_mb1_t request = { {0} };
+	if (u8500_is_earlydrop()) {
+		if (ape_opp < APE_NO_CHANGE_ED || ape_opp > APE_100_OPP_ED)
+			return -EINVAL;
+		request.req_field.ape_opp = ape_opp;
+		return prcmu_request_mailbox1(&request);
+	}
+
+
 	if (ape_opp < APE_NO_CHANGE || ape_opp > APE_100_OPP)
 		return -EINVAL;
 	request.req_field.ape_opp = ape_opp;
@@ -257,19 +450,28 @@ EXPORT_SYMBOL(prcmu_set_ape_opp);
 
 /**
  * prcmu_set_ape_opp - set the appropriate h/w accelerator to power mode
- *
- * @hw_acc: the hardware accelerator being considered - see the list for
- *          details
+ * @hw_acc: the hardware accelerator being considered
  * @hw_accst: The new h/w accelerator state(on/off/retention)
  * Returns: 0 on success, non-zero on failure
  *
  * This function set the appropriate hardware accelerator to the requested
  * power mode.
  * The caller can check the status following this call.
- **/
-int32_t prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
+ */
+int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
 {
 	req_mb2_t request;
+
+	if (u8500_is_earlydrop()) {
+		if (hw_acc < SVAMMDSP_ED || hw_acc > ESRAM4_ED ||
+				hw_accst < HW_NO_CHANGE_ED || hw_accst \
+				> HW_ON_ED)
+			return -EINVAL;
+		memset(&request, 0x0, sizeof(request));
+		request.hw_accst_list[hw_acc].hw_accst = hw_accst;
+		return prcmu_request_mailbox2(&request);
+	}
+
 	if (hw_acc < SVAMMDSP || hw_acc > ESRAM4 ||
 	    hw_accst < HW_NO_CHANGE || hw_accst > HW_ON)
 		return -EINVAL;
@@ -281,61 +483,66 @@ EXPORT_SYMBOL(prcmu_set_hwacc_st);
 
 /**
  * prcmu_get_m2a_status - Get the status or transition of the last request
- *
  * Returns: The status from MBOX to ARM during the last request.
  * See the list of status/transitions for details.
- **/
-mbox_2_arm_stat_t prcmu_get_m2a_status(void)
+ */
+mbox_2_arm_stat_ed_t prcmu_get_m2a_status(void)
 {
-	return readb(PRCM_M2A_STATUS);
+	return readb(PRCM_M2A_STATUS_ED);
 }
 EXPORT_SYMBOL(prcmu_get_m2a_status);
 
 /**
  * prcmu_get_m2a_error - Get the error that occured in last request
- *
  * Returns: The error from MBOX to ARM during the last request.
  * See the list of errors for details.
- **/
-mbox_to_arm_err_t prcmu_get_m2a_error(void)
+ */
+mbox_to_arm_err_ed_t prcmu_get_m2a_error(void)
 {
-	return readb(PRCM_M2A_ERROR);
+	return readb(PRCM_M2A_ERROR_ED);
 }
 EXPORT_SYMBOL(prcmu_get_m2a_error);
 
 /**
  * prcmu_get_m2a_dvfs_status - Get the state of DVFS transition
- *
  * Returns: Either that state transition on DVFS is on going
  * or completed, 0 if not used.
- **/
-mbox_2_armdvfs_stat_t prcmu_get_m2a_dvfs_status(void)
+ */
+dvfs_stat_t prcmu_get_m2a_dvfs_status(void)
 {
-	return readb(PRCM_M2A_DVFS_STAT);
+	if (u8500_is_earlydrop()) {
+		return readb(PRCM_M2A_DVFS_STAT_ED);
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL(prcmu_get_m2a_dvfs_status);
 
 /**
  * prcmu_get_m2a_hwacc_status - Get the state of HW Accelerator
- *
  * Returns: Either that state transition on hardware accelerator
  * is on going or completed, 0 if not used.
- **/
+ */
 mbox_2_arm_hwacc_pwr_stat_t prcmu_get_m2a_hwacc_status(void)
 {
-	return readb(PRCM_M2A_HWACC_STAT);
+	if (u8500_is_earlydrop()) {
+		return readb(PRCM_M2A_HWACC_STAT_ED);
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL(prcmu_get_m2a_hwacc_status);
 
 /**
  * prcmu_set_irq_wakeup - set the ARM IRQ wake-up events
  * @irq: ARM IRQ that needs to be set as wake up source
- *
  * Returns: 0 on success, -EINVAL on invalid argument
- **/
-int32_t prcmu_set_irq_wakeup(uint32_t irq)
+ */
+int prcmu_set_irq_wakeup(uint32_t irq)
 {
 	unsigned long mask_reg;
+
+
 	if (irq < 32) {
 		mask_reg = PRCM_ARMITMSK31TO0;
 	} else if (irq < 64) {
@@ -358,7 +565,6 @@ EXPORT_SYMBOL(prcmu_set_irq_wakeup);
 
 /**
  * prcmu_apply_ap_state_transition - PRCMU State Transition function
- *
  * @transition: Transition to be requested to move to new AP power mode
  * @ddr_state_req: Power mode of DDR to which DDR needs to be switched
  * @_4500_fifo_wakeup: 4500 fifo interrupt to be configured as wakeup or not
@@ -376,69 +582,704 @@ EXPORT_SYMBOL(prcmu_set_irq_wakeup);
  * not support it. This also assumes that the non-boot cpu's are in wfi
  * and not wfe.
  */
-int32_t prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
+int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
 					ddr_pwrst_t ddr_state_req,
 					int _4500_fifo_wakeup)
 {
-	int ret = 0;
+	int ret = 0, flags;
 	int sync = 0;
-	unsigned int val = 0;
+	unsigned int val = 0, timeout, tmp ;
 
-	/* The PRCMU does do state transition validation, so we will not
-	   repeat it, just go ahead and call it */
-	if (transition == APBOOT_TO_APEXECUTE)
-		sync = 1;
+	if (u8500_is_earlydrop()) {
+		/* The PRCMU does do state transition validation, so we wl not
+		   repeat it, just go ahead and call it */
+		if (transition == APBOOT_TO_APEXECUTE_ED)
+			sync = 1;
 
-	val = (ddr_state_req << 16) | (_4500_fifo_wakeup << 8) | transition;
-	writel(val, PRCM_REQ_MB0);
-	writel(1, PRCM_MBOX_CPU_SET);
+		val = (ddr_state_req << 16) | (_4500_fifo_wakeup << 8) | \
+		      transition;
+		writel(val, PRCM_REQ_MB0_ED);
+		writel(1, PRCM_MBOX_CPU_SET);
 
-	while ((readl(PRCM_MBOX_CPU_VAL) & 1) && sync)
-		cpu_relax();
+		while ((readl(PRCM_MBOX_CPU_VAL) & 1) && sync)
+			cpu_relax();
+
+		switch (transition) {
+
+		case APEXECUTE_TO_APSLEEP_ED:
+		case APEXECUTE_TO_APIDLE_ED:
+			__asm__ __volatile__("dsb\n\t" "wfi\n\t":::"memory");
+			break;
+		case APEXECUTE_TO_APDEEPSLEEP_ED:
+			printk(KERN_INFO "TODO: deep sleep \n");
+			break;
+		case APBOOT_TO_APEXECUTE_ED:
+			break;
+		default:
+			ret = -EINVAL;
+		}
+		return ret;
+	}
 
 	switch (transition) {
-
 	case APEXECUTE_TO_APSLEEP:
+		break;
 	case APEXECUTE_TO_APIDLE:
-	      __asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
 		break;
-
 	case APEXECUTE_TO_APDEEPSLEEP:
-		printk("TODO: deep sleep \n");
+		printk(KERN_INFO "TODO: deep sleep \n");
 		break;
-
 	case APBOOT_TO_APEXECUTE:
 		break;
-
 	default:
 		ret = -EINVAL;
 	}
 	return ret;
+
+
 }
 EXPORT_SYMBOL(prcmu_apply_ap_state_transition);
 
-static int prcmu_fw_init(void)
+
+
+/**
+ * prcmu_i2c_read - PRCMU - 4500 communication using PRCMU I2C
+ * @reg: - db8500 register bank to be accessed
+ * @slave:  - db8500 register to be accessed
+ * Returns: ACK_MB5  value containing the status
+ */
+int prcmu_i2c_read(u8 reg, u8 slave)
 {
-	int i;
-#if 0
-    int status = prcmu_get_boot_status();
+	uint8_t i2c_status;
+	uint8_t i2c_val;
 
-    if (status != 0xFF || status != 0x2F) {
-	printk("PRCMU Firmware not ready\n");
-	return -EIO;
-    }
-    /* This can be enabled once PRCMU firmware flashing becomes default */
-    prcmu_apply_ap_state_transition(APBOOT_TO_APEXECUTE,
-					DDR_PWR_STATE_UNCHANGED, 0);
+	dbg_printk("\nprcmu_4500_i2c_read: \
+	  bank=%x;reg=%x;\n", reg, slave);
 
-#endif
+	/* code related to FW 1_0_0_16 */
+	writeb(I2CREAD, PRCM_REQ_MB5_I2COPTYPE);
+	writeb(reg, PRCM_REQ_MB5_I2CREG);
+	writeb(slave, PRCM_REQ_MB5_I2CSLAVE);
+	writeb(0, PRCM_REQ_MB5_I2CVAL);
 
-	/* for the time being assign wake-up duty to all interrupts */
-	/* Enable all interrupts as wake-up source */
-	for (i = 0; i < 128; i++)
-		prcmu_set_irq_wakeup(i);
+	/* clear any previous ack */
+	writel(0, PRCM_ACK_MB5);
+
+	/* Set an interrupt to XP70 */
+	writel(PRCM_XP70_TRIG_IT17, PRCM_MBOX_CPU_SET);
+
+	dbg_printk("\n readl PRCM_ARM_IT1_VAL =  %d \
+			", readb(PRCM_ARM_IT1_VAL));
+	dbg_printk("\nwaiting at wait queue");
+
+
+	/* wait for interrupt */
+	wait_event_interruptible(ack_mb5_queue, \
+	  !(readl(PRCM_MBOX_CPU_VAL) & (PRCM_XP70_TRIG_IT17)));
+
+	dbg_printk("\nAfter wait queue");
+
+	/* retrieve values */
+	dbg_printk("ack-mb5:transfer status = %x\n", \
+			readb(PRCM_ACK_MB5 + 0x1));
+	dbg_printk("ack-mb5:reg_add = %x\n", readb(PRCM_ACK_MB5 + 0x2));
+	dbg_printk("ack-mb5:slave_add = %x\n", \
+			readb(PRCM_ACK_MB5 + 0x2));
+	dbg_printk("ack-mb5:reg_val = %d\n", readb(PRCM_ACK_MB5 + 0x3));
+
+
+	/* return ack_mb5.req_field.reg_val for a
+	   req->req_field.I2C_op == I2C_READ */
+
+	i2c_status = readb(PRCM_ACK_MB5 + 0x1);
+	i2c_val = readb(PRCM_ACK_MB5 + 0x3);
+
+
+	if (i2c_status == I2C_RD_OK)
+		return i2c_val;
+	else {
+
+		printk(KERN_INFO "prcmu_request_mailbox5:read return status = \
+				%d\n", i2c_status);
+		return -EINVAL;
+	}
+
+}
+EXPORT_SYMBOL(prcmu_i2c_read);
+
+
+/**
+ * prcmu_i2c_write - PRCMU-db8500 communication using PRCMU I2C
+ * @reg: - db8500 register bank to be accessed
+ * @slave:  - db800 register to be written to
+ * @reg_data: - the data to write
+ * Returns: ACK_MB5 value containing the status
+ */
+int prcmu_i2c_write(u8 reg, u8 slave, u8 reg_data)
+{
+	uint8_t i2c_status;
+
+	dbg_printk("\nprcmu_4500_i2c_write:bank=%x; \
+	  reg=%x;reg_data=%d\n", reg, slave, reg_data);
+
+
+
+	/* request REQ_MB5 */
+	writeb((reg << 1) | I2CWRITE, PRCM_REQ_MB5 + 0x0);
+	writeb(0, PRCM_REQ_MB5 + 0x1);
+	writeb(slave, PRCM_REQ_MB5_I2CSLAVE);
+	writeb(reg_data, PRCM_REQ_MB5_I2CVAL);
+
+
+	/* clear any previous ack */
+	writel(0, PRCM_ACK_MB5);
+
+	/* Set an interrupt to XP70 */
+	writel(PRCM_XP70_TRIG_IT17, PRCM_MBOX_CPU_SET);
+
+	dbg_printk("\n readl PRCM_ARM_IT1_VAL =  %d", \
+			readb(PRCM_ARM_IT1_VAL));
+	dbg_printk("\nwaiting at wait queue");
+
+
+	/* wait for interrupt */
+	wait_event_interruptible(ack_mb5_queue, !(readl(PRCM_MBOX_CPU_VAL) \
+	  & PRCM_XP70_TRIG_IT17));
+
+	dbg_printk(KERN_INFO "\n After wait queue");
+
+	/* retrieve the values */
+	dbg_printk("ack-mb5:transfer status = %x\n", \
+			readb(PRCM_ACK_MB5 + 0x1));
+	dbg_printk("ack-mb5:reg_add = %x\n", readb(PRCM_ACK_MB5 + 0x2));
+	dbg_printk("ack-mb5:slave_add = %x\n", \
+			readb(PRCM_ACK_MB5 + 0x2));
+	dbg_printk("ack-mb5:reg_val = %d\n", readb(PRCM_ACK_MB5 + 0x3));
+
+	i2c_status = readb(PRCM_ACK_MB5 + 0x1);
+
+
+	if (i2c_status == I2C_WR_OK)
+		return I2C_WR_OK;
+	else {
+
+		printk(KERN_INFO "prcmu_request_mailbox5:write return status \
+				= %d\n", i2c_status);
+		return -EINVAL;
+	}
+}
+EXPORT_SYMBOL(prcmu_i2c_write);
+
+int prcmu_i2c_get_status()
+{
+	return readb(PRCM_ACK_MB5_STATUS);
+}
+EXPORT_SYMBOL(prcmu_i2c_get_status);
+
+int prcmu_i2c_get_bank()
+{
+	return readb(PRCM_ACK_MB5_BANK);
+}
+EXPORT_SYMBOL(prcmu_i2c_get_bank);
+
+int prcmu_i2c_get_reg()
+{
+	return readb(PRCM_ACK_MB5_REG);
+}
+EXPORT_SYMBOL(prcmu_i2c_get_reg);
+
+int prcmu_i2c_get_val()
+{
+	return readb(PRCM_ACK_MB5_VAL);
+}
+EXPORT_SYMBOL(prcmu_i2c_get_val);
+
+
+
+/**
+ * prcmu_wakeup_modem - should be called whenever ARM wants to wakeup Modem
+ *
+ * Mailbox used : AckMb7
+ * ACK          : HostPortAck
+ */
+int prcmu_arm_wakeup_modem()
+{
+	uint32_t prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
+	prcm_hostaccess = prcm_hostaccess | ARM_WAKEUP_MODEM;
+
+	/* 1. write to the PRCMU host_port_req register */
+	writel(prcm_hostaccess, PRCM_HOSTACCESS_REQ);
+
+	/* 2. wait for HostPortAck message in AckMb7
+	   wait_event_interruptible(ack_mb7_queue, (readl(PRCM_ARM_IT1_VAL)
+				& (1<<7)));
+				*/
+
+	if (prcmu_read_ack_mb7() == HOST_PORT_ACK)
+		return 0;
+	else {
+		printk(KERN_INFO "\nprcmu_arm_wakeup_modem: ack_mb7 \
+				status = %x", prcmu_read_ack_mb7());
+		return -EINVAL;
+	}
+
+
+
+}
+EXPORT_SYMBOL(prcmu_arm_wakeup_modem);
+
+/**
+ * prcmu_arm_free_modem - called when ARM no longer needs to talk to modem
+ *
+ * Mailbox used - None
+ * ACK          - None
+ */
+int prcmu_arm_free_modem()
+{
+	/* clear the PRCMU host_port_req register */
+	uint32_t orig_val = readl(PRCM_HOSTACCESS_REQ);
+	orig_val = orig_val & 0xFFFFFFFE;
+
+	/* TODO - write the correct mask value here !! */
+	writel(orig_val, PRCM_HOSTACCESS_REQ);
 
 	return 0;
+}
+EXPORT_SYMBOL(prcmu_arm_free_modem);
+
+
+
+/**
+ * prcmu_configure_wakeup_events - configure 8500 and 4500 hw events on which
+ * 			 PRCMU should wakeup AP
+ *
+ * Mailbox : PRCM_REQ_MB0
+ * Header  : WKUPCFGH
+ * ACK     : None
+ */
+int prcmu_configure_wakeup_events(uint32_t event_8500_mask, \
+		uint32_t event_4500_mask)
+{
+	int timeout = 200;
+
+	/* write CfgWkUpsH in the Header */
+	writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
+
+	/* write to the mailbox */
+	writel(event_8500_mask, PRCM_REQ_MB0_WKUP_8500);
+	writel(event_4500_mask, PRCM_REQ_MB0_WKUP_4500);
+
+	/* set the corresponding MBOX_CPU_SET bit to set an interrupt to xP70 */
+	writel(1 << 0, PRCM_MBOX_CPU_SET);
+
+	/* wait for corresponding MB0X_CPU_VAL bit to be cleared */
+	while ((readl(PRCM_MBOX_CPU_VAL) & (1 << 0)) && timeout--)
+		cpu_relax();
+
+	if (!timeout) {
+		printk(KERN_INFO "\nTimeout prcmu_configure_wakeup_events\n");
+	} else {
+		printk(KERN_INFO "\nprcmu_configure_wakeup_events \
+				done successfully!!\n");
+	}
+
+	/* No ack for this service. Directly return */
+	return 0;
+
+
+
+}
+EXPORT_SYMBOL(prcmu_configure_wakeup_events);
+
+
+/**
+ * prcmu_get_wakeup_reason - Retrieve the event which caused AP wakeup
+ * @event_8500: - corresponds to 8500 events
+ * @event_4500: - corresponds to 4500 events
+ *
+ *
+ * Mailbox : PRCM_ACK_MB0
+ * Header  : WKUPH
+ * ACK     : None
+ */
+int prcmu_get_wakeup_reason(uint32_t *event_8500, \
+		unsigned char *event_4500 /* 20 bytes */)
+{
+
+	int i = 0;
+
+	/* read the Rdp field */
+	uint8_t rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
+
+	/* right now, ping pong not in place :) */
+	/* read the event fields */
+	if (rdp == 0) {
+		*event_8500 = readl(PRCM_ACK_MB0_WK0_EVENT_8500);
+		for (i = 0; i < PRCM_ACK_MB0_EVENT_4500_NUMBERS; i++)
+			event_4500[i] = readb(PRCM_ACK_MB0_WK0_EVENT_4500);
+	} else {
+		*event_8500 = readl(PRCM_ACK_MB0_WK1_EVENT_8500);
+		for (i = 0; i < PRCM_ACK_MB0_EVENT_4500_NUMBERS; i++)
+			event_4500[i] = readb(PRCM_ACK_MB0_WK1_EVENT_8500);
+
+	}
+
+
+	/* No ack. Directly return */
+	return 0;
+
+
+}
+EXPORT_SYMBOL(prcmu_get_wakeup_reason);
+
+
+/**
+ * prcmu_clear_wakeup_reason - Clear the wakeup fields in AckMb0 after reading
+ *
+ *
+ * Mailbox : PRCM_ACK_MB0
+ * Header  : None
+ * ACK     : None
+ */
+int prcmu_clear_wakeup_reason()
+{
+	int i = 0;
+
+	/* write the header WKUPH for AckMb0 */
+	writeb(WKUPH, PRCM_MBOX_HEADER_ACK_MB0);
+
+	/* Ping pong not in place in firmware as of now */
+	/* read the Rdp field */
+	uint8_t rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
+
+	/* clear the event fields */
+	if (rdp == 0) {
+		writel(0, PRCM_ACK_MB0_WK0_EVENT_8500);
+		for (i = 0; i < 20; i++)
+			writeb(0, PRCM_ACK_MB0_WK0_EVENT_4500 + i);
+	} else {
+		writel(0, PRCM_ACK_MB0_WK1_EVENT_8500);
+		for (i = 0; i < 20; i++)
+			writeb(0, PRCM_ACK_MB0_WK1_EVENT_4500 + i);
+
+	}
+
+
+	/* No ack. Directly return */
+	return 0;
+}
+EXPORT_SYMBOL(prcmu_clear_wakeup_reason);
+
+
+/**
+ * prcmu_ack_wakeup_reason - Arm acks to PRCMU that it read the wakeup reason
+ *
+ *
+ * Mailbox used : PRCM_ACK_MB0
+ * Header used  : RDWKUPACKH
+ * ACK          : None
+ */
+int prcmu_ack_wakeup_reason()
+{
+	uint8_t rdp;
+
+	/* write RDWKUPACKH in the Header */
+	writeb(RDWKUPACKH, PRCM_MBOX_HEADER_REQ_MB0);
+
+	/* toggle the Rdp field in AckMb0 */
+	rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
+	rdp = !rdp;
+	writeb(rdp, PRCM_ACK_MB0_PINGPONG_RDP);
+
+	/*No ack for this service. Directly return */
+	return 0;
+}
+EXPORT_SYMBOL(prcmu_ack_wakeup_reason);
+
+
+/**
+ * prcmu_set_callback_modem_wakes_arm - Set the callback function to call
+ * 			when modem requests for Arm wakeup
+ *
+ * Mailbox used - None
+ * Ack - None
+ */
+void prcmu_set_callback_modem_wakes_arm(void (*func)(void))
+{
+	prcmu_modem_wakes_arm_shrm = func;
+}
+EXPORT_SYMBOL(prcmu_set_callback_modem_wakes_arm);
+
+
+/**
+ * prcmu_set_callback_modem_reset_request - Set the callback function to call
+ * 			when modem requests for Reset
+ *
+ * Mailbox used - None
+ * Ack - None
+ */
+void prcmu_set_callback_modem_reset_request(void (*func)(void))
+{
+	prcmu_modem_reset_shrm = func;
+}
+EXPORT_SYMBOL(prcmu_set_callback_modem_reset_request);
+
+
+
+/**
+ * prcmu_read_ack_mb7 - Read the AckMb7 Status message
+ *
+ *
+ * Mailbox  : AckMb7
+ * Header   : None
+ * ACK      : None
+ * associated IT : prcm_arm_it1_val[7]
+ */
+int prcmu_read_ack_mb7()
+{
+	return readb(PRCM_ACK_MB7);
+}
+EXPORT_SYMBOL(prcmu_read_ack_mb7);
+
+
+/**
+ * prcmu_ack_mb0_wkuph_status_tasklet - tasklet for ack mb0 IRQ
+ * @tasklet_data: 	tasklet data
+ *
+ * Tasklet for handling wakeup events given by IRQ corresponding to
+ * AckMb0
+ */
+void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
+{
+	uint32_t event_8500 = 0;
+	unsigned char event_4500[20];
+
+	prcmu_get_wakeup_reason(&event_8500, event_4500);
+
+	/* RTC wakeup signal */
+	if (event_8500 & (1 << 0)) {
+
+	}
+
+	/* RTT0 wakeup signal */
+	if (event_8500 & (1 << 1)) {
+
+	}
+
+	/* RTT1 wakeup signal */
+	if (event_8500 & (1 << 2)) {
+
+	}
+
+	/* HSI0 wakeup signal */
+	if (event_8500 & (1 << 3)) {
+
+	}
+
+	/* HSI1 wakeup signal */
+	if (event_8500 & (1 << 4)) {
+
+	}
+
+	/* ca_wake_req signal  - modem wakes up ARM */
+	if (event_8500 & (1 << 5)) {
+		/* call shrm driver sequence */
+		if (prcmu_modem_wakes_arm_shrm != NULL) {
+			(*prcmu_modem_wakes_arm_shrm)();
+
+			/* clear the wakeup reason */
+			prcmu_clear_wakeup_reason();
+		} else {
+			printk(KERN_INFO "\n prcmu: SHRM callback for \
+					ca_wake_req not registered!!\n");
+		}
+
+	}
+
+	/* USB wakeup signal */
+	if (event_8500 & (1<<6)) {
+
+	}
+
+	/* ape_int_4500 signal */
+	if (event_8500 & (1<<7)) {
+
+	}
+
+
+	/* fifo4500it signal */
+	if (event_8500 & (1<<8)) {
+
+	}
+
+
+
+}
+
+/**
+ * prcmu_ack_mb7_status_tasklet - tasklet for mb7 IRQ
+ * @tasklet_data: 	tasklet data
+ *
+ * Tasklet for handling IPC communication related to AckMb7
+ */
+void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
+{
+	/* read the ack mb7 value and carry out actions accordingly */
+	uint8_t ack_mb7 = readb(PRCM_ACK_MB7);
+
+	switch (ack_mb7) {
+	case MOD_SW_RESET_REQ:
+		/*forward the reset request to ARM */
+		break;
+	case CA_SLEEP_REQ:
+		/* modem no longer requires to communicate
+		 * with ARM so ARM can go to sleep */
+		break;
+	case HOST_PORT_ACK:
+		/* modem up.ARM can communicate to modem */
+		/* wake_up_interruptible- prcmu_arm_wakeup_modem api*/
+		wake_up_interruptible(&ack_mb7_queue);
+		break;
+	};
+
+}
+
+/**
+ * prcmu_ack_mbox_irq_handler - IRQ handler for Ack mailboxes
+ * @irq:	the irq number
+ *
+ * IRQ Handler for the Ack Mailboxes
+ * Find out the arm_it1_val bit and carry out the tasks
+ * accordingly
+ */
+irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
+{
+	uint8_t prcm_arm_it1_val = 0;
+
+	dbg_printk("\nInside prcmu_ack_mbox_irq_handler !!\n");
+
+	/* check the prcm_arm_it1_val register to find which ACK mailbox is
+	 * filled by PRCMU fw */
+	prcm_arm_it1_val = readb(PRCM_ARM_IT1_VAL);
+
+	dbg_printk(" prcm_arm_it1_val = %d ", prcm_arm_it1_val);
+
+	if (prcm_arm_it1_val & (1 << 0)) {
+		dbg_printk("\n Inside IRQ handler for Ack mb0 ");
+		wake_up_interruptible(&ack_mb0_queue);
+
+		dbg_printk("\n readb(PRCM_MBOX_HEADER_ACK_MB0) = %x", \
+				readb(PRCM_MBOX_HEADER_ACK_MB0));
+
+		/*read the header */
+		if ((readb(PRCM_MBOX_HEADER_ACK_MB0)) == PWRSTTRH) {
+			/* call the callback for AckMb0_PWRSTTRH */
+			/*tasklet_schedule(&prcmu_ack_mb0_pwrst_tasklet);*/
+			/* call wake_up_event_interruptible for mb0 */
+			dbg_printk("\n Inside IRQ handler for Ack mb0  \
+					PWRSTTRH and waking up ");
+
+		} else if ((readb(PRCM_MBOX_HEADER_ACK_MB0)) == WKUPH) {
+			dbg_printk("\n IRQ handler for Ack mb0 WKUPH  ");
+			tasklet_schedule(&prcmu_ack_mb0_wkuph_tasklet);
+
+		}
+	} else if (prcm_arm_it1_val & (1<<1)) {
+
+	} else if (prcm_arm_it1_val & (1<<2)) {
+
+	} else if (prcm_arm_it1_val & (1<<3)) {
+
+	} else if (prcm_arm_it1_val & (1<<4)) {
+
+	} else if (prcm_arm_it1_val & (1<<5)) {
+		/* No header reading required */
+		/* call wake_up_event_interruptible for mb5 transaction */
+		dbg_printk("\nInside prcmu IRQ handler for mb5 and calling wakeup");
+		wake_up_interruptible(&ack_mb5_queue);
+	} else if (prcm_arm_it1_val & (1<<6)) {
+
+	} else if (prcm_arm_it1_val & (1<<7)) {
+		 /* No header reading required */
+		tasklet_schedule(&prcmu_ack_mb7_tasklet);
+	}
+
+	/* clear arm_it1_val bits */
+	writeb(255, PRCM_ARM_IT1_CLEAR);
+	return IRQ_HANDLED;
+}
+
+
+/**
+ * prcmu_fw_init - arch init call for the Linux PRCMU fw init logic
+ *
+ */
+static int prcmu_fw_init(void)
+{
+	int err = 0;
+	/* configure the wake-up events */
+	uint32_t event_8500 = (1 << 17) | (1 << 0);
+	uint32_t event_4500 = 0x0;
+
+	if (u8500_is_earlydrop()) {
+		int i;
+		int status = prcmu_get_boot_status();
+		if (status != 0xFF || status != 0x2F)
+		{
+			printk("PRCMU Firmware not ready\n");
+			return -EIO;
+		}
+		/* This can be enabled once PRCMU fw flashing is default */
+		prcmu_apply_ap_state_transition(APBOOT_TO_APEXECUTE_ED,
+				DDR_PWR_STATE_UNCHANGED_ED, 0);
+
+		/* for the time being assign wake-up duty to all interrupts */
+		/* Enable all interrupts as wake-up source */
+		for (i = 0; i < 128; i++)
+			prcmu_set_irq_wakeup(i);
+
+		return 0;
+	}
+
+	/* clear the arm_it1_val to low the IT#47 */
+	writeb(0xFF, PRCM_ARM_IT1_CLEAR);
+
+	/* init irqs */
+        err = request_irq(IRQ_PRCM_ACK_MBOX, prcmu_ack_mbox_irq_handler, \
+			IRQF_TRIGGER_RISING, "prcmu_ack_mbox", NULL);
+        if (err<0) {
+                printk(KERN_ERR "\nUnable to allocate irq IRQ_PRCM_ACK_MBOX!!\n");
+                err = -EBUSY;
+                free_irq(IRQ_PRCM_ACK_MBOX,NULL);
+		goto err_return;
+        }
+
+
+        if (prcmu_get_xp70_current_state() == AP_BOOT)
+                prcmu_apply_ap_state_transition(APBOOT_TO_APEXECUTE, DDR_PWR_STATE_UNCHANGED, 0);
+        else if (prcmu_get_xp70_current_state() == AP_EXECUTE) {
+	        printk(KERN_INFO "PRCMU firmware booted.\n");
+	}
+        else {
+                printk(KERN_WARNING "WARNING - PRCMU firmware not yet booted!!!\n");
+                return -ENODEV;
+        }
+
+	/* write CfgWkUpsH in the Header */
+	writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
+
+	/* write to the mailbox */
+	/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
+	 * the firmware to set the register prcm_armit_maskxp70_it
+	 * (which is btw secure and thus only accessed by the xp70)
+	 */
+	writel(event_8500, PRCM_REQ_MB0_WKUP_8500);
+	writel(event_4500, PRCM_REQ_MB0_WKUP_4500);
+
+	_wait_for_req_complete(REQ_MB0);
+
+err_return:
+	return err;
 }
 
 arch_initcall(prcmu_fw_init);
