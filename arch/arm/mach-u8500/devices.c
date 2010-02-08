@@ -404,7 +404,6 @@ static struct platform_device msp2_device = {
 		.platform_data = &msp2_platform_data,
 	},
 };
-#if (defined(CONFIG_STM_MSP_SPI) || defined(CONFIG_STM_MSP_SPI_MODULE))
 
 #define NUM_MSP_CLIENTS 10
 
@@ -435,8 +434,6 @@ static struct amba_device msp2_spi_device = {
 	.irq = {IRQ_MSP2, NO_IRQ},
 	.periphid = MSP_PER_ID,
 };
-#endif
-#if defined(CONFIG_I2C_STM)
 
 static struct resource u8500_i2c_0_resources[] = {
 	[0] = {
@@ -642,7 +639,6 @@ static struct platform_device u8500_i2c_4_controller = {
 	.dev = {
 		.platform_data = &u8500_i2c_4_private_data}
 };
-#endif
 
 static struct resource mcde2_resources[] = {
 	[0] = {
@@ -1364,9 +1360,6 @@ static struct platform_device u8500_hsir_device = {
 	.resource = u8500_hsir_resource,
 };
 
-
-#ifdef CONFIG_U8500_SHRM
-
 static struct shrm_plat_data shrm_platform_data = {
 
        .pshm_dev_data =  0
@@ -1423,9 +1416,7 @@ static struct platform_device u8500_shrm_device = {
 	.num_resources = ARRAY_SIZE(u8500_shrm_resources),
 	.resource = u8500_shrm_resources
 };
-#endif
 
-#if defined(CONFIG_FB_B2R2)
 static struct resource b2r2_resources[] = {
 	[0] = {
 		.start = U8500_B2R2_BASE,
@@ -1452,9 +1443,6 @@ static struct platform_device b2r2_device = {
 	.num_resources = ARRAY_SIZE(b2r2_resources),
 	.resource = b2r2_resources
 };
-#endif
-
-#if defined(CONFIG_ANDROID_PMEM)
 
 static void __init early_pmem_generic_parse(char **p, struct android_pmem_platform_data * data)
 {
@@ -1541,10 +1529,6 @@ static struct platform_device pmem_hwb_device = {
 	},
 };
 
-#endif
-
-
-#ifdef CONFIG_RTC_DRV_PL031
 static struct amba_device rtc_device = {
 	.dev = {
 		.bus_id = "mb:15",
@@ -1557,7 +1541,6 @@ static struct amba_device rtc_device = {
 	.irq = {IRQ_RTC_RTT, NO_IRQ},
 	.periphid = RTC_PER_ID,
 };
-#endif
 
 /*
  *  SOC specifc drivers whcih are used as platform devices
@@ -1666,7 +1649,6 @@ static struct platform_device u8500_dma_device = {
 
 #define NUM_SSP_CLIENTS 10
 
-#if (defined(CONFIG_STM_SSP) || defined(CONFIG_STM_SPI_MODULE))
 static struct nmdk_spi_master_cntlr ssp0_platform_data = {
 	.enable_dma = 1,
 	.id = SSP_0_CONTROLLER,
@@ -1723,9 +1705,6 @@ static struct amba_device ssp1_device = {
 	.periphid = SSP_PER_ID,
 };
 
-#endif
-
-#if (defined(CONFIG_STM_SPI023) || defined(CONFIG_STM_SPI023_MODULE))
 #define NUM_SPI023_CLIENTS 10
 static struct nmdk_spi_master_cntlr spi0_platform_data = {
 	.enable_dma = 1,
@@ -1755,9 +1734,7 @@ static struct amba_device spi0_device = {
 	.irq = {IRQ_SPI0, NO_IRQ},
 	.periphid = SPI_PER_ID,
 };
-#endif
 
-#if defined(CONFIG_MMC)
 /* emmc specific configurations */
 static int emmc_configure(struct amba_device *dev)
 {
@@ -1999,7 +1976,6 @@ static struct amba_device sdi2_device = {
 	.irq = {IRQ_SDMMC2, NO_IRQ},
 	.periphid = SDI_PER_ID,
 };
-#endif
 
 static struct resource ab8500_resources[] = {
 	[0] = {
@@ -2040,8 +2016,6 @@ static struct platform_device ab8500_device = {
 	.num_resources = 1,
 	.resource = ab8500_resources,
 };
-
-#ifdef CONFIG_U8500_USB_HS_OTG
 
 #if  defined(CONFIG_USB_MUSB_HOST)
 #define MUSB_MODE	MUSB_HOST
@@ -2084,18 +2058,15 @@ static struct resource usb_resources[] = {
 static struct platform_device musb_device = {
 	.name = "musb_hdrc",
 	.id = 0,
-/*#ifdef CONFIG_U8500_USB_HS_OTG*/
 	.dev = {
 		.bus_id	= "musb_hdrc.0",	/* for clk_get() */
 		.platform_data = &musb_hdrc_hs_otg_platform_data,
 		.dma_mask = (u64 *)0xFFFFFFFF,
 		.coherent_dma_mask = (u64)0xFFFFFFFF
 	},
-/*#endif*/
 	.num_resources = ARRAY_SIZE(usb_resources),
 	.resource = usb_resources,
 };
-#endif
 
 static void __init u8500_map_io(void)
 {
@@ -2192,53 +2163,34 @@ static struct platform_device *core_devices[] __initdata = {
 	&msp0_device,
 	&msp1_device,
 	&msp2_device,
-#if defined(CONFIG_I2C_STM)
 	&u8500_i2c_0_controller,
 	&u8500_i2c_1_controller,
 	&u8500_i2c_2_controller,
 	&u8500_i2c_3_controller,
-#endif
-
-#if (defined(CONFIG_STM_DMA) || defined(CONFIG_STM_DMA_MODULE))
 	&u8500_dma_device,
-#endif
 	&u8500_hsit_device,
 	&u8500_hsir_device,
-
-#ifdef CONFIG_U8500_SHRM
 	&u8500_shrm_device,
-#endif
-
 	&ab8500_device,
-#if defined(CONFIG_U8500_USB_HS_OTG)
 	&musb_device,
-#endif
 	&mcde2_device,
 	&mcde3_device,
 	&mcde1_device,
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	&mcde0_device,
 #endif
-#if  defined(CONFIG_FB_B2R2)
 	&b2r2_device,
-#endif
-#if defined(CONFIG_ANDROID_PMEM)
 	&pmem_device,
 	&pmem_mio_device,
 	&pmem_hwb_device,
-#endif
 };
 
 static struct platform_device *core_v1_devices[] __initdata = {
-#if defined(CONFIG_I2C_STM)
 	&u8500_i2c_4_controller,
-#endif
 };
 
 static struct amba_device *amba_v1_devs[] __initdata = {
-#if defined(CONFIG_MMC)
 	&sdi2_device,	/* POP eMMC */
-#endif
 };
 
 static struct amba_device *amba_devs[] __initdata = {
@@ -2249,27 +2201,17 @@ static struct amba_device *amba_devs[] __initdata = {
 	&uart0_device,
 	&uart1_device,
 	&uart2_device,
-#if (defined(CONFIG_STM_SSP) || defined(CONFIG_STM_SPI_MODULE))
 	&ssp0_device,
 	&ssp1_device,
-#endif
-#if (defined(CONFIG_STM_SPI023) || defined(CONFIG_STM_SPI023_MODULE))
 	&spi0_device,
-#endif
-#if (defined(CONFIG_STM_MSP_SPI) || defined(CONFIG_STM_MSP_SPI_MODULE))
 	&msp2_spi_device,
-#endif
-#if defined(CONFIG_MMC)
 	&sdi4_device,	/* On-board eMMC */
 #ifdef CONFIG_U8500_SDIO
 	&sdio_device,
 #else
 	&sdi0_device,	/* SD/MMC card */
 #endif
-#endif
-#ifdef CONFIG_RTC_DRV_PL031
 	&rtc_device,
-#endif
 };
 static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	{
@@ -2306,9 +2248,6 @@ static void __init u8500_earlydrop_fixup(void)
 {
 	u8500_dma_resources[0].start = U8500_DMA_BASE_ED;
 	u8500_dma_resources[0].end = U8500_DMA_BASE_ED + SZ_4K - 1;
-
-#if defined (CONFIG_U8500_SHRM)
-	/* start and end are same? looks buggy, shrm people? -FIXME */
 	u8500_shrm_resources[1].start = IRQ_CA_WAKE_REQ_ED;
 	u8500_shrm_resources[1].end = IRQ_CA_WAKE_REQ_ED;
 	u8500_shrm_resources[2].start = IRQ_AC_READ_NOTIFICATION_0_ED;
@@ -2319,7 +2258,6 @@ static void __init u8500_earlydrop_fixup(void)
 	u8500_shrm_resources[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
 	u8500_shrm_resources[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
 	u8500_shrm_resources[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
-#endif
 }
 
 static void __init amba_add_devices(struct amba_device *devs[], int num)
