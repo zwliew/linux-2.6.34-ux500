@@ -126,7 +126,7 @@
 #define SMA_ARRAY 81
 #define THRESHOLD_SMA_N SMA_N
 #define MULTITOUCH_SIN_N 6
-#define PENUP_TIMEOUT 1 /* msec */
+#define PENUP_TIMEOUT 10 /* msec */
 
 /**
  * Error handling messages

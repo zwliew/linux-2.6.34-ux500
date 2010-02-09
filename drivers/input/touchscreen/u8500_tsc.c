@@ -526,7 +526,7 @@ int get_touch_message(struct u8500_tsc_data *data)
  */
 static inline void tsc_restart_pen_up_timer(struct u8500_tsc_data *data)
 {
-	mod_timer(&data->penirq_timer, jiffies + (PENUP_TIMEOUT * HZ) / 1000);
+	mod_timer(&data->penirq_timer, jiffies + msecs_to_jiffies(PENUP_TIMEOUT));
 }
 
 /**
