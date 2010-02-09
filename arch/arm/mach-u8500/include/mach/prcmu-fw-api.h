@@ -21,6 +21,7 @@ ap_pwrst_t prcmu_get_xp70_current_state(void);
 int prcmu_set_ap_mode(ap_pwrst_trans_t);
 int prcmu_set_ddr_pwrst(ddr_pwrst_t);
 int prcmu_set_arm_opp(arm_opp_t);
+int prcmu_get_arm_opp(void);
 int prcmu_set_ape_opp(ape_opp_t);
 int prcmu_set_hwacc_st(hw_acc_t, hw_accst_t);
 /*mbox_2_arm_stat_t prcmu_get_m2a_status(void); */

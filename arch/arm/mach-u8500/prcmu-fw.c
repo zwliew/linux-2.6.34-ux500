@@ -344,6 +344,7 @@ EXPORT_SYMBOL(prcmu_set_ddr_pwrst);
 int prcmu_set_arm_opp(arm_opp_t arm_opp)
 {
 	int timeout = 200;
+	arm_opp_t current_arm_opp;
 
 	if (u8500_is_earlydrop()) {
 		if (arm_opp < ARM_NO_CHANGE_ED || arm_opp > ARM_EXTCLK_ED)
@@ -404,23 +405,27 @@ int prcmu_set_arm_opp(arm_opp_t arm_opp)
 
 	_wait_for_req_complete(REQ_MB1);
 
-	/* wait for the dvfs status */
-	printk(KERN_INFO "DVFS status : 0x%x\n", \
-			readb(PRCM_ACK_MB1_CURR_DVFS_STATUS));
-
-	switch (readb(PRCM_ACK_MB1_CURR_DVFS_STATUS)) {
-
-	case DVFS_ARM50OPPOK:
-	case DVFS_ARM100OPPOK:
-	case DVFS_ARMEXTCLKOK:
-	case DVFS_NOCHGTCLKOK:
-		return 0;
-	default:
-		printk(KERN_WARNING "PRCMU : DVFS Request Not Complete!!\n");
+	current_arm_opp = readb(PRCM_ACK_MB1_CURR_ARMOPP);
+	if (arm_opp != current_arm_opp) {
+		printk(KERN_WARNING
+			"u8500-prcm : requested ARM DVFS Not Complete\n");
 		return -EINVAL;
-	};
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL(prcmu_set_arm_opp);
+
+/**
+ * prcmu_get_arm_opp - get the appropriate ARM OPP
+ *
+ * Returns: the current ARM OPP
+ */
+int prcmu_get_arm_opp(void)
+{
+	return readb(PRCM_ACK_MB1_CURR_ARMOPP);
+}
+EXPORT_SYMBOL(prcmu_get_arm_opp);
 
 /**
  * prcmu_set_ape_opp - set the appropriate APE OPP
