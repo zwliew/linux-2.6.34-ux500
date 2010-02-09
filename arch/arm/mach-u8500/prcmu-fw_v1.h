@@ -111,6 +111,7 @@
 #define PRCM_XP70_TRIG_IT10	(1 << 0)
 #define PRCM_XP70_TRIG_IT11	(1 << 1)
 #define PRCM_XP70_TRIG_IT12	(1 << 2)
+#define PRCM_XP70_TRIG_IT14	(1 << 4)
 #define PRCM_XP70_TRIG_IT17	(1 << 5)
 
 typedef enum {

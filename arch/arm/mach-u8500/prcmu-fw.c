@@ -723,53 +723,40 @@ EXPORT_SYMBOL(prcmu_i2c_read);
 int prcmu_i2c_write(u8 reg, u8 slave, u8 reg_data)
 {
 	uint8_t i2c_status;
+	uint32_t timeout;
 
-	dbg_printk("\nprcmu_4500_i2c_write:bank=%x; \
-	  reg=%x;reg_data=%d\n", reg, slave, reg_data);
+	/* NOTE : due to the I2C workaround, use
+	 *	  MB5 for data, MB4 for the header
+	 */
 
+	/* request I2C workaround header 0x0F */
+	writeb(0x0F, PRCM_MBOX_HEADER_REQ_MB4);
 
+	/* prepare the data for mailbox 5 */
 
-	/* request REQ_MB5 */
+	/* register bank and I2C command */
 	writeb((reg << 1) | I2CWRITE, PRCM_REQ_MB5 + 0x0);
-	writeb(0, PRCM_REQ_MB5 + 0x1);
+	/* APE_I2C comm. specifics */
+	writeb((1 << 3) | 0x0, PRCM_REQ_MB5 + 0x1);
 	writeb(slave, PRCM_REQ_MB5_I2CSLAVE);
 	writeb(reg_data, PRCM_REQ_MB5_I2CVAL);
 
+	/* we request the mailbox 4 */
+	writel(PRCM_XP70_TRIG_IT14, PRCM_MBOX_CPU_SET);
 
-	/* clear any previous ack */
-	writel(0, PRCM_ACK_MB5);
+	/* we wait for ACK mailbox 5 */
+	/* FIXME : regularise this code with mailbox constants */
+	while ((readl(PRCM_ARM_IT1_VAL) & (0x1 << 5)) != (0x1 << 5))
+		cpu_relax();
 
-	/* Set an interrupt to XP70 */
-	writel(PRCM_XP70_TRIG_IT17, PRCM_MBOX_CPU_SET);
-
-	dbg_printk("\n readl PRCM_ARM_IT1_VAL =  %d", \
-			readb(PRCM_ARM_IT1_VAL));
-	dbg_printk("\nwaiting at wait queue");
-
-
-	/* wait for interrupt */
-	wait_event_interruptible(ack_mb5_queue, !(readl(PRCM_MBOX_CPU_VAL) \
-	  & PRCM_XP70_TRIG_IT17));
-
-	dbg_printk(KERN_INFO "\n After wait queue");
-
-	/* retrieve the values */
-	dbg_printk("ack-mb5:transfer status = %x\n", \
-			readb(PRCM_ACK_MB5 + 0x1));
-	dbg_printk("ack-mb5:reg_add = %x\n", readb(PRCM_ACK_MB5 + 0x2));
-	dbg_printk("ack-mb5:slave_add = %x\n", \
-			readb(PRCM_ACK_MB5 + 0x2));
-	dbg_printk("ack-mb5:reg_val = %d\n", readb(PRCM_ACK_MB5 + 0x3));
+	/* we clear the ACK mailbox 5 interrupt */
+	writel((0x1 << 5), PRCM_ARM_IT1_CLEAR);
 
 	i2c_status = readb(PRCM_ACK_MB5 + 0x1);
-
-
 	if (i2c_status == I2C_WR_OK)
 		return I2C_WR_OK;
 	else {
-
-		printk(KERN_INFO "prcmu_request_mailbox5:write return status \
-				= %d\n", i2c_status);
+		printk(KERN_INFO "ape-i2c: i2c_status : 0x%x\n", i2c_status);
 		return -EINVAL;
 	}
 }
