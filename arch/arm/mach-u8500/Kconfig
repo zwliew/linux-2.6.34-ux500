@@ -11,6 +11,15 @@ config MACH_U8500_SIMULATOR
 	help
 		Supports Simulation for u8500 platform
 
+config MACH_U5500_SIMULATOR
+	bool "5500(FairBanks) Simulator platform"
+	select CPU_V7
+	select ARM_GIC
+	select SMP
+	select MACH_U8500_MOP
+	help
+		Supports Simulation for u5500(FairBanks) platform
+
 config MACH_U8500_MOP
 	bool "MOP500 platform"
 	select CPU_V7

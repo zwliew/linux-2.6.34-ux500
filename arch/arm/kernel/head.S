@@ -76,7 +76,7 @@
  */
 	__HEAD
 ENTRY(stext)
-#if defined(CONFIG_MACH_U8500_SIMULATOR)
+#if (defined(CONFIG_MACH_U8500_SIMULATOR) || defined(CONFIG_MACH_U5500_SIMULATOR))
 	mrc p15, 0, r3, c0, c0, 5
 	ands r3, r3, #0xf
 	bne u8500_secondary_startup

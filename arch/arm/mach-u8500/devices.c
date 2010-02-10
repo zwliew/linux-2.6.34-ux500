@@ -57,11 +57,15 @@ int platform_id = MOP500_PLATFORM_ID;
 
 int u8500_is_earlydrop(void)
 {
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	void __iomem *address = (void *)IO_ADDRESS(U8500_BOOTROM_BASE)
 				+ U8500_BOOTROM_ASIC_ID_OFFSET;
 
 	/* 0x01 for ED, 0xA0 for v1 */
 	return (readl(address) & 0xff) == 0x01;
+#else
+	return 1;
+#endif
 }
 
 /* we have equally similar boards with very minimal
@@ -105,14 +109,23 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_I2C_2, 8, 9, 0, GPIO_ALTF_B, "i2c2"),
 	__GPIO_ALT(GPIO_ALT_I2C_0, 147, 148, 0, GPIO_ALTF_A, "i2c0"),
 	__GPIO_ALT(GPIO_ALT_I2C_3, 229, 230, 0, GPIO_ALTF_C, "i2c3"),
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	__GPIO_ALT(GPIO_ALT_UART_2, 177, 180, 0, GPIO_ALTF_A, "uart2"),
+#else
 	__GPIO_ALT(GPIO_ALT_UART_2, 29, 32, 0, GPIO_ALTF_C, "uart2"),
+#endif
 	__GPIO_ALT(GPIO_ALT_SSP_0, 143, 146, 0, GPIO_ALTF_A, "ssp0"),
 	__GPIO_ALT(GPIO_ALT_SSP_1, 139, 142, 0, GPIO_ALTF_A, "ssp1"),
 	__GPIO_ALT(GPIO_ALT_USB_OTG, 256, 267, 0, GPIO_ALTF_A, "usb"),
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	__GPIO_ALT(GPIO_ALT_UART_1, 200, 203, 0, GPIO_ALTF_A, "uart1"),
+	__GPIO_ALT(GPIO_ALT_UART_0_NO_MODEM, 28, 29, 0, GPIO_ALTF_A, "uart0"),
+#else
 	__GPIO_ALT(GPIO_ALT_UART_1, 4, 7, 0, GPIO_ALTF_A, "uart1"),
 	__GPIO_ALT(GPIO_ALT_UART_0_NO_MODEM, 0, 3, 0, GPIO_ALTF_A, "uart0"),
 	__GPIO_ALT(GPIO_ALT_UART_0_MODEM, 0, 3, 1, GPIO_ALTF_A, "uart0"),
 	__GPIO_ALT(GPIO_ALT_UART_0_MODEM, 33, 36, 0, GPIO_ALTF_C, "uart0"),
+#endif
 	__GPIO_ALT(GPIO_ALT_MSP_0, 12, 15, 0, GPIO_ALTF_A, "msp0"),
 	__GPIO_ALT(GPIO_ALT_MSP_1, 33, 36, 0, GPIO_ALTF_A, "msp1"),
 	__GPIO_ALT(GPIO_ALT_MSP_2, 192, 196, 0, GPIO_ALTF_A, "msp2"),
@@ -147,7 +160,11 @@ static struct gpio_block_data gpio0_block_data[] = {
 	 .base_offset = 0x080,
 	 .blocks_per_irq = 1,
 	 .block_base = 32,
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	 .block_size = 4,
+#else
 	 .block_size = 5,
+#endif
 	 }
 };
 static struct gpio_platform_data gpio0_platform_data = {
@@ -178,6 +195,10 @@ static struct gpio_block_data gpio1_block_data[] = {
 	 .base_offset = 0x0,
 	 .blocks_per_irq = 1,
 	 .block_base = 64,
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	 .block_size = 19,
+	}
+#else
 	 .block_size = 32,
 	 },
 	{
@@ -201,6 +222,7 @@ static struct gpio_block_data gpio1_block_data[] = {
 	 .block_base = 160,
 	 .block_size = 12,
 	 }
+#endif
 };
 static struct gpio_platform_data gpio1_platform_data = {
 	.gpio_data = gpio1_block_data,
@@ -225,6 +247,15 @@ static struct amba_device gpio1_device = {
 };
 
 static struct gpio_block_data gpio2_block_data[] = {
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	{
+	 .irq = IRQ_GPIO3,
+	 .base_offset = 0x0,
+	 .blocks_per_irq = 1,
+	 .block_base = 96,
+	 .block_size = 6,
+	}
+#else
 	{
 	 .irq = IRQ_GPIO6,
 	 .base_offset = 0x0,
@@ -239,6 +270,7 @@ static struct gpio_block_data gpio2_block_data[] = {
 	 .block_base = 224,
 	 .block_size = 7,
 	 }
+#endif
 };
 static struct gpio_platform_data gpio2_platform_data = {
 	.gpio_data = gpio2_block_data,
@@ -254,21 +286,38 @@ static struct amba_device gpio2_device = {
 		.platform_data = &gpio2_platform_data,
 		},
 	.res = {
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+		.start = U8500_GPIO4_BASE,
+		.end = U8500_GPIO4_BASE + SZ_4K - 1,
+#else
 		.start = U8500_GPIO2_BASE,
 		.end = U8500_GPIO2_BASE + SZ_4K - 1,
+#endif
 		.flags = IORESOURCE_MEM,
 		},
 	.periphid = GPIO_PER_ID,
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	.irq = {IRQ_GPIO3, NO_IRQ},
+#else
 	.irq = {IRQ_GPIO6, NO_IRQ},
+#endif
 };
 
 static struct gpio_block_data gpio3_block_data[] = {
 	{
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	 .irq = IRQ_GPIO4,
+	 .base_offset = 0x0,
+	 .blocks_per_irq = 1,
+	 .block_base = 128,
+	 .block_size = 21,
+#else
 	 .irq = IRQ_GPIO8,
 	 .base_offset = 0x0,
 	 .blocks_per_irq = 1,
 	 .block_base = 256,
 	 .block_size = 12,
+#endif
 	 }
 };
 static struct gpio_platform_data gpio3_platform_data = {
@@ -285,13 +334,69 @@ static struct amba_device gpio3_device = {
 		.platform_data = &gpio3_platform_data,
 		},
 	.res = {
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+		.start = U8500_GPIO2_BASE,
+		.end = U8500_GPIO2_BASE + SZ_4K - 1,
+#else
 		.start = U8500_GPIO3_BASE,
 		.end = U8500_GPIO3_BASE + SZ_4K - 1,
+#endif
 		.flags = IORESOURCE_MEM,
 		},
 	.periphid = GPIO_PER_ID,
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	.irq = {IRQ_GPIO4, NO_IRQ},
+#else
 	.irq = {IRQ_GPIO8, NO_IRQ},
+#endif
 };
+
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+static struct gpio_block_data gpio4_block_data[] = {
+	{
+		.irq = IRQ_GPIO5,
+		.base_offset = 0x0,
+		.blocks_per_irq = 1,
+		.block_base = 160,
+		.block_size = 32,
+	},
+	{
+		.irq = IRQ_GPIO6,
+		.base_offset = 0x80,
+		.blocks_per_irq = 1,
+		.block_base = 192,
+		.block_size = 32,
+	},
+	{
+		.irq = IRQ_GPIO7,
+		.base_offset = 0x100,
+		.blocks_per_irq = 1,
+		.block_base = 224,
+		.block_size = 4,
+	}
+};
+static struct gpio_platform_data gpio4_platform_data = {
+	.gpio_data = gpio4_block_data,
+	.gpio_block_size = ARRAY_SIZE(gpio4_block_data),
+	.altfun_table = gpio_altfun_table,
+	.altfun_table_size = ARRAY_SIZE(gpio_altfun_table)
+
+};
+static struct amba_device gpio4_device = {
+	.dev = {
+		.bus_id = "gpioblock4",
+		.platform_data = &gpio4_platform_data,
+	},
+	.res = {
+		.start = U8500_GPIO3_BASE,
+		.end = U8500_GPIO3_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	.periphid = GPIO_PER_ID,
+	.irq = {IRQ_GPIO5, NO_IRQ},
+};
+#endif
+
 
 /* MSP is being used as a platform device because the perif id of all MSPs
  * is same & hence probe would be called for
@@ -2141,6 +2246,28 @@ struct uart_amba_plat_data uart2_plat = {
 /* These are active devices on this board, FIXME
  * move this to board file
  */
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+/* Remap of uart0 and uart2 when using SVP5500
+ * remove this when uart2 problem solved in SVP5500
+ */
+static struct amba_device uart2_device = {
+	.dev = {.bus_id = "uart2", .platform_data = &uart0_plat, },
+	__MEM_4K_RESOURCE(U8500_UART0_BASE),
+	.irq = {IRQ_UART0, NO_IRQ},
+};
+
+static struct amba_device uart1_device = {
+	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
+	__MEM_4K_RESOURCE(U8500_UART1_BASE),
+	.irq = {IRQ_UART1, NO_IRQ},
+};
+
+static struct amba_device uart0_device = {
+	.dev = {.bus_id = "uart0", .platform_data = &uart2_plat, },
+	__MEM_4K_RESOURCE(U8500_UART2_BASE),
+	.irq = {IRQ_UART2, NO_IRQ},
+};
+#else
 static struct amba_device uart0_device = {
 	.dev = {.bus_id = "uart0", .platform_data = &uart0_plat, },
 	__MEM_4K_RESOURCE(U8500_UART0_BASE),
@@ -2159,15 +2286,20 @@ static struct amba_device uart2_device = {
 	.irq = {IRQ_UART2, NO_IRQ},
 };
 
+#endif
+
 static struct platform_device *core_devices[] __initdata = {
 	&msp0_device,
 	&msp1_device,
 	&msp2_device,
 	&u8500_i2c_0_controller,
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	&u8500_i2c_1_controller,
 	&u8500_i2c_2_controller,
 	&u8500_i2c_3_controller,
+#endif
 	&u8500_dma_device,
+#if !defined(CONFIG_MACH_U8500_SIMULATOR)
 	&u8500_hsit_device,
 	&u8500_hsir_device,
 	&u8500_shrm_device,
@@ -2183,6 +2315,7 @@ static struct platform_device *core_devices[] __initdata = {
 	&pmem_device,
 	&pmem_mio_device,
 	&pmem_hwb_device,
+#endif
 };
 
 static struct platform_device *core_v1_devices[] __initdata = {
@@ -2198,9 +2331,13 @@ static struct amba_device *amba_devs[] __initdata = {
 	&gpio1_device,
 	&gpio2_device,
 	&gpio3_device,
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	&gpio4_device,
+#endif
 	&uart0_device,
 	&uart1_device,
 	&uart2_device,
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	&ssp0_device,
 	&ssp1_device,
 	&spi0_device,
@@ -2212,6 +2349,7 @@ static struct amba_device *amba_devs[] __initdata = {
 	&sdi0_device,	/* SD/MMC card */
 #endif
 	&rtc_device,
+#endif
 };
 static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	{
@@ -2283,6 +2421,7 @@ static void __init u8500_platform_init(void)
 	amba_add_devices(amba_devs, ARRAY_SIZE(amba_devs));
 	platform_add_devices(core_devices, ARRAY_SIZE(core_devices));
 
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	i2s_register_board_info(stm_i2s_board_info,
 			ARRAY_SIZE(stm_i2s_board_info));
 
@@ -2294,6 +2433,7 @@ static void __init u8500_platform_init(void)
 	stm_gpio_altfuncenable(GPIO_ALT_UART_0_NO_MODEM);
 	stm_gpio_altfuncenable(GPIO_ALT_UART_1);
 	stm_gpio_altfuncenable(GPIO_ALT_UART_2);
+#endif
 }
 
 extern struct sys_timer u8500_timer;
@@ -2304,8 +2444,13 @@ extern struct sys_timer u8500_timer;
  */
 MACHINE_START(NOMADIK, "ST Ericsson U8500 Platform")
 	/* Maintainer: ST-Ericsson */
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	.phys_io = U8500_UART0_BASE,
+	.io_pg_offst = (IO_ADDRESS(U8500_UART0_BASE) >> 18) & 0xfffc,
+#else
 	.phys_io = U8500_UART2_BASE,
 	.io_pg_offst = (IO_ADDRESS(U8500_UART2_BASE) >> 18) & 0xfffc,
+#endif
 	.boot_params = 0x00000100,
 	.map_io = u8500_map_io,
 	.init_irq = u8500_gic_init_irq,
