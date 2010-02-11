@@ -44,7 +44,7 @@ typedef enum interface
 /** AV8100 - DSI dcs command set */
 typedef enum
 {
-	DCS_VSYNC_START 	= 0x1,
+    DCS_VSYNC_START 	= 0x1,
 	DCS_VSYNC_END 		= 0x11,
 	DCS_HSYNC_START 	= 0x21,
 	DCS_HSYNC_END 		= 0x31,
@@ -105,7 +105,7 @@ typedef enum
 /** AV8100 Command Type */
 typedef enum
 {
-	AV8100_COMMAND_VIDEO_INPUT_FORMAT_SIZE  = 0x16		,
+	AV8100_COMMAND_VIDEO_INPUT_FORMAT_SIZE  = 0x17,
 	AV8100_COMMAND_AUDIO_INPUT_FORMAT_SIZE  = 0x8,
 	AV8100_COMMAND_VIDEO_OUTPUT_FORMAT_SIZE = 0x19,
 	AV8100_COMMAND_VIDEO_SCALING_FORMAT_SIZE = 0x9,
@@ -457,15 +457,19 @@ typedef enum{
 typedef enum{
 	AV8100_CUSTOM,
 	AV8100_CEA1_640X480P_59_94HZ,
-	AV8100_CEA2_720X480P_59_94HZ_4_3,
-	AV8100_CEA3_720X480P_59_94HZ_16_9,
+	AV8100_CEA2_3_720X480P_59_94HZ,   // new
 	AV8100_CEA4_1280X720P_60HZ,
 	AV8100_CEA5_1920X1080I_60HZ,
-	AV8100_CEA17_720X576P_50HZ_4_3,
-	AV8100_CEA18_720X576P_50HZ_16_9,
+	AV8100_CEA6_7_NTSC_60HZ,          //new
+	AV8100_CEA14_15_480p_60HZ,        //new
+	AV8100_CEA16_1920X1080P_60HZ,     //new
+	AV8100_CEA17_18_720X576P_50HZ,    //new
 	AV8100_CEA19_1280X720P_50HZ,
 	AV8100_CEA20_1920X1080I_50HZ,
-	AV8100_CEA32_1920X1080I_24HZ,
+	AV8100_CEA21_22_576I_PAL_50HZ,    //new
+	AV8100_CEA29_30_576P_50HZ,        //new
+	AV8100_CEA31_1920x1080P_50Hz,     //new
+	AV8100_CEA32_1920X1080P_24HZ,
 	AV8100_CEA33_1920X1080P_25HZ,
 	AV8100_CEA34_1920X1080P_30HZ,
 	AV8100_CEA60_1280X720P_24HZ,
@@ -482,13 +486,13 @@ typedef enum{
 	AV8100_VESA81_1366X768P_59_79HZ
 } av8100_output_CEA_VESA;
 
-
 /** AV8100 internal register access structure*/
 struct av8100_register
 {
 	char  value;
 	char offset;
 };
+
 /** AV8100 command configuration registers access structure*/
 struct av8100_command_register
 {
@@ -496,6 +500,7 @@ struct av8100_command_register
 	char cmd_buf_len;
 	char cmd;
 };
+
 /** AV8100 status structure*/
 struct av8100_status
 {

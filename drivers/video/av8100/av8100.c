@@ -52,6 +52,47 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("JAYARAMI REDDY");
 MODULE_DESCRIPTION("AV8100 driver for U8500");
 
+extern void u8500_mcde_tasklet_4(unsigned long);
+
+#if !defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI && !defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#define TEST_PATTERN_TEST
+#endif
+
+static int av8100_open(struct inode *inode, struct file *filp);
+static int av8100_release(struct inode *inode, struct file *filp);
+static int av8100_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
+#ifndef TEST_PATTERN_TEST
+static irqreturn_t av8100_intr_handler(int irq, void *p);
+#endif
+static int av8100_write_multi_byte(struct i2c_client *client, unsigned char regOffset,unsigned char *buf,unsigned char nbytes);
+static int av8100_write_single_byte(struct i2c_client *client, unsigned char reg,unsigned char data);
+#if 0
+static int av8100_read_multi_byte(struct i2c_client *client,unsigned char reg,unsigned char *buf, unsigned char nbytes);
+#endif
+static int av8100_read_single_byte(struct i2c_client *client,unsigned char reg, unsigned char* val);
+static int configure_av8100_video_input(char* buffer_temp);
+static int configure_av8100_audio_input(char* buffer_temp);
+static int configure_av8100_video_output(char* buffer_temp);
+static int configure_av8100_video_scaling(char* buffer_temp);
+static int configure_av8100_colorspace_conversion(char* buffer_temp);
+static int configure_av8100_cec_message_write(char* buffer_temp);
+static int configure_av8100_cec_message_read(char* buffer_temp);
+static int configure_av8100_denc(char* buffer_temp);
+static int configure_av8100_hdmi(char* buffer_temp);
+static int configure_av8100_hdcp_senkey(char* buffer_temp);
+static int configure_av8100_hdcp_management(char* buffer_temp);
+static int configure_av8100_infoframe(char* buffer_temp);
+static int configure_av8100_pattern_generator(char* buffer_temp);
+#if 0
+static int read_edid_info(struct i2c_client *i2c, char* buff);
+#endif
+static int av8100_send_command (struct i2c_client *i2cClient, char command_type, enum interface if_type);
+static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id);
+static int av8100_probe(struct i2c_client *i2cClient,const struct i2c_device_id *id);
+static int __exit av8100_remove(struct i2c_client *i2cClient);
+static int av8100_download_firmware(struct i2c_client *i2c, char regoffset, char* fw_buff, int numOfBytes, enum interface if_type);
+static void av8100_update_config_params(void);
+
 #define uint8 unsigned char
 
 /** global data */
@@ -74,38 +115,39 @@ bool av8100_flag = 0x0;
 int length = 0x0;
 extern unsigned int isReady;
 #define DSI_MAX_DATA_WRITE 15
-//#define Test_Pattern_Test 1
 
-av8100_cea av8100_all_cea[25] ={
-{ "0  CUSTOM"    , 1  ,525  , 480   ,35   , 2     , 0         ,  "-"   , 800   ,640   , 16  , 96   , 25200000      ,"-" },
-{ "1  CEA 1 VESA 4 640x480p @ 60 Hz     "    , 1  ,525  , 480   ,35   , 2     , 0         ,  "-"   , 800   ,640   , 16  , 96   , 25200000      ,"-" },
-{ "2  CEA 2        720x480p @ 60 Hz 4:3 "    , 2  ,525  , 480   ,36   , 6     , 0         ,  "–"   , 858   ,720   , 16  , 62   , 27027000    ,"–" },
-{ "3  CEA 3        720x480p @ 60 Hz 16:9"    , 3  ,525  , 480   ,36   , 6     , 0         ,  "–"   , 858   ,720   , 16  , 62   , 27027000    ,"–" },
-{ "4  CEA 4        1280x720p @ 60 Hz    "    , 4  ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 74250000     ,"+" },
-{ "5  CEA 5        1920x1080i @ 60 Hz   "    , 5  ,562.5, 540   ,20   , 5     , 0 / 1100  ,  "+"   , 2200  ,1920  , 88  , 44   , 74250000     ,"+" },
-{ "6  CEA 17       720x576p @ 50 Hz 4:3 "    , 17 ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 27000000      ,"–" },
-{ "7  CEA 18       720x576p @ 50 Hz 16:9"    , 18 ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 27000000      ,"–" },
-{ "8  CEA 19       1280x720p @ 50 Hz    "    , 19 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1980  ,1280  , 440 , 40   , 74250000     ,"+" },
-{ "9  CEA 20       1920 x 1080i @ 50 Hz "    , 20 ,562.5, 540   ,20   , 5     , 0 / 1320  ,  "+"   , 2640  ,1920  , 528 , 44   , 74250000     ,"+" },
-{ "10 CEA 32       1920x1080p @ 24 Hz   "    , 32 ,1125 , 1080  ,41   , 5     , 0         ,  "+"   , 2750  ,1920  , 638 , 44   , 74250000     ,"+" },
-{ "11 CEA 33       1920x1080p @ 25 Hz   "    , 33 ,1125 , 1080  ,41   , 5     , 0         ,  "+"   , 2640  ,1920  , 528 , 44   , 74250000     ,"+" },
-{ "12 CEA 34       1920x1080p @ 30Hz    "    , 34 ,1125 , 1080  ,41   , 5     , 0         ,  "+"   , 2200  ,1920  , 88  , 44   , 74250000     ,"+" },
-{ "13 CEA 60       1280x720p @ 24 Hz    "    , 60 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 29700000     ,"+" },
-{ "14 CEA 61       1280x720p @ 25 Hz    "    , 61 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 30937500     ,"+" },
-{ "15 CEA 62       1280x720p @ 30 Hz    "    , 62 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 37125000     ,"+" },
-{ "16 VESA 9       800x600 @ 60 Hz     "   , 109 ,628  , 600   ,28   , 4     , 0         ,  "+"  , 1056  ,800   , 40  , 128  , 40000000     ,"+"},
-{ "17 VESA 14      848x480  @ 60 Hz     "   , 114 ,500  , 480   ,20   , 5     , 0         ,  "+"  , 1056  ,848   , 24  , 80  , 31500000     ,"-"},
-{ "18 VESA 16      1024x768 @ 60 Hz     "   , 116 ,806  , 768   ,38   , 6     , 0         ,  "-"  , 1344  ,1024  , 24  , 135 , 65000000     ,"-"},
-{ "19 VESA 22      1280x768 @ 60 Hz     "   , 122 ,802  , 768   ,34   , 4     , 0         ,  "+"  , 1688  ,1280  , 48  , 160 , 81250000     ,"-"},
-{ "20 VESA 23      1280x768 @ 60 Hz     "   , 123 ,798  , 768   ,30   , 7     , 0         ,  "+"  , 1664  ,1280  , 64  , 128 , 79500000     ,"-"},
-{ "21 VESA 27      1280x800 @ 60 Hz     "   , 127 ,823  , 800   ,23   , 6     , 0         ,  "+"  , 1440  ,1280  , 48  , 32  , 71000000     ,"+"},
-{ "22 VESA 28      1280x800 @ 60 Hz     "   , 128 ,831  , 800   ,31   , 6     , 0         ,  "+"  , 1680  ,1280  , 72  , 128 , 83500000     ,"-"},
-{ "23 VESA 39      1360x768 @ 60 Hz     "   , 139 ,790  , 768   ,22   , 5     , 0         ,  "-"  , 1520  ,1360  , 48  , 32  , 72000000     ,"+"},
-{ "24 VESA 81      1360x768 @ 60 Hz     "   , 181 ,798  , 768   ,30   , 5     , 0         ,  "+"  , 1776  ,1360  , 72  , 136 , 84750000     ,"-"}
-
+av8100_cea av8100_all_cea[29] ={
+// INFO texte for format-CEA nb-total line-active line-VBP-Vsyncact-VFP-polarity-total pix-active pix-HBP-Hsyncact-HFP- Freq-polarity-regline duration-blkeol duration-uix4-pll_mulp-pll_div
+{ "0  CUSTOM                            "    , 0  ,0    , 0      ,0   , 0     , 0         ,  "-"   , 800   ,640   , 16  , 96   , 10, 25200000     ,"-",0,0,0,0,0},//Settings to be define
+{ "1  CEA 1 VESA 4 640x480p @ 60 Hz     "    , 1  ,525  , 480   ,33   , 2     , 10        ,  "-"   , 800   ,640   , 49  , 290  , 146, 25200000     ,"-",2438,1270,6,32,1},//RGB888
+{ "2  CEA 2 - 3    720x480p @ 60 Hz 4:3 "    , 2  ,525  , 480   ,36   , 6     , 0         ,  "–"   , 858   ,720   , 16  , 62   , 10, 27027000     ,"–",0,0,0,0,0},//Settings to be define
+{ "3  CEA 4        1280x720p @ 60 Hz    "    , 4  ,750  , 720   ,20   , 5     , 5         ,  "+"   , 1650  ,1280  , 114 , 39   , 228, 74250000    ,"+",1706,164,6,32,1},//RGB565
+{ "4  CEA 5        1920x1080i @ 60 Hz   "    , 5  ,562.5, 540   ,20   , 5     , 0 / 1100  ,  "+"   , 2200  ,1920  , 88  , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "5  CEA 6-7      480i (NTSC)          "    , 6  ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"–",0,0,0,0,0},//Settings to be define
+{ "6  CEA 14-15    480p @ 60 Hz         "    , 14 ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"–",0,0,0,0,0},//Settings to be define
+{ "7  CEA 16       1920x1080p @ 60 Hz   "    , 16 ,1125 , 1080  ,36   , 5     , 0         ,  "+"   , 1980  ,1280  , 440 , 40   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "8  CEA 17-18    720x576p @ 50 Hz     "    , 17 ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"–",0,0,0,0,0},//Settings to be define
+{ "9  CEA 19       1280x720p @ 50 Hz    "    , 19 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1980  ,1280  , 440 , 40   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "10 CEA 20       1920 x 1080i @ 50 Hz "    , 20 ,562.5, 540   ,20   , 5     , 0 / 1320  ,  "+"   , 2640  ,1920  , 528 , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "11 CEA 21-22    576i (PAL)           "    , 21 ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"–",0,0,0,0,0},//Settings to be define
+{ "12 CEA 29/30    576p                 "    , 29 ,625  , 576   ,44   , 5     , 0         ,  "–"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"–",0,0,0,0,0},//Settings to be define
+{ "13 CEA 31       1080p 50Hz           "    , 31 ,1125 , 1080  ,44   , 5     , 0         ,  "–"   , 2750  ,1920  , 12  , 64   , 10, 27000000     ,"–",0,0,0,0,0},//Settings to be define
+{ "14 CEA 32       1920x1080p @ 24 Hz   "    , 32 ,1125 , 1080  ,36   , 5     , 4         ,  "+"   , 2750  ,1920  , 660 , 44   , 153, 74250000     ,"+",2844,50,6,32,1},
+{ "15 CEA 33       1920x1080p @ 25 Hz   "    , 33 ,1125 , 1080  ,36   , 5     , 4         ,  "+"   , 2640  ,1920  , 528 , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "16 CEA 34       1920x1080p @ 30Hz    "    , 34 ,1125 , 1080  ,36   , 5     , 4         ,  "+"   , 2200  ,1920  , 91  , 44   , 153, 74250000    ,"+",2275,146,6,32,1},//RGB565
+{ "17 CEA 60       1280x720p @ 24 Hz    "    , 60 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 10, 29700000     ,"+",0,0,0,0,0},//Settings to be define
+{ "18 CEA 61       1280x720p @ 25 Hz    "    , 61 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 10 ,30937500     ,"+",0,0,0,0,0},//Settings to be define
+{ "19 CEA 62       1280x720p @ 30 Hz    "    , 62 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 10, 37125000     ,"+",0,0,0,0,0},//Settings to be define
+{ "20 VESA 9        800x600 @ 60 Hz     "   , 109 ,628  , 600   ,28   , 4     , 0         ,  "+"   , 1056  ,800   , 40  , 128  , 10, 40000000     ,"+",0,0,0,0,0},//Settings to be define
+{ "21 VESA 14      848x480  @ 60 Hz     "   , 114 ,500  , 480   ,20   , 5     , 0         ,  "+"   , 1056  ,848   , 24  , 80   , 10, 31500000     ,"-",0,0,0,0,0},//Settings to be define
+{ "22 VESA 16      1024x768 @ 60 Hz     "   , 116 ,806  , 768   ,38   , 6     , 0         ,  "-"   , 1344  ,1024  , 24  , 135  , 10, 65000000     ,"-",0,0,0,0,0},//Settings to be define
+{ "23 VESA 22      1280x768 @ 60 Hz     "   , 122 ,802  , 768   ,34   , 4     , 0         ,  "+"   , 1688  ,1280  , 48  , 160  , 10, 81250000     ,"-",0,0,0,0,0},//Settings to be define
+{ "24 VESA 23      1280x768 @ 60 Hz     "   , 123 ,798  , 768   ,30   , 7     , 0         ,  "+"   , 1664  ,1280  , 64  , 128  , 10, 79500000     ,"-",0,0,0,0,0},//Settings to be define
+{ "25 VESA 27      1280x800 @ 60 Hz     "   , 127 ,823  , 800   ,23   , 6     , 0         ,  "+"   , 1440  ,1280  , 48  , 32   , 10, 71000000     ,"+",0,0,0,0,0},//Settings to be define
+{ "26 VESA 28      1280x800 @ 60 Hz     "   , 128 ,831  , 800   ,31   , 6     , 0         ,  "+"   , 1680  ,1280  , 72  , 128  , 10, 83500000     ,"-",0,0,0,0,0},//Settings to be define
+{ "27 VESA 39      1360x768 @ 60 Hz     "   , 139 ,790  , 768   ,22   , 5     , 0         ,  "-"   , 1520  ,1360  , 48  , 32   , 10, 72000000     ,"+",0,0,0,0,0},//Settings to be define
+{ "28 VESA 81      1360x768 @ 60 Hz     "   , 181 ,798  , 768   ,30   , 5     , 0         ,  "+"   , 1776  ,1360  , 72  , 136  , 10, 84750000     ,"-",0,0,0,0,0}//Settings to be define
 };
-
-
 
 /** av8100 file operations */
 static struct file_operations av8100_fops = {
@@ -166,6 +208,7 @@ static int av8100_write_multi_byte(struct i2c_client *client, uint8 regOffset,
 #endif
 	return ret;
 }
+
 /**
  * av8100_write_single_byte() - Write a single byte to av8100 chip(av8100) through i2c interface.
  * @client:	i2c client structure
@@ -187,6 +230,7 @@ static int av8100_write_single_byte(struct i2c_client *client, uint8 reg,
 	}
 	return ret;
 }
+
 /**
  * av8100_read_multi_byte() - read multiple bytes from av8100 chip(av8100) through i2c interface
  * @client:     i2c client structure
@@ -196,6 +240,7 @@ static int av8100_write_single_byte(struct i2c_client *client, uint8 reg,
  *
  * This funtion uses smbus read block API to read multiple bytes from the reg offset.
  **/
+#if 0
 static int av8100_read_multi_byte(struct i2c_client *client,uint8 reg,
 		uint8 *buf, uint8 nbytes)
 {
@@ -212,6 +257,8 @@ static int av8100_read_multi_byte(struct i2c_client *client,uint8 reg,
 	}
 	return ret;
 }
+#endif
+
 /**
  * av8100_read_single_byte() - read single byte from av8100 chip(av8100) through i2c interface
  * @client:     i2c client structure
@@ -233,6 +280,7 @@ static int av8100_read_single_byte(struct i2c_client *client,uint8 reg, unsigned
 	*val = value;
 	return ret;
 }
+
 /**
  * get_dcs_data_index_params() - This API is used to get the number of times the data to be sent with the commands.
  **/
@@ -243,6 +291,7 @@ void get_dcs_data_index_params(void)
 	g_dcs_data_count_index = g_av8100_cmd_length/DSI_MAX_DATA_WRITE;
 	g_dcs_data_count_last = g_av8100_cmd_length%DSI_MAX_DATA_WRITE;
 }
+
 /**
  * av8100_intr_handler() - To handle av8100 interrupts.
  * @irq:	irq context
@@ -250,8 +299,14 @@ void get_dcs_data_index_params(void)
  *
  * This funtion handles the av8100 interrupts. It handles the plugin and plugout(HDMI/CVBS) interrupts.
  **/
-static irqreturn_t av8100_intr_handler(int irq,struct av8100_data *av8100DataTemp)
+#ifndef TEST_PATTERN_TEST
+static irqreturn_t av8100_intr_handler(int irq, void *p)
 {
+
+#if 0
+	struct av8100_data *av8100DataTemp = p;
+#endif
+
 #if 0
 	char val = 0x0;
 	int retval = AV8100_OK;
@@ -358,9 +413,11 @@ static irqreturn_t av8100_intr_handler(int irq,struct av8100_data *av8100DataTem
 	}
 #endif
 	av8100_flag = 1;
-	wake_up_interruptible(&av8100_event);
+	//wake_up_interruptible(&av8100_event);
+	u8500_mcde_tasklet_4(0);
 	return IRQ_HANDLED;
 }
+#endif
 
 
 /**
@@ -375,7 +432,6 @@ static void av8100_configure_hdmi(struct av8100_data *av8100DataTemp)
 	int retval = AV8100_OK;
 	//char val1 = 0x0;
 	//int i = 0;
-
 
 #if 0
 	av8100_read_single_byte(av8100DataTemp->client, STANDBY_PENDING_INTERRUPT_REG, &val);
@@ -414,12 +470,9 @@ static void av8100_configure_hdmi(struct av8100_data *av8100DataTemp)
 		return;
 	}
 #ifndef TEST_PATTERN_TEST
-		//mcde_hdmi_display_init();
-		//mcde_hdmi_display_init();
-		//mcde_configure_hdmi_channel();
-		//mcde_hdmi_display_init_video_mode();
-		mcde_hdmi_display_init_command_mode();
-		mcde_configure_hdmi_channel();
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
+	mcde_hdmi_display_init_video_mode();
+#endif
 #endif
 	retval = av8100_send_command (av8100DataTemp->client, AV8100_COMMAND_AUDIO_INPUT_FORMAT, I2C_INTERFACE);
 	if(retval != AV8100_OK)
@@ -427,6 +480,14 @@ static void av8100_configure_hdmi(struct av8100_data *av8100DataTemp)
 		printk("Failed to send the  AV8100_COMMAND_AUDIO_INPUT_FORMAT command\n");
 		return;
 	}
+	return;
+}
+
+#ifndef TEST_PATTERN_TEST
+static void av8100_power_on(struct av8100_data *av8100DataTemp)
+{
+	int retval = AV8100_OK;
+
 	retval = av8100_send_command (av8100DataTemp->client, AV8100_COMMAND_HDMI, I2C_INTERFACE);
 	if(retval != AV8100_OK)
 	{
@@ -435,6 +496,7 @@ static void av8100_configure_hdmi(struct av8100_data *av8100DataTemp)
 	}
 	return;
 }
+#endif
 
 /**
  * configure_av8100_video_input() - This function will be used to configure the video input of AV8100.
@@ -467,7 +529,11 @@ static int configure_av8100_video_input(char* buffer_temp)
 	buffer_temp[18] = REG_32_8_MMSB(hdmi_video_input_cmd.master_clock_freq);
 	buffer_temp[19] = REG_32_8_MLSB(hdmi_video_input_cmd.master_clock_freq);
 	buffer_temp[20] = REG_32_8_LSB(hdmi_video_input_cmd.master_clock_freq);
-//	buffer_temp[21] =  24; /* UI value */
+//#ifdef CONFIG_DISPLAY_HDMI_1080P30
+	buffer_temp[21] =  6; /* UI value */
+//#else
+//	buffer_temp[21] =  5; /* UI value */
+//#endif
 
 	g_av8100_cmd_length = AV8100_COMMAND_VIDEO_INPUT_FORMAT_SIZE - 1;
 	return retval;
@@ -492,8 +558,8 @@ static int configure_av8100_audio_input(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_AUDIO_INPUT_FORMAT_SIZE - 1;
 	return retval;
-
 }
+
 /**
  * configure_av8100_video_output() - This function will be used to configure the video output of AV8100.
  * @buffer_temp:     configuration pointer
@@ -530,8 +596,8 @@ static int configure_av8100_video_output(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_VIDEO_OUTPUT_FORMAT_SIZE - 1;
 	return retval;
-
 }
+
 /**
  * configure_av8100_video_scaling() - This function will be used to configure the video scaling params of AV8100.
  * @buffer_temp:     configuration pointer
@@ -543,8 +609,8 @@ static int configure_av8100_video_scaling(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_VIDEO_SCALING_FORMAT_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_colorspace_conversion() - This function will be used to configure the color conversion params of AV8100.
  * @buffer_temp:     configuration pointer
@@ -556,8 +622,8 @@ static int configure_av8100_colorspace_conversion(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_COLORSPACECONVERSION_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_cec_message_write() - This function will be used to configure the CEC message to AV8100.
  * @buffer_temp:     configuration pointer
@@ -569,8 +635,8 @@ static int configure_av8100_cec_message_write(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_CEC_MESSAGEWRITE_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_cec_message_read() - This function will be used to read CEC message from AV8100.
  * @buffer_temp:     configuration pointer
@@ -582,8 +648,8 @@ static int configure_av8100_cec_message_read(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_CEC_MESSAGEREAD_BACK_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_denc() - This function will be used to configure the denc.
  * @buffer_temp:     configuration pointer
@@ -595,8 +661,8 @@ static int configure_av8100_denc(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_DENC_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_hdmi() - This function will be used to configure the HDMI .
  * @buffer_temp:     configuration pointer
@@ -612,8 +678,8 @@ static int configure_av8100_hdmi(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_HDMI_SIZE - 1;
 	return retval;
-
 }
+
 /**
  * configure_av8100_hdcp_senkey() - This function will be used to configure the hdcp send key.
  * @buffer_temp:     configuration pointer
@@ -625,8 +691,8 @@ static int configure_av8100_hdcp_senkey(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_HDCP_SENDKEY_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_hdcp_management() - This function will be used to configure the hdcp management.
  * @buffer_temp:     configuration pointer
@@ -638,8 +704,8 @@ static int configure_av8100_hdcp_management(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_HDCP_MANAGEMENT_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_infoframe() - This function will be used to configure the info frame.
  * @buffer_temp:     configuration pointer
@@ -651,8 +717,8 @@ static int configure_av8100_infoframe(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_INFOFRAMES_SIZE;
 	return retval;
-
 }
+
 /**
  * configure_av8100_pattern_generator() - This function will be used to configure the pattern generator.
  * @buffer_temp:     configuration pointer
@@ -668,27 +734,30 @@ static int configure_av8100_pattern_generator(char* buffer_temp)
 
 	g_av8100_cmd_length = AV8100_COMMAND_PATTERNGENERATOR_SIZE - 1;
 	return retval;
-
 }
+
 /**
  * read_edid_info() - This function will be used to EDID info.
  * @i2c:     i2c client device
  * @buff:    pointer to EDID buffer
  *
  **/
+#if 0
 static int read_edid_info(struct i2c_client *i2c, char* buff)
 {
 int retval = AV8100_OK;
 return retval;
 }
+#endif
+
 /**
- * av8100_downlaod_firmware() - This function will be used to download firmware.
+ * av8100_download_firmware() - This function will be used to download firmware.
  * @i2c:     i2c client device
  * @fw_buff:    pointer to firmware buffer
  * @numOfBytes: number of bytes
  *
  **/
-static int av8100_downlaod_firmware(struct i2c_client *i2c, char regOffset, char* fw_buff, int numOfBytes, enum interface if_type)
+static int av8100_download_firmware(struct i2c_client *i2c, char regOffset, char* fw_buff, int numOfBytes, enum interface if_type)
 {
 	int retval = AV8100_OK;
 	int temp = 0x0;
@@ -699,10 +768,10 @@ static int av8100_downlaod_firmware(struct i2c_client *i2c, char regOffset, char
 	//int i = 0;
 	char CheckSum = 0;
 
-    temp = numOfBytes % increment;
-    printk("temp:%d\n",temp);
-    for(size=0;size<(numOfBytes-temp);size=size+increment, index+=increment)
-    {
+	temp = numOfBytes % increment;
+	printk("temp:%d\n",temp);
+	for(size=0;size<(numOfBytes-temp);size=size+increment, index+=increment)
+	{
 		if(if_type == I2C_INTERFACE)
 		{
 			retval = av8100_write_multi_byte(i2c, regOffset, fw_buff + size, increment);
@@ -712,34 +781,34 @@ static int av8100_downlaod_firmware(struct i2c_client *i2c, char regOffset, char
 				return -EFAULT;
 			}
 		}else
-		if(if_type == DSI_INTERFACE)
-		{
-			retval = dsiLPdcslongwrite(0, 0x10, DCS_FW_DOWNLOAD,fw_buff[index],fw_buff[index + 1],fw_buff[index + 2],
-					fw_buff[index + 3],fw_buff[index + 4],fw_buff[index + 5],fw_buff[index + 6],fw_buff[index + 7], fw_buff[index + 8],
-					fw_buff[index + 9],fw_buff[index + 10],fw_buff[index + 11],fw_buff[index + 12],fw_buff[index + 13], fw_buff[index + 14],
-					CHANNEL_A, DSI_LINK2);
-			if(retval != AV8100_OK)
+			if(if_type == DSI_INTERFACE)
 			{
-				printk("Failed to send the data through dsi interface\n");
-				return retval;
-			}
+				retval = dsiLPdcslongwrite(0, 0x10, DCS_FW_DOWNLOAD,fw_buff[index],fw_buff[index + 1],fw_buff[index + 2],
+						fw_buff[index + 3],fw_buff[index + 4],fw_buff[index + 5],fw_buff[index + 6],fw_buff[index + 7], fw_buff[index + 8],
+						fw_buff[index + 9],fw_buff[index + 10],fw_buff[index + 11],fw_buff[index + 12],fw_buff[index + 13], fw_buff[index + 14],
+						CHANNEL_A, DSI_LINK2);
+				if(retval != AV8100_OK)
+				{
+					printk("Failed to send the data through dsi interface\n");
+					return retval;
+				}
 
-		}else
-		return AV8100_INVALID_INTERFACE;
-        for(tempnext=size;tempnext<=(increment+size);tempnext++)
-            ReceiveTab[tempnext] = fw_buff[tempnext];
-    }
+			}else
+				return AV8100_INVALID_INTERFACE;
+			for(tempnext=size;tempnext<=(increment+size);tempnext++)
+				ReceiveTab[tempnext] = fw_buff[tempnext];
+	}
 
-    // Transfer last firmware bytes
-		if(if_type == I2C_INTERFACE)
+	// Transfer last firmware bytes
+	if(if_type == I2C_INTERFACE)
+	{
+		retval = av8100_write_multi_byte(i2c, regOffset, fw_buff + size, temp);
+		if(retval != AV8100_OK)
 		{
-			retval = av8100_write_multi_byte(i2c, regOffset, fw_buff + size, temp);
-			if(retval != AV8100_OK)
-			{
-				printk("Failed to download the av8100 firmware\n");
-				return -EFAULT;
-			}
-		}else
+			printk("Failed to download the av8100 firmware\n");
+			return -EFAULT;
+		}
+	}else
 		if(if_type == DSI_INTERFACE)
 		{
 			retval = dsiLPdcslongwrite(0, temp+1, DCS_FW_DOWNLOAD,fw_buff[index],fw_buff[index + 1],fw_buff[index + 2],
@@ -754,26 +823,26 @@ static int av8100_downlaod_firmware(struct i2c_client *i2c, char regOffset, char
 			}
 
 		}else
-		return AV8100_INVALID_INTERFACE;
+			return AV8100_INVALID_INTERFACE;
 
-	    for(tempnext=size;tempnext<=(size+temp);tempnext++)
-	    {
-		   ReceiveTab[tempnext] = fw_buff[tempnext];
-        }
+		for(tempnext=size;tempnext<=(size+temp);tempnext++)
+		{
+			ReceiveTab[tempnext] = fw_buff[tempnext];
+		}
 
-	    // check transfer
-	     for(size=0;size<numOfBytes;size++)
-	     {
-		CheckSum = CheckSum ^ fw_buff[size];
-	        if(ReceiveTab[size] != fw_buff[size])
-	        {
-		   printk(">Fw downlaod fail....i=%d\n",size);
-	           printk("Transm = %x, Receiv = %x\n",fw_buff[size],ReceiveTab[size]);
-	        }
+		// check transfer
+		for(size=0;size<numOfBytes;size++)
+		{
+			CheckSum = CheckSum ^ fw_buff[size];
+			if(ReceiveTab[size] != fw_buff[size])
+			{
+				printk(">Fw download fail....i=%d\n",size);
+				printk("Transm = %x, Receiv = %x\n",fw_buff[size],ReceiveTab[size]);
+			}
 
-         }
+		}
 
-        for(temp=0;temp<0xFFFFF;temp++);
+		for(temp=0;temp<0xFFFFF;temp++);
 
 		retval = av8100_read_single_byte(i2c, regOffset, &val);
 		if(retval != AV8100_OK)
@@ -783,24 +852,42 @@ static int av8100_downlaod_firmware(struct i2c_client *i2c, char regOffset, char
 		}
 		printk("CheckSum:%x,val:%x\n",CheckSum,val);
 
-        if(CheckSum != val)
-        {
-	         printk(">Fw downloading.... FAIL CheckSum issue\n");
-             printk("Checksum = %d\n",CheckSum);
-             printk("Checksum read: %d\n",val);
-             return AV8100_FWDOWNLOAD_FAIL;
-        }else
-        printk(">Fw downloading.... success\n");
+		if(CheckSum != val)
+		{
+			printk(">Fw downloading.... FAIL CheckSum issue\n");
+			printk("Checksum = %d\n",CheckSum);
+			printk("Checksum read: %d\n",val);
+			return AV8100_FWDOWNLOAD_FAIL;
+		}else
+			printk(">Fw downloading.... success\n");
 
-	retval = av8100_write_single_byte(i2c, GENERAL_CONTROL_REG, 0x0); /* 0000 0000 Restore chip in normal mode */
-	if(retval != AV8100_OK)
-	{
-		printk("Failed to write the value in to the av8100 registers\n");
-		return -EFAULT;
-	}
-	g_av8100_state = AV8100_OPMODE_IDLE;
-	return retval;
+		retval = av8100_write_single_byte(i2c, GENERAL_CONTROL_REG, 0x0); /* 0000 0000 Restore chip in normal mode */
+		if(retval != AV8100_OK)
+		{
+			printk("Failed to write the value in to the av8100 registers\n");
+			return -EFAULT;
+		}
+		// Wait Internal Micro controler ready
+		retval = av8100_read_single_byte(i2c, GENERAL_STATUS_REG, &val);
+		if(retval != AV8100_OK)
+		{
+			printk("Failed to read the value in to the av8100 register\n");
+			return -EFAULT;
+		}
+		if(val != 0x8)
+		{
+			for(temp=0;temp<0xFFFFF;temp++);
+			retval = av8100_read_single_byte(i2c, GENERAL_STATUS_REG, &val);
+			if(retval != AV8100_OK)
+			{
+				printk("Failed to read the value in to the av8100 register\n");
+				return -EFAULT;
+			}
+		}
+		g_av8100_state = AV8100_OPMODE_IDLE;
+		return retval;
 }
+
 /**
  * av8100_send_command() - This function will be used to send the command to AV8100.
  * @i2cClient:     i2c client device
@@ -808,12 +895,13 @@ static int av8100_downlaod_firmware(struct i2c_client *i2c, char regOffset, char
  * @if_type: interface type.
  *
  **/
-static int av8100_send_command (struct i2c_client *i2cClient, int command_type, enum interface if_type)
+static int av8100_send_command (struct i2c_client *i2cClient, char command_type, enum interface if_type)
 {
 	int retval = AV8100_OK, temp = 0, index = 0;
 	char val = 0x0, val1 = 0x0;
 	//char val2 = 0x0, val3 = 0x0;
 	int reg_offset = av8100_command_offset + 1;
+	char buffer[AV8100_COMMAND_MAX_LENGTH];
 
 	g_av8100_cmd_length=0;
 	memset(buffer, 0x00, AV8100_COMMAND_MAX_LENGTH);
@@ -977,8 +1065,8 @@ printk("sending command is successful!!!val:%x, val1:%x\n", val, val1);
 		printk(KERN_INFO "Invalid command type\n");
 	}
 	return retval;
-
 }
+
 /**
  *
  * av8100_powerup() - This function will be used to powerup the AV8100.
@@ -997,7 +1085,7 @@ static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id
 	gpio_set_value(GPIO_AV8100_RSTN,GPIO_HIGH);
 	g_av8100_state = AV8100_OPMODE_STANDBY;
 
-	retval = av8100_write_single_byte(i2c, STANDBY_REG, 0x33); /* Device runing, master clock = 38.4Mhz, Enable searching CVBS cable*/
+	retval = av8100_write_single_byte(i2c, STANDBY_REG, 0x3B); /* Device runing, master clock = 38.4Mhz, Enable searching CVBS cable*/
 	if(retval != AV8100_OK)
 	{
 		printk("Failed to write the value in to av8100 register\n");
@@ -1012,7 +1100,7 @@ static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id
 	}else
 	printk("STANDBY_REG register value:%0x\n",val);
 
-	retval = av8100_write_single_byte(i2c, AV8100_5_VOLT_TIME_REG, 0x22); /* Define ON TIME & OFF time on 5v HDMI plug detect*/
+	retval = av8100_write_single_byte(i2c, AV8100_5_VOLT_TIME_REG, 0x20); /* Define ON TIME & OFF time on 5v HDMI plug detect*/
 	if(retval != AV8100_OK)
 	{
 		printk("Failed to write the value in to av8100 register\n");
@@ -1044,6 +1132,7 @@ static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id
 	g_av8100_state = AV8100_OPMODE_SCAN;
 	return retval;
 }
+
 /**
  *
  * av8100_enable_interrupt() - This function will enable the hdmi/tvout plugin interrupts.
@@ -1051,10 +1140,13 @@ static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id
  * @id:    device id
  *
  **/
+#ifndef TEST_PATTERN_TEST
 static int av8100_enable_interrupt(struct i2c_client *i2c)
 {
 	int retval = AV8100_OK;
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI || defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
 	char val = 0x0;
+#endif
 
 #if 0
 	retval = av8100_read_single_byte(i2c, STANDBY_REG, &val);
@@ -1088,6 +1180,26 @@ static int av8100_enable_interrupt(struct i2c_client *i2c)
 		return -EFAULT;
 	}
 #endif
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+	val = TE_INTERRUPT_MASK;
+	retval = av8100_write_single_byte(i2c, GENERAL_INTERRUPT_MASK_REG, val);
+	if(retval != AV8100_OK)
+	{
+		printk("Failed to write the value in to av8100 register\n");
+		return -EFAULT;
+	}
+
+	val = 0x0;
+	retval = av8100_write_single_byte(i2c, STANDBY_INTERRUPT_MASK_REG, val);
+	if(retval != AV8100_OK)
+	{
+		printk("Failed to write the value in to av8100 register\n");
+		return -EFAULT;
+	}
+#endif
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
 	val = 0x60;//0x60; // tearing & overflow/underflow interrupts
 	retval = av8100_write_single_byte(i2c, GENERAL_INTERRUPT_MASK_REG, val);
 	if(retval != AV8100_OK)
@@ -1095,8 +1207,11 @@ static int av8100_enable_interrupt(struct i2c_client *i2c)
 		printk("Failed to write the value in to av8100 register\n");
 		return -EFAULT;
 	}
+#endif
+
 	return retval;
 }
+#endif
 
 /**
  * av8100_open() - This function will be used to open the av8100 device.
@@ -1110,6 +1225,7 @@ static int av8100_open(struct inode *inode, struct file *filp)
 	printk("av8100_open is called\n");
 	return retval;
 }
+
 /**
  * av8100_release() - This function will be used to close the av8100 device.
  * @inode:     pointer to inode
@@ -1122,6 +1238,7 @@ static int av8100_release(struct inode *inode, struct file *filp)
 	printk("av8100_release is called\n");
 	return retval;
 }
+
 /**
  * av8100_ioctl - 	This routine implements av8100 supported ioctls
  * @inode: 	inode pointer.
@@ -1155,7 +1272,7 @@ static int av8100_ioctl(struct inode *inode, struct file *file,
 		if(copy_from_user(&internalReg, (void *)arg, sizeof(struct av8100_register))) {
 			return -EFAULT;
 		}
-		if (internalReg.offset >= STANDBY_REG && internalReg.offset <= FIRMWARE_DOWNLOAD_ENTRY_REG)
+		if (internalReg.offset <= FIRMWARE_DOWNLOAD_ENTRY_REG)
 		{
 			retval = av8100_read_single_byte(av8100Data->client, internalReg.offset, &internalReg.value);
 			if(retval != AV8100_OK)
@@ -1175,7 +1292,7 @@ static int av8100_ioctl(struct inode *inode, struct file *file,
 		if(copy_from_user(&internalReg, (void *)arg, sizeof(struct av8100_register))) {
 			return -EFAULT;
 		}
-		if (internalReg.offset >= STANDBY_REG && internalReg.offset <= FIRMWARE_DOWNLOAD_ENTRY_REG)
+		if (internalReg.offset <= FIRMWARE_DOWNLOAD_ENTRY_REG)
 		{
 			retval = av8100_write_single_byte(av8100Data->client, internalReg.offset, internalReg.value);
 			if(retval != AV8100_OK)
@@ -1262,54 +1379,96 @@ static int av8100_ioctl(struct inode *inode, struct file *file,
 	return retval;
 }
 
-void av8100_update_config_params()
+void av8100_update_config_params(void)
 {
+	#ifdef CONFIG_FB_U8500_MCDE_HDMI_1280x720P60
+	/**    OUTPUT FORMAT = 720p 60Hz   **/
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA4_1280X720P_60HZ;
+    #endif
 
-#ifndef TEST_PATTERN_TEST
-        hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA1_640X480P_59_94HZ; // 720p
-#else
-		hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA1_640X480P_59_94HZ;//AV8100_CEA4_1280X720P_60HZ; // 720p
-#endif
+    #ifdef CONFIG_FB_U8500_MCDE_HDMI_1920x1080P30
+	/**    OUTPUT FORMAT = 1080p 30Hz   **/
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA34_1920X1080P_30HZ;
+	//hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA32_1920X1080P_24HZ;
+    #endif
 
-        hdmi_video_input_cmd.dsi_input_mode = AV8100_HDMI_DSI_COMMAND_MODE;//AV8100_HDMI_DSI_VIDEO_MODE;//AV8100_HDMI_DSI_COMMAND_MODE;
-        hdmi_video_input_cmd.input_pixel_format = AV8100_INPUT_PIX_RGB888;//AV8100_INPUT_PIX_RGB565;
+    #ifdef CONFIG_FB_U8500_MCDE_HDMI_640x480P60
+    /**    OUTPUT FORMAT = VGA 60Hz   **/
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA1_640X480P_59_94HZ;
+    #endif
 
-        hdmi_video_input_cmd.total_horizontal_pixel = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].htotale;
-        hdmi_video_input_cmd.total_horizontal_active_pixel = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].hactive;
-        hdmi_video_input_cmd.total_vertical_lines = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].vtotale;
+    #ifdef CONFIG_FB_U8500_MCDE_HDMI_720x480P60
+    /**    OUTPUT FORMAT = 480p 60Hz   **/
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA2_3_720X480P_59_94HZ;
+    #endif
 
-        hdmi_video_input_cmd.total_vertical_active_lines = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].vactive;
-        hdmi_video_input_cmd.video_mode = AV8100_VIDEO_PROGRESSIVE;
-        hdmi_video_input_cmd.nb_data_lane = AV8100_DATA_LANES_USED_2; // 2 data lane used
+    /** Config for video mode           **/
+    #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
+	hdmi_video_input_cmd.dsi_input_mode = AV8100_HDMI_DSI_VIDEO_MODE;
+	hdmi_video_input_cmd.TE_line_nb = 0;
+	hdmi_video_input_cmd.TE_config = AV8100_TE_OFF; // No TE IT
+	#endif
 
-        hdmi_video_input_cmd.TE_line_nb = 0;//10;
-        hdmi_video_input_cmd.TE_config = AV8100_TE_DSI_IT; // interrupt on both interface DSI & IT line
+	/** Config for command mode         **/
+	#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+	hdmi_video_input_cmd.dsi_input_mode = AV8100_HDMI_DSI_COMMAND_MODE;
 
-        hdmi_pattern_generator_cmd.pattern_audio_mode = AV8100_PATTERN_AUDIO_OFF;
-		hdmi_pattern_generator_cmd.pattern_type =  AV8100_PATTERN_GENERATOR;
-		hdmi_pattern_generator_cmd.pattern_video_format = AV8100_PATTERN_VGA;
-		/* default audio configurations in i2s mode*/
-		hdmi_audio_input_cmd.audio_input_if_format  =   AV8100_AUDIO_I2SDELAYED_MODE;            // mode of the MSP
-		hdmi_audio_input_cmd.i2s_input_nb           =   1;                    // 0, 1 2 3 4
-		hdmi_audio_input_cmd.sample_audio_freq      =   AV8100_AUDIO_FREQ_48KHZ;
-		hdmi_audio_input_cmd.audio_word_lg          =   AV8100_AUDIO_16BITS;
-		hdmi_audio_input_cmd.audio_format           =   AV8100_AUDIO_LPCM_MODE;
-		hdmi_audio_input_cmd.audio_if_mode          =   AV8100_AUDIO_MASTER;
-		hdmi_audio_input_cmd.audio_mute             =   AV8100_AUDIO_MUTE_DISABLE;
+	#ifdef CONFIG_FB_U8500_MCDE_HDMI_1920x1080P30
+	hdmi_video_input_cmd.TE_line_nb = 38;
+	#endif
+
+	#ifdef CONFIG_FB_U8500_MCDE_HDMI_1280x720P60
+	hdmi_video_input_cmd.TE_line_nb = 21;
+	#endif
+
+//	hdmi_video_input_cmd.TE_config = AV8100_TE_DSI_IT; // IT on both I/F (DSI & GPIO)
+	hdmi_video_input_cmd.TE_config = AV8100_TE_IT_LINE; // IT on both I/F (DSI & GPIO)
+	#endif
+
+
+	hdmi_video_input_cmd.input_pixel_format = AV8100_INPUT_PIX_RGB565;//AV8100_INPUT_PIX_RGB565;
+
+	hdmi_video_input_cmd.total_horizontal_pixel = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].htotale;
+	hdmi_video_input_cmd.total_horizontal_active_pixel = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].hactive;
+	hdmi_video_input_cmd.total_vertical_lines = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].vtotale;
+	hdmi_video_input_cmd.total_vertical_active_lines = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].vactive;
+
+	hdmi_video_input_cmd.video_mode = AV8100_VIDEO_PROGRESSIVE;
+	hdmi_video_input_cmd.nb_data_lane = AV8100_DATA_LANES_USED_2;
+
+
+	hdmi_pattern_generator_cmd.pattern_audio_mode = AV8100_PATTERN_AUDIO_OFF;
+	hdmi_pattern_generator_cmd.pattern_type =  AV8100_PATTERN_GENERATOR;
+
+	if     (hdmi_video_output_cmd.video_output_cea_vesa == AV8100_CEA4_1280X720P_60HZ)
+        hdmi_pattern_generator_cmd.pattern_video_format = AV8100_PATTERN_720P;
+    else if( hdmi_video_output_cmd.video_output_cea_vesa == AV8100_CEA1_640X480P_59_94HZ)
+        hdmi_pattern_generator_cmd.pattern_video_format = AV8100_PATTERN_VGA;
+    else if( hdmi_video_output_cmd.video_output_cea_vesa == AV8100_CEA34_1920X1080P_30HZ)
+        hdmi_pattern_generator_cmd.pattern_video_format = AV8100_PATTERN_1080P;
 
 
 
-        // HDMI mode
-        hdmi_cmd.hdmi_mode = AV8100_HDMI_ON;
+	/* default audio configurations in i2s mode*/
+	hdmi_audio_input_cmd.audio_input_if_format  =   AV8100_AUDIO_I2SDELAYED_MODE;            // mode of the MSP
+	hdmi_audio_input_cmd.i2s_input_nb           =   1;                    // 0, 1 2 3 4
+	hdmi_audio_input_cmd.sample_audio_freq      =   AV8100_AUDIO_FREQ_48KHZ;
+	hdmi_audio_input_cmd.audio_word_lg          =   AV8100_AUDIO_16BITS;
+	hdmi_audio_input_cmd.audio_format           =   AV8100_AUDIO_LPCM_MODE;
+	hdmi_audio_input_cmd.audio_if_mode          =   AV8100_AUDIO_MASTER;
+	hdmi_audio_input_cmd.audio_mute             =   AV8100_AUDIO_MUTE_DISABLE;
 
-        return;
+	// HDMI mode
+	hdmi_cmd.hdmi_mode = AV8100_HDMI_ON;
+
+	return;
 }
-
 
 /**
  * av8100_thread() - This function will be used to send the data from 8500(MCDE/VTG) to hdmi chip.
  *
  **/
+#if 0
 static int av8100_thread(void) {
 
 	int retval = AV8100_OK;
@@ -1326,8 +1485,8 @@ static int av8100_thread(void) {
 
 	while (1)
 	{
-	wait_event_interruptible(av8100_event, (av8100_flag == 1) );
-	av8100_flag = 0;
+		wait_event_interruptible(av8100_event, (av8100_flag == 1) );
+		av8100_flag = 0;
 #if 0
 		retval = av8100_read_single_byte(av8100Data->client, STANDBY_PENDING_INTERRUPT_REG, &val);
 		if(retval != AV8100_OK)
@@ -1366,16 +1525,27 @@ static int av8100_thread(void) {
 
 		}
 #endif
-			retval = av8100_write_single_byte(av8100Data->client, GENERAL_INTERRUPT_REG, TE_INTERRUPT_MASK|UNDER_OVER_FLOW_INTERRUPT_MASK);
-			if(retval != AV8100_OK)
-			{
-				printk("Failed to write the value in to the av8100 GENERAL_INTERRUPT_REG register\n");
-				return -EFAULT;
-			}
+
+#if 1
+		/** do a software sync */
+		u8500_mcde_tasklet_4(0);
+#endif
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+//		retval = av8100_write_single_byte(av8100Data->client, GENERAL_INTERRUPT_REG, 0x5F);
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
+		retval = av8100_write_single_byte(av8100Data->client, GENERAL_INTERRUPT_REG, TE_INTERRUPT_MASK|UNDER_OVER_FLOW_INTERRUPT_MASK);
+#endif
+		if(retval != AV8100_OK)
+		{
+			printk("Failed to write the value in to the av8100 GENERAL_INTERRUPT_REG register\n");
+			return -EFAULT;
+		}
 
 			//mcde_hdmi_test_directcommand_mode_highspeed();
 			//for (i = 0 ; i< 480; i++)
-			u8500_mcde_tasklet_4(0);
+//DmVo comment			u8500_mcde_tasklet_4(0);
 			//if(isReady != 0)
 			//	printk("dsi data is not sent\n");
 			//isReady = 1;
@@ -1406,6 +1576,7 @@ static int av8100_thread(void) {
 	}
 	return 0;
 }
+#endif
 
 /**
  * av8100_probe() - This function will be used to powerup and initialize the av8100.
@@ -1418,10 +1589,20 @@ static int av8100_probe(struct i2c_client *i2cClient,
 {
 	int ret= 0;
 	//static uint8 av8100_id=0;
+#ifndef TEST_PATTERN_TEST
 	struct av8100_platform_data *pdata = i2cClient->dev.platform_data;
+#endif
 
 	//printk(KERN_INFO "av8100 probe\n");
 	//printk("av8100 probe\n");
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+#ifndef TEST_PATTERN_TEST
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+	mcde_hdmi_display_init_command_mode();
+#endif
+#endif
+#endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
 
 	/** Register av8100 driver */
 	ret = misc_register(&av8100_miscdev);
@@ -1443,7 +1624,10 @@ static int av8100_probe(struct i2c_client *i2cClient,
 	//INIT_WORK(&av8100Data->work, u8500_av8100_wq);
 	av8100Data->client = i2cClient;
 	i2c_set_clientdata(i2cClient,av8100Data);
+#ifndef TEST_PATTERN_TEST
+	/* Test pattern is local to AV8100 driver so if set no MCDE probe as no interaction with it */
 	if(mcde_get_hdmi_flag())
+#endif
 	{
 		printk("HDMI is included in the menuconfig\n");
 
@@ -1453,15 +1637,12 @@ static int av8100_probe(struct i2c_client *i2cClient,
 			printk("error in init the hdmi client\n");
 			goto err;
 		}
-		ret = av8100_downlaod_firmware(i2cClient, FIRMWARE_DOWNLOAD_ENTRY_REG, av8100_fw_buff, fw_size, I2C_INTERFACE);
+		ret = av8100_download_firmware(i2cClient, FIRMWARE_DOWNLOAD_ENTRY_REG, av8100_fw_buff, fw_size, I2C_INTERFACE);
 		if(ret != AV8100_OK){
-			ret = av8100_downlaod_firmware(i2cClient, FIRMWARE_DOWNLOAD_ENTRY_REG, av8100_fw_buff, fw_size, I2C_INTERFACE);
-			if(ret != AV8100_OK){
-					printk("error in av8100 firmware download: failed\n");
-					goto err;
-			}
-
+			printk("error in av8100 firmware download: failed\n");
+			goto err;
 		}
+
 		memset(&hdmi_video_input_cmd, 0x0, sizeof(av8100_video_input_format_cmd));
 		memset(&hdmi_video_output_cmd, 0x0, sizeof(av8100_video_output_format_cmd));
 		memset(&hdmi_cmd, 0x0, sizeof(av8100_hdmi_cmd));
@@ -1470,8 +1651,9 @@ static int av8100_probe(struct i2c_client *i2cClient,
 
 		av8100_update_config_params();
 		av8100_configure_hdmi(av8100Data);
+
 #ifndef TEST_PATTERN_TEST
-		kernel_thread(av8100_thread, NULL, CLONE_FS | CLONE_SIGHAND);
+		//kernel_thread(av8100_thread, NULL, CLONE_FS | CLONE_SIGHAND);
 
 		ret = request_irq(pdata->irq, av8100_intr_handler,
 				IRQF_TRIGGER_RISING, "av8100", av8100Data);
@@ -1485,6 +1667,8 @@ static int av8100_probe(struct i2c_client *i2cClient,
 			printk("error in enabling the interrupts\n");
 			goto err;
 		}
+
+		av8100_power_on(av8100Data);
 #endif
 
 	}
@@ -1494,6 +1678,8 @@ err:
 av8100_misc_fail:
 	return ret;
 }
+
+
 /**
  * av8100_remove() - This function will be used to unload the av8100 driver.
  * @i2c:     i2c client device

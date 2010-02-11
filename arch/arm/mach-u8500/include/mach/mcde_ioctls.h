@@ -382,6 +382,9 @@ typedef enum{
   VMODE_712_568_60_P,
   VMODE_640_480_75_P,
   VMODE_640_480_85_P,
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+  VMODE_480_864_60_P,
+#endif
   VMODE_864_480_60_P,
   VMODE_800_600_56_P,
   VMODE_800_600_60_P,
@@ -418,6 +421,9 @@ typedef enum{
   VMODE_1920_1080_50_I,
   VMODE_1920_1080_60_I,
   VMODE_1920_1080_60_P,
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+  VMODE_1920_1080_30_P,
+#endif
 }mcde_video_mode;
 /*****************************************************************************
 IOCTLs for access from user space

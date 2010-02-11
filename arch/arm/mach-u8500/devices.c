@@ -147,6 +147,7 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 153, 171, 1, GPIO_ALTF_B, "mcde tvout"),
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 64, 77, 0, GPIO_ALTF_A, "mcde tvout"),
 #endif
+	__GPIO_ALT(GPIO_ALT_LCD_PANELA, 68, 68, 0, GPIO_ALTF_A, "mcde tvout"),
 	__GPIO_ALT(GPIO_ALT_MMIO_INIT_BOARD, 141, 142, 0, GPIO_ALTF_B, "mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, GPIO_ALTF_A, "mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_EXT_CLK, 227, 228, 0, GPIO_ALTF_A, "mmio"),
@@ -753,6 +754,11 @@ static struct platform_device u8500_i2c_4_controller = {
 		.platform_data = &u8500_i2c_4_private_data}
 };
 
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
+/* Channel C0 */
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+
 static struct resource mcde2_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
@@ -822,6 +828,82 @@ static struct resource mcde2_resources[] = {
 	},
 };
 
+#else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
+static struct resource mcde2_resources[] = {
+	[0] = {
+		.start = U8500_MCDE_BASE,
+		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
+		.name = "mcde_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = U8500_MCDE_EXTSRC_BASE,
+		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name = "mcde_extsrc_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = U8500_MCDE_OVL_BASE,
+		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
+		.name = "mcde_overlay_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[3] = {
+		.start = U8500_MCDE_CHANNELC0_CONFIG_BASE,
+		.end = U8500_MCDE_CHANNELC0_CONFIG_BASE +
+			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name = "chc0_config",
+		.flags = IORESOURCE_MEM,
+	},
+	[4] = {
+		.start = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "chb_specific",
+		.flags = IORESOURCE_MEM,
+	},
+	[5] = {
+		.start = U8500_MCDE_DSI_CHANNEL_BASE,
+		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name = "mcde_dsi_channel_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[6] = {
+		.start = U8500_DSI_LINK1_BASE,
+		.end = U8500_DSI_LINK1_BASE +
+			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
+		.name = "dsi_link_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[7] = {
+		.start = PRCM_MCDECLK_MGT_REG,
+		.end = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_mcde_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[8] = {
+		.start = PRCM_HDMICLK_MGT_REG,
+		.end = PRCM_HDMICLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_hdmi_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[9] = {
+		.start = PRCM_TVCLK_MGT_REG,
+		.end = PRCM_TVCLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_tv_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[10] = {
+		.start = IRQ_DISP,
+		.end = IRQ_DISP,
+		.name = "mcde_irq",
+		.flags = IORESOURCE_IRQ
+	},
+};
+
+#endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
 static struct mcde_channel_data mcde2_channel_data = {
 	.channelid  = CHANNEL_C0,
 	.nopan = 1,
@@ -852,8 +934,13 @@ static struct platform_device mcde2_device = {
 	.num_resources = ARRAY_SIZE(mcde2_resources),
 	.resource = mcde2_resources
 };
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC0 */
 
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
 /* Channel C1 */
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+
 static struct resource mcde3_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
@@ -923,6 +1010,82 @@ static struct resource mcde3_resources[] = {
 	},
 };
 
+#else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
+static struct resource mcde3_resources[] = {
+	[0] = {
+		.start = U8500_MCDE_BASE,
+		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
+		.name = "mcde_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = U8500_MCDE_EXTSRC_BASE,
+		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name = "mcde_extsrc_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = U8500_MCDE_OVL_BASE,
+		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
+		.name = "mcde_overlay_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[3] = {
+		.start = U8500_MCDE_CHANNELC1_CONFIG_BASE,
+		.end = U8500_MCDE_CHANNELC1_CONFIG_BASE +
+			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name = "chc1_config",
+		.flags = IORESOURCE_MEM,
+	},
+	[4] = {
+		.start = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNELC_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "chb_specific",
+		.flags = IORESOURCE_MEM,
+	},
+	[5] = {
+		.start = U8500_MCDE_DSI_CHANNEL_BASE,
+		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name = "mcde_dsi_channel_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[6] = {
+		.start = U8500_DSI_LINK1_BASE,
+		.end = U8500_DSI_LINK1_BASE +
+			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
+		.name = "dsi_link_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[7] = {
+		.start = PRCM_MCDECLK_MGT_REG,
+		.end = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_mcde_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[8] = {
+		.start = PRCM_HDMICLK_MGT_REG,
+		.end = PRCM_HDMICLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_hdmi_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[9] = {
+		.start = PRCM_TVCLK_MGT_REG,
+		.end = PRCM_TVCLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_tv_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[10] = {
+		.start = IRQ_DISP,
+		.end = IRQ_DISP,
+		.name = "mcde_irq",
+		.flags = IORESOURCE_IRQ
+	},
+};
+
+#endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
 static struct mcde_channel_data mcde3_channel_data = {
 	.channelid  = CHANNEL_C1,
 	.nopan = 1,
@@ -954,6 +1117,12 @@ static struct platform_device mcde3_device = {
 	.num_resources = ARRAY_SIZE(mcde3_resources),
 	.resource = mcde3_resources
 };
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC1 */
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
+/* Channel B */
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
 
 static struct resource mcde1_resources[] = {
 	[0] = {
@@ -1021,8 +1190,84 @@ static struct resource mcde1_resources[] = {
 		.end = IRQ_DISP,
 		.name = "mcde_irq",
 		.flags = IORESOURCE_IRQ
-}	,
+	},
 };
+
+#else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
+static struct resource mcde1_resources[] = {
+	[0] = {
+		.start = U8500_MCDE_BASE,
+		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
+		.name = "mcde_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = U8500_MCDE_EXTSRC_BASE,
+		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name = "mcde_extsrc_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = U8500_MCDE_OVL_BASE,
+		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
+		.name = "mcde_overlay_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[3] = {
+		.start = U8500_MCDE_CHANNELB_CONFIG_BASE,
+		.end = U8500_MCDE_CHANNELB_CONFIG_BASE +
+			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name = "chb_config",
+		.flags = IORESOURCE_MEM,
+	},
+	[4] = {
+		.start = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE +
+			 (U8500_MCDE_CHANNEL_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "chb_specific",
+		.flags = IORESOURCE_MEM,
+	},
+	[5] = {
+		.start = U8500_MCDE_DSI_CHANNEL_BASE,
+		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name = "mcde_dsi_channel_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[6] = {
+		.start = U8500_DSI_LINK1_BASE,
+		.end = U8500_DSI_LINK1_BASE +
+			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
+		.name = "dsi_link_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[7] = {
+		.start = PRCM_MCDECLK_MGT_REG,
+		.end = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_mcde_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[8] = {
+		.start = PRCM_HDMICLK_MGT_REG,
+		.end = PRCM_HDMICLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_hdmi_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[9] = {
+		.start = PRCM_TVCLK_MGT_REG,
+		.end = PRCM_TVCLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_tv_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[10] = {
+		.start = IRQ_DISP,
+		.end = IRQ_DISP,
+		.name = "mcde_irq",
+		.flags = IORESOURCE_IRQ
+	},
+};
+
+#endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
 
 static struct mcde_channel_data mcde1_channel_data = {
 	.channelid  = CHANNEL_B,
@@ -1055,10 +1300,13 @@ static struct platform_device mcde1_device = {
 	.num_resources = ARRAY_SIZE(mcde1_resources),
 	.resource = mcde1_resources
 };
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELB */
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
-
 /* Channel A */
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+
 static struct resource mcde0_resources[] = {
 	[0] = {
 		.start = U8500_MCDE_BASE,
@@ -1128,6 +1376,82 @@ static struct resource mcde0_resources[] = {
 	},
 };
 
+#else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
+static struct resource mcde0_resources[] = {
+	[0] = {
+		.start = U8500_MCDE_BASE,
+		.end = U8500_MCDE_BASE + (U8500_MCDE_REGISTER_SIZE  - 1),
+		.name = "mcde_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = U8500_MCDE_EXTSRC_BASE,
+		.end = U8500_MCDE_EXTSRC_BASE + (U8500_MCDE_EXTSRC_SIZE - 1),
+		.name = "mcde_extsrc_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = U8500_MCDE_OVL_BASE,
+		.end = U8500_MCDE_OVL_BASE + (U8500_MCDE_OVL_SIZE - 1),
+		.name = "mcde_overlay_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[3] = {
+		.start = U8500_MCDE_CHANNELA_CONFIG_BASE,
+		.end = U8500_MCDE_CHANNELA_CONFIG_BASE +
+			(U8500_MCDE_CHANNEL_CONFIG_SIZE - 1),
+		.name = "cha_config",
+		.flags = IORESOURCE_MEM,
+	},
+	[4] = {
+		.start = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNEL_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "cha_specific",
+		.flags = IORESOURCE_MEM,
+	},
+	[5] = {
+		.start = U8500_MCDE_DSI_CHANNEL_BASE,
+		.end = U8500_MCDE_DSI_CHANNEL_BASE + (U8500_MCDE_DSI_SIZE - 1),
+		.name = "mcde_dsi_channel_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[6] = {
+		.start = U8500_DSI_LINK1_BASE,
+		.end = U8500_DSI_LINK1_BASE +
+			((U8500_DSI_LINK_SIZE*U8500_DSI_LINK_COUNT) - 1),
+		.name = "dsi_link_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[7] = {
+		.start = PRCM_MCDECLK_MGT_REG,
+		.end = PRCM_MCDECLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_mcde_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[8] = {
+		.start = PRCM_HDMICLK_MGT_REG,
+		.end = PRCM_HDMICLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_hdmi_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[9] = {
+		.start = PRCM_TVCLK_MGT_REG,
+		.end = PRCM_TVCLK_MGT_REG + (sizeof(u32) - 1),
+		.name = "prcm_tv_clk",
+		.flags = IORESOURCE_MEM,
+	},
+	[10] = {
+		.start = IRQ_DISP,
+		.end = IRQ_DISP,
+		.name = "mcde_irq",
+		.flags = IORESOURCE_IRQ
+	},
+};
+
+#endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
 static struct mcde_channel_data mcde0_channel_data = {
 	.channelid  = CHANNEL_A,
 	.nopan = 1,
@@ -1151,8 +1475,7 @@ static struct platform_device mcde0_device = {
 	.num_resources = ARRAY_SIZE(mcde0_resources),
 	.resource = mcde0_resources
 };
-
-#endif
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
 
 static struct hsi_plat_data hsit_platform_data = {
 	.dev_type = 0x0 /** transmitter */ ,
@@ -2337,12 +2660,18 @@ static struct platform_device *core_devices[] __initdata = {
 	&u8500_shrm_device,
 	&ab8500_device,
 	&musb_device,
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	&mcde2_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC0 */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
 	&mcde3_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC1 */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
 	&mcde1_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELB */
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	&mcde0_device,
-#endif
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
 	&b2r2_device,
 	&pmem_device,
 	&pmem_mio_device,

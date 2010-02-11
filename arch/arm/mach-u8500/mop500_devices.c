@@ -268,6 +268,7 @@ static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
 	},
 	{
 		I2C_BOARD_INFO("av8100", 0x70),
+		.platform_data = &av8100_plat_data,
 	},
 	{
 	 /* FIXME - address TBD, TODO */

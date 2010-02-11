@@ -34,40 +34,42 @@
 #define TE_INTERRUPT_MASK 0x40
 #define UNDER_OVER_FLOW_INTERRUPT_MASK 0x20
 
-#define REG_16_8_LSB(p)  (unsigned char)(p && 0xFF)
-#define REG_16_8_MSB(p)  (unsigned char)((p && 0xFF00)>>8)
-#define REG_32_8_MSB(p)  (unsigned char)((p && 0xFF000000)>>24)
-#define REG_32_8_MMSB(p) (unsigned char)((p && 0x00FF0000)>>16)
-#define REG_32_8_MLSB(p) (unsigned char)((p && 0x0000FF00)>>8)
-#define REG_32_8_LSB(p)   (unsigned char)(p && 0x000000FF)
+#define REG_16_8_LSB(p)  (unsigned char)(p & 0xFF)
+#define REG_16_8_MSB(p)  (unsigned char)((p & 0xFF00)>>8)
+#define REG_32_8_MSB(p)  (unsigned char)((p & 0xFF000000)>>24)
+#define REG_32_8_MMSB(p) (unsigned char)((p & 0x00FF0000)>>16)
+#define REG_32_8_MLSB(p) (unsigned char)((p & 0x0000FF00)>>8)
+#define REG_32_8_LSB(p)   (unsigned char)(p & 0x000000FF)
 
-/* Global data */
-static struct i2c_driver av8100_driver;
-static char buffer[AV8100_COMMAND_MAX_LENGTH];
 /**
  * struct av8100_cea - CEA(consumer electronic access) standard structure
  * @cea_id:
  * @cea_nb:
  * @vtotale:
  **/
-typedef struct {
-    char cea_id[40] ;
-    int cea_nb ;
-    //float vtotale;
-    int vtotale;
-    int vactive;
-    int vstovid ;
-    int vslen ;
-    int hvoffset;
-    char vpol[5];
-    int htotale;
-    int hactive;
-    int vidtohs ;
-    int hslen ;
-    int frequence;
-    char hpol[5];
-}av8100_cea;
 
+ typedef struct {
+     char cea_id[40] ;
+     int cea_nb ;
+     int vtotale;
+     int vactive;
+     int vsbp ;
+     int vslen ;
+     int vsfp;
+     char vpol[5];
+     int htotale;
+     int hactive;
+     int hbp ;
+     int hslen ;
+     int hfp;
+     int frequence;
+     char hpol[5];
+     int reg_line_duration;
+     int blkoel_duration;
+     int uix4;
+     int pll_mult;
+     int pll_div;
+}av8100_cea;
 
 /**
  * struct av8100_data - av8100_ internal structure
@@ -184,33 +186,3 @@ typedef struct {
     av8100_DVI_format            dvi_format; /* used only if HDMI_format = DVI*/
 } av8100_hdmi_cmd;
 /* STWav8100 Private functions */
-
-static int av8100_open(struct inode *inode, struct file *filp);
-static int av8100_release(struct inode *inode, struct file *filp);
-static int av8100_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
-static irqreturn_t av8100_intr_handler(int irq,struct av8100_data *av8100_Data);
-static int av8100_write_multi_byte(struct i2c_client *client, unsigned char regOffset,unsigned char *buf,unsigned char nbytes);
-static int av8100_write_single_byte(struct i2c_client *client, unsigned char reg,unsigned char data);
-static int av8100_read_multi_byte(struct i2c_client *client,unsigned char reg,unsigned char *buf, unsigned char nbytes);
-static int av8100_read_single_byte(struct i2c_client *client,unsigned char reg, unsigned char* val);
-static int configure_av8100_video_input(char* buffer_temp);
-static int configure_av8100_audio_input(char* buffer_temp);
-static int configure_av8100_video_output(char* buffer_temp);
-static int configure_av8100_video_scaling(char* buffer_temp);
-static int configure_av8100_colorspace_conversion(char* buffer_temp);
-static int configure_av8100_cec_message_write(char* buffer_temp);
-static int configure_av8100_cec_message_read(char* buffer_temp);
-static int configure_av8100_denc(char* buffer_temp);
-static int configure_av8100_hdmi(char* buffer_temp);
-static int configure_av8100_hdcp_senkey(char* buffer_temp);
-static int configure_av8100_hdcp_management(char* buffer_temp);
-static int configure_av8100_infoframe(char* buffer_temp);
-static int configure_av8100_pattern_generator(char* buffer_temp);
-static int read_edid_info(struct i2c_client *i2c, char* buff);
-static int av8100_send_command (struct i2c_client *i2cClient, int command_type, enum interface if_type);
-static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id);
-static int av8100_probe(struct i2c_client *i2cClient,const struct i2c_device_id *id);
-static int __exit av8100_remove(struct i2c_client *i2cClient);
-static int av8100_downlaod_firmware(struct i2c_client *i2c, char regoffset, char* fw_buff, int numOfBytes, enum interface if_type);
-
-void av8100_update_config_params();

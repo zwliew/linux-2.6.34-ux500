@@ -523,6 +523,9 @@
 /*******************************************************************
    Register Structure
 ********************************************************************/
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+
 struct mcde_ext_src_reg
 {
     volatile u32 mcde_extsrc_a0;
@@ -665,5 +668,127 @@ struct mcde_top_reg
     volatile u32 mcde_reserved2[46];
     volatile u32 mcde_pid;
 };
+
+#else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
+struct mcde_ext_src_reg
+{
+    volatile u32 mcde_extsrc_a0;
+    volatile u32 mcde_extsrc_a1;
+    volatile u32 mcde_extsrc_a2;
+    volatile u32 mcde_extsrc_conf;
+    volatile u32 mcde_extsrc_cr;
+    volatile u32 mcde_unused1[3];
+};
+
+struct mcde_ovl_reg
+{
+    volatile u32 mcde_ovl_cr;
+    volatile u32 mcde_ovl_conf;
+    volatile u32 mcde_ovl_conf2;
+    volatile u32 mcde_ovl_ljinc;
+    volatile u32 mcde_ovl_crop;
+    volatile u32 mcde_ovl_top_left_clip;
+    volatile u32 mcde_ovl_bot_rht_clip;
+    volatile u32 mcde_ovl_comp;
+};
+
+struct mcde_ch_synch_reg
+{
+    volatile u32 mcde_ch_conf;
+    volatile u32 mcde_ch_stat;
+    volatile u32 mcde_chsyn_mod;
+    volatile u32 mcde_chsyn_sw;
+    volatile u32 mcde_chsyn_bck;
+    volatile u32 mcde_chsyn_prio;
+    volatile u32 mcde_unused3[2];
+};
+
+struct mcde_ch_reg
+{
+    volatile u32 mcde_ch_cr0;
+    volatile u32 mcde_ch_cr1;
+    volatile u32 mcde_ch_colkey;
+    volatile u32 mcde_ch_fcolkey;
+    volatile u32 mcde_ch_rgbconv1;
+    volatile u32 mcde_ch_rgbconv2;
+    volatile u32 mcde_ch_rgbconv3;
+    volatile u32 mcde_ch_rgbconv4;
+    volatile u32 mcde_ch_rgbconv5;
+    volatile u32 mcde_ch_rgbconv6;
+    volatile u32 mcde_ch_ffcoef0;
+    volatile u32 mcde_ch_ffcoef1;
+    volatile u32 mcde_ch_ffcoef2;
+    volatile u32 unused;
+    volatile u32 mcde_ch_tvcr;
+    volatile u32 mcde_ch_tvbl1;
+    volatile u32 mcde_ch_tvisl;
+    volatile u32 mcde_ch_tvdvo;
+    volatile u32 mcde_ch_tvswh;
+    volatile u32 mcde_ch_tvtim1;
+    volatile u32 mcde_ch_tvbalw;
+    volatile u32 mcde_ch_tvbl2;
+    volatile u32 mcde_ch_tvblu;
+    volatile u32 mcde_ch_lcdtim0;
+    volatile u32 mcde_ch_lcdtim1;
+    volatile u32 mcde_ch_ditctrl;
+    volatile u32 mcde_ch_ditoff;
+    volatile u32 mcde_ch_pal;
+    volatile u32 mcde_ch_gam;
+    volatile u32 mcde_rotadd0;
+    volatile u32 mcde_rotadd1;
+    volatile u32 mcde_chsyn_con;
+    volatile u32 mcde_unused7[96];
+};
+
+struct mcde_dsi_reg
+{
+    volatile u32 mcde_dsi_conf0;
+    volatile u32 mcde_dsi_frame;
+    volatile u32 mcde_dsi_pkt;
+    volatile u32 mcde_dsi_sync;
+    volatile u32 mcde_dsi_cmd;
+    volatile u32 mcde_reserved2[3];
+};
+
+struct mcde_chc_reg
+{
+    volatile u32 mcde_chc_crc;
+    volatile u32 mcde_chc_pbcrc0;
+    volatile u32 mcde_chc_pbcrc1;
+    volatile u32 mcde_chc_pbcbmrc0[5];
+    volatile u32 mcde_chc_pbcbmrc1[5];
+    volatile u32 mcde_chc_pbcbcrc0[2];
+    volatile u32 mcde_unused5[3];
+    volatile u32 mcde_chc_pbcbcrc1[2];
+    volatile u32 mcde_unused6[3];
+    volatile u32 mcde_chc_vscrc[2];
+    volatile u32 mcde_chc_sctrc;
+    volatile u32 mcde_chc_scsr;
+    volatile u32 mcde_chc_bcnr[2];
+    volatile u32 mcde_chc_cscdtr[2];
+    volatile u32 mcde_chc_rdwrtr[2];
+    volatile u32 mcde_chc_dotr[2];
+    volatile u32 mcde_chc_wcmd[2];
+    volatile u32 mcde_chc_wd[2];
+    volatile u32 mcde_chc_rdata[2];
+};
+
+struct mcde_register_base
+{
+    volatile u32 mcde_cr;
+    volatile u32 mcde_cfg0;
+    volatile u32 mcde_reserved1[62];
+    volatile u32 mcde_ais;
+    volatile u32 mcde_imsc;
+    volatile u32 mcde_ris;
+    volatile u32 mcde_mis;
+    volatile u32 mcde_sis;
+    volatile u32 mcde_ssi;
+    volatile u32 mcde_reserved2[57];
+    volatile u32 mcde_pid;
+};
+
+#endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
 
 #endif

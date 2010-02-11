@@ -1312,7 +1312,6 @@ bool mcde_get_hdmi_flag(void);
 void mcde_configure_hdmi_channel(void);
 void mcde_hdmi_display_init_command_mode(void);
 void mcde_hdmi_display_init_video_mode(void);
-void u8500_mcde_tasklet_4(unsigned long);
 void mcde_hdmi_test_directcommand_mode_highspeed(void);
 void mcde_send_hdmi_cmd_data(char* buf,int length, int dsicommand);
 void mcde_send_hdmi_cmd(char* buf,int length, int dsicommand);
