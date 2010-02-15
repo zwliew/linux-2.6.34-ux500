@@ -35,7 +35,7 @@ extern "C" {
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
-
+#include <linux/regulator/consumer.h>
 #include <asm/dma.h>
 #include <asm/uaccess.h>
 #include <mach/mcde_common.h>
@@ -94,6 +94,15 @@ void mcde_fb_unlock(struct fb_info *info, const char *caller)
 #define DSI_TAAL_DISPLAY
 
 int mcde_debug = MCDE_DEFAULT_LOG_LEVEL;
+
+#if CONFIG_REGULATOR
+static const char *supply_names[] = {
+	"v-ana",
+	"v-mcde",
+};
+
+struct regulator_bulk_data mcde_supplies[ARRAY_SIZE(supply_names)];
+#endif
 
 char isVideoModeChanged = 0;
 unsigned int mcde_4500_plugstatus=0;
@@ -3516,7 +3525,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	u8  *dsilinkAddr = NULL;
 	u32 rotationframesize = 0;
 	int data_4500;
-
+	int i, ret;
 #ifdef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 	volatile u32 __iomem *clcd_clk;
 #endif
@@ -3533,6 +3542,18 @@ static int __init mcde_probe(struct platform_device *pdev)
 
 	dev = &pdev->dev;
 	channel_info = (struct mcde_channel_data *) dev->platform_data;
+
+#if CONFIG_REGULATOR
+	for (i = 0; i < ARRAY_SIZE(supply_names); i++)
+		mcde_supplies[i].supply = supply_names[i];
+
+	ret = regulator_bulk_get(&pdev->dev,
+			ARRAY_SIZE(mcde_supplies),
+			mcde_supplies);
+
+	ret = regulator_bulk_enable(ARRAY_SIZE(mcde_supplies),
+			mcde_supplies);
+#endif
 
 	/* Enable the PWM control for the backlight */
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, 0x7);
