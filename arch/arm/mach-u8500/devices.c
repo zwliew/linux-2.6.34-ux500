@@ -2828,6 +2828,30 @@ static struct regulator_init_data db8500_vape_init = {
 static int db8500_vana_regulator_init(void) { return 0; }
 
 static struct regulator_consumer_supply db8500_vana_consumers[] = {
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
+	{
+		.dev = &mcde0_device.dev,
+		.supply = "v-ana",
+	},
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
+	{
+		.dev = &mcde1_device.dev,
+		.supply = "v-ana",
+	},
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
+	{
+		.dev = &mcde2_device.dev,
+		.supply = "v-ana",
+	},
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
+	{
+		.dev = &mcde3_device.dev,
+		.supply = "v-ana",
+	},
+#endif
 };
 
 static struct regulator_init_data db8500_vana_init = {
@@ -2867,6 +2891,30 @@ static struct platform_device db8500_vape_regulator_dev = {
 static int ab8500_vaux1_regulator_init(void) { return 0; }
 
 static struct regulator_consumer_supply ab8500_vaux1_consumers[] = {
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
+	{
+		.dev = &mcde0_device.dev,
+		.supply = "v-mcde",
+	},
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
+	{
+		.dev = &mcde1_device.dev,
+		.supply = "v-mcde",
+	},
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
+	{
+		.dev = &mcde2_device.dev,
+		.supply = "v-mcde",
+	},
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
+	{
+		.dev = &mcde3_device.dev,
+		.supply = "v-mcde",
+	},
+#endif
 };
 
 static struct regulator_init_data ab8500_vaux1_init = {
