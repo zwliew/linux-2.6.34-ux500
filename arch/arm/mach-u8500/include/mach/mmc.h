@@ -253,6 +253,9 @@ struct u8500_mmci_host {
 	struct mmc_data *data;
 	struct mmc_host *mmc;
 	struct clk *clk;
+#if CONFIG_REGULATOR
+	struct regulator *regulator;
+#endif
 	unsigned int data_xfered;
 	spinlock_t lock;
 	unsigned int mclk;
@@ -329,6 +332,9 @@ struct mmc_board {
 	unsigned int level_shifter;
 	unsigned long	caps;	/* Host capabilities */
 	int is_sdio;		/* To check if the bus is SD/MMC or sdio */
+#if CONFIG_REGULATOR
+	const char *supply;
+#endif
 };
 
 
