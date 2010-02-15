@@ -179,6 +179,12 @@ config REGULATOR_AB3100
 	 AB3100 analog baseband dealing with power regulators
 	 for the system.
 
+config REGULATOR_AB8500
+	tristate "AB8500 regulator driver"
+	help
+	  Say Y here to support the voltage regulators and convertors
+	  on AB8500
+
 config REGULATOR_TPS65023
 	tristate "TI TPS65023 Power regulators"
 	depends on I2C
