@@ -88,6 +88,7 @@ int tp_gpio_board_init(void)
 	void __iomem *clk_base;
 	unsigned int clk_value;
 #endif
+#if !CONFIG_REGULATOR
 	/** Set the voltage for Bu21013 controller */
 	val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG);
 
@@ -97,7 +98,7 @@ int tp_gpio_board_init(void)
 	val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX1_SEL_REG);
 
 	ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX1_SEL_REG, 0x0C);
-
+#endif
 #ifdef CONFIG_TOUCHP_EXT_CLK
 	stm_gpio_altfuncenable(GPIO_ALT_TP_SET_EXT_CLK);
 	clk_base = (void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + 0x1CC);
