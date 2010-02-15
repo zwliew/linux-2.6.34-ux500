@@ -191,9 +191,9 @@ typedef enum {
  */
 typedef enum {
 	ARM_NO_CHANGE = 0x00,
-	ARM_100_OPP = 0x01,
-	ARM_50_OPP = 0x02,
-	ARM_EXTCLK = 0x03
+	ARM_100_OPP = 0x02,
+	ARM_50_OPP = 0x03,
+	ARM_EXTCLK = 0x07
 } arm_opp_t;
 
 /**
