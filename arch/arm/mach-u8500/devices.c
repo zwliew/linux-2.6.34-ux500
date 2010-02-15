@@ -2797,6 +2797,72 @@ static void __init amba_add_devices(struct amba_device *devs[], int num)
 #define AB8500_VAUXN_LDO_MIN_VOLTAGE    (1100000)
 #define AB8500_VAUXN_LDO_MAX_VOLTAGE    (3300000)
 
+#define U8500_VAPE_REGULATOR_MIN_VOLTAGE       (1800000)
+#define U8500_VAPE_REGULATOR_MAX_VOLTAGE       (2000000)
+
+static int db8500_vape_regulator_init(void)
+{ return 0; }
+
+/* tying VAPE regulator to symbolic consumer devices */
+static struct regulator_consumer_supply db8500_vape_consumers[] = {
+};
+
+/* VAPE supply, for interconnect */
+static struct regulator_init_data db8500_vape_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "DB8500-VAPE",
+		.min_uV = U8500_VAPE_REGULATOR_MIN_VOLTAGE,
+		.max_uV = U8500_VAPE_REGULATOR_MAX_VOLTAGE,
+		.input_uV = 330000,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE|REGULATOR_CHANGE_DRMS,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(db8500_vape_consumers),
+	.regulator_init = db8500_vape_regulator_init,
+	.consumer_supplies = db8500_vape_consumers,
+};
+
+/* VANA Supply, for analogue part of displays */
+static int db8500_vana_regulator_init(void) { return 0; }
+
+static struct regulator_consumer_supply db8500_vana_consumers[] = {
+};
+
+static struct regulator_init_data db8500_vana_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "VANA",
+		.min_uV = U8500_VAPE_REGULATOR_MIN_VOLTAGE,
+		.max_uV = U8500_VAPE_REGULATOR_MAX_VOLTAGE,
+		.input_uV = 330000,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE|REGULATOR_CHANGE_DRMS,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(db8500_vana_consumers),
+	.regulator_init = db8500_vana_regulator_init,
+	.consumer_supplies = db8500_vana_consumers,
+};
+
+static struct platform_device db8500_vana_regulator_dev = {
+	.name = "db8500-regulator",
+	.id   = 1,
+	.dev  = {
+		.platform_data = &db8500_vana_init,
+	},
+};
+
+
+static struct platform_device db8500_vape_regulator_dev = {
+	.name = "db8500-regulator",
+	.id   = 0,
+	.dev  = {
+		.platform_data = &db8500_vape_init,
+	},
+};
+
 /* VAUX1 supply */
 static int ab8500_vaux1_regulator_init(void) { return 0; }
 
@@ -2864,6 +2930,8 @@ static struct platform_device ab8500_vaux2_regulator_dev = {
 };
 
 static struct platform_device *u8500_regulators[] = {
+	&db8500_vape_regulator_dev,
+	&db8500_vana_regulator_dev,
 	&ab8500_vaux1_regulator_dev,
 	&ab8500_vaux2_regulator_dev,
 };
