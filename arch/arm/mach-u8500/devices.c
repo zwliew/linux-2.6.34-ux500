@@ -2202,19 +2202,6 @@ static int emmc_configure(struct amba_device *dev)
 	}
 	stm_gpio_altfuncenable(GPIO_ALT_EMMC);
 
-
-	/* FIXME: Move to board file! */
-	if (!u8500_is_earlydrop()) {
-		int val;
-
-		/* On V1 MOP, regulator to on-board eMMC is off by default */
-		val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG);
-		ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG, val | 0x4);
-
-		val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX2_SEL_REG);
-		ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX2_SEL_REG, 0x0C);
-	}
-
 	return 0;
 }
 
@@ -2230,6 +2217,9 @@ static struct mmc_board emmc_data = {
 	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM4_RX,
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM4_TX,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA | MMC_CAP_MMC_HIGHSPEED,
+#if CONFIG_REGULATOR
+	.supply = "v-eMMC" /* tying to VAUX1 regulator */
+#endif
 };
 
 static struct amba_device sdi4_device = {
@@ -2832,7 +2822,12 @@ static struct regulator_init_data ab8500_vaux1_init = {
 
 static int ab8500_vaux2_regulator_init(void) { return 0; }
 
+/* supply for on-board eMMC */
 static struct regulator_consumer_supply ab8500_vaux2_consumers[] = {
+	{
+		.dev    = &sdi4_device.dev,
+		.supply = "v-eMMC",
+	}
 };
 
 static struct regulator_init_data ab8500_vaux2_init = {
