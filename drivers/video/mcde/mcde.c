@@ -3534,6 +3534,11 @@ static int __init mcde_probe(struct platform_device *pdev)
 	dev = &pdev->dev;
 	channel_info = (struct mcde_channel_data *) dev->platform_data;
 
+	/* Enable the PWM control for the backlight */
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, 0x7);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, 0xFF);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, 0x03);
+
 	printk(KERN_ERR "Init i2c\n");
 
 	/** To be removed I2C */
