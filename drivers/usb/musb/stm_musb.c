@@ -104,8 +104,7 @@ static struct kobj_type ktype_usbstatus = {
 static struct timer_list notify_timer;
 
 /**
- * ulpi_read_register() - Read the usb register from particular
- * address writing into ULPI
+ * ulpi_read_register() - Read the usb register from address writing into ULPI
  * @musb: struct musb pointer.
  * @address: address for reading from ULPI register of USB
  *

@@ -42,9 +42,9 @@ static void tsc_clear_irq(struct i2c_client *i2c);
 static void tsc_en_irq(struct i2c_client *i2c);
 #ifndef CONFIG_TOUCH_HREF_V1
 static void tsc_callback(void *tsc);
-#else  //CONFIG_TOUCH_HREF_V1
+#else
 static irqreturn_t tsc_callback(int irq,  void *device_data);
-#endif //CONFIG_TOUCH_HREF_V1
+#endif
 static int tsc_driver_register(struct u8500_tsc_data *pdata);
 static void tsc_timer_callback(unsigned long data);
 
@@ -53,8 +53,7 @@ static tsc_error tsc_read_byte(struct i2c_client *i2c, u8 reg, unsigned char *va
 #endif
 
 /**
- * tsc_write_byte() - Write a single byte to touch screen
- * through i2c interface.
+ * tsc_write_byte() - Write a single byte to touch screen.
  * @i2c:i2c client structure
  * @reg:register offset
  * @value:data byte to be written
@@ -74,8 +73,7 @@ static tsc_error tsc_write_byte(struct i2c_client *i2c, u8 reg,
 }
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 /**
- * tsc_read_byte() - read single byte from touch screen(bu21013)
- * through i2c interface
+ * tsc_read_byte() - read single byte from touch screen
  * @i2c:i2c client structure
  * @reg:register offset
  * @val:value to get from i2c register
@@ -113,8 +111,7 @@ static int tsc_read_block(struct i2c_client *i2c, u8 reg, u8 *buf, u8 nbytes)
 	return TSC_OK;
 }
 /**
- * tsc_read_10bit() - read 10 bit data from touch screen(bu21013)
- * through i2c interface
+ * tsc_read_10bit() - read 10 bit data from touch screen
  * @i2c:i2c client structure
  * @reg:register offset
  * @val:value to get from i2c register
@@ -569,7 +566,7 @@ static void tsc_en_irq(struct i2c_client *i2c)
 static void tsc_input_report(struct u8500_tsc_data *data, unsigned int value)
 {
 	if (value) {
-		if(data->gesture_info.pt[0].x && data->gesture_info.pt[0].y) {
+		if (data->gesture_info.pt[0].x && data->gesture_info.pt[0].y) {
 	#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
 		input_report_abs(data->pin_dev, ABS_X,
 					data->gesture_info.pt[0].x);
@@ -623,7 +620,7 @@ static void tsc_callback(void *device_data)
 	data->touchp_flag = 1;
 	wake_up_interruptible(&data->touchp_event);
 }
-#else //CONFIG_TOUCH_HREF_V1
+#else
 static irqreturn_t tsc_callback(int irq, void *device_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
@@ -631,7 +628,7 @@ static irqreturn_t tsc_callback(int irq, void *device_data)
 	wake_up_interruptible(&data->touchp_event);
 	return IRQ_HANDLED;
 }
-#endif //CONFIG_TOUCH_HREF_V1
+#endif
 
 
 /**
@@ -662,12 +659,10 @@ static void tsc_timer_wq(struct work_struct *work)
 	int retval;
 	struct task_struct *tsk = current;
 
-
 	set_task_state(tsk, TASK_INTERRUPTIBLE);
 	pin_value = data->chip->pirq_read_val();
 	if (pin_value == 1) {
 		/* The pen is up */
-		//printk("pen is up value = %d \n",pin_value);
 		tsc_clear_irq(data->client);
 		tsc_en_irq(data->client);
 		return ;
@@ -686,7 +681,8 @@ static void tsc_timer_wq(struct work_struct *work)
 
 /**
  * touchp_thread() - get the touch panel co-ordinates
- * @data:     u8500_tsc_data structure pointer
+ * @_data:     u8500_tsc_data structure pointer
+ *
  * This function will be used to
  * get the touch co-ordinates from the touch panel chip
  **/
@@ -890,7 +886,7 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c)
 		dev_err(&i2c->dev, "FB reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x50 );
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x50);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FC reg i2c smbus write byte failed\n");
 		goto err;
@@ -1012,17 +1008,16 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 				goto err_init_irq;
 			}
 		}
-#else //CONFIG_TOUCH_HREF_V1
-		printk(" HREF v1 irq=%d \n",pdev_data->chip->irq);
+#else
 		retval = request_irq(pdev_data->chip->irq, tsc_callback,
-						IRQF_TRIGGER_FALLING, DRIVER_TP1, pdev_data);
+					IRQF_TRIGGER_FALLING, DRIVER_TP1, pdev_data);
 		if (retval) {
-				dev_err(&pdev_data->client->dev,
-						"unable to request for the irq %d\n", pdev_data->chip->irq);
+			dev_err(&pdev_data->client->dev,
+				"unable to request for the irq %d\n", pdev_data->chip->irq);
 				gpio_free(pdev_data->chip->irq);
 				return retval;
 		}
-#endif //CONFIG_TOUCH_HREF_V1
+#endif
 		retval = getCalibStatus(pdev_data->client);
 		if (retval < 0) {
 			dev_err(&pdev_data->client->dev,

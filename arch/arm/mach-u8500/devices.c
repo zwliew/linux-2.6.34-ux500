@@ -138,9 +138,9 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 #ifndef CONFIG_FB_NOMADIK_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 #ifndef CONFIG_TOUCH_HREF_V1
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 85, 1, GPIO_ALTF_A, "mcde tvout"),
-#else   //CONFIG_TOUCH_HREF_V1
+#else
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 81, 1, GPIO_ALTF_A, "mcde tvout"),
-#endif  //CONFIG_TOUCH_HREF_V1
+#endif
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 150, 150, 0, GPIO_ALTF_B, "mcde tvout"),
 #else
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 153, 171, 1, GPIO_ALTF_B, "mcde tvout"),

@@ -621,7 +621,6 @@ config U8500_TSC
 	endchoice
 
 config TOUCH_HREF_V1
-	default y
 	bool "configure for HREF V1 touch panel"
 	depends on U8500_TSC
 
