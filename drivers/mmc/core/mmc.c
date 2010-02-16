@@ -222,8 +222,18 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
+
+#if defined(CONFIG_MMC_U8500)
+		/*size is greater than 2GB*/
+		if (card->ext_csd.sectors > 4194304)
+			mmc_card_set_blockaddr(card);
+		if (ext_csd[EXT_CSD_CARD_TYPE] > 3)
+			ext_csd[EXT_CSD_CARD_TYPE] = 3;
+#else
+
 		if (card->ext_csd.sectors)
 			mmc_card_set_blockaddr(card);
+#endif
 	}
 
 	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
