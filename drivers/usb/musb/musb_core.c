@@ -106,7 +106,7 @@
 #endif
 
 #include "musb_core.h"
-
+#include "ste_config.h"
 
 #ifdef CONFIG_ARCH_DAVINCI
 #include "davinci.h"
@@ -989,7 +989,11 @@ static void musb_shutdown(struct platform_device *pdev)
 	defined(CONFIG_ARCH_OMAP2430) || defined(CONFIG_ARCH_OMAP3)
 static ushort __initdata fifo_mode = 4;
 #else
+#ifndef CONFIG_USB_U8500
 static ushort __initdata fifo_mode = 2;
+#else
+static ushort __initdata fifo_mode = 5;
+#endif
 #endif
 
 /* "modprobe ... fifo_mode=1" etc */
@@ -1006,6 +1010,8 @@ struct fifo_cfg {
 	enum buf_mode	mode;
 	u16		maxpacket;
 };
+
+
 
 /*
  * tables defining fifo_mode values.  define more if you like.
@@ -2428,7 +2434,13 @@ static int __init musb_init(void)
 /* make us init after usbcore and i2c (transceivers, regulators, etc)
  * and before usb gadget and host-side drivers start to register
  */
-fs_initcall(musb_init);
+//fs_initcall(musb_init);
+
+/* with fs_initcall the dma controller driver was loaded after mentor IP
+ * driver so when DMA is enabled, it will break as DMA controller driver is
+ * not loaded. This has been done to correct the order
+ */
+module_init(musb_init);
 
 static void __exit musb_cleanup(void)
 {

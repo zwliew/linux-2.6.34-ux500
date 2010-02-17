@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+	"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" []>
+
+<book id="USB-FUNCTION-Guide">
+ <bookinfo>
+  <title>USB Driver Function guide</title>
+
+  <authorgroup>
+   <author>
+    <firstname>Raj</firstname>
+    <surname>Kumar</surname>
+    <affiliation>
+     <address>
+      <email>raj.e.kumar@stericsson.com</email>
+     </address>
+    </affiliation>
+   </author>
+   </authorgroup>
+
+  <copyright>
+   <year>2009</year>
+   <holder>ST-Ericsson</holder>
+  </copyright>
+
+  <legalnotice>
+   <para>
+     This documentation is free software; you can redistribute
+     it and/or modify it under the terms of the GNU General Public
+     License version 2 as published by the Free Software Foundation.
+   </para>
+
+   <para>
+     This program is distributed in the hope that it will be
+     useful, but WITHOUT ANY WARRANTY; without even the implied
+     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+     See the GNU General Public License for more details.
+   </para>
+
+   <para>
+     You should have received a copy of the GNU General Public
+     License along with this program; if not, write to the Free
+     Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+     MA 02111-1307 USA
+   </para>
+
+   <para>
+     For more details see the file COPYING in the source
+     distribution of Linux.
+   </para>
+
+   </legalnotice>
+ </bookinfo>
+
+<toc></toc>
+
+  <chapter id="intro">
+    <title>Introduction</title>
+    <para>
+	This documentation describes the internal and external USB DMA APIs (which used the DMA driver APIs) which are described
+	in the stm_musb_dma.c file. It also describes external APIs that are integrated with the USB Mentor IP controller driver for
+	the u8500 platform. Changes have been made in the musb_core.c file where endpoints are configured as per the platform and also
+	integrated DMA in the musb_gadget.c file. One new file ste_config.h is added that is platform specific.
+    </para>
+    </chapter>
+
+  <chapter id="functions">
+     <title> Functions description in stm_musb_dma.c </title>
+     <para>
+     This chapter describes the functions in stm_musb_dma.c file
+     </para>
+!Idrivers/usb/musb/stm_musb_dma.c
+  </chapter>
+
+  </book>

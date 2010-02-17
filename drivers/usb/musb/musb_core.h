@@ -72,8 +72,6 @@ struct musb_ep;
 #include "../core/hcd.h"
 #include "musb_host.h"
 
-
-
 #ifdef CONFIG_USB_MUSB_OTG
 
 #define	is_peripheral_enabled(musb)	((musb)->board_mode != MUSB_HOST)

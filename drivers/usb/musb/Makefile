@@ -63,6 +63,7 @@ ifneq ($(CONFIG_MUSB_PIO_ONLY),y)
       endif
     endif
   endif
+  musb_hdrc-objs  += stm_musb_dma.o
 endif
 
 

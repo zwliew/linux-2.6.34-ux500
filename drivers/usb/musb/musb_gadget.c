@@ -46,7 +46,7 @@
 #include <linux/slab.h>
 
 #include "musb_core.h"
-
+#include "ste_config.h"
 
 /* MUSB PERIPHERAL status 3-mar-2006:
  *
@@ -267,12 +267,18 @@ static void txstate(struct musb *musb, struct musb_request *req)
 	int			use_dma = 0;
 
 	musb_ep = req->ep;
+#ifdef CONFIG_USB_U8500
+        if (musb_ep->dma) {
+#endif
+		/* we shouldn't get here while DMA is active ... but we do ... */
+		if (dma_channel_status(musb_ep->dma) == MUSB_DMA_STATUS_BUSY) {
+			DBG(4, "dma pending...\n");
+			return;
+		}
+#ifdef CONFIG_USB_U8500
+        }
+#endif
 
-	/* we shouldn't get here while DMA is active ... but we do ... */
-	if (dma_channel_status(musb_ep->dma) == MUSB_DMA_STATUS_BUSY) {
-		DBG(4, "dma pending...\n");
-		return;
-	}
 
 	/* read TXCSR before */
 	csr = musb_readw(epio, MUSB_TXCSR);
@@ -302,6 +308,19 @@ static void txstate(struct musb *musb, struct musb_request *req)
 		struct dma_controller	*c = musb->dma_controller;
 
 		use_dma = (request->dma != DMA_ADDR_INVALID);
+#ifdef CONFIG_USB_U8500
+                if (request->length >= musb_ep->packet_sz) {
+
+                        csr |= (MUSB_TXCSR_AUTOSET|
+                                MUSB_TXCSR_DMAENAB
+                                | MUSB_TXCSR_DMAMODE
+                                | MUSB_TXCSR_MODE);
+                        csr &= ~MUSB_TXCSR_P_UNDERRUN;
+                        musb_writew(epio, MUSB_TXCSR, csr);
+                }
+                use_dma = use_dma && c->channel_program(musb_ep->dma, musb_ep->packet_sz, DMA_MODE_1, request->dma, request->length);
+#endif
+
 
 		/* MUSB_TXCSR_P_ISO is still set correctly */
 
@@ -615,6 +634,38 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 
 	if (csr & MUSB_RXCSR_RXPKTRDY) {
 		len = musb_readw(epio, MUSB_RXCOUNT);
+#ifdef CONFIG_USB_U8500
+                if ((len >= DMA_PACKET_THRESHOLD) && (epnum >= 1) && (epnum <= U8500_DMA_END_POINTS)) {
+
+                        if (is_dma_capable() && musb_ep->dma) {
+                                        struct dma_controller   *c;
+                                        struct dma_channel      *channel;
+                                        int  use_dma = 0;
+                                        use_dma = (request->dma != DMA_ADDR_INVALID);
+                                        c = musb->dma_controller;
+                                        channel = musb_ep->dma;
+                                        csr |= MUSB_RXCSR_AUTOCLEAR;
+                                        csr |= MUSB_RXCSR_P_WZC_BITS;
+                                        csr |= MUSB_RXCSR_DMAENAB;
+                                        musb_writew(epio, MUSB_RXCSR, csr);
+
+                                        use_dma = c->channel_program(
+                                                        channel,
+                                                        musb_ep->packet_sz,
+                                                        DMA_MODE_0,
+                                                        request->dma+request->actual,
+                                                        request->length-request->actual);
+
+                                        if (use_dma)
+                                                musb_ep->dma->status == MUSB_DMA_STATUS_BUSY;
+
+                                        if (use_dma)
+                                                return;
+                        }
+
+                }
+#endif
+
 		if (request->actual < request->length) {
 #ifdef CONFIG_USB_INVENTRA_DMA
 			if (is_dma_capable() && musb_ep->dma) {
@@ -798,6 +849,20 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 			epnum, csr,
 			musb_readw(epio, MUSB_RXCSR),
 			musb_ep->dma->actual_len, request);
+#ifdef CONFIG_USB_U8500
+                /* Autoclear doesn't clear RxPktRdy for short packets */
+                if ((dma->actual_len & (musb_ep->packet_sz - 1))) {
+                        /* ack the read! */
+                        csr &= ~MUSB_RXCSR_RXPKTRDY;
+                        musb_writew(epio, MUSB_RXCSR, csr);
+                }
+
+                /*  incomplete, and not short? wait for next IN packet */
+                if ((request->actual < request->length)
+                                && (musb_ep->dma->actual_len
+                                == musb_ep->packet_sz))
+                        goto done;
+#endif
 
 #if defined(CONFIG_USB_INVENTRA_DMA) || defined(CONFIG_USB_TUSB_OMAP_DMA)
 		/* Autoclear doesn't clear RxPktRdy for short packets */
@@ -962,7 +1027,11 @@ static int musb_gadget_enable(struct usb_ep *ep,
 	/* NOTE:  all the I/O code _should_ work fine without DMA, in case
 	 * for some reason you run out of channels here.
 	 */
+#ifndef CONFIG_USB_U8500
 	if (is_dma_capable() && musb->dma_controller) {
+#else
+        if ((is_dma_capable() && musb->dma_controller) && (epnum >= 1) && (epnum <= U8500_DMA_END_POINTS)) {
+#endif
 		struct dma_controller	*c = musb->dma_controller;
 
 		musb_ep->dma = c->channel_alloc(c, hw_ep,

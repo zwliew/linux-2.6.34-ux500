@@ -15,7 +15,7 @@ DOCBOOKS := z8530book.xml mcabook.xml device-drivers.xml \
 	    mac80211.xml debugobjects.xml sh.xml regulator.xml \
 	    alsa-driver-api.xml writing-an-alsa-driver.xml \
 	    tracepoint.xml media.xml \
-	    dma.xml gpio.xml i2s.xml i2c.xml u8500_usb.xml mmc.xml \
+	    dma.xml gpio.xml i2s.xml i2c.xml u8500_usb.xml u8500_usb_dma.xml mmc.xml \
 	    prcmu-fw-api.xml keypad.xml msp.xml stmpe1601.xml stmpe2401.xml \
 	    tc35892.xml touchp.xml isa_hsi.xml mcde.xml b2r2.xml shrm.xml
 

@@ -1909,6 +1909,17 @@ static int halt_bulk_in_endpoint(struct fsg_dev *fsg)
 			return -EINTR;
 		rc = usb_ep_set_halt(fsg->bulk_in);
 	}
+
+	/* temporary HACK: There is a problem using mass storage with
+	 * the musb driver. The problem is that the status command
+	 * wrapper block gets queued in hardware before the clear-stall
+	 * is executed. When the clear stall gets executed the status
+	 * command wrapper block gets dropped and the USB host OS
+	 * starts hanging. We are not sure where the proper place to
+	 * fix this bug is. Until further, add a delay here so that
+	 * the USB host gets time to execute the clear-stall request.
+	 */
+	msleep_interruptible(100);  /* temporary HACK */
 	return rc;
 }
 

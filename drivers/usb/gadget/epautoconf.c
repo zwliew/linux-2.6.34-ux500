@@ -287,10 +287,15 @@ struct usb_ep * __init usb_ep_autoconfig (
 
 	/* Second, look at endpoints until an unclaimed one looks usable */
 	list_for_each_entry (ep, &gadget->ep_list, ep_list) {
-		if (ep_matches (gadget, ep, desc))
-			return ep;
-	}
-
+#ifdef CONFIG_ARCH_U8500
+                if(((strcmp(ep->name, "ep1in")==0) ||(strcmp(ep->name, "ep7out")==0))&& (!strcmp(((gadget->dev).driver)->name,"g_file_storage"))){
+#endif
+                        if (ep_matches (gadget, ep, desc))
+                                return ep;
+                }
+#ifdef CONFIG_ARCH_U8500
+        }
+#endif
 	/* Fail */
 	return NULL;
 }
