@@ -272,9 +272,11 @@ struct u8500_mmci_host {
 	unsigned int *dma_buffer;
 	void *dma_done;	/* completion data */
 	int devicemode;
-#ifdef CONFIG_U8500_SDIO
 	unsigned int is_sdio;
-#endif
+	int sdio_setirq;
+	int sdio_irqstatus;
+	int aligned_blksz;
+	int aligned_size;
 	struct mmc_board *board;
 };
 
@@ -322,6 +324,7 @@ struct mmc_board {
 	unsigned int dma_fifo_dev_type_tx;
 	unsigned int level_shifter;
 	unsigned long	caps;		/* Host capabilities */
+	int is_sdio;			/*To check if the bus is SD/MMC or sdio*/
 };
 
 

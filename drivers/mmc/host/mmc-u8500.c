@@ -19,10 +19,10 @@
  */
 
 /** @file  mmc-u8500.c
-  * @brief This file contains the sdmmc/emmc chip initialization with default as DMA
-  * mode.Polling/Interrupt mode support could be enabled in the kernel menuconfig.
-  * Read and write function definitions to configure the read and write functionality
-  * was implemented.
+ * @brief This file contains the sdmmc/emmc chip initialization with default
+ * as DMA mode.Polling/Interrupt mode support could be enabled in the kernel
+ * menuconfig. Read and write function definitions to configure the read and
+ * write functionality was implemented.
  */
 
 #include <linux/module.h>
@@ -35,9 +35,7 @@
 #include <linux/err.h>
 #include <linux/highmem.h>
 #include <linux/mmc/host.h>
-#ifdef CONFIG_U8500_SDIO
 #include <linux/mmc/sdio.h>
-#endif
 #include <linux/amba/bus.h>
 #include <linux/clk.h>
 #include <linux/autoconf.h>
@@ -54,10 +52,21 @@
 #include <asm/sizes.h>
 #include <mach/hardware.h>
 #include <asm/mach/mmc.h>
+#include <asm/bitops.h>
 #include <mach/mmc.h>
 #include <mach/debug.h>
 #include <mach/dma_40-8500.h>
 #include "mmc-u8500.h"
+
+
+/**
+ * SDIO host controller does not support byte mode, so S/W workaround is
+ * required for alignment of transfer size to power of two.
+ */
+#ifdef SDIO_MULTIBYTE_WORKAROUND
+#undef SDIO_MULTIBYTE_WORKAROUND
+/* Not fully validated, to be enabled from menuconfig later */
+#endif
 
 /*
  * Global variables
@@ -81,11 +90,11 @@ const int mmc_mode = MCI_DMAMODE;
 #endif
 
 #if defined CONFIG_U8500_SDIO_POLL
-int sdio_mode = MCI_POLLINGMODE;
+const int sdio_mode = MCI_POLLINGMODE;
 #elif defined CONFIG_U8500_SDIO_INTR
-int sdio_mode = MCI_INTERRUPTMODE;
+const int sdio_mode = MCI_INTERRUPTMODE;
 #elif defined CONFIG_U8500_SDIO_DMA
-int sdio_mode = MCI_DMAMODE;
+const int sdio_mode = MCI_DMAMODE;
 #endif
 
 #if !defined CONFIG_U8500_MMC_INTR
@@ -113,7 +122,6 @@ static unsigned int fmax = CLK_MAX / 8;
  */
 #define MMC_UNLOCK(lock, flag)	spin_unlock_irqrestore(&lock, flag)
 #endif
-
 
 static void u8500_mmci_start_command(struct u8500_mmci_host *host,
 						struct mmc_command *cmd);
@@ -153,11 +161,9 @@ u8500_mmci_init_sg(struct u8500_mmci_host *host, struct mmc_data *data)
  */
 static inline void u8500_mmc_clearirqsrc(void *base, u32 irqsrc)
 {
-	u32 nmdk_reg;
-
-	nmdk_reg = readl(base + MMCICLEAR);
-	nmdk_reg |= irqsrc;
-	writel(nmdk_reg, (base + MMCICLEAR));
+	u32 temp_reg;
+	irqsrc &= ~(MCI_SDIOIT);
+	writel(irqsrc, (base + MMCICLEAR));
 }
 
 /**
@@ -169,10 +175,11 @@ static inline void u8500_mmc_clearirqsrc(void *base, u32 irqsrc)
  */
 static inline void u8500_mmc_disableirqsrc(void *base, u32 irqsrc)
 {
-	u32 nmdk_reg;
-	nmdk_reg = readl(base + MMCIMASK0);
-	nmdk_reg &= ~irqsrc;
-	writel(nmdk_reg, (base + MMCIMASK0));
+	u32 temp_reg;
+	irqsrc &= ~(MCI_SDIOIT);
+	temp_reg = readl(base + MMCIMASK0);
+	temp_reg &= ~irqsrc;
+	writel(temp_reg, (base + MMCIMASK0));
 }
 
 /**
@@ -184,19 +191,21 @@ static inline void u8500_mmc_disableirqsrc(void *base, u32 irqsrc)
  */
 static inline void u8500_mmc_enableirqsrc(void *base, u32 irqsrc)
 {
-	u32 nmdk_reg;
-	nmdk_reg = readl(base + MMCIMASK0);
-	nmdk_reg |= irqsrc;
-	writel(nmdk_reg, (base + MMCIMASK0));
+	u32 temp_reg;
+	irqsrc &= ~(MCI_SDIOIT);
+	temp_reg = readl(base + MMCIMASK0);
+	temp_reg |= irqsrc;
+	writel(temp_reg, (base + MMCIMASK0));
 }
 
 /**
- *   u8500_mmci_request_end() - Informs the stack regarding the completion of the request
+ *   u8500_mmci_request_end() - Informs the stack regarding the
+ *   completion of the request
  *   @host:	pointer to the u8500_mmci_host structure
  *   @mrq:	pointer to the mmc_request structure
  *
- *   this function will be called after servicing the request sent from the stack.And this
- *   function will inform the stack that the request is done
+ *   this function will be called after servicing the request sent from the
+ *   stack.And this function will inform the stack that the request is done
  */
 static void
 u8500_mmci_request_end(struct u8500_mmci_host *host,
@@ -230,8 +239,10 @@ static void u8500_mmci_stop_data(struct u8500_mmci_host *host)
 #ifndef CONFIG_U8500_MMC_DMA
 	unsigned long flag_lock = 0;
 #endif
+	u32 temp = 0;
 	MMC_LOCK(host->lock, flag_lock);
-	writel(0, host->base + MMCIDATACTRL);
+	temp = readl(host->base + MMCIDATACTRL) & ~(MCI_DPSM_ENABLE);
+	writel(temp, host->base + MMCIDATACTRL);
 	writel(0, host->base + MMCIMASK1);
 	host->data = NULL;
 	MMC_UNLOCK(host->lock, flag_lock);
@@ -248,7 +259,8 @@ static void u8500_mmci_stop_data(struct u8500_mmci_host *host)
  *   command path state machine and writing the cmd number and arg to the
  *   corresponding command and arguement registers
  */
-static void u8500_mmc_send_cmd(void *base, u32 cmd, u32 arg, u32 flags, int devicemode)
+static void u8500_mmc_send_cmd(void *base, u32 cmd, u32 arg, u32 flags,
+			       int devicemode)
 {
 	u32 c, irqmask;
 	/* stm_dbg2(DBG_ST.mmc,"Sending CMD%d, arg=%08x\n", cmd, arg);*/
@@ -269,13 +281,9 @@ static void u8500_mmc_send_cmd(void *base, u32 cmd, u32 arg, u32 flags, int devi
 	}
 	writel(arg, (base + MMCIARGUMENT));
 	writel(c, (base + MMCICOMMAND));
-	//udelay(10);
+
 	if (devicemode != MCI_POLLINGMODE)
 		u8500_mmc_enableirqsrc(base, irqmask);
-#if 0//def CONFIG_U8500_SDIO
-        if((cmd==SD_IO_RW_EXTENDED) || (cmd==SD_IO_RW_DIRECT))
-                u8500_mmc_enableirqsrc(base, MCI_SDIOIT);
-#endif
 }
 
 /**
@@ -283,8 +291,8 @@ static void u8500_mmc_send_cmd(void *base, u32 cmd, u32 arg, u32 flags, int devi
  *   @host:	pointer to the u8500_mmci_host
  *   @hoststatus:	status register value
  *
- *   this function will read the response of the corresponding command by reading
- *   the response registers
+ *   this function will read the response of the corresponding command by
+ *   reading the response registers
  */
 static void process_command_end(struct u8500_mmci_host *host, u32 hoststatus)
 {
@@ -303,7 +311,7 @@ static void process_command_end(struct u8500_mmci_host *host, u32 hoststatus)
 	cmd->resp[3] = readl(base + MMCIRESPONSE3);
 
 	if ((hoststatus & MCI_CMDTIMEOUT)) {
-		/*printk(KERN_ERR "Command Timeout: %d\n", cmd->opcode);*/
+		/* printk(KERN_ERR "Command Timeout: %d\n", cmd->opcode); */
 		cmd->error = -ETIMEDOUT;
 	} else if ((hoststatus & MCI_CMDCRCFAIL) && (cmd->flags & MMC_RSP_CRC)) {
 		printk(KERN_ERR "Command CRC Fail\n");
@@ -325,8 +333,8 @@ static void process_command_end(struct u8500_mmci_host *host, u32 hoststatus)
  *   wait_for_command_end() - waiting for the command completion
  *   @host:	pointer to the u8500_mmci_host
  *
- *   this function will wait for whether the command completion has happened or
- *   any error generated by reading the status register
+ *   this function will wait for whether the command completion has
+ *   happened or any error generated by reading the status register
  */
 static void wait_for_command_end(struct u8500_mmci_host *host)
 {
@@ -351,11 +359,12 @@ static void wait_for_command_end(struct u8500_mmci_host *host)
 }
 
 /**
- *   check_for_data_err() - checks the status register value for the error generated
+ *   check_for_data_err() - checks the status register value for the error
+ *   generated
  *   @hoststatus:	value of the host status register
  *
- *   this function will read the status register and will return the error if any
- *   generated during the operation
+ *   this function will read the status register and will return the
+ *   error if any generated during the operation
  */
 static int check_for_data_err(u32 hoststatus)
 {
@@ -386,8 +395,8 @@ static int check_for_data_err(u32 hoststatus)
  *   u8500_mmc_dma_transfer_done() - called after the DMA tarnsfer completion
  *   @host:	pointer to the u8500_mmci_host
  *
- *   this  function will update the stack with the data read and about the request
- *   completion
+ *   this  function will update the stack with the data read and about
+ *   the request completion
  */
 static void u8500_mmc_dma_transfer_done(struct u8500_mmci_host *host)
 {
@@ -411,7 +420,8 @@ static void u8500_mmc_dma_transfer_done(struct u8500_mmci_host *host)
 				u8500_mmci_init_sg(host, data);
 				buffer_local = host->dma_buffer;
 				while (host->sg_len--) {
-					buffer = (u32 *) (page_address(sg_page(host->sg_ptr)) + host->sg_ptr->offset);
+					buffer = (u32 *) (page_address(sg_page(host->sg_ptr)) +
+							  host->sg_ptr->offset);
 					memcpy(buffer, buffer_local, host->sg_ptr->length);
 					buffer_local += host->sg_ptr->length / 4;
 					host->sg_ptr++;
@@ -499,7 +509,7 @@ static void u8500_mmc_set_dma(struct u8500_mmci_host *host)
 	memset(&pipe_info2, 0, sizeof(pipe_info2));
 
 #ifdef DMA_SCATERGATHER
-/*#warning " scatter gather is compiled "*/
+/* #warning " scatter gather is compiled " */
 	dma_map_sg(mmc_dev(host->mmc), data->sg,
 			data->sg_len, ((data->flags & MMC_DATA_READ)
 			? DMA_FROM_DEVICE : DMA_TO_DEVICE));
@@ -528,13 +538,6 @@ static void u8500_mmc_set_dma(struct u8500_mmci_host *host)
 	pipe_info2.dst_info.endianess = DMA_LITTLE_ENDIAN;
 	pipe_info2.dst_info.data_width = DMA_WORD_WIDTH;
 	pipe_info2.dst_info.buffer_type = SINGLE_BUFFERED;
-#if 0 //def CONFIG_U8500_SDIO
-        if(host->cmd->opcode == SD_IO_RW_EXTENDED) {
-                pipe_info2.src_info.data_width = DMA_BYTE_WIDTH;
-                pipe_info2.dst_info.data_width = DMA_BYTE_WIDTH;
-		printk("\n 1--- DMA byte width");
-        }
-#endif
 	pipe_info1.channel_type = (STANDARD_CHANNEL|CHANNEL_IN_LOGICAL_MODE|
 					LCHAN_SRC_LOG_DEST_LOG|NO_TIM_FOR_LINK|
 						NON_SECURE_CHANNEL|LOW_PRIORITY_CHANNEL);
@@ -547,18 +550,7 @@ static void u8500_mmc_set_dma(struct u8500_mmci_host *host)
 	pipe_info1.dst_info.endianess = DMA_LITTLE_ENDIAN;
 	pipe_info1.dst_info.data_width = DMA_WORD_WIDTH;
 	pipe_info1.dst_info.buffer_type = SINGLE_BUFFERED;
-#if 0 //def CONFIG_U8500_SDIO
-	if(host->cmd->opcode == SD_IO_RW_EXTENDED) {
-		pipe_info1.src_info.data_width = DMA_BYTE_WIDTH;
-		pipe_info1.dst_info.data_width = DMA_BYTE_WIDTH;
-		printk("\n 2--- DMA byte width");
-	}
-#endif
-#ifdef CONFIG_U8500_SDIO
-	if((32>=host->size) || ((host->cmd->opcode != SD_IO_RW_EXTENDED) && (8 >= host->size))){
-#else
-	if( 8 >= host->size ){
-#endif
+	if ((16 >= host->size) || ((host->cmd->opcode != SD_IO_RW_EXTENDED) && (8 >= host->size))) {
 		/* set smaller burst size*/
 		pipe_info1.src_info.burst_size = DMA_BURST_SIZE_1;
 		pipe_info2.src_info.burst_size = DMA_BURST_SIZE_1;
@@ -578,24 +570,24 @@ static void u8500_mmc_set_dma(struct u8500_mmci_host *host)
 	if (data->flags & MMC_DATA_READ) {
 			stm_set_dma_count(host->dmach_mmc2mem, host->size);
 			#ifdef DMA_SCATERGATHER
-				/*set_dma_sg(host->dmach_mmc2mem, data->sg, data->sg_len);*/
+				/* set_dma_sg(host->dmach_mmc2mem, data->sg, data->sg_len); */
 				stm_set_dma_addr(host->dmach_mmc2mem,
 						(void *)host->dma_fifo_addr,
 							(unsigned int *) sg_phys(data->sg));
 			#else
 			stm_set_dma_addr(host->dmach_mmc2mem,
 					(void *)host->dma_fifo_addr,
-						/*(physical_address *)*/buffer);
+						/* (physical_address *) */buffer);
 			#endif
 			stm_enable_dma(host->dmach_mmc2mem);
 	} else {
 			stm_set_dma_count(host->dmach_mem2mmc, host->size);
 			#ifdef DMA_SCATERGATHER
-				/*set_dma_sg(host->dmach_mem2mmc, data->sg, data->sg_len);*/
+				/* set_dma_sg(host->dmach_mem2mmc, data->sg, data->sg_len); */
 				stm_set_dma_addr(host->dmach_mem2mmc, (unsigned int *) sg_phys(data->sg),
 						(void *)host->dma_fifo_addr);
 			#else
-			stm_set_dma_addr(host->dmach_mem2mmc,/*(physical_address *)*/ buffer,
+			stm_set_dma_addr(host->dmach_mem2mmc,/* (physical_address *) */ buffer,
 						(void *)host->dma_fifo_addr);
 			#endif
 			stm_enable_dma(host->dmach_mem2mmc);
@@ -617,16 +609,15 @@ static int u8500_mmci_read(struct u8500_mmci_host *host, u32 * buffer,
 	void __iomem *base;
 	int count, max_count;
 	unsigned int data_xfered = 0;
-	u8* char_buf;
-	u16* word_buf;
+	u8 *char_buf;
+	u16 *word_buf;
 	int temp;
 	u32 flag = MCI_DATA_IRQ;
 
 	base = host->base;
-#ifdef CONFIG_U8500_SDIO
-	if(host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
-		flag = MCI_DATA_ERR; /*required for SDIO CMD53*/
-#endif
+	if (host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
+		flag = MCI_DATA_ERR; /* required for SDIO CMD53 */
+
 	while ((remain > 0) && !(hoststatus & flag)) {
 		if ((hoststatus & MCI_RXFIFOHALFFULL) && (remain >= 32))
 			max_count = MCI_FIFOHALFSIZE;
@@ -635,40 +626,36 @@ static int u8500_mmci_read(struct u8500_mmci_host *host, u32 * buffer,
 		else
 			max_count = 0;
 		for (count = 0; count < max_count; count++) {
-			//*buffer = readl(base + MMCIFIFO);
-			//buffer++;
-			if(remain==2) { /*half word aligned, read 16bit half words*/
-				word_buf = (u16*)buffer;
-                                *word_buf = readw((u16*)(base + MMCIFIFO));
-                                word_buf++;
-				buffer = (u32*)word_buf;
-                                data_xfered += 2;
-                                remain =0;
-			}else if(remain<4) /*not word aligned, read byte by byte*/
-				{
-				char_buf = (u8*)buffer;
-					for(temp=0; temp<remain; temp++) {
-					*char_buf = readb((u8*)(base + MMCIFIFO));
+			if (remain == 2) { /* half word aligned, read 16bit half words */
+				word_buf = (u16 *)buffer;
+				*word_buf = readw((u16 *)(base + MMCIFIFO));
+				word_buf++;
+				buffer = (u32 *)word_buf;
+				data_xfered += 2;
+				remain = 0;
+			} else if (remain < 4) {/* not word aligned, read byte by byte */
+				char_buf = (u8 *)buffer;
+				for (temp = 0; temp < remain; temp++) {
+					*char_buf = readb((u8 *)(base + MMCIFIFO));
 					char_buf++;
 				}
 				data_xfered += remain;
-				buffer = (u32*)char_buf;
+				buffer = (u32 *)char_buf;
 				remain = 0;
-				}
-			else {
-			*buffer = readl(base + MMCIFIFO);
-			buffer++;
-			data_xfered += 4;
-			remain -= 4;
-		}
+			} else {
+			    *buffer = readl(base + MMCIFIFO);
+			    buffer++;
+			    data_xfered += 4;
+			    remain -= 4;
+			}
 		}
 		hoststatus = readl(base + MMCISTATUS);
 	}
 
 	if (remain) {
 		/* stm_dbg2(DBG_ST.mmc,"While READ, Remain is %d, hoststatus is %x, data_xfered is %d\n",
-			remain, hoststatus, data_xfered);
-		*/
+		 *	    remain, hoststatus, data_xfered);
+		 */
 	}
 	return data_xfered;
 }
@@ -688,15 +675,13 @@ static int u8500_mmci_write(struct u8500_mmci_host *host, u32 * buffer,
 	void __iomem *base;
 	int count, max_count, temp;
 	unsigned int data_xfered = 0;
-	u16* buf16;
-	u8* buf8;
+	u16 *buf16;
+	u8 *buf8;
 	u32 flag = MCI_DATA_IRQ;
 
 	base = host->base;
-#ifdef CONFIG_U8500_SDIO
-	if(host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
-		flag = MCI_DATA_ERR; /*required for SDIO CMD53*/
-#endif
+	if (host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
+		flag = MCI_DATA_ERR; /* required for SDIO CMD53 */
 
 	while ((remain > 0) && !(hoststatus & flag)) {
 		if ((hoststatus & MCI_TXFIFOEMPTY) && (remain >= 64))
@@ -708,30 +693,28 @@ static int u8500_mmci_write(struct u8500_mmci_host *host, u32 * buffer,
 		else
 			max_count = 0;
 		for (count = 0; count < max_count; count++) {
-                        if(remain==2) { /*half word aligned, read 16bit half words*/
-                                buf16 = (u16*)buffer;
-				writew(*buf16, (u16*)(base + MMCIFIFO));
-                                buf16++;
-                                buffer = (u32*)buf16;
-                                data_xfered += 2;
-                                remain =0;
-                        }else if(remain<4) /*not word aligned, read byte by byte*/
-                                {
-                                buf8 = (u8*)buffer;
-                                for(temp=0; temp<remain; temp++) {
-					writew(*buf8, (u8*)(base + MMCIFIFO));
-                                        buf8++;
-                                }
-                                data_xfered += remain;
-                                buffer = (u32*)buf8;
-                                remain = 0;
-                                }
-			else{
-			writel(*buffer, (base + MMCIFIFO));
-			buffer++;
-			data_xfered += 4;
-			remain -= 4;
-		}
+			if (remain == 2) { /* half word aligned, read 16bit half words */
+				buf16 = (u16 *)buffer;
+				writew(*buf16, (u16 *)(base + MMCIFIFO));
+				buf16++;
+				buffer = (u32 *)buf16;
+				data_xfered += 2;
+				remain = 0;
+			} else if (remain < 4) /* not word aligned, read byte by byte */ {
+				buf8 = (u8 *)buffer;
+				for (temp = 0; temp < remain; temp++) {
+					writew(*buf8, (u8 *)(base + MMCIFIFO));
+					buf8++;
+				}
+				data_xfered += remain;
+				buffer = (u32 *)buf8;
+				remain = 0;
+			} else {
+				writel(*buffer, (base + MMCIFIFO));
+				buffer++;
+				data_xfered += 4;
+				remain -= 4;
+			}
 		}
 
 		hoststatus = readl(base + MMCISTATUS);
@@ -758,27 +741,17 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 	unsigned int remain, len;
 	unsigned long flags;
 
-	int devicemode = mmc_mode;
 	u32 temp_flag = MCI_TXFIFOHALFEMPTY | MCI_RXDATAAVLBL;
-#ifdef CONFIG_U8500_SDIO
-	/*check sdio_mode variable for SDIO card*/
-	struct mmc_host *mmc;
-	mmc = host->mmc;
-	if(host->is_sdio == 1)
-		devicemode = sdio_mode;
-#endif
-
 	base = host->base;
 	data = host->data;
 
 	hoststatus = readl(base + MMCISTATUS);
-#ifdef CONFIG_U8500_SDIO
-	if(host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
-		temp_flag |=  MCI_DATAEND | MCI_DATABLOCKEND;
-#endif
+	if (host->cmd && host->cmd->opcode == SD_IO_RW_EXTENDED)
+		temp_flag |=  MCI_DATAEND | MCI_DATABLOCKEND; /* Required for SDIO CMD53 */
+
 	while (host->data_xfered < host->size &&
 	       (hoststatus & temp_flag)) {
-		/*Do not add any printk or DEBUG at this location */
+		/* Do not add any printk or DEBUG at this location */
 		if (data->flags & MMC_DATA_READ) {
 			buffer = host->buffer;
 			remain = host->size;
@@ -788,7 +761,7 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 						host->sg_ptr->offset) + host->sg_off;
 			remain = host->sg_ptr->length - host->sg_off;
 		}
-		if (devicemode == MCI_POLLINGMODE)
+		if (host->devicemode == MCI_POLLINGMODE)
 			local_irq_save(flags);
 		len = 0;
 		if (hoststatus & MCI_RXACTIVE) {
@@ -799,7 +772,7 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 				u8500_mmci_write(host, buffer, remain,
 						hoststatus);
 		}
-		if (devicemode == MCI_POLLINGMODE)
+		if (host->devicemode == MCI_POLLINGMODE)
 			local_irq_restore(flags);
 		spin_lock(&host->lock);
 		host->sg_off += len;
@@ -824,9 +797,10 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 		hoststatus = readl(base + MMCISTATUS);
 	}
 
-	if (devicemode == MCI_INTERRUPTMODE) {
-		/* If we're nearing the end of the read, switch to
-		 * "any data available" mode */
+	if (host->devicemode == MCI_INTERRUPTMODE) {
+		/** If we're nearing the end of the read, switch to
+		 * "any data available" mode
+		 */
 		if ((hoststatus & MCI_RXACTIVE) &&
 			(host->size - host->data_xfered) < MCI_FIFOSIZE) {
 			u8500_mmc_enableirqsrc(base, MCI_RXDATAAVLBL);
@@ -840,31 +814,11 @@ static void u8500_mmci_read_write(struct u8500_mmci_host *host)
 		if (host->size == host->data_xfered) {
 			u8500_mmc_disableirqsrc(base, MCI_XFER_IRQ_MASK);
 		}
-	} else if (devicemode == MCI_POLLINGMODE) {
-#if 0 //def CONFIG_U8500_SDIO
-	if(host->is_sdio== 1)
-		u8500_mmc_enableirqsrc(base, MCI_SDIOIT);
-#endif
+	} else if (host->devicemode == MCI_POLLINGMODE) {
+
 		u8500_mmci_cmd_irq(host, hoststatus);
 		u8500_mmci_data_irq(host, hoststatus);
 	}
-}
-
-/**
- *   convert_from_bytes_to_power_of_two() - converts the bytes to power of two
- *   @x:  value to be converted
- *
- *   this function converts the bytes to power of two
- */
-static int convert_from_bytes_to_power_of_two(unsigned int x)
-{
-	int y = 0;
-	y = (x & 0xAAAA) ? 1 : 0;
-	y |= ((x & 0xCCCC) ? 1 : 0)<<1;
-	y |= ((x & 0xF0F0) ? 1 : 0)<<2;
-	y |= ((x & 0xFF00) ? 1 : 0)<<3;
-
-	return y;
 }
 
 /**
@@ -880,19 +834,9 @@ static void start_data_xfer(struct u8500_mmci_host *host)
 	void __iomem *base;
 	struct mmc_data *data;
 	unsigned int size;
-	u32 nmdk_reg;
-#ifdef CONFIG_U8500_SDIO
+	u32 temp_reg;
 	u32 clk_reg;
-#endif
 	unsigned int temp;
-	int devicemode = mmc_mode;
-#ifdef CONFIG_U8500_SDIO
-	/*check sdio_mode variable for SDIO card*/
-	struct mmc_host *mmc;
-	mmc = host->mmc;
-	if(host->is_sdio == 1)
-		devicemode = sdio_mode;
-#endif
 	data = host->data;
 	base = host->base;
 	size = host->size;
@@ -901,82 +845,79 @@ static void start_data_xfer(struct u8500_mmci_host *host)
 	BUG_ON(!(data->flags & (MMC_DATA_READ | MMC_DATA_WRITE)));
 	BUG_ON((data->flags & MMC_DATA_READ) && (data->flags & MMC_DATA_WRITE));
 
-#ifdef CONFIG_U8500_SDIO
-	if(host->cmd && (host->cmd->opcode == SD_IO_RW_EXTENDED)){
+	/**
+	 * Required for SDIo CMD53, for transfer sizes <8, H/W flow
+	 * control should be disabled
+	 */
+	if (host->cmd && (host->cmd->opcode == SD_IO_RW_EXTENDED)) {
 		clk_reg = readl(host->base + MMCICLOCK);
-		if(host->size<8){
-			clk_reg &= ~(MCI_HWFC_EN);
-		}
-		else{
-                        clk_reg |= (MCI_HWFC_EN);
-		}
+		if (host->size < 8)
+		    clk_reg &= ~(MCI_HWFC_EN);
+		else
+		    clk_reg |= (MCI_HWFC_EN);
 		writel(clk_reg, host->base + MMCICLOCK);
-		udelay(20);/*give some delay to setup*/
-		//printk("\n CMD53 size = %d, clock = %x", host->size, clk_reg);
 	}
-#endif
 
 	writel(0x0FFFFFFF, (base + MMCIDATATIMER));
 
+	/**
+	 * Work around for SDIO multibyte mode, required for H/W
+	 * limitation, as byte mode is not supported in host controller
+	 */
+#ifdef SDIO_MULTIBYTE_WORKAROUND
+	if (host->cmd && (host->cmd->opcode == SD_IO_RW_EXTENDED) && !(host->cmd->arg & 0x08000000)) {
+		temp = __fls(host->aligned_blksz);
+		writel(host->aligned_size, (base + MMCIDATALENGTH));
+	} else {
+		writel(size, (base + MMCIDATALENGTH));
+		temp = __fls(data->blksz);
+		/* Get the last set bit position i.e power of two */
+	}
+#else
 	writel(size, (base + MMCIDATALENGTH));
+	temp = __fls(data->blksz); /* Get the last set bit position, i.e., power of two */
+#endif /* End of SDIO_MULTIBYTE_WORKAROUND */
 
-	temp = convert_from_bytes_to_power_of_two(data->blksz);
-	nmdk_reg = MCI_DPSM_ENABLE | ((temp & 0xF) << 4);
-	if (devicemode == MCI_DMAMODE) {
+	temp_reg = MCI_DPSM_ENABLE | ((temp & 0xF) << 4);
+
+	if (host->devicemode == MCI_DMAMODE) {
 		/* Enable the DMA mode of the MMC Host Controller */
-		nmdk_reg |= MCI_DPSM_DMAENABLE;
-		nmdk_reg |= MCI_DPSM_DMAreqctl;
+		temp_reg |= MCI_DPSM_DMAENABLE;
+		temp_reg |= MCI_DPSM_DMAreqctl;
 	}
 	if ((data->flags & MMC_DATA_READ)) {
-		nmdk_reg |= MCI_DPSM_DIRECTION;
+		temp_reg |= MCI_DPSM_DIRECTION;
 	}
 
-	if (devicemode == MCI_DMAMODE)
+	if (host->devicemode == MCI_DMAMODE)
 		u8500_mmc_enableirqsrc(base, MCI_DATA_ERR);
-	else if (devicemode == MCI_INTERRUPTMODE) {
+	else if (host->devicemode == MCI_INTERRUPTMODE) {
 		u8500_mmc_enableirqsrc(base, (MCI_DATA_IRQ | MCI_XFER_IRQ));
 		if (host->size < MCI_FIFOSIZE) {
 			u8500_mmc_enableirqsrc(base, MCI_RXDATAAVLBL);
 		}
 	}
-#if 0 //def CONFIG_U8500_SDIO
-        if(host->cmd->opcode==SD_IO_RW_EXTENDED){
-                /*check if transfer is in block mode or byte mode*/
-                if(host->cmd->arg & 0x08000000) /*block mode*/{
-                        nmdk_reg &= ~(MCI_DPSM_MODE);
-			nmdk_reg &= ~(MCI_SDIO_ENABLE);
-			//printk("--- BLOCK mode");
-                }
-                else{ /*byte mode*/
-			 nmdk_reg &=(~0xF0);/*blk size = 1*/
-		        /* sdio specific operations*/
-			nmdk_reg |= MCI_SDIO_ENABLE;
-			nmdk_reg |= MCI_DPSM_MODE;
-			//printk("--- BYTE mode");
-                }
-                //printk("BLKSIZE = %d, SZ = %d, power of 2= %d", data->blksz,host->size, temp);
-		//printk("\n DATA_CTRL = %x, CLK = %x", nmdk_reg, readl(base + MMCICLOCK));
-        }
-#endif
+	/* Required for SDIO CMD53 and SDIO interrupt */
+	if (host->cmd->opcode == SD_IO_RW_EXTENDED)
+		temp_reg |= MCI_SDIO_ENABLE;
 
-	writel(nmdk_reg, (base + MMCIDATACTRL));
+	writel(temp_reg, (base + MMCIDATACTRL));
+
+	/**
+	 * Required for SDIO DMA mode, not functional without delay,
+	 * To be fixed later
+	 */
+	if ((host->cmd->opcode == SD_IO_RW_EXTENDED) && (host->devicemode == MCI_DMAMODE))
+		udelay(300);
+
 }
-
 static void u8500_mmci_xfer_irq(struct u8500_mmci_host *host,
 				u32 hoststatus)
 {
-	int devicemode = mmc_mode;
 	hoststatus &= MCI_XFER_IRQ_MASK;
 	if (!hoststatus)
 		return;
-#ifdef CONFIG_U8500_SDIO
-	/*check sdio_mode variable for SDIO card*/
-	struct mmc_host *mmc;
-	mmc = host->mmc;
-	if(strcmp(mmc_hostname(mmc),"mmc1") == 0)
-		devicemode = sdio_mode;
-#endif
-	BUG_ON(devicemode != MCI_INTERRUPTMODE);
+	BUG_ON(host->devicemode != MCI_INTERRUPTMODE);
 	u8500_mmci_read_write(host);
 }
 /**
@@ -993,14 +934,6 @@ static void u8500_mmci_cmd_irq(struct u8500_mmci_host *host, u32 hoststatus)
 	struct mmc_command *cmd;
 	struct mmc_data *data;
 	u32 cmdstatusmask;
-	int devicemode = mmc_mode;
-#ifdef CONFIG_U8500_SDIO
-	/*check sdio_mode variable for SDIO card*/
-	struct mmc_host *mmc;
-	mmc = host->mmc;
-	if(host->is_sdio == 1)
-		devicemode = sdio_mode;
-#endif
 	cmd = host->cmd;
 	data = host->data;
 	base = host->base;
@@ -1019,9 +952,9 @@ static void u8500_mmci_cmd_irq(struct u8500_mmci_host *host, u32 hoststatus)
 
 	if (!cmd->data || cmd->error != MMC_ERR_NONE) {
 		if (cmd->error != MMC_ERR_NONE && data) {
-			/*printk("The COMMCND NUMBER IS : %d  status register value is : %d\n",
-						cmd->opcode, hoststatus);*/
-			if (devicemode == MCI_POLLINGMODE) {
+			/* printk("The COMMCND NUMBER IS : %d  status register value is : %d\n",
+						cmd->opcode, hoststatus); */
+			if (host->devicemode == MCI_POLLINGMODE) {
 				u8500_mmci_stop_data(host);
 				if (!data->stop)
 					u8500_mmci_request_end(host, data->mrq);
@@ -1038,7 +971,7 @@ static void u8500_mmci_cmd_irq(struct u8500_mmci_host *host, u32 hoststatus)
 	} else if (!(cmd->data->flags & MMC_DATA_READ)) {
 		start_data_xfer(host);
 	}
-
+	hoststatus &= ~(MCI_SDIOIT);
 	u8500_mmc_clearirqsrc(base, hoststatus);
 }
 /**
@@ -1055,7 +988,6 @@ static void u8500_mmci_data_irq(struct u8500_mmci_host *host,
 	struct mmc_data *data;
 	struct mmc_command *cmd;
 	struct mmc_host *mmc;
-	int devicemode = mmc_mode;
 	hoststatus &= MCI_DATA_IRQ;
 
 	if (!hoststatus) {
@@ -1065,11 +997,6 @@ static void u8500_mmci_data_irq(struct u8500_mmci_host *host,
 	data = host->data;
 	mmc = host->mmc;
 
-#ifdef CONFIG_U8500_SDIO
-	/*check sdio_mode variable for SDIO card*/
-	if(host->is_sdio == 1)
-		devicemode = sdio_mode;
-#endif
 	if (!data) {
 		goto clear_data_irq;
 	}
@@ -1079,13 +1006,13 @@ static void u8500_mmci_data_irq(struct u8500_mmci_host *host,
 	    stm_error("In %d Cmd, data_irq, data->error is %d, data_xfered is %d, hoststatus = %x\n",
 		     cmd->opcode, data->error, host->data_xfered, hoststatus);
 	}
-	if (devicemode == MCI_DMAMODE && data->error != MMC_ERR_NONE) {
+	if (host->devicemode == MCI_DMAMODE && data->error != MMC_ERR_NONE) {
 		u8500_mmc_dma_transfer_done(host);
 		return;
 	}
 	if (!data->error) {
 		if ((data->flags & MMC_DATA_READ)
-			&& (devicemode != MCI_DMAMODE)) {
+			&& (host->devicemode != MCI_DMAMODE)) {
 			u32 *buffer_local, *buffer;
 			u8500_mmci_init_sg(host, data);
 			buffer_local = host->buffer;
@@ -1109,6 +1036,7 @@ static void u8500_mmci_data_irq(struct u8500_mmci_host *host,
 	else
 		u8500_mmci_start_command(host, data->stop);
 clear_data_irq:
+	hoststatus &= ~(MCI_SDIOIT);
 	u8500_mmc_clearirqsrc(host->base, hoststatus);
 }
 
@@ -1130,10 +1058,6 @@ static irqreturn_t u8500_mmci_irq(int irq, void *dev_id)
 
 	hoststatus = readl(base + MMCISTATUS);
 	hoststatus &= readl(base + MMCIMASK0);
-#ifdef CONFIG_U8500_SDIO
-	if(host->is_sdio==1)
-                printk("\n SDIO IRQ =%x", hoststatus);
-#endif
 
 	while (hoststatus) {
 		if ((hoststatus & MCI_XFER_IRQ_MASK))
@@ -1142,18 +1066,16 @@ static irqreturn_t u8500_mmci_irq(int irq, void *dev_id)
 			u8500_mmci_cmd_irq(host, hoststatus);
 		if ((hoststatus & MCI_DATA_IRQ))
 			u8500_mmci_data_irq(host, hoststatus);
-		if(hoststatus & MCI_SDIOIT){
-			u8500_mmc_disableirqsrc(base, MCI_SDIOIT);
-			u8500_mmc_clearirqsrc(base, MCI_SDIOIT);
-			 printk("\n START SDIO IRQ handler");
-			 printk("\nfunc[0] = %p, func[1] = %p",
-			host->mmc->card->sdio_func[0], host->mmc->card->sdio_func[1]);
-			if(host->mmc->card && host->mmc->card->sdio_func[1] && host->mmc->card->sdio_func[1]->irq_handler){
-				struct sdio_func *func = host->mmc->card->sdio_func[1];
-				host->mmc->card->sdio_func[1]->irq_handler(func);
-				printk("\n END SDIO IRQ handler");
-				//mmc_signal_sdio_irq(host->mmc);
-				}
+		if (hoststatus & MCI_SDIOIT) {
+			/* Explicitly clear SDIOIT */
+			writel(MCI_SDIOIT, (base + MMCICLEAR));
+			 /* printk("\n START SDIO IRQ handler"); */
+			if (host->mmc->card && host->mmc->card->sdio_func[0] &&
+			    host->mmc->card->sdio_func[0]->irq_handler) {
+				struct sdio_func *func = host->mmc->card->sdio_func[0];
+				host->mmc->card->sdio_func[0]->irq_handler(func);
+				/* printk("\n END SDIO IRQ handler"); */
+			}
 		}
 		u8500_mmc_clearirqsrc(base, hoststatus);
 		hoststatus = readl(base + MMCISTATUS);
@@ -1176,16 +1098,9 @@ static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 {
 	DECLARE_COMPLETION_ONSTACK(complete);
 	void __iomem *base;
-	u32 nmdk_reg;
+	u32 temp_reg;
 	u32 polling_freq_clk_div = 0x0;
 	unsigned long flag_lock = 0;
-	int devicemode = mmc_mode;
-
-#ifdef CONFIG_U8500_SDIO
-	/*check mmc_id variable for SDIO card*/
-	if(host->is_sdio==1)
-		devicemode = sdio_mode;
-#endif
 
 	spin_lock_irqsave(&host->lock, flag_lock);
 	host->data = data;
@@ -1198,45 +1113,84 @@ static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 
 	u8500_mmci_init_sg(host, data);
 
-#ifdef CONFIG_U8500_SDIO
-	if(host->is_sdio==1) /*for SDIO*/
-		polling_freq_clk_div = 0x4;
-		/* HACK: value of clk div =4 is the lowest ,
-		 * i.e, max clk 8.33 MHz is working with WLAN.*/
-/*
-	if(host->cmd->opcode == SD_IO_RW_EXTENDED){
-		if(host->size>=32){
-			sdio_mode = MCI_DMAMODE;
-			polling_freq_clk_div = 0x02;
-			}
-		else{
-			sdio_mode = MCI_POLLINGMODE;
-			polling_freq_clk_div = 0x02;
-		}
-		devicemode = sdio_mode;
+	/**
+	 * Required for SDIO DMA mode, dynamic switching between polling
+	 * and DMA mode, depending on transfer size
+	 */
+	if ((host->cmd->opcode == SD_IO_RW_EXTENDED) && (sdio_mode == MCI_DMAMODE)) {
+		if (host->size >= 32)
+			host->devicemode = MCI_DMAMODE;
+		else
+			host->devicemode = MCI_POLLINGMODE;
 	}
-*/
+#ifdef SDIO_MULTIBYTE_WORKAROUND
+	/**
+	 * Work around for multibyte mode, required for SDIO CMD 53
+	 * size alignment required as host controller H/W does not
+	 * support byte mode
+	 */
+       if (host->cmd && (host->cmd->opcode == SD_IO_RW_EXTENDED) && !(host->cmd->arg & 0x08000000)) {
+		host->aligned_blksz = (1 << __fls(data->blksz));
+		if (host->aligned_blksz < data->blksz) /* If the no. is not power of two, get next power of two */
+			host->aligned_blksz = host->aligned_blksz << 1;
+		if (host->aligned_blksz > 4096) /* Error handling, not sure if this will ever occur */
+			host->aligned_blksz = data->blksz;
+		host->cmd->arg &= ~(0x1FF); /* reset block size in command args to zero */
+		if (host->aligned_blksz < 512)
+			host->cmd->arg |= host->aligned_blksz;
+		host->aligned_size = data->blocks * host->aligned_blksz;
+		/* else blksz in arg will be zero. */
+#if 0
+		else { /* 512 MULTI BYET not working , so always send 512 as block mode */
+			host->cmd->arg |= data->blocks;
+			host->cmd->arg |= 0x08000000;
+		}
 #endif
+	}
+#endif /* End of SDIO_MULTIBYTE_WORKAROUND */
 	cmd->error = MMC_ERR_NONE;
 	data->error = MMC_ERR_NONE;
 
-	if (devicemode == MCI_POLLINGMODE) {
-		nmdk_reg = readl(base + MMCICLOCK);
-		nmdk_reg = (nmdk_reg & ~(0xFF)) | ((u8) polling_freq_clk_div & 0xFF);
+	if (host->devicemode == MCI_POLLINGMODE) {
+		temp_reg = readl(base + MMCICLOCK);
+		temp_reg = (temp_reg & ~(0xFF)) | ((u8) polling_freq_clk_div & 0xFF);
 		writel(0x03, host->base + MMCIPOWER);
-		writel(nmdk_reg, (base + MMCICLOCK));
+		writel(temp_reg, (base + MMCICLOCK));
 	}
-	if (devicemode == MCI_DMAMODE)
+	if (host->devicemode == MCI_DMAMODE)
 		u8500_mmc_set_dma(host);
-	/* For a read we need to write to the data ctrl register first, then
+
+	/**
+	 * For a read we need to write to the data ctrl register first, then
 	 * send the command. For writes, the order is reversed.
 	 */
 	if ((data->flags & MMC_DATA_READ))
 		start_data_xfer(host);
-	if (devicemode == MCI_DMAMODE)
+	if (host->devicemode == MCI_DMAMODE)
 		host->dma_done = &complete;
-	u8500_mmc_send_cmd(base, cmd->opcode, cmd->arg, cmd->flags, devicemode);
-	if (devicemode == MCI_POLLINGMODE) {
+	u8500_mmc_send_cmd(base, cmd->opcode, cmd->arg, cmd->flags, host->devicemode);
+
+	/**
+	 * Required for SDIO interrupt from card , always enable SDIOIT ,
+	 * even if MMC_CAP_SDIO_IRQ is not set
+	 */
+	if ((host->is_sdio == 1) /* && (host->mmc->caps & MMC_CAP_SDIO_IRQ) */) {
+		/* Explicitly enable SDIOIT */
+		if (host->sdio_setirq && !(host->sdio_irqstatus)) {
+			/* If nterrupt is not already enabled then enable SDIOIT MASK */
+			writel(MCI_SDIOIT, (base + MMCICLEAR));
+			writel((readl(base + MMCIMASK0) | MCI_SDIOIT), (base + MMCIMASK0));
+			host->sdio_irqstatus = 1;
+		} else if (!(host->sdio_setirq) && (host->sdio_irqstatus)) {
+			/* If SDIO is not already disabled then disable SDIOIT */
+			u32 temp = readl(base + MMCIMASK0);
+			temp &= ~(MCI_SDIOIT);
+			writel(temp, (base + MMCIMASK0));
+			host->sdio_irqstatus = 0;
+		}
+	}
+
+	if (host->devicemode == MCI_POLLINGMODE) {
 		if (!(data->flags & MMC_DATA_READ))
 			wait_for_command_end(host);
 		while (data->error == MMC_ERR_NONE && host->data) {
@@ -1256,18 +1210,10 @@ u8500_mmci_start_command(struct u8500_mmci_host *host,
 			   struct mmc_command *cmd)
 {
 	void __iomem *base = host->base;
-	int devicemode = mmc_mode;
 
-#ifdef CONFIG_U8500_SDIO
-	/*check sdio_mode variable for SDIO card*/
-	struct mmc_host *mmc;
-	mmc = host->mmc;
-	if(host->is_sdio == 1)
-		devicemode = sdio_mode;
-#endif
 	host->cmd = cmd;
-	u8500_mmc_send_cmd(base, cmd->opcode, cmd->arg, cmd->flags, devicemode);
-	if (devicemode == MCI_POLLINGMODE) {
+	u8500_mmc_send_cmd(base, cmd->opcode, cmd->arg, cmd->flags, host->devicemode);
+	if (host->devicemode == MCI_POLLINGMODE) {
 		wait_for_command_end(host);
 	}
 	return;
@@ -1282,6 +1228,12 @@ static void u8500_mmci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct u8500_mmci_host *host = mmc_priv(mmc);
 	WARN_ON(host->mrq != NULL);
+	if (host->mrq != NULL) {
+		mrq->cmd->error = -EIO;
+		if (mrq->data)
+			mrq->data->bytes_xfered = 0;
+		return;
+	}
 	host->mrq = mrq;
 	if (mrq->data && mrq->data->flags & (MMC_DATA_READ | MMC_DATA_WRITE))
 		u8500_mmci_start_data(host, mrq->data, mrq->cmd);
@@ -1298,15 +1250,11 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct u8500_mmci_host *host = mmc_priv(mmc);
 	u32 clk = 0;
-#ifdef CONFIG_U8500_SDIO
-	int devicemode = mmc_mode;
 
-	/*check sdio_mode variable for SDIO card*/
-	if(host->is_sdio == 1)
-		devicemode = sdio_mode;
-#endif
-	/* Make sure we aren't changing the control registers too soon after
-	 * writing data. */
+	/**
+	 * Make sure we aren't changing the control registers too soon after
+	 * writing data.
+	 */
 	udelay(10);
 	/* Set the bus and power modes */
 	switch (ios->power_mode) {
@@ -1329,12 +1277,16 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 		if (host->board->set_power)
 			host->board->set_power(mmc_dev(mmc), 1);
+		if ((host->is_sdio == 1) && (!host->level_shifter))
+			writel(0xBE, host->base + MMCIPOWER);
 	break;
 	case MMC_POWER_ON:
 		if (!host->level_shifter)
 			writel(0x43, host->base + MMCIPOWER);
 		else
 			writel(0xBF, host->base + MMCIPOWER);
+		if ((host->is_sdio == 1) && (!host->level_shifter))
+			writel(0x3, host->base + MMCIPOWER);
 	break;
 	}
 	if (ios->clock) {
@@ -1382,9 +1334,26 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	break;
 	}
 }
+
+static void sdio_enableirq(struct mmc_host *mmc, int enable)
+{
+	struct u8500_mmci_host *host = mmc_priv(mmc);
+	stm_info("\n sdio_enableirq= %d", enable);
+	if (host && host->is_sdio)
+		host->sdio_setirq = enable;
+}
+
+static void sdio_clearirq(struct mmc_host *mmc)
+{
+	struct u8500_mmci_host *host = mmc_priv(mmc);
+	if (host)
+		writel(MCI_SDIOIT, (host->base + MMCICLEAR));
+}
+
 static struct mmc_host_ops u8500_mmci_ops = {
 	.request = u8500_mmci_request,
 	.set_ios = u8500_mmci_set_ios,
+	.enable_sdio_irq = sdio_enableirq,
 };
 
 /**
@@ -1424,19 +1393,17 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	int devicemode = mmc_mode;
 	struct mmc_board *board = dev->dev.platform_data;
 	struct stm_dma_pipe_info pipe_info1, pipe_info2;
+
 	stm_info("MMC: operating mode is set to %d [where 1=dma,2=poll,3=intr]\n", devicemode);
 	if (!board) {
 		stm_error("mmc: Platform data not set\n");
 		return -EINVAL;
 	}
-#ifdef CONFIG_U8500_SDIO
-	if(strcmp(dev->dev.bus_id,"SDIO") == 0){
-		devicemode = sdio_mode;
-	}
-	else {
-		devicemode = mmc_mode;
-	}
-#endif
+	if (board->is_sdio)
+	    devicemode = sdio_mode;
+	else
+	    devicemode = mmc_mode;
+
 	ret = board->init(dev);
 	if (ret) {
 		stm_error("\n Error in configuring MMC");
@@ -1463,7 +1430,10 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	host->caps = board->caps;
 	if (board->level_shifter)
 		host->level_shifter = board->level_shifter;
-	if (devicemode == MCI_POLLINGMODE) {
+	/**
+	 * For SDIO , as DMA to polling switching happens dynamically , always need to allocate buffer
+	 */
+	if (board->is_sdio || (devicemode == MCI_POLLINGMODE)) {
 		host->buffer = vmalloc(MAX_DATA);
 		if (!host->buffer) {
 			ret = -ENOMEM;
@@ -1481,15 +1451,19 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	if (devicemode == MCI_DMAMODE)
 		mmc->caps = host->caps;
 
-#ifdef CONFIG_U8500_SDIO
-	if(strcmp(dev->dev.bus_id,"SDIO") == 0){
-		host->is_sdio = 1;
-		mmc->caps = 0; //MMC_CAP_4_BIT_DATA;
-	}
-	else
-		host->is_sdio = 0;
+	host->is_sdio = board->is_sdio;
+	if (host->is_sdio) {
+		if (host->caps & MMC_CAP_SDIO_IRQ)
+		    host->sdio_setirq = 0;
+		else
+		    host->sdio_setirq = 1;
+		    /* Make IRQ enable even when SDIO_IRQ is not supported in capability */
 
-#endif
+		host->sdio_irqstatus = 0;
+		mmc->caps = host->caps;
+	}
+
+	host->devicemode = devicemode;
 	/*
 	 * We can do SGIO
 	 */
@@ -1502,40 +1476,36 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 		mmc->max_phys_segs = 1;
 	}
 	mmc->ocr_avail = OCR_AVAIL;
-	/* XXX No errors in Tx/Rx but writes garbage data with
-		mmc->max_req_size = 32768; */
+	/**
+	 * XXX No errors in Tx/Rx but writes garbage data with mmc->max_req_size = 32768;
+	 */
 #ifdef DMA_SCATERGATHER
 	mmc->max_req_size = 65535;
 #else
 	mmc->max_req_size = 4096;
 #endif
 	mmc->max_seg_size = mmc->max_req_size;
-#if 0 //def CONFIG_U8500_SDIO
-	if(strcmp(dev->dev.bus_id,"SDIO") == 0){
-		mmc->max_blk_size = 128;
-		mmc->max_req_size = 128;
-		mmc->max_seg_size = mmc->max_req_size;
-	}
-	else
-#endif
+
 	mmc->max_blk_size = 4096;
 	if (devicemode == MCI_DMAMODE)
 		mmc->max_blk_count = mmc->max_req_size;
 	else
 		mmc->max_blk_count = 64;
 	spin_lock_init(&host->lock);
+
 	host->clk = clk_get(&dev->dev, NULL);
 	if (IS_ERR(host->clk)) {
 		ret = PTR_ERR(host->clk);
 		goto unmap;
 	}
+
 	clk_enable(host->clk);
 	writel(0, host->base + MMCIMASK0);
 	writel(0xfff, host->base + MMCICLEAR);
-	if (devicemode != MCI_POLLINGMODE) {
-		ret =
-			request_irq(dev->irq[0], u8500_mmci_irq, IRQF_DISABLED/*SA_INTERRUPT*/,
-				DRIVER_NAME, host);
+	if ((devicemode != MCI_POLLINGMODE) || (host->is_sdio == 1)) {
+	    /* interrupt should always be enabled for I/O cards */
+		ret = request_irq(dev->irq[0], u8500_mmci_irq,
+			    IRQF_DISABLED/* SA_INTERRUPT */, DRIVER_NAME, host);
 		if (ret)
 			goto put_clk;
 	}
@@ -1690,7 +1660,7 @@ static int u8500_mmci_suspend(struct amba_device *dev, pm_message_t state)
 {
 	struct mmc_host *mmc = amba_get_drvdata(dev);
 	int ret = 0;
-	if (strcmp(dev->dev.bus_id, "EMMC") != 0) {
+	if (strcmp(dev->dev.bus_id, "sdi4") != 0) {
 		if (mmc) {
 			struct u8500_mmci_host *host = mmc_priv(mmc);
 			ret = mmc_suspend_host(mmc, state);
@@ -1709,7 +1679,7 @@ static int u8500_mmci_resume(struct amba_device *dev)
 {
 	struct mmc_host *mmc = amba_get_drvdata(dev);
 	int ret = 0;
-	if (strcmp(dev->dev.bus_id, "EMMC") != 0) {
+	if (strcmp(dev->dev.bus_id, "sdi4") != 0) {
 		if (mmc) {
 			struct u8500_mmci_host *host = mmc_priv(mmc);
 			clk_enable(host->clk);

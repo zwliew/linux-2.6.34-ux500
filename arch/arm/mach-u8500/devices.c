@@ -133,6 +133,7 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_HSIT, 222, 224, 0, GPIO_ALTF_A, "hsit"),
 	__GPIO_ALT(GPIO_ALT_EMMC, 197, 207, 0, GPIO_ALTF_A, "emmc"),
 	__GPIO_ALT(GPIO_ALT_SDMMC, 18, 28, 0, GPIO_ALTF_A, "sdmmc"),
+	__GPIO_ALT(GPIO_ALT_SDIO, 208, 214, 0, GPIO_ALTF_A, "sdio"),
 	__GPIO_ALT(GPIO_ALT_TRACE, 70, 74, 0, GPIO_ALTF_C, "stm"),
 	__GPIO_ALT(GPIO_ALT_SDMMC2, 128, 138, 0, GPIO_ALTF_A, "mmc2"),
 #ifndef CONFIG_FB_NOMADIK_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
@@ -146,8 +147,8 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 153, 171, 1, GPIO_ALTF_B, "mcde tvout"),
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 64, 77, 0, GPIO_ALTF_A, "mcde tvout"),
 #endif
-	__GPIO_ALT(GPIO_ALT_MMIO_INIT_BOARD, 141, 142, 0, GPIO_ALTF_B,"mmio"),
-	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, GPIO_ALTF_A,"mmio"),
+	__GPIO_ALT(GPIO_ALT_MMIO_INIT_BOARD, 141, 142, 0, GPIO_ALTF_B, "mmio"),
+	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, GPIO_ALTF_A, "mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_EXT_CLK, 227, 228, 0, GPIO_ALTF_A, "mmio"),
 #ifdef CONFIG_TOUCHP_EXT_CLK
 	__GPIO_ALT(GPIO_ALT_TP_SET_EXT_CLK, 228, 228, 0, GPIO_ALTF_A, "u8500_tp1"),
@@ -1963,14 +1964,14 @@ static void mmc_restore_default(struct amba_device *dev)
 
 }
 
-static int mmc_card_detect(void (*callback)(void* parameter), void * host)
+static int mmc_card_detect(void (*callback)(void *parameter), void *host)
 {
 	/*
 	 * Card detection interrupt request
 	 */
 #if defined(CONFIG_GPIO_STMPE2401)
 	if (MOP500_PLATFORM_ID == platform_id)
-		stmpe2401_set_callback(EGPIO_PIN_16,callback,host);
+		stmpe2401_set_callback(EGPIO_PIN_16, callback, host);
 #endif
 
 #if defined(CONFIG_GPIO_TC35892)
@@ -2023,31 +2024,55 @@ static struct amba_device sdi0_device = {
 		.periphid = SDI_PER_ID,
 };
 
-static struct mmc_board sdio_data = {
-        .init = mmc_configure,
-        .exit = mmc_restore_default,
-        .card_detect = mmc_card_detect,
-        .card_detect_intr_value = mmc_get_carddetect_intr_value,
-        .dma_fifo_addr = U8500_SDI0_BASE + SD_MMC_TX_RX_REG_OFFSET,
-        .dma_fifo_dev_type_rx = DMA_DEV_SD_MM0_RX,
-        .dma_fifo_dev_type_tx = DMA_DEV_SD_MM0_TX,
-        .level_shifter = 1,
+
+/* sdio specific configurations */
+static int sdio_configure(struct amba_device *dev)
+{
+    int i;
+    for (i = 208; i <= 214; i++) {
+	gpio_set_value(i, GPIO_HIGH);
+	gpio_set_value(i, GPIO_PULLUP_DIS);
+    }
+    stm_gpio_altfuncenable(GPIO_ALT_SDIO);
+    /* enable WLAN_EN by making GPIO215 HIGH */
+    gpio_direction_output(215, GPIO_HIGH);
+    gpio_set_value(215, GPIO_HIGH);
+
+    return 0;
+}
+static void sdio_restore_default(struct amba_device *dev)
+{
+    stm_gpio_altfuncdisable(GPIO_ALT_SDIO);
+}
+
+static struct mmc_board sdi1_data = {
+	.init = sdio_configure,
+	.exit = sdio_restore_default,
+	.dma_fifo_addr = U8500_SDI1_BASE + SD_MMC_TX_RX_REG_OFFSET,
+	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM1_RX,
+	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM1_TX,
+	.level_shifter = 0,
+#ifdef CONFIG_U8500_SDIO_CARD_IRQ
+	.caps = (MMC_CAP_4_BIT_DATA | MMC_CAP_SDIO_IRQ),
+#else
+	.caps = MMC_CAP_4_BIT_DATA,
+#endif
+	.is_sdio = 1,
 };
 
-static struct amba_device sdio_device = {
-        .dev = {
-                .bus_id = "SDIO",
-                .platform_data = &sdio_data,
-        },
-        .res = {
-                .start = U8500_SDI0_BASE,
-                .end = U8500_SDI0_BASE + SZ_4K - 1,
-                .flags = IORESOURCE_MEM,
-        },
-        .irq = {IRQ_SDMMC0, NO_IRQ },
-                .periphid = SDI_PER_ID,
+static struct amba_device sdi1_device = {
+	.dev = {
+	    .bus_id = "sdi1",
+	    .platform_data = &sdi1_data,
+	},
+	.res = {
+	    .start = U8500_SDI1_BASE,
+	    .end = U8500_SDI1_BASE + SZ_4K - 1,
+	    .flags = IORESOURCE_MEM,
+	},
+	.irq = {IRQ_SDMMC1, NO_IRQ },
+	.periphid = SDI_PER_ID,
 };
-
 static int sdi2_init(struct amba_device *dev)
 {
 	int i;
@@ -2350,10 +2375,9 @@ static struct amba_device *amba_devs[] __initdata = {
 	&spi0_device,
 	&msp2_spi_device,
 	&sdi4_device,	/* On-board eMMC */
-#ifdef CONFIG_U8500_SDIO
-	&sdio_device,
-#else
 	&sdi0_device,	/* SD/MMC card */
+#ifdef CONFIG_U8500_SDIO
+	&sdi1_device, /* SDIO card */
 #endif
 	&rtc_device,
 #endif

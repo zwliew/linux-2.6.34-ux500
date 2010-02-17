@@ -421,6 +421,14 @@ config U8500_SDIO
 		bool   "SDIO Interrupt mode"
 	endchoice
 
+config U8500_SDIO_CARD_IRQ
+	tristate "SDIO interrupt from card is supported"
+	depends on U8500_SDIO
+	default y
+	help
+	  This enables host controller to detect interrupt from
+	  SDIO card
+
 config MMC_CB710
 	tristate "ENE CB710 MMC/SD Interface support"
 	depends on PCI
