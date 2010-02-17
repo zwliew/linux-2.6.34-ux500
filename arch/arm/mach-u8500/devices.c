@@ -3010,6 +3010,9 @@ static void __init u8500_platform_init(void)
 
 	add_u8500_platform_devices();
 
+	/* enable RTC as a wakeup capable */
+	device_init_wakeup(&rtc_device.dev, true);
+
 	/* enable all the alternate gpio's for all UART's
 	 * FIXME - This should go in board files
 	 */
