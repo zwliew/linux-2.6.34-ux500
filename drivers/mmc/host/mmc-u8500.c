@@ -95,6 +95,8 @@ const int sdio_mode = MCI_POLLINGMODE;
 const int sdio_mode = MCI_INTERRUPTMODE;
 #elif defined CONFIG_U8500_SDIO_DMA
 const int sdio_mode = MCI_DMAMODE;
+#else
+const int sdio_mode = 0xFFFF;
 #endif
 
 #if !defined CONFIG_U8500_MMC_INTR
