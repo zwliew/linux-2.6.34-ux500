@@ -2688,7 +2688,7 @@ struct amba_device u8500_uart2_device = {
 
 #endif
 
-static struct platform_device *core_devices[] __initdata = {
+static struct platform_device *platform_devices[] __initdata = {
 	&u8500_msp0_device,
 	&u8500_msp1_device,
 	&u8500_msp2_device,
@@ -2726,7 +2726,7 @@ static struct platform_device *core_devices[] __initdata = {
 #endif
 };
 
-static struct platform_device *core_v1_devices[] __initdata = {
+static struct platform_device *platform_v1_devices[] __initdata = {
 	&u8500_i2c_4_controller,
 };
 
@@ -3097,12 +3097,12 @@ static void __init u8500_platform_init(void)
 		u8500_earlydrop_fixup();
 	else {
 		amba_add_devices(amba_v1_devs, ARRAY_SIZE(amba_v1_devs));
-		platform_add_devices(core_v1_devices,
-				     ARRAY_SIZE(core_v1_devices));
+		platform_add_devices(platform_v1_devices,
+				     ARRAY_SIZE(platform_v1_devices));
 	}
 
 	amba_add_devices(amba_devs, ARRAY_SIZE(amba_devs));
-	platform_add_devices(core_devices, ARRAY_SIZE(core_devices));
+	platform_add_devices(platform_devices, ARRAY_SIZE(platform_devices));
 
 #if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	i2s_register_board_info(stm_i2s_board_info,
