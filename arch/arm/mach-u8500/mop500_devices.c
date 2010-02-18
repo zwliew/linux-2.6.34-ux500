@@ -27,6 +27,7 @@
 #include <mach/tc35892.h>
 #include <mach/av8100_p.h>
 #include <mach/ab8500.h>
+#include <mach/mmc.h>
 
 #include <mach/u8500_tsc.h>
 
@@ -724,10 +725,6 @@ static struct platform_device *u8500_platform_devices[] __initdata = {
 
 };
 
-static struct amba_device *amba_v1_devs[] __initdata = {
-	&u8500_sdi2_device,	/* POP eMMC */
-};
-
 static struct amba_device *amba_board_devs[] __initdata = {
 	&u8500_uart0_device,
 	&u8500_uart1_device,
@@ -797,13 +794,17 @@ static void __init amba_add_devices(struct amba_device *devs[], int num)
 	}
 }
 
+static void __init mop500_platdata_init(void)
+{
+}
+
 void __init mop500_platform_init(void)
 {
-	if (!u8500_is_earlydrop()) {
-		amba_add_devices(amba_v1_devs, ARRAY_SIZE(amba_v1_devs));
+	mop500_platdata_init();
+
+	if (!u8500_is_earlydrop())
 		platform_add_devices(platform_v1_devices,
 				     ARRAY_SIZE(platform_v1_devices));
-	}
 
 	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
 	platform_add_devices(platform_board_devs, ARRAY_SIZE(platform_board_devs));
