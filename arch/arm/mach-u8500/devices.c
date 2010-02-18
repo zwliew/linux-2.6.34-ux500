@@ -2688,7 +2688,11 @@ struct amba_device u8500_uart2_device = {
 
 #endif
 
-static struct platform_device *platform_devices[] __initdata = {
+static struct platform_device *platform_core_devs[] __initdata = {
+	&u8500_dma_device,
+};
+
+static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_msp0_device,
 	&u8500_msp1_device,
 	&u8500_msp2_device,
@@ -2698,7 +2702,6 @@ static struct platform_device *platform_devices[] __initdata = {
 	&u8500_i2c_2_controller,
 	&u8500_i2c_3_controller,
 #endif
-	&u8500_dma_device,
 #if !defined(CONFIG_MACH_U8500_SIMULATOR)
 	&u8500_hsit_device,
 	&u8500_hsir_device,
@@ -2734,7 +2737,7 @@ static struct amba_device *amba_v1_devs[] __initdata = {
 	&u8500_sdi2_device,	/* POP eMMC */
 };
 
-static struct amba_device *amba_devs[] __initdata = {
+static struct amba_device *amba_core_devs[] __initdata = {
 	&u8500_gpio0_device,
 	&u8500_gpio1_device,
 	&u8500_gpio2_device,
@@ -2742,6 +2745,9 @@ static struct amba_device *amba_devs[] __initdata = {
 #if defined(CONFIG_MACH_U5500_SIMULATOR)
 	&u8500_gpio4_device,
 #endif
+};
+
+static struct amba_device *amba_board_devs[] __initdata = {
 	&u8500_uart0_device,
 	&u8500_uart1_device,
 	&u8500_uart2_device,
@@ -2758,6 +2764,7 @@ static struct amba_device *amba_devs[] __initdata = {
 	&u8500_rtc_device,
 #endif
 };
+
 static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	{
 		/* Particular name can be given */
@@ -3101,8 +3108,11 @@ static void __init u8500_platform_init(void)
 				     ARRAY_SIZE(platform_v1_devices));
 	}
 
-	amba_add_devices(amba_devs, ARRAY_SIZE(amba_devs));
-	platform_add_devices(platform_devices, ARRAY_SIZE(platform_devices));
+	amba_add_devices(amba_core_devs, ARRAY_SIZE(amba_core_devs));
+	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
+
+	platform_add_devices(platform_core_devs, ARRAY_SIZE(platform_core_devs));
+	platform_add_devices(platform_board_devs, ARRAY_SIZE(platform_board_devs));
 
 #if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	i2s_register_board_info(stm_i2s_board_info,
