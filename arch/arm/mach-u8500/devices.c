@@ -30,6 +30,7 @@
 #include <asm/hardware/cache-l2x0.h>
 #include <mach/irqs.h>
 #include <mach/hardware.h>
+#include <mach/devices.h>
 #include <asm/dma.h>
 #include <mach/dma.h>
 #include <linux/spi/spi.h>
@@ -182,7 +183,7 @@ static struct gpio_platform_data gpio0_platform_data = {
 	.altfun_table_size = ARRAY_SIZE(gpio_altfun_table)
 };
 
-static struct amba_device gpio0_device = {
+struct amba_device u8500_gpio0_device = {
 	.dev = {
 		.bus_id = "gpioblock0",
 		.platform_data = &gpio0_platform_data,
@@ -239,7 +240,7 @@ static struct gpio_platform_data gpio1_platform_data = {
 
 };
 
-static struct amba_device gpio1_device = {
+struct amba_device u8500_gpio1_device = {
 	.dev = {
 		.bus_id = "gpioblock1",
 		.platform_data = &gpio1_platform_data,
@@ -287,7 +288,7 @@ static struct gpio_platform_data gpio2_platform_data = {
 
 };
 
-static struct amba_device gpio2_device = {
+struct amba_device u8500_gpio2_device = {
 	.dev = {
 		.bus_id = "gpioblock2",
 		.platform_data = &gpio2_platform_data,
@@ -335,7 +336,7 @@ static struct gpio_platform_data gpio3_platform_data = {
 
 };
 
-static struct amba_device gpio3_device = {
+struct amba_device u8500_gpio3_device = {
 	.dev = {
 		.bus_id = "gpioblock3",
 		.platform_data = &gpio3_platform_data,
@@ -389,7 +390,7 @@ static struct gpio_platform_data gpio4_platform_data = {
 	.altfun_table_size = ARRAY_SIZE(gpio_altfun_table)
 
 };
-static struct amba_device gpio4_device = {
+struct amba_device u8500_gpio4_device = {
 	.dev = {
 		.bus_id = "gpioblock4",
 		.platform_data = &gpio4_platform_data,
@@ -441,7 +442,7 @@ static struct resource u8500_msp_0_resources[] = {
 	       .end = IRQ_MSP0,
 	       .flags = IORESOURCE_IRQ}
 };
-static struct platform_device msp0_device = {
+struct platform_device u8500_msp0_device = {
 	.name = "MSP_I2S",
 	.id = 0,
 	.num_resources = 2,
@@ -472,7 +473,7 @@ static struct resource u8500_msp_1_resources[] = {
 	       .end = IRQ_MSP1,
 	       .flags = IORESOURCE_IRQ}
 };
-static struct platform_device msp1_device = {
+struct platform_device u8500_msp1_device = {
 	.name = "MSP_I2S",
 	.id = 1,
 	.num_resources = 2,
@@ -506,7 +507,7 @@ static struct resource u8500_msp_2_resources[] = {
 	}
 };
 
-static struct platform_device msp2_device = {
+struct platform_device u8500_msp2_device = {
 	.name = "MSP_I2S",
 	.id = 2,
 	.num_resources = 2,
@@ -532,7 +533,7 @@ static struct nmdk_spi_master_cntlr msp2_spi_platform_data = {
 	.device_name = "msp2",
 };
 
-static struct amba_device msp2_spi_device = {
+struct amba_device u8500_msp2_spi_device = {
 	.dev = {
 		.bus_id = "msp2",
 		.platform_data = &msp2_spi_platform_data,
@@ -707,7 +708,7 @@ static struct i2c_platform_data u8500_i2c_4_private_data = {
 	.i2c_rx_int_threshold = 1
 };
 
-static struct platform_device u8500_i2c_0_controller = {
+struct platform_device u8500_i2c_0_controller = {
 	.name = "STM-I2C",
 	.id = 0,
 	.num_resources = 2,
@@ -716,7 +717,7 @@ static struct platform_device u8500_i2c_0_controller = {
 		.platform_data = &u8500_i2c_0_private_data}
 };
 
-static struct platform_device u8500_i2c_1_controller = {
+struct platform_device u8500_i2c_1_controller = {
 	.name = "STM-I2C",
 	.id = 1,
 	.num_resources = 2,
@@ -725,7 +726,7 @@ static struct platform_device u8500_i2c_1_controller = {
 		.platform_data = &u8500_i2c_1_private_data}
 };
 
-static struct platform_device u8500_i2c_2_controller = {
+struct platform_device u8500_i2c_2_controller = {
 	.name = "STM-I2C",
 	.id = 2,
 	.num_resources = 2,
@@ -734,7 +735,7 @@ static struct platform_device u8500_i2c_2_controller = {
 		.platform_data = &u8500_i2c_2_private_data}
 };
 
-static struct platform_device u8500_i2c_3_controller = {
+struct platform_device u8500_i2c_3_controller = {
 	.name = "STM-I2C",
 	.id = 3,
 	.num_resources = 2,
@@ -743,7 +744,7 @@ static struct platform_device u8500_i2c_3_controller = {
 		.platform_data = &u8500_i2c_3_private_data}
 };
 
-static struct platform_device u8500_i2c_4_controller = {
+struct platform_device u8500_i2c_4_controller = {
 	.name = "STM-I2C",
 	.id = 4,
 	.num_resources = 2,
@@ -942,7 +943,7 @@ static struct mcde_channel_data mcde2_channel_data = {
 #endif
 };
 
-static struct platform_device mcde2_device = {
+struct platform_device u8500_mcde2_device = {
 	.name = "U8500-MCDE",
 	.id = 2,
 	.dev = {
@@ -1124,7 +1125,7 @@ static struct mcde_channel_data mcde3_channel_data = {
 #endif
 };
 
-static struct platform_device mcde3_device = {
+struct platform_device u8500_mcde3_device = {
 	.name = "U8500-MCDE",
 	.id = 3,
 	.dev = {
@@ -1308,7 +1309,7 @@ static struct mcde_channel_data mcde1_channel_data = {
 	.gpio_alt_func =  GPIO_ALT_LCD_PANELB
 };
 
-static struct platform_device mcde1_device = {
+struct platform_device u8500_mcde1_device = {
 	.name = "U8500-MCDE",
 	.id = 1,
 	.dev = {
@@ -1483,7 +1484,7 @@ static struct mcde_channel_data mcde0_channel_data = {
 	.gpio_alt_func =  GPIO_ALT_LCD_PANELA
 };
 
-static struct platform_device mcde0_device = {
+struct platform_device u8500_mcde0_device = {
 	.name = "U8500-MCDE",
 	.id = 0,
 	.dev = {
@@ -1795,7 +1796,7 @@ static struct resource u8500_hsir_resource[] = {
 	},
 };
 
-static struct platform_device u8500_hsit_device = {
+struct platform_device u8500_hsit_device = {
 	.name = "stm-hsi",
 	.id = 0,
 	.dev = {
@@ -1805,7 +1806,7 @@ static struct platform_device u8500_hsit_device = {
 	.resource = u8500_hsit_resource,
 };
 
-static struct platform_device u8500_hsir_device = {
+struct platform_device u8500_hsir_device = {
 	.name = "stm-hsi",
 	.id = 1,
 	.dev = {
@@ -1859,7 +1860,7 @@ static struct resource u8500_shrm_resources[] = {
 	}
 };
 
-static struct platform_device u8500_shrm_device = {
+struct platform_device u8500_shrm_device = {
 	.name = "u8500_shrm",
 	.id = 0,
 	.dev = {
@@ -1887,7 +1888,7 @@ static struct resource b2r2_resources[] = {
 	},
 };
 
-static struct platform_device b2r2_device = {
+struct platform_device u8500_b2r2_device = {
 	.name = "U8500-B2R2",
 	.id = 0,
 	.dev = {
@@ -1924,7 +1925,7 @@ static void __init early_pmem(char **p)
 }
 __early_param("pmem=", early_pmem);
 
-static struct platform_device pmem_device = {
+struct platform_device u8500_pmem_device = {
 	.name = "android_pmem",
 	.id = 0,
 	.dev = {
@@ -1950,7 +1951,7 @@ static void __init early_pmem_mio(char **p)
 }
 __early_param("pmem_mio=", early_pmem_mio);
 
-static struct platform_device pmem_mio_device = {
+struct platform_device u8500_pmem_mio_device = {
 	.name = "android_pmem",
 	.id = 1,
 	.dev = {
@@ -1976,7 +1977,7 @@ static void __init early_pmem_hwb(char **p)
 }
 __early_param("pmem_hwb=", early_pmem_hwb);
 
-static struct platform_device pmem_hwb_device = {
+struct platform_device u8500_pmem_hwb_device = {
 	.name = "android_pmem",
 	.id = 2,
 	.dev = {
@@ -1984,7 +1985,7 @@ static struct platform_device pmem_hwb_device = {
 	},
 };
 
-static struct amba_device rtc_device = {
+struct amba_device u8500_rtc_device = {
 	.dev = {
 		.bus_id = "mb:15",
 	},
@@ -2097,7 +2098,7 @@ static struct resource u8500_dma_resources[] = {
 		.flags = IORESOURCE_IRQ}
 };
 
-static struct platform_device u8500_dma_device = {
+struct platform_device u8500_dma_device = {
 	.name = "STM-DMA",
 	.id = 0,
 	.num_resources = 2,
@@ -2119,7 +2120,7 @@ static struct nmdk_spi_master_cntlr ssp0_platform_data = {
 	.device_name = "ssp0",
 };
 
-static struct amba_device ssp0_device = {
+struct amba_device u8500_ssp0_device = {
 	.dev = {
 		.bus_id = "ssp0",
 		.platform_data = &ssp0_platform_data,
@@ -2147,7 +2148,7 @@ static struct nmdk_spi_master_cntlr ssp1_platform_data = {
 	.device_name = "ssp1",
 };
 
-static struct amba_device ssp1_device = {
+struct amba_device u8500_ssp1_device = {
 	.dev = {
 		.bus_id = "ssp1",
 		.platform_data = &ssp1_platform_data,
@@ -2177,7 +2178,7 @@ static struct nmdk_spi_master_cntlr spi0_platform_data = {
 	.device_name = "spi0",
 };
 
-static struct amba_device spi0_device = {
+struct amba_device u8500_spi0_device = {
 	.dev = {
 		.bus_id = "spi0",
 		.platform_data = &spi0_platform_data,
@@ -2241,7 +2242,7 @@ static struct mmc_board emmc_data = {
 #endif
 };
 
-static struct amba_device sdi4_device = {
+struct amba_device u8500_sdi4_device = {
 	.dev = {
 		.bus_id = "sdi4",
 		.platform_data = &emmc_data,
@@ -2362,7 +2363,7 @@ static struct mmc_board mmc_data = {
 					MMC_CAP_MMC_HIGHSPEED,
 };
 
-static struct amba_device sdi0_device = {
+struct amba_device u8500_sdi0_device = {
 	.dev = {
 		.bus_id = "sdi0",
 		.platform_data = &mmc_data,
@@ -2419,7 +2420,7 @@ static struct mmc_board sdi1_data = {
 	.is_sdio = 1,
 };
 
-static struct amba_device sdi1_device = {
+struct amba_device u8500_sdi1_device = {
 	.dev = {
 	    .bus_id = "sdi1",
 	    .platform_data = &sdi1_data,
@@ -2459,7 +2460,7 @@ static struct mmc_board sdi2_data = {
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
 };
 
-static struct amba_device sdi2_device = {
+struct amba_device u8500_sdi2_device = {
 	.dev = {
 		.bus_id = "sdi2",
 		.platform_data = &sdi2_data,
@@ -2503,7 +2504,7 @@ static struct ab8500_device ab8500_board = {
 	.ssp_controller = SSP_0_CONTROLLER,
 };
 
-static struct platform_device ab8500_device = {
+struct platform_device u8500_ab8500_device = {
 	.name = "ab8500",
 	.id = 0,
 	.dev = {
@@ -2559,7 +2560,7 @@ static struct resource usb_resources[] = {
 	},
 };
 
-static struct platform_device musb_device = {
+struct platform_device u8500_musb_device = {
 	.name = "musb_hdrc",
 	.id = 0,
 	.dev = {
@@ -2649,37 +2650,37 @@ struct uart_amba_plat_data uart2_plat = {
 /* Remap of uart0 and uart2 when using SVP5500
  * remove this when uart2 problem solved in SVP5500
  */
-static struct amba_device uart2_device = {
+struct amba_device u8500_uart2_device = {
 	.dev = {.bus_id = "uart2", .platform_data = &uart0_plat, },
 	__MEM_4K_RESOURCE(U8500_UART0_BASE),
 	.irq = {IRQ_UART0, NO_IRQ},
 };
 
-static struct amba_device uart1_device = {
+struct amba_device u8500_uart1_device = {
 	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
 	__MEM_4K_RESOURCE(U8500_UART1_BASE),
 	.irq = {IRQ_UART1, NO_IRQ},
 };
 
-static struct amba_device uart0_device = {
+struct amba_device u8500_uart0_device = {
 	.dev = {.bus_id = "uart0", .platform_data = &uart2_plat, },
 	__MEM_4K_RESOURCE(U8500_UART2_BASE),
 	.irq = {IRQ_UART2, NO_IRQ},
 };
 #else
-static struct amba_device uart0_device = {
+struct amba_device u8500_uart0_device = {
 	.dev = {.bus_id = "uart0", .platform_data = &uart0_plat, },
 	__MEM_4K_RESOURCE(U8500_UART0_BASE),
 	.irq = {IRQ_UART0, NO_IRQ},
 };
 
-static struct amba_device uart1_device = {
+struct amba_device u8500_uart1_device = {
 	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
 	__MEM_4K_RESOURCE(U8500_UART1_BASE),
 	.irq = {IRQ_UART1, NO_IRQ},
 };
 
-static struct amba_device uart2_device = {
+struct amba_device u8500_uart2_device = {
 	.dev = {.bus_id = "uart2", .platform_data = &uart2_plat, },
 	__MEM_4K_RESOURCE(U8500_UART2_BASE),
 	.irq = {IRQ_UART2, NO_IRQ},
@@ -2688,9 +2689,9 @@ static struct amba_device uart2_device = {
 #endif
 
 static struct platform_device *core_devices[] __initdata = {
-	&msp0_device,
-	&msp1_device,
-	&msp2_device,
+	&u8500_msp0_device,
+	&u8500_msp1_device,
+	&u8500_msp2_device,
 	&u8500_i2c_0_controller,
 #if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	&u8500_i2c_1_controller,
@@ -2702,26 +2703,26 @@ static struct platform_device *core_devices[] __initdata = {
 	&u8500_hsit_device,
 	&u8500_hsir_device,
 	&u8500_shrm_device,
-	&ab8500_device,
+	&u8500_ab8500_device,
 	&ab8500_gpadc_device,
 	&ab8500_bm_device,
-	&musb_device,
+	&u8500_musb_device,
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-	&mcde2_device,
+	&u8500_mcde2_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELC0 */
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
-	&mcde3_device,
+	&u8500_mcde3_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELC1 */
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELB
-	&mcde1_device,
+	&u8500_mcde1_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELB */
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
-	&mcde0_device,
+	&u8500_mcde0_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
-	&b2r2_device,
-	&pmem_device,
-	&pmem_mio_device,
-	&pmem_hwb_device,
+	&u8500_b2r2_device,
+	&u8500_pmem_device,
+	&u8500_pmem_mio_device,
+	&u8500_pmem_hwb_device,
 #endif
 };
 
@@ -2730,31 +2731,31 @@ static struct platform_device *core_v1_devices[] __initdata = {
 };
 
 static struct amba_device *amba_v1_devs[] __initdata = {
-	&sdi2_device,	/* POP eMMC */
+	&u8500_sdi2_device,	/* POP eMMC */
 };
 
 static struct amba_device *amba_devs[] __initdata = {
-	&gpio0_device,
-	&gpio1_device,
-	&gpio2_device,
-	&gpio3_device,
+	&u8500_gpio0_device,
+	&u8500_gpio1_device,
+	&u8500_gpio2_device,
+	&u8500_gpio3_device,
 #if defined(CONFIG_MACH_U5500_SIMULATOR)
-	&gpio4_device,
+	&u8500_gpio4_device,
 #endif
-	&uart0_device,
-	&uart1_device,
-	&uart2_device,
+	&u8500_uart0_device,
+	&u8500_uart1_device,
+	&u8500_uart2_device,
 #if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	&ssp0_device,
-	&ssp1_device,
-	&spi0_device,
-	&msp2_spi_device,
-	&sdi4_device,	/* On-board eMMC */
-	&sdi0_device,	/* SD/MMC card */
+	&u8500_ssp0_device,
+	&u8500_ssp1_device,
+	&u8500_spi0_device,
+	&u8500_msp2_spi_device,
+	&u8500_sdi4_device,	/* On-board eMMC */
+	&u8500_sdi0_device,	/* SD/MMC card */
 #ifdef CONFIG_U8500_SDIO
-	&sdi1_device, /* SDIO card */
+	&u8500_sdi1_device,
 #endif
-	&rtc_device,
+	&u8500_rtc_device,
 #endif
 };
 static struct i2s_board_info stm_i2s_board_info[] __initdata = {
@@ -2867,25 +2868,25 @@ static int db8500_vana_regulator_init(void) { return 0; }
 static struct regulator_consumer_supply db8500_vana_consumers[] = {
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	{
-		.dev = &mcde0_device.dev,
+		.dev = &u8500_mcde0_device.dev,
 		.supply = "v-ana",
 	},
 #endif
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELB
 	{
-		.dev = &mcde1_device.dev,
+		.dev = &u8500_mcde1_device.dev,
 		.supply = "v-ana",
 	},
 #endif
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	{
-		.dev = &mcde2_device.dev,
+		.dev = &u8500_mcde2_device.dev,
 		.supply = "v-ana",
 	},
 #endif
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
 	{
-		.dev = &mcde3_device.dev,
+		.dev = &u8500_mcde3_device.dev,
 		.supply = "v-ana",
 	},
 #endif
@@ -2924,25 +2925,25 @@ static int ab8500_vaux1_regulator_init(void) { return 0; }
 static struct regulator_consumer_supply ab8500_vaux1_consumers[] = {
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	{
-		.dev = &mcde0_device.dev,
+		.dev = &u8500_mcde0_device.dev,
 		.supply = "v-mcde",
 	},
 #endif
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELB
 	{
-		.dev = &mcde1_device.dev,
+		.dev = &u8500_mcde1_device.dev,
 		.supply = "v-mcde",
 	},
 #endif
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	{
-		.dev = &mcde2_device.dev,
+		.dev = &u8500_mcde2_device.dev,
 		.supply = "v-mcde",
 	},
 #endif
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
 	{
-		.dev = &mcde3_device.dev,
+		.dev = &u8500_mcde3_device.dev,
 		.supply = "v-mcde",
 	},
 #endif
@@ -2979,7 +2980,7 @@ static int ab8500_vaux2_regulator_init(void) { return 0; }
 /* supply for on-board eMMC */
 static struct regulator_consumer_supply ab8500_vaux2_consumers[] = {
 	{
-		.dev    = &sdi4_device.dev,
+		.dev    = &u8500_sdi4_device.dev,
 		.supply = "v-eMMC",
 	}
 };
@@ -3110,7 +3111,7 @@ static void __init u8500_platform_init(void)
 	add_u8500_platform_devices();
 
 	/* enable RTC as a wakeup capable */
-	device_init_wakeup(&rtc_device.dev, true);
+	device_init_wakeup(&u8500_rtc_device.dev, true);
 
 	/* enable all the alternate gpio's for all UART's
 	 * FIXME - This should go in board files
