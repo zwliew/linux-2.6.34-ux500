@@ -53,7 +53,7 @@
 #define MOP500_PLATFORM_ID	0
 #define HREF_PLATFORM_ID	1
 
-extern void __init add_u8500_platform_devices(void);
+extern void __init mop500_platform_init(void);
 int platform_id = MOP500_PLATFORM_ID;
 
 int u8500_is_earlydrop(void)
@@ -2514,14 +2514,6 @@ struct platform_device u8500_ab8500_device = {
 	.resource = ab8500_resources,
 };
 
-static struct platform_device ab8500_gpadc_device = {
-	.name = "ab8500_gpadc"
-};
-
-static struct platform_device ab8500_bm_device = {
-	.name = "ab8500_bm"
-};
-
 #if  defined(CONFIG_USB_MUSB_HOST)
 #define MUSB_MODE	MUSB_HOST
 #elif defined(CONFIG_USB_MUSB_PERIPHERAL)
@@ -2692,51 +2684,6 @@ static struct platform_device *platform_core_devs[] __initdata = {
 	&u8500_dma_device,
 };
 
-static struct platform_device *platform_board_devs[] __initdata = {
-	&u8500_msp0_device,
-	&u8500_msp1_device,
-	&u8500_msp2_device,
-	&u8500_i2c_0_controller,
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	&u8500_i2c_1_controller,
-	&u8500_i2c_2_controller,
-	&u8500_i2c_3_controller,
-#endif
-#if !defined(CONFIG_MACH_U8500_SIMULATOR)
-	&u8500_hsit_device,
-	&u8500_hsir_device,
-	&u8500_shrm_device,
-	&u8500_ab8500_device,
-	&ab8500_gpadc_device,
-	&ab8500_bm_device,
-	&u8500_musb_device,
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-	&u8500_mcde2_device,
-#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC0 */
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
-	&u8500_mcde3_device,
-#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC1 */
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
-	&u8500_mcde1_device,
-#endif	/* CONFIG_FB_U8500_MCDE_CHANNELB */
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
-	&u8500_mcde0_device,
-#endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
-	&u8500_b2r2_device,
-	&u8500_pmem_device,
-	&u8500_pmem_mio_device,
-	&u8500_pmem_hwb_device,
-#endif
-};
-
-static struct platform_device *platform_v1_devices[] __initdata = {
-	&u8500_i2c_4_controller,
-};
-
-static struct amba_device *amba_v1_devs[] __initdata = {
-	&u8500_sdi2_device,	/* POP eMMC */
-};
-
 static struct amba_device *amba_core_devs[] __initdata = {
 	&u8500_gpio0_device,
 	&u8500_gpio1_device,
@@ -2745,46 +2692,6 @@ static struct amba_device *amba_core_devs[] __initdata = {
 #if defined(CONFIG_MACH_U5500_SIMULATOR)
 	&u8500_gpio4_device,
 #endif
-};
-
-static struct amba_device *amba_board_devs[] __initdata = {
-	&u8500_uart0_device,
-	&u8500_uart1_device,
-	&u8500_uart2_device,
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	&u8500_ssp0_device,
-	&u8500_ssp1_device,
-	&u8500_spi0_device,
-	&u8500_msp2_spi_device,
-	&u8500_sdi4_device,	/* On-board eMMC */
-	&u8500_sdi0_device,	/* SD/MMC card */
-#ifdef CONFIG_U8500_SDIO
-	&u8500_sdi1_device,
-#endif
-	&u8500_rtc_device,
-#endif
-};
-
-static struct i2s_board_info stm_i2s_board_info[] __initdata = {
-	{
-		/* Particular name can be given */
-		.modalias	= "i2s_device.0",
-		.platform_data	= NULL, /* can be fill some data */
-		.id		= (MSP_0_CONTROLLER - 1),
-		.chip_select	= 0,
-	},
-	{
-		.modalias	= "i2s_device.1",
-		.platform_data	= NULL, /* can be fill some data */
-		.id		= (MSP_1_CONTROLLER - 1),
-		.chip_select	= 1,
-	},
-	{
-		.modalias	= "i2s_device.2",
-		.platform_data	= NULL, /* can be fill some data */
-		.id		= (MSP_2_CONTROLLER - 1),
-		.chip_select	= 2,
-	}
 };
 
 #ifdef CONFIG_CACHE_L2X0
@@ -3102,34 +3009,11 @@ static void __init u8500_platform_init(void)
 
 	if (u8500_is_earlydrop())
 		u8500_earlydrop_fixup();
-	else {
-		amba_add_devices(amba_v1_devs, ARRAY_SIZE(amba_v1_devs));
-		platform_add_devices(platform_v1_devices,
-				     ARRAY_SIZE(platform_v1_devices));
-	}
 
 	amba_add_devices(amba_core_devs, ARRAY_SIZE(amba_core_devs));
-	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
-
 	platform_add_devices(platform_core_devs, ARRAY_SIZE(platform_core_devs));
-	platform_add_devices(platform_board_devs, ARRAY_SIZE(platform_board_devs));
 
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	i2s_register_board_info(stm_i2s_board_info,
-			ARRAY_SIZE(stm_i2s_board_info));
-
-	add_u8500_platform_devices();
-
-	/* enable RTC as a wakeup capable */
-	device_init_wakeup(&u8500_rtc_device.dev, true);
-
-	/* enable all the alternate gpio's for all UART's
-	 * FIXME - This should go in board files
-	 */
-	stm_gpio_altfuncenable(GPIO_ALT_UART_0_NO_MODEM);
-	stm_gpio_altfuncenable(GPIO_ALT_UART_1);
-	stm_gpio_altfuncenable(GPIO_ALT_UART_2);
-#endif
+	mop500_platform_init();
 }
 
 extern struct sys_timer u8500_timer;

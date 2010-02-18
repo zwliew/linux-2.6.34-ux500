@@ -20,6 +20,7 @@
 #include <asm/mach/irq.h>
 #include <asm/mach/map.h>
 
+#include <mach/devices.h>
 #include <mach/kpd.h>
 #include <mach/stmpe2401.h>
 #include <mach/stmpe1601.h>
@@ -675,6 +676,16 @@ static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	 .id = (MSP_1_CONTROLLER - 1),
 	 .chip_select = 1,
 	 },
+	{
+		/*
+		 * XXX mop500_devices.c did not have this originally, and this
+		 * was in device.c.  Required?
+		 */
+		.modalias	= "i2s_device.2",
+		.platform_data	= NULL, /* can be fill some data */
+		.id		= (MSP_2_CONTROLLER - 1),
+		.chip_select	= 2,
+	}
 
 };
 
@@ -697,6 +708,14 @@ static struct hsi_board_info __initdata stm_hsi_devices[] = {
 	 .chan_num = 3, .mode = 1},
 };
 
+static struct platform_device ab8500_gpadc_device = {
+	.name = "ab8500_gpadc"
+};
+
+static struct platform_device ab8500_bm_device = {
+	.name = "ab8500_bm"
+};
+
 static struct platform_device *u8500_platform_devices[] __initdata = {
 	/*TODO - add platform devices here */
 #ifdef CONFIG_KEYPAD_U8500
@@ -705,9 +724,98 @@ static struct platform_device *u8500_platform_devices[] __initdata = {
 
 };
 
-void __init add_u8500_platform_devices(void)
+static struct amba_device *amba_v1_devs[] __initdata = {
+	&u8500_sdi2_device,	/* POP eMMC */
+};
+
+static struct amba_device *amba_board_devs[] __initdata = {
+	&u8500_uart0_device,
+	&u8500_uart1_device,
+	&u8500_uart2_device,
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
+	&u8500_ssp0_device,
+	&u8500_ssp1_device,
+	&u8500_spi0_device,
+	&u8500_msp2_spi_device,
+	&u8500_sdi4_device,	/* On-board eMMC */
+	&u8500_sdi0_device,	/* SD/MMC card */
+#ifdef CONFIG_U8500_SDIO
+	&u8500_sdi1_device,
+#endif
+	&u8500_rtc_device,
+#endif
+};
+
+static struct platform_device *platform_v1_devices[] __initdata = {
+	&u8500_i2c_4_controller,
+};
+
+static struct platform_device *platform_board_devs[] __initdata = {
+	&u8500_msp0_device,
+	&u8500_msp1_device,
+	&u8500_msp2_device,
+	&u8500_i2c_0_controller,
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
+	&u8500_i2c_1_controller,
+	&u8500_i2c_2_controller,
+	&u8500_i2c_3_controller,
+#endif
+#if !defined(CONFIG_MACH_U8500_SIMULATOR)
+	&u8500_hsit_device,
+	&u8500_hsir_device,
+	&u8500_shrm_device,
+	&u8500_ab8500_device,
+	&ab8500_gpadc_device,
+	&ab8500_bm_device,
+	&u8500_musb_device,
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
+	&u8500_mcde2_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC0 */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
+	&u8500_mcde3_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELC1 */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
+	&u8500_mcde1_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELB */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
+	&u8500_mcde0_device,
+#endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
+	&u8500_b2r2_device,
+	&u8500_pmem_device,
+	&u8500_pmem_mio_device,
+	&u8500_pmem_hwb_device,
+#endif
+};
+
+static void __init amba_add_devices(struct amba_device *devs[], int num)
 {
-	printk(KERN_INFO "%s(): registering device resources\n", __func__);
+	int i;
+
+	for (i = 0; i < num; i++) {
+		struct amba_device *d = devs[i];
+		amba_device_register(d, &iomem_resource);
+	}
+}
+
+void __init mop500_platform_init(void)
+{
+	if (!u8500_is_earlydrop()) {
+		amba_add_devices(amba_v1_devs, ARRAY_SIZE(amba_v1_devs));
+		platform_add_devices(platform_v1_devices,
+				     ARRAY_SIZE(platform_v1_devices));
+	}
+
+	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
+	platform_add_devices(platform_board_devs, ARRAY_SIZE(platform_board_devs));
+
+	/* enable RTC as a wakeup capable */
+	device_init_wakeup(&u8500_rtc_device.dev, true);
+
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
+	stm_gpio_altfuncenable(GPIO_ALT_UART_0_NO_MODEM);
+	stm_gpio_altfuncenable(GPIO_ALT_UART_1);
+	stm_gpio_altfuncenable(GPIO_ALT_UART_2);
+#endif
 
 	if (MOP500_PLATFORM_ID == platform_id)
 		i2c_register_board_info(0, nmdk_i2c0_egpio_devices,
