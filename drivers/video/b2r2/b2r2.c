@@ -222,29 +222,25 @@ void process_events(t_uint32 status)
                   some job is pending if not null */
               if(temp3->job.job_done == 0)
               {
-					trigger_job(&(temp3->job));
+				switch(temp3->job.interrupt_target)
+				  {
+				  case 0:  /** ARM */
+				    B2R2_System->BLT_ITM0 |= temp3->job.interrupt_context;
+				    break;
+				  case 1:  /** SAA */
+				    B2R2_System->BLT_ITM1 |= temp3->job.interrupt_context;
+				    break;
+				  case 2:  /** SVA */
+				    B2R2_System->BLT_ITM2 |= temp3->job.interrupt_context;
+				    break;
+				  case 3:  /** SIA */
+				    B2R2_System->BLT_ITM3 |= temp3->job.interrupt_context;
+				    break;
+				  }
 
-					switch(temp3->job.interrupt_target)
-					{
-									case 0:  /** ARM */
-											B2R2_System->BLT_ITM0 |= temp3->job.interrupt_context;
-											break;
-									case 1:  /** SAA */
-											B2R2_System->BLT_ITM1 |= temp3->job.interrupt_context;
-											break;
-									case 2:  /** SVA */
-											B2R2_System->BLT_ITM2 |= temp3->job.interrupt_context;
-											break;
-									case 3:  /** SIA */
-											B2R2_System->BLT_ITM3 |= temp3->job.interrupt_context;
-											break;
-					}
-
+				trigger_job(&(temp3->job));
 		      }
-
-
 	       }
-
            break;
 
 	    }

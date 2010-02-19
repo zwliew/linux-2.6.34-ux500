@@ -100,8 +100,6 @@ typedef struct  b2r2_driver{
  * This structure is used by to define the memory required.
  *
  */
-
-
  typedef struct b2r2_driver_memory
  {
 
@@ -110,6 +108,12 @@ typedef struct  b2r2_driver{
 
  }b2r2_driver_memory;
 
+ struct b2r2_flush_pmem
+ {
+	 int fd;
+	 int offset;
+	 int len;
+ };
 
 /** Maximum size of the structure need to passed to B2R2 */
 
@@ -119,12 +123,11 @@ typedef struct  b2r2_driver{
 
 
 /** INSTANCE SPECIFIC OPERATIONS */
-
 #define B2R2_QUEUE_JOB             _IOWR(B2R2_IOC_MAGIC,1,b2r2_driver)
 #define B2R2_DEQUEUE_JOB           _IOWR(B2R2_IOC_MAGIC,2,b2r2_driver)
-
 #define B2R2_ALLOCATE_MEMORY       _IOWR(B2R2_IOC_MAGIC,4,b2r2_driver_memory)
 #define B2R2_DEALLOCATE_MEMORY     _IOWR(B2R2_IOC_MAGIC,5,b2r2_driver_memory)
+#define B2R2_FLUSH_PMEM			   _IOW(B2R2_IOC_MAGIC,6,struct b2r2_flush_pmem)
 
 #define B2R2_IOC_MAXNR (1)
 

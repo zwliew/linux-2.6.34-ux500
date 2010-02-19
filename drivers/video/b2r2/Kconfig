@@ -1,6 +1,13 @@
 config FB_B2R2
 	tristate "B2R2 engine support"
 	default y
+	select FB_NDK_B2R2
 	help
 	  B2R2 engine does various bit-blitting operations,post-processor operations
 	  and various compositions.
+
+# Remove below as soon as CONFIG_FB_NDK_B2R2 is removed from the code
+config FB_NDK_B2R2
+	tristate
+	depends on FB_B2R2
+

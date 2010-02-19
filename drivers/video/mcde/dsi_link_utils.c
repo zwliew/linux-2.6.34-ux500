@@ -34,6 +34,7 @@ extern struct mcdefb_info *gpar[];
 char * pbitmapData; /** to be removed */
 #endif
 
+#define DSI_TAAL_DISPLAY
 
 dsi_error dsiPllConf(dsi_pll_ctl pll_ctl, mcde_ch_id chid, dsi_link link)
 {
@@ -280,7 +281,12 @@ int mcde_dsi_test_dsi_HS_directcommand_mode(struct fb_info *info,u32 key)
   /*** To configure the dsi clock and enable the clock lane and data1 lane */
   dsiLinkInit(&dsiLinkConf, dphyStaticConf, currentpar->chid, currentpar->dsi_lnk_no);
 
-  mcde_dsi_taaldisplay_init(info);
+#ifdef DSI_TPO_DISPLAY
+  mcde_dsi_tpodisplay_init(info);
+#endif
+#ifdef DSI_TAAL_DISPLAY
+   mcde_dsi_taaldisplay_init(info);
+#endif
 
   num=0;
   No_Loop=10;
@@ -330,6 +336,50 @@ int mcde_dsi_test_dsi_HS_directcommand_mode(struct fb_info *info,u32 key)
 return retVal;
 }
 
+#ifdef TESTING
+static int mcde_dsi_testbitmap_LP_directcommand_mode(struct fb_info *info,u32 key)
+{
+  struct dsi_dphy_static_conf dphyStaticConf;
+  struct dsi_link_conf dsiLinkConf;
+  struct mcdefb_info *currentpar = info->par;
+  unsigned int retVal= 0;
+  int size;
+
+  dsiLinkConf.dsiInterfaceMode = DSI_INTERFACE_NONE;
+  dsiLinkConf.clockContiniousMode = DSI_CLK_CONTINIOUS_HS_DISABLE;
+  dsiLinkConf.dsiLinkState = DSI_ENABLE;
+  dsiLinkConf.clockLaneMode = DSI_LANE_ENABLE;
+  dsiLinkConf.dataLane1Mode = DSI_LANE_ENABLE;
+  dsiLinkConf.dataLane2Mode = DSI_LANE_DISABLE;
+  dphyStaticConf.datalane1swappinmode = HS_SWAP_PIN_DISABLE;
+  dphyStaticConf.clocklaneswappinmode = HS_SWAP_PIN_DISABLE;
+  dsiLinkConf.commandModeType = DSI_CLK_LANE_LPM;
+  /*** To configure the dsi clock and enable the clock lane and data1 lane */
+  dsiLinkInit(&dsiLinkConf, dphyStaticConf, currentpar->chid, currentpar->dsi_lnk_no);
+
+  /** INITIALISE DSI(TPO) DISPLAY to run in direct command mode */
+//  mcde_dsi_tpodisplay_init(info);
+#ifdef DSI_TPO_DISPLAY
+  mcde_dsi_tpodisplay_init(info);
+#endif
+#ifdef DSI_TAAL_DISPLAY
+  mcde_dsi_taaldisplay_init(info);
+#endif
+  retVal = dsiLPdcslongwrite(VC_ID0, 4, TPO_CMD_RAMWR,  *(pbitmapData + 56),*(pbitmapData+55), *(pbitmapData+54),0,0,0,0,0,0,0,0,0,0,0,0, currentpar->chid, currentpar->dsi_lnk_no);
+
+  for (size=57; size< (230454);size= size +12)
+  {
+    retVal = dsiLPdcslongwrite(VC_ID0, 13, TPO_CMD_RAMWR_CONTINUE,
+			*(pbitmapData + (size+2)),*(pbitmapData +(size + 1)), *(pbitmapData+ (size)),
+			*(pbitmapData+( size + 5)),*(pbitmapData+(size + 4)),*(pbitmapData+ (size + 3)),
+			*(pbitmapData+ (size + 8)),*(pbitmapData+ (size+7)),*(pbitmapData+ (size+6)),
+			*(pbitmapData+ (size+11)),*(pbitmapData+ (size+10)),*(pbitmapData+ (size+9)),
+			0,0, 0, currentpar->chid, currentpar->dsi_lnk_no);
+  }
+  return retVal;
+}
+#endif
+
 int mcde_dsi_test_LP_directcommand_mode(struct fb_info *info,u32 key)
 {
   struct dsi_dphy_static_conf dphyStaticConf;
@@ -363,7 +413,12 @@ int mcde_dsi_test_LP_directcommand_mode(struct fb_info *info,u32 key)
  // dsidisplayinitLPcmdmode(currentpar->chid, currentpar->dsi_lnk_no);
 //  mcde_dsi_tpodisplay_init(info);
 
-  mcde_dsi_taaldisplay_init(info);
+#ifdef DSI_TPO_DISPLAY
+  mcde_dsi_tpodisplay_init(info);
+#endif
+#ifdef DSI_TAAL_DISPLAY
+   mcde_dsi_taaldisplay_init(info);
+#endif
   dbgprintk(MCDE_DEBUG_INFO, "Writing Pixel For Display to the Display Buffer in LP Command Mode\n");
 
   num=0;
@@ -433,13 +488,6 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 
 		mdelay(100);
 
-		/**  mcde dsi clock */
-		//mcde_dsi_clk=(u32 *) ioremap(0xA0350EF0, (0xA0350EF0+3)-0xA0350EF0 + 1);
-		//*mcde_dsi_clk=0xA1010C;
-		//iounmap(mcde_dsi_clk);
-
-		mdelay(100);
-
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_pll_ctl=0x00000001;//0x10000;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en=0x439;
 
@@ -466,8 +514,13 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 
 		/** send DSI commands to make display up */
 
-		/** make the display up ~ send commands */
+		/** Reset display (SW reset) */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x01;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
+		mdelay(200);
 
+		/** make the display up ~ send commands */
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x11;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
@@ -475,41 +528,13 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 		mdelay(150); /** sleep for 150 ms */
 
 		/** send teaing command with low power mode */
-
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x35;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
 
 		mdelay(100);
 
-#ifdef CONFIG_FB_NOMADIK_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
-		/* LP, size=2 */
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
-		/* Rotate 270 degrees */
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xA036;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-
-		mdelay(100);
-
-		/* LP, size=5 */
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x253908;
-		/* Column Address Set 0-0x1DF (0-479) */
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x0100002A;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat1=0x000000DF;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-		mdelay(100);
-
-		/* LP, size=5 */
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x253908;
-		/* Page Address Set 0-0x35F (0-863) */
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x0300002B;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat1=0x0000005F;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-		mdelay(100);
-#endif
-
 		/** send color mode */
-
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x221500;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0xf73a;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
@@ -580,7 +605,6 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 	    mdelay(150); /** sleep for 150 ms */
 
 		/** send teaing command with low power mode */
-
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x35;
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
@@ -588,7 +612,6 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 		mdelay(100);
 
 		/** send color mode */
-
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0xf73a;
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
@@ -702,10 +725,171 @@ int mcde_dsi_start(struct fb_info *info)
 
   unsigned int retVal= 0;
 
+#ifdef PEPS_PLATFORM
+  struct dsi_dphy_static_conf dphyStaticConf;
+  struct mcdefb_info *currentpar = info->par;
+  dsi_dphy_timeout timeout;
+  u16 clkulptimeout = 0;
+  u16 dataulptimeout = 0;
+#endif
+
+#ifdef PEPS_PLATFORM
+  if (currentpar->dsi_lnk_context.if_mode_type == DSI_CLK_LANE_HSM)
+  {
+  timeout.lp_rx_timeout = 0xFFFF;
+  timeout.hs_tx_timeout = 0xFFFF;
+  timeout.clk_div = 0xF;
+      dphyStaticConf.ui_x4 = 12;
+      clkulptimeout = 0xff;
+      dataulptimeout = 0xff;
+  } else if (currentpar->dsi_lnk_context.if_mode_type == DSI_CLK_LANE_LPM)
+  {
+      timeout.lp_rx_timeout = 0xFFF1;
+      timeout.hs_tx_timeout = 0x3FFF;
+      timeout.clk_div = 0xF;
+      dphyStaticConf.ui_x4 = 0;
+      clkulptimeout = 0;
+      dataulptimeout = 0;
+  }
+
+  dsisetDPHYtimeout(currentpar->dsi_lnk_no, currentpar->chid, timeout);
+  dsisetlaneULPwaittime(currentpar->dsi_lnk_no, currentpar->chid, DSI_CLK_LANE, clkulptimeout);
+  dsisetlaneULPwaittime(currentpar->dsi_lnk_no, currentpar->chid, DSI_DATA_LANE1, clkulptimeout);
+
+  dphyStaticConf.datalane1swappinmode = HS_SWAP_PIN_DISABLE;
+  dphyStaticConf.clocklaneswappinmode = HS_SWAP_PIN_DISABLE;
+
+  // To configure the dsi clock and enable the clock lane and data1 lane
+  dsiLinkInit(&currentpar->dsi_lnk_conf, dphyStaticConf, currentpar->chid, currentpar->dsi_lnk_no);
+  // configure link 3
+  if (currentpar->dsi_lnk_context.if_mode_type == DSI_CLK_LANE_HSM)
+  {
+	currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_data_ctl = 0x1 ;
+	currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl = 0x104a0;
+	currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en = 0x9;
+  } else if (currentpar->dsi_lnk_context.if_mode_type == DSI_CLK_LANE_LPM)
+  {
+	currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_data_ctl = 0x1;
+	currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_pll_ctl = 0x800;
+	currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en = 0x1;
+  }
+#endif
+
+#ifdef PEPS_PLATFORM
+  address = (u32 *)currentpar->dsi_lnk_registers[0];
+  *(address + 0x280) = 0x14080C00;
+  *(address + 0x281) = 0xA8800240;
+  *(address + 0x282) = 0x041000AA;
+  *(address + 0x283) = 0x00000024;
+  *(address + 0x28A) = 0x00000700;
+  *(address + 0x291) = 0x0000E002;
+  *(address + 0x294) = 0x1;
+#endif
+
+/** INITIALISE DSI(TPO/TAAL) DISPLAY to run in command mode */
+#ifdef DSI_TPO_DISPLAY
+  mcde_dsi_tpodisplay_init(info);
+#endif
+#ifdef DSI_TAAL_DISPLAY
   mcde_dsi_taaldisplay_init(info);
+#endif
 
   return retVal;
 }
+
+int mcde_dsi_read_reg(struct fb_info *info, u32 reg, u32 *value)
+{
+	struct mcdefb_info *currentpar = info->par;
+	int ret = -EINVAL;
+	int wait = 10;
+	int link;
+
+	*value = 0xFFFFFFFF;
+
+	if (currentpar->chid == CHANNEL_C0)
+		link = DSI_LINK0;
+	else if (currentpar->chid == CHANNEL_C1)
+		link = DSI_LINK1;
+	else
+		return -EINVAL;
+
+	/* Enable BTA */
+	currentpar->dsi_lnk_registers[link]->mctl_main_data_ctl |= 0x380;
+
+	/* Send register to read */
+	currentpar->dsi_lnk_registers[link]->direct_cmd_main_settings = 0x10601;
+	currentpar->dsi_lnk_registers[link]->direct_cmd_wrdat0 = (u8) reg;
+	currentpar->dsi_lnk_registers[link]->direct_cmd_sts_clr = 0x7FF;
+	currentpar->dsi_lnk_registers[link]->direct_cmd_send = 0x1;
+
+	/* Wait for read to complete */
+	wait = 10;
+	while (wait-- && (currentpar->dsi_lnk_registers[link]->direct_cmd_sts & 0x408) == 0)
+		mdelay(10);
+
+	if ((currentpar->dsi_lnk_registers[link]->direct_cmd_sts & 0x408) != 8) {
+		printk(KERN_INFO "%s: Failed to read reg %X, "
+		       "cmd_sts = %X, cmd_rd_sts = %X, rddat=%X\n",
+		       __func__,
+		       reg,
+		       currentpar->dsi_lnk_registers[link]->direct_cmd_sts,
+		       currentpar->dsi_lnk_registers[link]->direct_cmd_rd_sts,
+		       currentpar->dsi_lnk_registers[link]->direct_cmd_rddat);
+	}
+	else {
+		*value = currentpar->dsi_lnk_registers[link]->direct_cmd_rddat;
+		ret = 0;
+	}
+
+	/* Disable BTA */
+	currentpar->dsi_lnk_registers[link]->mctl_main_data_ctl &= ~0x380;
+	currentpar->dsi_lnk_registers[link]->direct_cmd_sts_clr = 0x7FF;
+
+	return ret;
+}
+
+int mcde_dsi_write_reg(struct fb_info *info, u32 reg, u32 value)
+{
+	struct mcdefb_info *currentpar = info->par;
+	int wait = 10;
+	int ret = 0;
+	int link;
+
+	if (currentpar->chid == CHANNEL_C0)
+		link = DSI_LINK0;
+	else if (currentpar->chid == CHANNEL_C1)
+		link = DSI_LINK1;
+	else
+		return -EINVAL;
+
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_main_settings=0x221500;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_wrdat0= (((u8) value) << 8) | (u8) reg;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_sts_clr = 0x7FF;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_send=0x1;
+
+	/* Wait for write to complete */
+	while (wait-- && (currentpar->dsi_lnk_registers[link]->
+			  direct_cmd_sts & 0x2) == 0)
+	    mdelay(10);
+	if ((currentpar->dsi_lnk_registers[link]->
+	     direct_cmd_sts & 0x2) != 0x2) {
+		printk(KERN_INFO "%s: Failed to write reg %X, "
+		       "cmd_sts = %X, value = %X\n",
+		       __func__,
+		       reg,
+		       currentpar->dsi_lnk_registers[link]->
+		       direct_cmd_sts,
+		       value);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 
 #ifdef _cplusplus
 }
@@ -1170,6 +1354,12 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 
 		/** send DSI commands to make display up */
 
+		/** Reset display (SW reset) */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x01;
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
+		mdelay(200);
+
         /** make the display up ~ send commands */
 
 		 currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x210500;
@@ -1275,6 +1465,33 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
 
 		mdelay(100);
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1_DISPLAY_WVGA_PORTRAIT
+
+        /*  LP, size=2 */
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
+        /*  Rotate 270 degrees */
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0xA036;
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+
+        mdelay(100);
+
+        /*  LP, size=5 */
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x253908;
+        /*  Column Address Set 0-0x1DF (0-479) */
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x0100002A;
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat1=0x000000DF;
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+        mdelay(100);
+
+        /*  LP, size=5 */
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x253908;
+        /*  Page Address Set 0-0x35F (0-863) */
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x0300002B;
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat1=0x0000005F;
+        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+        mdelay(100);
+#endif
 
 		/** send color mode */
 
@@ -1395,6 +1612,111 @@ int mcde_dsi_start(struct fb_info *info)
   mcde_dsi_taaldisplay_init(info);
 
   return retVal;
+}
+
+int mcde_dsi_read_reg(struct fb_info *info, u32 reg, u32 *value)
+{
+	struct mcdefb_info *currentpar = info->par;
+	int ret = -EINVAL;
+	int wait = 10;
+	int link;
+
+	*value = 0xFFFFFFFF;
+
+	if (currentpar->chid == CHANNEL_C0)
+		link = DSI_LINK0;
+	else if (currentpar->chid == CHANNEL_C1)
+		link = DSI_LINK1;
+	else
+		return -EINVAL;
+
+	/* Enable BTA */
+	currentpar->dsi_lnk_registers[link]->
+		mctl_main_data_ctl|=0x380;
+
+	/* Send register to read */
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_main_settings=0x10601;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_wrdat0= (u8) reg;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_sts_clr = 0x7FF;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_send=0x1;
+
+
+	/* Wait for read to complete */
+	wait = 10;
+	while (wait-- && (currentpar->dsi_lnk_registers[link]->
+			  direct_cmd_sts & 0x408) == 0)
+		mdelay(10);
+
+	if ((currentpar->dsi_lnk_registers[link]->direct_cmd_sts &
+	     0x408) != 8) {
+		printk(KERN_INFO "%s: Failed to read reg %X, "
+		       "cmd_sts = %X, cmd_rd_sts = %X, rddat=%X\n",
+		       __func__,
+		       reg,
+		       currentpar->dsi_lnk_registers[link]->
+		       direct_cmd_sts,
+		       currentpar->dsi_lnk_registers[link]->
+		       direct_cmd_rd_sts,
+		       currentpar->dsi_lnk_registers[link]->
+		       direct_cmd_rddat);
+	}
+	else {
+		*value = currentpar->dsi_lnk_registers[link]->
+			direct_cmd_rddat;
+		ret = 0;
+	}
+
+	/* Disable BTA */
+	currentpar->dsi_lnk_registers[link]->
+		mctl_main_data_ctl&=~0x380;
+
+	return ret;
+}
+
+int mcde_dsi_write_reg(struct fb_info *info, u32 reg, u32 value)
+{
+	struct mcdefb_info *currentpar = info->par;
+	int wait = 10;
+	int ret = 0;
+	int link;
+
+	if (currentpar->chid == CHANNEL_C0)
+		link = DSI_LINK0;
+	else if (currentpar->chid == CHANNEL_C1)
+		link = DSI_LINK1;
+	else
+		return -EINVAL;
+
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_main_settings=0x221500;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_wrdat0= (((u8) value) << 8) | (u8) reg;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_sts_clr = 0x7FF;
+	currentpar->dsi_lnk_registers[link]->
+		direct_cmd_send=0x1;
+
+	/* Wait for write to complete */
+	while (wait-- && (currentpar->dsi_lnk_registers[link]->
+			  direct_cmd_sts & 0x2) == 0)
+	    mdelay(10);
+	if ((currentpar->dsi_lnk_registers[link]->
+	     direct_cmd_sts & 0x2) != 0x2) {
+		printk(KERN_INFO "%s: Failed to write reg %X, "
+		       "cmd_sts = %X, value = %X\n",
+		       __func__,
+		       reg,
+		       currentpar->dsi_lnk_registers[link]->
+		       direct_cmd_sts,
+		       value);
+		ret = -EINVAL;
+	}
+
+	return ret;
 }
 
 #ifdef _cplusplus

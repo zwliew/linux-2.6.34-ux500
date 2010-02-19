@@ -35,18 +35,18 @@ DESCRIPTION :  Implements B2R2 module init,exit,probe,mmap and various ioctl
 
 #include "b2r2.h"
 
+#ifdef CONFIG_ANDROID_PMEM
+#include <linux/android_pmem.h>
+#endif
+#include <asm/cacheflush.h>
+#include <linux/smp.h>
 
 extern struct s_B2R2 * B2R2_System;
 t_uint32 *pmu_b2r2_clock;
 
-
-
 /** B2R2 Driver file operations */
-
-
 static int b2r2_open(struct inode *inode, struct file *filp)
 {
-
 	b2r2_instance_memory *instance;
 
 	dbgprintk("open.\n");
@@ -61,10 +61,8 @@ static int b2r2_open(struct inode *inode, struct file *filp)
     return 0;
 }
 
-
 static int b2r2_release(struct inode *inode, struct file *filp)
 {
-
     int i;
     b2r2_memory   *memory;
 
@@ -76,10 +74,8 @@ static int b2r2_release(struct inode *inode, struct file *filp)
 
     if(instance->memory_counter>0)
     {
-
 		 for(i=0;i<instance->memory_counter;i++)
 	 {
-
            memory=instance->head;
 
            /** Deallocate DMA memory */
@@ -90,26 +86,20 @@ static int b2r2_release(struct inode *inode, struct file *filp)
            kfree(memory);
            memory=NULL;
 	 }
-
     }
 
     kfree(instance);
-
     instance=NULL;
-
     return 0;
 }
 
-
 int process_memory_allocate(void *element,void *arg)
 {
-
    int ret = 0;
 
    b2r2_instance_memory *instance;
-   b2r2_memory          *memory,*temp = NULL;
+   b2r2_memory          *memory,*temp;
    b2r2_driver_memory   *memory_request;
-
 
    dbgprintk("entering process_memory_allocate.\n");
 
@@ -120,6 +110,7 @@ int process_memory_allocate(void *element,void *arg)
    memory_request=(struct b2r2_driver_memory *)arg;
 
    memory=(struct b2r2_memory *)kmalloc(sizeof(b2r2_memory),GFP_KERNEL);
+   if(NULL == memory) return -1;
 
    dbgprintk(" memory allocated at address 0x%x.\n",(unsigned int)memory);
 
@@ -129,8 +120,12 @@ int process_memory_allocate(void *element,void *arg)
    dma_alloc_coherent(NULL, memory_request->size_of_memory,&memory_request->physical_address,
    GFP_DMA|GFP_KERNEL);
 
-   if(memory->logical_address==0) return -1;
-   if(memory_request->physical_address==0) return -1;
+   if(memory->logical_address==0 || memory_request->physical_address==0)
+   {
+      kfree(memory);
+
+      return -1;
+   }
 
    memory->size_of_memory=memory_request->size_of_memory;
 
@@ -139,24 +134,9 @@ int process_memory_allocate(void *element,void *arg)
    memory->physical_address=memory_request->physical_address;
    instance->present=memory;
 
-   if(temp==NULL)
-   {
-	   dbgprintk("instance head is null so assign address 0x%x.\n",(unsigned int)memory);
-
-	   instance->head=memory;
-
-	   dbgprintk("after assignment the address at instance head 0x%x.\n",(unsigned int)instance->head);
-   }
-   else
-   {
-
-	 dbgprintk("instance head is not null,so add it at head assign address 0x%x \n",(unsigned int)memory);
-
-     temp=instance->head;
-     instance->head=memory;
-     instance->head->next=temp;
-
-   }
+   temp=instance->head;
+   instance->head=memory;
+   instance->head->next=temp;
 
    instance->memory_counter++;
 
@@ -164,16 +144,15 @@ int process_memory_allocate(void *element,void *arg)
    return ret;
 }
 
-
 int process_memory_deallocate(void *element,void *arg)
 {
-
    int ret = 0;
    int    i;
 
    b2r2_instance_memory *instance;
    b2r2_memory          *temp1,*temp2,*temp3;
    b2r2_driver_memory   *memory_request;
+   int                  found_mem = 0;
 
    dbgprintk("entering process_memory_deallocate.\n");
 
@@ -191,22 +170,28 @@ int process_memory_deallocate(void *element,void *arg)
 
    dbgprintk(" instance->head 0x%x.\n",(unsigned int)instance->head);
 
-   dbgprintk(" instance->head physical address 0x%x.\n",(unsigned int)temp1->physical_address);
-
-   temp2=temp1->next;
    temp3=NULL;
 
    for(i=0;i<instance->memory_counter;i++)
    {
 
      if(temp1->physical_address==memory_request->physical_address)
-	 break;
+     {
+         found_mem = 1;
+		 break;
+     }
 
      temp3=temp1;
-     temp2=temp1->next;
-     temp1=temp2;
-     temp2=temp1->next;
+     temp1=temp1->next;
    }
+   if(!found_mem)
+   {
+     ret = -1;
+
+     goto exit;
+   }
+
+   temp2 = temp1->next;
 
    instance->memory_counter--;
 
@@ -231,25 +216,18 @@ int process_memory_deallocate(void *element,void *arg)
    else
    temp3->next=temp2;
 
+exit:
    dbgprintk("leaving process_memory_deallocate.\n");
    return ret;
-
 }
-
-
-
 
 /**
  * b2r2_mmap - This routine implements mmap
  * @filp: file pointer.
  * @vma	:virtual file pointer.
  */
-
-
-
 static int b2r2_mmap(struct file *filp, struct vm_area_struct *vma)
 {
-
 	int ret = 0;
 	long length = vma->vm_end - vma->vm_start;
 	//char memory_area = vma->vm_pgoff;
@@ -260,11 +238,9 @@ static int b2r2_mmap(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_pgoff = 0;
 	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
-#if defined(CONFIG_L2CACHE_ENABLE)
-
+	// #if defined(CONFIG_L2CACHE_ENABLE)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-#endif
+	// #endif
 
 	instance=(struct b2r2_instance_memory *)filp->private_data;
 
@@ -293,7 +269,76 @@ static int b2r2_mmap(struct file *filp, struct vm_area_struct *vma)
 }
 
 
+#ifdef CONFIG_SMP
+/* SMP flushing */
+struct flush_args {
+	unsigned long fa_start;
+	unsigned long fa_end;
+};
 
+static inline void ipi_clean_l1_cache_range(void *arg)
+{
+	struct flush_args *fa = (struct flush_args *)arg;
+
+	//dmac_flush_range((void *) fa->fa_start, (void *) fa->fa_end);
+	dmac_clean_range((void *) fa->fa_start, (void *) fa->fa_end);
+}
+
+static void clean_l1_cache_range(unsigned long virtual_start,
+				 unsigned long virtual_end)
+{
+	struct flush_args fa;
+
+	fa.fa_start = virtual_start;
+	fa.fa_end = virtual_end;
+
+	on_each_cpu(ipi_clean_l1_cache_range, &fa, 1);
+}
+#endif
+
+static int process_flush_pmem(void *element,void *arg)
+{
+	struct b2r2_flush_pmem *pmem = (struct b2r2_flush_pmem*) arg;
+	unsigned long file_physical_start = 0;
+	unsigned long file_virtual_start = 0;
+	unsigned long file_len = 0;
+	unsigned long virtual_address = 0;
+	unsigned long physical_address = 0;
+	struct file *pmem_filp = NULL;
+
+#ifdef CONFIG_ANDROID_PMEM
+	if (!get_pmem_file(
+		    pmem->fd,
+		    &file_physical_start,
+		    &file_virtual_start,
+			&file_len,
+			&pmem_filp)) {
+		physical_address = file_physical_start + pmem->offset;
+		virtual_address = file_virtual_start + pmem->offset;
+		/*printk("-------------\n"
+				"process_flush_pmem\n"
+				"phy_addr=0x%.8X, v_addr=0x%.8X, file_len=%u\n"
+				"pmem->fd=0x%.8X, pmem_filp=0x%.8X pmem->len=%u\n",
+				physical_address, virtual_address, file_len,
+				pmem->fd, pmem_filp, pmem->len);*/
+#ifdef CONFIG_SMP
+		/* Clean and invalidate L1 cache on all cpus */
+		clean_l1_cache_range(
+			(unsigned long) virtual_address,
+			(unsigned long) virtual_address +
+			pmem->len);
+#else
+		/* Clean and invalidate L1 cache */
+		flush_pmem_file(pmem_filp, physical_address, pmem->len);
+#endif
+		/* Clean (and invalidate?) L2 cache */
+		outer_clean_range(physical_address, physical_address + pmem->len);
+
+		put_pmem_file(pmem_filp);
+	}
+#endif
+	return 0;
+}
 
 /**
  * b2r2_ioctl - This routine implements ioctl
@@ -365,6 +410,9 @@ static int b2r2_ioctl(struct inode *inode, struct file *file,
 	 case B2R2_DEALLOCATE_MEMORY:
 	    error=process_memory_deallocate(file->private_data,(void *)targ);
 	    break;
+	 case B2R2_FLUSH_PMEM:
+		error = process_flush_pmem(file->private_data, (void *)targ);
+		break;
 	 default:
 	    error=process_ioctl(file->private_data,cmd,(void *)targ);
 	    break;

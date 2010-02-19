@@ -46,7 +46,52 @@ extern "C" {
 #include <mach/mcde_a0.h>
 
 
+void  mcde_test(struct fb_info *info);
+
 DECLARE_MUTEX(mcde_module_mutex);
+
+bool mcde_test_enable_lock = true;
+bool mcde_test_enable_lock_prints = false;
+
+void mcde_fb_lock(struct fb_info *info, const char *caller)
+{
+	struct mcdefb_info *currentpar = info->par;
+
+	if (mcde_test_enable_lock_prints)
+		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
+	if (!mcde_test_enable_lock)
+		return;
+	down(&currentpar->fb_sem);
+
+	/* Wait for imsc to be zero */
+	/* We don't want to interfere with a refresh interrupt */
+#ifdef CONFIG_FB_MCDE_MULTIBUFFER
+	if ((currentpar->regbase->mcde_imscpp & currentpar->vcomp_irq) != 0) {
+		int wait = 5;
+
+		printk(KERN_INFO "%s(%p), mcde_imscpp != 0, is %X. "
+		       "Waiting...\n", __func__, info,
+		       currentpar->regbase->mcde_imscpp);
+		while (wait-- && currentpar->regbase->mcde_imscpp != 0)
+			mdelay(100);
+		printk(KERN_INFO "%s(%p), mcde_imscpp = 0, is %X\n",
+		       __func__, info,
+		       currentpar->regbase->mcde_imscpp);
+	}
+#endif
+}
+
+void mcde_fb_unlock(struct fb_info *info, const char *caller)
+{
+	struct mcdefb_info *currentpar = info->par;
+	if (mcde_test_enable_lock_prints)
+		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
+	if (!mcde_test_enable_lock)
+		return;
+	up(&currentpar->fb_sem);
+}
+
+#define DSI_TAAL_DISPLAY
 
 int mcde_debug = MCDE_DEFAULT_LOG_LEVEL;
 
@@ -419,6 +464,7 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 {
 	/* Temporary fix for FIFO overflow; avoid handling of the very first interrupt */
 	static int ignore_first = 0;
+	mcde_ch_id pixel_pipeline = gpar[MCDE_CH_C0]->pixel_pipeline;
 
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
 	ignore_first = 1;
@@ -446,7 +492,7 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 		ignore_first = 0;
 	}
 	else {
-		gpar[MCDE_CH_C0]->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+		gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 	}
 #else
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
@@ -461,12 +507,18 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 		}
 	}
 
+#ifdef CONFIG_MCDE_HDMI_MAINDISP_SAME_FB
+	gpar[MCDE_CH_C0]->extsrc_regbase[0]->mcde_extsrc_a0 = gpar[MCDE_CH_A]->extsrc_regbase[0]->mcde_extsrc_a0;
+#else
+	gpar[MCDE_CH_C0]->extsrc_regbase[0]->mcde_extsrc_a0 = gpar[MCDE_CH_C0]->clcd_event.base;
+#endif
+
 	//Mask the interrupt
 	gpar[MCDE_CH_C0]->regbase->mcde_imscpp = 0; //gpar[2]->regbase->mcde_imsc = 0x0;
 	gpar[MCDE_CH_C0]->clcd_event.event=1;
 
 	/** send software sync */
-	gpar[MCDE_CH_C0]->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG; //gpar[2]->ch_regbase1[2]->mcde_chsyn_sw = 0x1;
+	gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG; //gpar[2]->ch_regbase1[2]->mcde_chsyn_sw = 0x1;
 
 #else
 	/* Switch buffer address (MCDE designer claims better to use buffer IDs than address)  FIXME */
@@ -551,7 +603,6 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 {
 
 /** for dual display both the channels need to be controlled */
-
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	if (gpar[2]->regbase->mcde_mispp & 0xC0) {
@@ -591,18 +642,16 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 	if(gpar[MCDE_CH_C0]!=0) {
     /* Channel C0 */
 		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & MCDE_MISPP_VSCC0MIS) //gpar[2]->regbase->mcde_mis & 0x10)
-		   {
+		{
 			  /** vsync */
 			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= MCDE_RISPP_VSCC0RIS; //gpar[2]->regbase->mcde_ris &= 0x10;
-		   }
+		}
 
-		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & MCDE_MISPP_VCMPC0MIS) //gpar[2]->regbase->mcde_mis & 0x40)
-			{
+		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & gpar[MCDE_CH_C0]->vcomp_irq) //gpar[2]->regbase->mcde_mis & 0x40)
+		{
 			  /** vcomp */
-			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= MCDE_RISPP_VCMPC0RIS; //gpar[2]->regbase->mcde_ris &= 0x40;
-
-			   //tasklet_schedule(&mcde_tasklet_1);
-			   u8500_mcde_tasklet_1(0);
+			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= gpar[MCDE_CH_C0]->vcomp_irq; //gpar[2]->regbase->mcde_ris &= 0x40;
+			u8500_mcde_tasklet_1(0);
 		}
 
 		if (gpar[MCDE_CH_C0]->regbase->mcde_imscchnl & 	MCDE_MISCHNL_CHNL_C0) {//regbase->mcde_mis & 0x1000
@@ -679,6 +728,7 @@ static int mcde_ioctl(struct fb_info *info,
 	u32 scanMode = 0;
 	void __user *argp = (void __user *) arg;
 
+	mcde_fb_lock(info, __func__);
 	memset (&blend_ctrl, 0, sizeof(struct mcde_blend_control));
 	switch (cmd)
 	{
@@ -690,19 +740,23 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&extsrc_ovl, argp, sizeof(struct mcde_overlay_create)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to copy data from user space\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 
 			if (mcde_extsrc_ovl_create(&extsrc_ovl,info,&create_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to create a new overlay surface\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
 			extsrc_ovl.key = ((create_key) << PAGE_SHIFT);
 
-			if (copy_to_user(argp, &extsrc_ovl, sizeof(struct mcde_overlay_create)))
+			if (copy_to_user(argp, &extsrc_ovl, sizeof(struct mcde_overlay_create))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			break;
 
 		/*
@@ -710,8 +764,10 @@ static int mcde_ioctl(struct fb_info *info,
 		 */
 		case MCDE_IOCTL_OVERLAY_REMOVE:
 
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			rem_key = rem_key >> PAGE_SHIFT;
 			dbgprintk(MCDE_DEBUG_INFO, "remove overlay id  %d\n",rem_key);
@@ -720,12 +776,14 @@ static int mcde_ioctl(struct fb_info *info,
 			if(rem_key < num_of_display_devices)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Cant remove base overlay 0\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
 			if (mcde_extsrc_ovl_remove(info,rem_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "cant remove overlay id  %d\n",rem_key);
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -734,13 +792,17 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_ALLOC_FRAMEBUFFER: This ioctl is used to allocate the memory for frame buffer.
 		 */
 		case MCDE_IOCTL_ALLOC_FRAMEBUFFER:
-			if (copy_from_user(&source_buff, argp, sizeof(struct mcde_sourcebuffer_alloc)))
+			if (copy_from_user(&source_buff, argp, sizeof(struct mcde_sourcebuffer_alloc))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
+
 			flags = claim_mcde_lock(currentpar->chid);
 			if (mcde_alloc_source_buffer(source_buff,info,&create_key, TRUE) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to allocate framebuffer\n");
 				release_mcde_lock(currentpar->chid, flags);
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			source_buff.buff_addr.dmaaddr = currentpar->buffaddr[create_key].dmaaddr;
@@ -748,15 +810,19 @@ static int mcde_ioctl(struct fb_info *info,
 			source_buff.key = ((create_key) << PAGE_SHIFT);
 			release_mcde_lock(currentpar->chid, flags);
 
-			if (copy_to_user(argp, &source_buff, sizeof(struct mcde_sourcebuffer_alloc)))
+			if (copy_to_user(argp, &source_buff, sizeof(struct mcde_sourcebuffer_alloc))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			break;
 		/*
 		 *   MCDE_IOCTL_DEALLOC_FRAMEBUFFER: This ioctl is used to de -allocate the memory used for frame buffer.
 		 */
 		case MCDE_IOCTL_DEALLOC_FRAMEBUFFER:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			rem_key = rem_key >> PAGE_SHIFT;
 			dbgprintk(MCDE_ERROR_INFO, "remove source buffer id  %d\n",rem_key);
@@ -764,6 +830,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if((rem_key <= MCDE_MAX_FRAMEBUFF) &&  (rem_key > 2*MCDE_MAX_FRAMEBUFF))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Cant remove the source buffer\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			//flags = claim_mcde_lock(currentpar->chid);
@@ -771,6 +838,7 @@ static int mcde_ioctl(struct fb_info *info,
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to deallocate framebuffer\n");
 			//	release_mcde_lock(currentpar->chid, flags);
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			//release_mcde_lock(currentpar->chid, flags);
@@ -779,12 +847,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_EXTSRC: This ioctl is used to configure the external source configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_EXTSRC:
-			if (copy_from_user(&ext_src_config, argp, sizeof(struct mcde_ext_conf)))
+			if (copy_from_user(&ext_src_config, argp, sizeof(struct mcde_ext_conf))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_extsource(ext_src_config,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure the extsrc reg\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -793,12 +864,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_OVRLAY: This ioctl is used to configure the overlay configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_OVRLAY:
-			if (copy_from_user(&overlay_config, argp, sizeof(struct mcde_conf_overlay)))
+			if (copy_from_user(&overlay_config, argp, sizeof(struct mcde_conf_overlay))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_overlay(overlay_config,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure overlay reg\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -807,12 +881,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_CHANNEL: This ioctl is used to configure the channel configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_CHANNEL:
-			if (copy_from_user(&ch_config, argp, sizeof(struct mcde_ch_conf)))
+			if (copy_from_user(&ch_config, argp, sizeof(struct mcde_ch_conf))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_channel(ch_config,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure the channel reg\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -821,12 +898,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_PANEL: This ioctl is used to configure the panel(output interface) configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_PANEL:
-			if (copy_from_user(&chnl_lcd_ctrl, argp, sizeof(struct mcde_chnl_lcd_ctrl)))
+			if (copy_from_user(&chnl_lcd_ctrl, argp, sizeof(struct mcde_chnl_lcd_ctrl))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_lcd_timing(chnl_lcd_ctrl,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure the panel timings\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -837,6 +917,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_enable(info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable MCDE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -847,6 +928,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_disable(info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to disable MCDE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -854,12 +936,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_COLOR_KEYING_ENABLE: This ioctl is used to enable color keying.
 		 */
 		case MCDE_IOCTL_COLOR_KEYING_ENABLE:
-			if (copy_from_user(&chnannel_color_key, argp, sizeof(struct mcde_channel_color_key)))
+			if (copy_from_user(&chnannel_color_key, argp, sizeof(struct mcde_channel_color_key))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_channel_color_key(info, chnannel_color_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -871,6 +956,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_conf_channel_color_key(info, chnannel_color_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to disable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -878,12 +964,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_COLOR_COVERSION_ENABLE: This ioctl is used to enable color color conversion.
 		 */
 		case MCDE_IOCTL_COLOR_COVERSION_ENABLE:
-			if (copy_from_user(&color_conv_ctrl, argp, sizeof(struct mcde_conf_color_conv)))
+			if (copy_from_user(&color_conv_ctrl, argp, sizeof(struct mcde_conf_color_conv))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_color_conversion(info, color_conv_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -895,6 +984,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_conf_color_conversion(info, color_conv_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -902,12 +992,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CHANNEL_BLEND_ENABLE: This ioctl is used to enable alpha blending.
 		 */
 		case MCDE_IOCTL_CHANNEL_BLEND_ENABLE:
-			if (copy_from_user(&blend_ctrl, argp, sizeof(struct mcde_blend_control)))
+			if (copy_from_user(&blend_ctrl, argp, sizeof(struct mcde_blend_control))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_blend_ctrl(info, blend_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -922,6 +1015,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_conf_blend_ctrl(info, blend_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -929,8 +1023,10 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_ROTATION_ENABLE: This ioctl is used to enable rotation.
 		 */
 		case MCDE_IOCTL_ROTATION_ENABLE:
-			if (copy_from_user(&rot_dir, argp, sizeof(char)))
+			if (copy_from_user(&rot_dir, argp, sizeof(char))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			rot_ctrl = MCDE_ROTATION_ENABLE;
 			mcde_conf_rotation(info, rot_dir, rot_ctrl, currentpar->rotationbuffaddr0.dmaaddr, currentpar->rotationbuffaddr1.dmaaddr);
 			break;
@@ -948,6 +1044,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&videoMode, argp, sizeof(u32)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to set video mode\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			/** SPINLOCK in use :  */
@@ -956,6 +1053,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_dealloc_source_buffer(info, currentpar->mcde_cur_ovl_bmp, FALSE) != MCDE_OK)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to set video mode\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 		        currentpar->isHwInitalized = 0;
@@ -983,6 +1081,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&src_buffer, argp, sizeof(struct mcde_source_buffer)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to copy the data from user space in MCDE_IOCTL_SET_SOURCE_BUFFER\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			mcde_set_buffer(info, src_buffer.buffaddr.dmaaddr, src_buffer.buffid);
@@ -994,6 +1093,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&dithering_ctrl_conf, argp, sizeof(struct mcde_dithering_ctrl_conf)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to copy the data from user space in MCDE_IOCTL_DITHERING_ENABLE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			mcde_conf_dithering_ctrl(dithering_ctrl_conf, info);
@@ -1005,6 +1105,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&scanMode, argp, sizeof(u32)))
 			{
 				dbgprintk(MCDE_IOCTL_SET_SCAN_MODE, "Failed to copy the data from user space in MCDE_IOCTL_SET_SCAN_MODE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			mcde_conf_scan_mode(scanMode, info);
@@ -1013,19 +1114,24 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_GET_SCAN_MODE: This ioctl is used to get the scan mode.
 		 */
 		case MCDE_IOCTL_GET_SCAN_MODE:
-			if (copy_to_user(argp, &info->var.vmode, sizeof(u32)))
+			if (copy_to_user(argp, &info->var.vmode, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			break;
 		/*
 		 *   MCDE_IOCTL_TEST_DSI_HSMODE: This ioctl is used to test the dsi direct command high speed mode.
 		 */
 		case MCDE_IOCTL_TEST_DSI_HSMODE:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_dsi_test_dsi_HS_directcommand_mode(info,rem_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "HS direct command test case failed\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -1033,12 +1139,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_TEST_DSI_LPMODE: This ioctl is used to test the dsi direct command low power mode.
 		 */
 		case MCDE_IOCTL_TEST_DSI_LPMODE:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_dsi_test_LP_directcommand_mode(info,rem_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Low Power direct command test case failed\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -1053,16 +1162,20 @@ static int mcde_ioctl(struct fb_info *info,
 		    if(rem_key&0x4) rem_key=1;
 		    else rem_key=0;
 
-			if (copy_to_user(argp, &rem_key, sizeof(u32)))
-				return -EFAULT;
+			if (copy_to_user(argp, &rem_key, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
+				  return -EFAULT;
+			}
 			break;
 
 	    /*
 	     *  MCDE_IOCTL_TV_CHANGE_MODE: This ioctl is used to change TV mode
 	     */
 		case MCDE_IOCTL_TV_CHANGE_MODE:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 
 
@@ -1110,15 +1223,19 @@ static int mcde_ioctl(struct fb_info *info,
             if(rem_key&0x40) rem_key=1;
             else rem_key=0;
 
-			if (copy_to_user(argp, &rem_key, sizeof(u32)))
-				return -EFAULT;
+            if (copy_to_user(argp, &rem_key, sizeof(u32))) {
+              mcde_fb_unlock(info, __func__);
+				      return -EFAULT;
+            }
 			break;
 
 		default:
+            mcde_fb_unlock(info, __func__);
 			return -EINVAL;
 
 	}
 
+	mcde_fb_unlock(info, __func__);
 	return 0;
 }
 
@@ -2052,9 +2169,7 @@ EXPORT_SYMBOL(mcde_send_hdmi_cmd);
  */
 static void mcde_conf_video_mode(struct fb_info *info)
 {
-#if defined CONFIG_FB_U8500_MCDE_CHANNELB || defined CONFIG_FB_U8500_MCDE_CHANNELC0 || defined CONFIG_FB_U8500_MCDE_CHANNELC1
 	struct mcdefb_info *currentpar = (struct mcdefb_info *)info->par;
-#endif
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELB
 #ifndef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
@@ -2265,11 +2380,10 @@ static void mcde_conf_video_mode(struct fb_info *info)
 
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-	if((currentpar->chid == MCDE_CH_C0) && (!(currentpar->regbase->mcde_cr & MCDE_CR_DSICMD0_EN)))
+	if((currentpar->chid == MCDE_CH_C0) && (!(currentpar->regbase->mcde_cr & currentpar->dsi_formatter)))
 	{
 		/** disable MCDE first then configure */
-		currentpar->regbase->mcde_cr = (currentpar->regbase->mcde_cr & ~MCDE_CR_MCDEEN);
-
+		currentpar->regbase->mcde_cr = currentpar->regbase->mcde_cr & ~MCDE_CR_MCDEEN;
 
 		/** configure mcde external registers */
 
@@ -2302,73 +2416,103 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_cr = MCDE_EXTSRCCR_FS_DIV_DISABLE | (0x2 << MCDE_EXTSRCCR_SEL_MOD_SHIFT); /* Software selection */
 
 		/** configure mcde overlay registers */
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr = (0x2 << MCDE_OVLCR_ROTBURSTSIZE_SHIFT) |
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr = (0xB << MCDE_OVLCR_ROTBURSTSIZE_SHIFT) |
 			(0x2 << MCDE_OVLCR_MAXOUTSTANDING_SHIFT) |
 			(0xB << MCDE_OVLCR_BURSTSIZE_SHIFT) |
 			MCDE_OVLCR_OVLEN; // 0x22b00001;
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (480 << MCDE_OVLCONF_LPF_SHIFT) |
-			(MCDE_EXT_SRC_0 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
-			(864 << MCDE_OVLCONF_PPL_SHIFT);
 
 		/** rgb888 24 bit format packed data 3 bytes limited to 480 X 682 */
-		if(currentpar->chnl_info->inbpp==24)
+		/* This issue is supposed to be fixed on V1. Verify and remove me!
+    if(currentpar->chnl_info->inbpp==24)
 			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (480 << MCDE_OVLCONF_LPF_SHIFT) |
 				(MCDE_EXT_SRC_0 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
 				(682 << MCDE_OVLCONF_PPL_SHIFT);
+        */
 
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp = currentpar->pixel_pipeline << MCDE_OVLCOMP_CH_ID_SHIFT;
+
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_synchmod = 0x2 << MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT; /* MCDE_SYNCHRO_SOFTWARE; */
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_bckgndcol = 0xff << MCDE_CHNLBCKGNDCOL_B_SHIFT; /* blue */
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (0x360 << 16) | (MCDE_EXT_SRC_0 << 11) | (0x1E0);
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc = 0x1E0 * (currentpar->chnl_info->inbpp / 8);
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2 = 0x004003FF;
+
+    currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_conf = (863 << MCDE_CHNLCONF_LPF_SHIFT) | (479 << MCDE_CHNLCONF_PPL_SHIFT); /* screen parameters */
+
+    currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rotadd0 = U8500_ESRAM_BASE + 0x20000 * 4;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rotadd1 = U8500_ESRAM_BASE + 0x20000 * 4 + 0x10000;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr0 = (0xB << 25) | (1 << 24) | (1 << 1) | 1;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr1 = (1 << 29) | (0x9 << 25) | (0x5 << 10);
+    currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rot_conf = (0x1 << 8) | (1 << 3) | (0x7);
+		currentpar->regbase->mcde_conf0 = 0x22487001;
+
+#else
+
+  #ifdef CONFIG_MCDE_HDMI_MAINDISP_SAME_FB
 		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2 = 0xE5 << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc = 864 * (currentpar->chnl_info->inbpp / 8);
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp = MCDE_CH_C0 << MCDE_OVLCOMP_CH_ID_SHIFT;
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc = 0xA00;
+  #else
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2 = 0xa200000;
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc = 0x360 * (currentpar->chnl_info->inbpp/8);
+  #endif
 
-		/* Configure mcde channel config registers */
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_conf = (479 << MCDE_CHNLCONF_LPF_SHIFT) |
-			(863 << MCDE_CHNLCONF_PPL_SHIFT); /* screen parameters */
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchmod = 0x2 << MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT; /* MCDE_SYNCHRO_SOFTWARE; */
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_bckgndcol = 0xff << MCDE_CHNLBCKGNDCOL_B_SHIFT; /* blue */
+    currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (0x1E0<<16)|(MCDE_EXT_SRC_0<<11)|(0x360);
+    currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_conf = 0x1df035f; /** screen parameters */
+    currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr0 = (1 << 1) | 1;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr1 = (1 << 29) | (0x7 << 25) | (0x5 << 10);
+
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x22b00001;
+		currentpar->regbase->mcde_conf0 = 0x22487001;
+
+#endif
 
 		/* Configure channel C0 register */
-		currentpar->ch_c_reg->mcde_crc = 0;
-		currentpar->ch_c_reg->mcde_crc |= MCDE_CRC_FLOEN | MCDE_CRC_POWEREN | MCDE_CRC_C1EN | MCDE_CRC_WMLVL2 | MCDE_CRC_CS1EN | MCDE_CRC_CS2EN |
+		/*currentpar->ch_c_reg->mcde_crc = MCDE_CRC_FLOEN | MCDE_CRC_POWEREN | MCDE_CRC_C1EN | MCDE_CRC_WMLVL2 | MCDE_CRC_CS1EN | MCDE_CRC_CS2EN |
 			MCDE_CRC_CS1POL | MCDE_CRC_CS2POL | MCDE_CRC_CD1POL | MCDE_CRC_CD2POL | MCDE_CRC_RES1POL | MCDE_CRC_RES2POL |
 			(0x1 << MCDE_CRC_SYNCCTRL_SHIFT); // 0x387B0027; TODO: Clean up! Some of these bits are probably not needed
+    */
+
+    /** Patch for HW TRIG MCDE **/
+    currentpar->ch_c_reg->mcde_crc |= 0x180;
+    currentpar->ch_c_reg->mcde_vscrc[0] = 0xFF001;
+    currentpar->ch_c_reg->mcde_ctrlc[0] = 0xA0;
 
 		/** configure mcde base registers */
-		currentpar->regbase->mcde_conf0 |= MCDE_CONF0_SYNCMUX0 | (0x5 << MCDE_CONF0_IFIFOCTRLWTRMRKLVL_SHIFT) |
+/*		currentpar->regbase->mcde_conf0 |= MCDE_CONF0_SYNCMUX0 | (0x5 << MCDE_CONF0_IFIFOCTRLWTRMRKLVL_SHIFT) |
 			(0x4 << MCDE_CONF0_OUTMUX0_SHIFT) | (0x2 << MCDE_CONF0_OUTMUX1_SHIFT) |
 			(0x7 << MCDE_CONF0_OUTMUX3_SHIFT) | (0x5 << MCDE_CONF0_OUTMUX4_SHIFT); // 0x5E145001;
 		currentpar->regbase->mcde_cr |= MCDE_CR_MCDEEN | MCDE_CR_DSICMD0_EN; //0x80000004;
+*/
+		currentpar->regbase->mcde_cr |= MCDE_CR_MCDEEN | currentpar->dsi_formatter;
 
-		mdelay(100);
+    mdelay(100);
+
+    // TODO!
+    currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en &= ~0x400; /* Disable IF2_EN */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en |= 0x200; /* Enable IF1_EN */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_data_ctl &= ~0x2; /* Set interface 1 to command mode */
 
 		/** configure mcde DSI formatter */
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_conf0=(0x2<<20)|(0x1<<18)|(0x1<<13);
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_frame=(1+(864*24/8))*480;
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_pkt=1+(864*24/8);
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_cmdw = 0x002C003C;
-
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_conf0 = (0x2<<20) | (0x1<<18) | (0x1<<13);
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_frame = (1 + (864 * 24 / 8)) * 480;
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_pkt   = 1 + (864 * 24 / 8);
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_cmdw  = 0x2c003c;
 
 		mdelay(100);
 
-		/** send DSI command for RAMWR */
-
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings=0x43908;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x2c;
-		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
-
-		mdelay(100);
+#ifdef CONFIG_MCDE_HDMI_MAINDISP_SAME_FB
+		currentpar->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC0IM;
+		wait_event(currentpar->clcd_event.wait,currentpar->clcd_event.event==1);
+		currentpar->clcd_event.event = 0;
+#endif
 
 		/* Do a software sync */
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
-#endif
-
-#ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
-		currentpar->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC0IM;
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 #endif
 
 		mdelay(100);
@@ -2509,6 +2653,7 @@ static void mcde_conf_video_mode(struct fb_info *info)
  */
 static int mcde_blank(int blank_mode, struct fb_info *info)
 {
+	mcde_fb_lock(info, __func__);
 	if (blank_mode != 0) {
 		/* Disable display engine */
 		mcde_disable(info);
@@ -2516,17 +2661,18 @@ static int mcde_blank(int blank_mode, struct fb_info *info)
 		/* Enable display engine */
 		mcde_enable(info);
 	}
+	mcde_fb_unlock(info, __func__);
 
 	return 0;
 }
 /**
- * mcde_set_par() - To set the video mode according to info->var.
+ * mcde_set_par_internal() - To set the video mode according to info->var.
  * @info: frame buffer information.
  *
  * This function configures MCDE & DSI hardware for the device(primary/secondary/HDMI/TVOUT) according to info->var.
  *
  */
-static int mcde_set_par(struct fb_info *info)
+static int mcde_set_par_internal(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 	u8 border=0;
@@ -2552,6 +2698,16 @@ static int mcde_set_par(struct fb_info *info)
 #endif
 	return 0;
 }
+
+static int mcde_set_par(struct fb_info *info)
+{
+	mcde_fb_lock(info, __func__);
+	mcde_set_par_internal(info);
+	mcde_fb_unlock(info, __func__);
+
+  return 0;
+}
+
 /**
  * mcde_setpalettereg() - To set the palette configuration.
  * @info: frame buffer information.
@@ -2609,7 +2765,9 @@ static int mcde_setcolreg(u_int regno, u_int red, u_int green,
 			break;
 
 		case FB_VISUAL_PSEUDOCOLOR:
+			mcde_fb_lock(info, __func__);
 			ret=mcde_setpalettereg(red, green, blue, transp, info);
+			mcde_fb_unlock(info, __func__);
 			break;
 	}
 
@@ -2640,6 +2798,8 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		   return -EINVAL;
    }
 
+   mcde_fb_lock(info, __func__);
+
    info->var.xoffset = var->xoffset;
    info->var.yoffset = var->yoffset;
 
@@ -2662,7 +2822,8 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		if(gpar[MCDE_CH_C0]!=0)
 		{
 			gpar[MCDE_CH_C0]->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_a0 = currentpar->clcd_event.base;
-			gpar[MCDE_CH_C0]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC0IM;
+			gpar[MCDE_CH_C0]->regbase->mcde_imscpp |= gpar[MCDE_CH_C0]->vcomp_irq;
+			mcde_fb_unlock(info, __func__);
 			wait_event(gpar[MCDE_CH_C0]->clcd_event.wait, gpar[MCDE_CH_C0]->clcd_event.event==1);
 			gpar[MCDE_CH_C0]->clcd_event.event=0;
 		}
@@ -2674,6 +2835,7 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		{
 			gpar[MCDE_CH_C1]->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0 = currentpar->clcd_event.base;
 			gpar[MCDE_CH_C1]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC1IM;
+			mcde_fb_unlock(info, __func__);
 			wait_event(gpar[MCDE_CH_C1]->clcd_event.wait, gpar[MCDE_CH_C1]->clcd_event.event==1);
 			gpar[MCDE_CH_C1]->clcd_event.event=0;
 		}
@@ -2686,11 +2848,13 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		{
 			gpar[MCDE_CH_B]->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 = currentpar->clcd_event.base;
 			gpar[MCDE_CH_B]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPBIM;
+			mcde_fb_unlock(info, __func__);
 			wait_event(gpar[MCDE_CH_B]->clcd_event.wait, gpar[MCDE_CH_B]->clcd_event.event==1);
 			gpar[MCDE_CH_B]->clcd_event.event=0;
 		}
 	}
-
+#else
+	mcde_fb_unlock(info, __func__);
 #endif //CONFIG_FB_MCDE_MULTIBUFFER
 
 	return 0;
@@ -3055,7 +3219,7 @@ static int mcde_set_video_mode(struct fb_info *info, mcde_video_mode videoMode)
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
    /** initialize the hardware as per the configuration */
 	/** in case of HDMI done in the mcde_hdmi_display_init_video_mode function called by AV8100 driver */
-   mcde_set_par(info);
+   mcde_set_par_internal(info);
 #endif
 
    return retVal;
@@ -3458,7 +3622,23 @@ static int __init mcde_probe(struct platform_device *pdev)
 	currentpar->bgrinput = channel_info->bgrinput;
 	currentpar->chnl_info = channel_info;
 
-	printk(KERN_ERR "IORemapping\n");
+	init_MUTEX(&currentpar->fb_sem);
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
+	if (currentpar->chid == CHANNEL_C0) {
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
+		currentpar->pixel_pipeline = MCDE_CH_B; // Channel A used by HDMI
+		currentpar->vcomp_irq = 0x2;
+		currentpar->dsi_formatter = 0x20 | 0x20000; // DSIVID0_EN | FABMUX
+		currentpar->dsi_mode = MCDE_DSI_CH_VID0;
+#else
+		currentpar->pixel_pipeline = MCDE_CH_A; // Channel B used by TV-out
+		currentpar->vcomp_irq = 0x1;
+		currentpar->dsi_formatter = 0x20; // DSIVID0_EN
+		currentpar->dsi_mode = MCDE_DSI_CH_VID0;
+#endif
+	}
+#endif
 
 	/***********************/
 	/** MCDE top register **/
@@ -3527,6 +3707,21 @@ static int __init mcde_probe(struct platform_device *pdev)
 		currentpar->ch_c_reg = (struct mcde_chC0C1_reg *) ioremap(res->start, res->end - res->start + 1);
 		if (currentpar->ch_c_reg == NULL)
 			goto out_unmap4;
+
+		if (currentpar->chid == CHANNEL_C0) {
+			/* Also map channel A and B! */
+			res = platform_get_resource(pdev, IORESOURCE_MEM, 10);
+			currentpar->ch_regbase2[MCDE_CH_A] = (struct mcde_chAB_reg *) ioremap(res->start, res->end - res->start + 1);
+			if (currentpar->ch_regbase2[MCDE_CH_A] == NULL) {
+				goto out_unmap5;
+			}
+
+			res = platform_get_resource(pdev, IORESOURCE_MEM, 11);
+			currentpar->ch_regbase2[MCDE_CH_B] = (struct mcde_chAB_reg *) ioremap(res->start, res->end - res->start + 1);
+			if (currentpar->ch_regbase2[MCDE_CH_B] == NULL) {
+				goto out_unmap6;
+			}
+		}
 	}
 
 	/*****************/
@@ -3534,11 +3729,11 @@ static int __init mcde_probe(struct platform_device *pdev)
 	/*****************/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 5);
 	if (res == NULL)
-		goto out_unmap5;
+		goto out_unmap7;
 
 	dsiChanlRegAdd = (u8 *) ioremap(res->start, res->end - res->start + 1);
 	if (dsiChanlRegAdd == NULL)
-		goto out_unmap5;
+		goto out_unmap7;
 	for (temp = 0; temp < NUM_DSI_CHANNEL; temp++)
 		currentpar->mcde_dsi_channel_reg[temp] = (struct mcde_dsi_reg*)(dsiChanlRegAdd + (temp*U8500_MCDE_REGISTER_BANK_SIZE));
 
@@ -3553,11 +3748,11 @@ static int __init mcde_probe(struct platform_device *pdev)
 	/**************/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 6);
 	if (res == NULL)
-		goto out_unmap6;
+		goto out_unmap8;
 
 	dsilinkAddr = (u8  *) ioremap(res->start, res->end - res->start + 1);
 	if (dsilinkAddr == NULL)
-		goto out_unmap6;
+		goto out_unmap8;
 	for (temp = 0; temp < NUM_DSI_LINKS; temp++)
 		currentpar->dsi_lnk_registers[temp] = (struct dsi_link_registers*)(dsilinkAddr + (temp*U8500_DSI_LINK_SIZE));
 
@@ -3566,32 +3761,32 @@ static int __init mcde_probe(struct platform_device *pdev)
 	/****************/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 7);
 	if (res == NULL)
-		goto out_unmap7;
+		goto out_unmap9;
 
 	currentpar->prcm_mcde_clk = (u32 *) ioremap(res->start, res->end - res->start + 1);
 	if (currentpar->prcm_mcde_clk == NULL)
-		goto out_unmap7;
+		goto out_unmap9;
 
   /****************/
   /** HDMI clock **/
   /****************/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 8);
 	if (res == NULL)
-		goto out_unmap8;
+		goto out_unmap10;
 
 	currentpar->prcm_hdmi_clk = (u32 *) ioremap(res->start, res->end - res->start + 1);
 	if (currentpar->prcm_hdmi_clk == NULL)
-		goto out_unmap8;
+		goto out_unmap10;
   /******************/
   /** TV-out clock **/
   /******************/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 9);
 	if (res == NULL)
-		goto out_unmap8;
+		goto out_unmap11;
 
 	currentpar->prcm_tv_clk = (u32 *) ioremap(res->start, res->end - res->start + 1);
 	if (currentpar->prcm_tv_clk == NULL)
-		goto out_unmap9;
+		goto out_unmap11;
 
 	if (strcmp(channel_info->restype,"SDTV")==0)
 		currentpar->tvout=1;
@@ -3605,14 +3800,14 @@ static int __init mcde_probe(struct platform_device *pdev)
 		/** get your IRQ line */
 		res = platform_get_resource(pdev,IORESOURCE_IRQ,0);
 		if (res == NULL)
-			goto out_unmap10;
+			goto out_unmap12;
 
 		irqline = res->start;
 
 		retVal = request_irq(res->start,u8500_mcde_interrupt_handler,IRQF_SHARED,"MCDE",dev);
 		if(retVal) {
 			dbgprintk(MCDE_ERROR_INFO, "Failed to request IRQ line\n");
-			goto out_unmap9;
+			goto out_unmap12;
 		}
 
 		registerInterruptHandler = 1;
@@ -3712,15 +3907,86 @@ static int __init mcde_probe(struct platform_device *pdev)
 
   if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  currentpar->chid == CHANNEL_B || currentpar->chid == CHANNEL_A)
   {
-    printk(KERN_ERR "Setting MCDE/DSI params\n");
+	  u32 errors_on_dsi;
+	  u32 self_diagnostic_result;
+	  bool retry;
+	  int n_retry = 3;
+	  u32 id1,id2,id3;
 
-	mcde_dsi_set_params(info);
+	if (currentpar->chid == CHANNEL_C0)
+		printk(KERN_INFO "%s: Initializing DSI and display for C0\n",
+			  __func__);
+	  else if (currentpar->chid == CHANNEL_C1)
+		printk(KERN_INFO "%s: Initializing DSI and display for C1\n",
+			  __func__);
+	  else if (currentpar->chid == CHANNEL_A)
+		printk(KERN_INFO "%s: Initializing DSI and display for A\n",
+			  __func__);
+    else
+		printk(KERN_INFO "%s: Initializing DSI and display for B\n",
+			  __func__);
 
-	  /* Make the screen up first */
-  printk(KERN_ERR "Starting DSI\n");
+    mcde_dsi_set_params(info);
+	  mcde_dsi_start(info);
 
-	mcde_dsi_start(info);
+	  printk(KERN_ERR "DSI started\n");
 
+#ifndef PEPS_PLATFORM
+	/** Make the screen up first */
+	if (/*mcde_dsi_read_reg(info, 0x05, &errors_on_dsi) >= 0 ||*/
+	    currentpar->chid == CHANNEL_C0)
+	{
+		do
+		{
+			mcde_dsi_write_reg(info, 0x01, 1);
+			mdelay(150);
+
+			mcde_dsi_start(info);
+
+			/* Check that display is OK */
+			/*mcde_dsi_read_reg(info, 0x05, &errors_on_dsi);
+			mcde_dsi_read_reg(info, 0x0F, &self_diagnostic_result);
+
+			mcde_dsi_read_reg(info, 0xDA, &id1);
+			mcde_dsi_read_reg(info, 0xDB, &id2);
+			mcde_dsi_read_reg(info, 0xDC, &id3);*/
+
+			printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
+			       __func__, id1, id2, id3);
+
+			retry = errors_on_dsi != 0 ||
+				(self_diagnostic_result != 0xC0 &&
+				 self_diagnostic_result != 0x80 &&
+				 self_diagnostic_result != 0x40);
+			n_retry--;
+			if (retry) {
+				/* Oops! Pink display? */
+				if (n_retry) {
+					/* Display not initialized correctly,
+					   try again */
+					printk(
+						KERN_WARNING
+						"%s: Failed to initialize"
+						" display, potential 'pink' "
+						"display. "
+					       " errors_on_dsi=%X, "
+					       " self_diagnostic_result=%X, "
+					       " retrying...\n", __func__,
+					       errors_on_dsi,
+						self_diagnostic_result);
+				}
+			}
+			else
+				printk(KERN_WARNING "%s: Display initialized OK, "
+				       " errors_on_dsi=%X, "
+				       " self_diagnostic_result=%X\n",
+				       __func__,
+				       errors_on_dsi, self_diagnostic_result);
+		} while (n_retry && retry);
+	}
+
+	printk(KERN_ERR "Pink display success");
+#endif
   }
 
       /* variable to find the num of display devices initalized */
@@ -3759,7 +4025,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	info->dev->coherent_dma_mask = ~0x0;
 	platform_set_drvdata(pdev, info);
 
-	printk(KERN_ERR "mcde_probe done\n");
+	printk(KERN_ERR "Display initialization done, chid = %d\n", currentpar->chid);
 
 	return 0;
 
@@ -3768,25 +4034,29 @@ out_fbdealloc:
 	stm_gpio_altfuncdisable(channel_info->gpio_alt_func);
 out_irq:
 	free_irq(irqline,NULL);
-out_unmap10:
+out_unmap12:
 	iounmap(currentpar->prcm_tv_clk);
-out_unmap9:
+out_unmap11:
 	iounmap(currentpar->prcm_hdmi_clk);
-out_unmap8:
+out_unmap10:
 	iounmap(currentpar->prcm_mcde_clk);
-
-out_unmap7:
+out_unmap9:
 	iounmap(currentpar->dsi_lnk_registers[0]);
-
-out_unmap6:
+out_unmap8:
 	iounmap(currentpar->mcde_dsi_channel_reg[0]);
-out_unmap5:
+out_unmap7:
 	if (currentpar->chid == CHANNEL_A || currentpar->chid == CHANNEL_B)
 		iounmap(currentpar->ch_regbase2[currentpar->chid]);
 	else if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1)
 	{
 		iounmap(currentpar->ch_c_reg);
 	}
+out_unmap6:
+  if (currentpar->chid == CHANNEL_C0)
+    iounmap(currentpar->ch_regbase2[MCDE_CH_B]);
+out_unmap5:
+  if (currentpar->chid == CHANNEL_C0)
+    iounmap(currentpar->ch_regbase2[MCDE_CH_A]);
 out_unmap4:
 	iounmap(currentpar->ch_regbase1[0]);
 out_unmap3:
@@ -3804,6 +4074,89 @@ out_fballoc:
 
 }
 
+void  mcde_test(struct fb_info *info)
+{
+	struct mcdefb_info *currentpar=
+		(struct mcdefb_info *) info->par;
+
+	mcde_fb_lock(info, __func__);
+
+	gpio_set_value(268, 0);
+	gpio_set_value(269, 0);
+
+	mdelay(10);
+
+	gpio_set_value(268, 1);
+	gpio_set_value(269, 1);
+
+	mdelay(10); /** let the high value settle  */
+
+	mdelay(200); /* Must wait at least 120 ms after reset */
+
+	if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 || currentpar->chid == CHANNEL_B)
+	{
+		u32 errors_on_dsi;
+		u32 self_diagnostic_result;
+		bool retry;
+		int n_retry = 3;
+		u32 id1,id2,id3;
+
+		mcde_dsi_set_params(info);
+
+#ifndef PEPS_PLATFORM
+		do
+		{
+			/** Make the screen up first */
+
+			currentpar->dsi_lnk_registers[DSI_LINK2]->
+				mctl_main_en=0x0;
+			mcde_dsi_start(info);
+
+			/* Check that display is OK */
+			mcde_dsi_read_reg(info, 0x05, &errors_on_dsi);
+			mcde_dsi_read_reg(info, 0x0F, &self_diagnostic_result);
+
+			mcde_dsi_read_reg(info, 0xDA, &id1);
+			mcde_dsi_read_reg(info, 0xDB, &id2);
+			mcde_dsi_read_reg(info, 0xDC, &id3);
+
+			printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
+			       __func__, id1, id2, id3);
+
+			retry = errors_on_dsi != 0 ||
+				(self_diagnostic_result != 0xC0 &&
+				 self_diagnostic_result != 0x80 &&
+				 self_diagnostic_result != 0x40);
+			n_retry--;
+			if (retry) {
+				/* Oops! Pink display? */
+				if (n_retry) {
+					/* Display not initialized correctly,
+					   try again */
+					printk(KERN_WARNING "%s: Failed to initialize"
+					       " display, potential 'pink' display. "
+					       " errors_on_dsi=%X, "
+					       " self_diagnostic_result=%X, "
+					       " retrying...\n", __func__,
+					       errors_on_dsi, self_diagnostic_result);
+					mcde_dsi_write_reg(info, 0x01, 1);
+				}
+			}
+			else
+				printk(KERN_WARNING "%s: Display initialized OK, "
+				       " errors_on_dsi=%X, "
+				       " self_diagnostic_result=%X\n",
+				       __func__,
+				       errors_on_dsi, self_diagnostic_result);
+		} while (n_retry && retry);
+#endif
+	}
+
+	/** initialize the hardware as per the configuration */
+	mcde_set_par_internal(info);
+
+	mcde_fb_unlock(info, __func__);
+}
 
 /**
  * mcde_remove() - This routine de-initializes and de-register the FB device.
@@ -3949,7 +4302,6 @@ static void mcde_environment_setup(void)
 }
 
 
-
 #ifdef CONFIG_PM
 /**
  * u8500_mcde_suspend() - This routine puts the FB device in to sustend state.
@@ -4048,7 +4400,49 @@ extern "C" {
 #include <mach/irqs.h>
 #include <mach/ab8500.h>
 
+void  mcde_test(struct fb_info *info);
 DECLARE_MUTEX(mcde_module_mutex);
+
+bool mcde_test_enable_lock = true;
+bool mcde_test_enable_lock_prints = false;
+
+void mcde_fb_lock(struct fb_info *info, const char *caller)
+{
+	struct mcdefb_info *currentpar = info->par;
+
+	if (mcde_test_enable_lock_prints)
+		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
+	if (!mcde_test_enable_lock)
+		return;
+	down(&currentpar->fb_sem);
+
+	/* Wait for imsc to be zero */
+	/* We don't want to interfere with a refresh interrupt */
+#ifdef CONFIG_FB_MCDE_MULTIBUFFER
+	if ((currentpar->regbase->mcde_imsc & 0x40) != 0) {
+		int wait = 5;
+
+		printk(KERN_INFO "%s(%p), mcde_imsc != 0, is %X. "
+		       "Waiting...\n", __func__, info,
+		       currentpar->regbase->mcde_imsc);
+		while (wait-- && currentpar->regbase->mcde_imsc != 0)
+			mdelay(100);
+		printk(KERN_INFO "%s(%p), mcde_imsc = 0, is %X\n",
+		       __func__, info,
+		       currentpar->regbase->mcde_imsc);
+	}
+#endif
+}
+
+void mcde_fb_unlock(struct fb_info *info, const char *caller)
+{
+	struct mcdefb_info *currentpar = info->par;
+	if (mcde_test_enable_lock_prints)
+		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
+	if (!mcde_test_enable_lock)
+		return;
+	up(&currentpar->fb_sem);
+}
 
 int mcde_debug = MCDE_DEFAULT_LOG_LEVEL;
 
@@ -4113,14 +4507,17 @@ struct fb_videomode mcde_modedb[] __initdata = {
                 NULL, 85, 640, 480, KHZ2PICOS(36000),
                 80, 56, 25, 1, 56, 3,
                 0, FB_VMODE_NONINTERLACED
-        },
-        {
-		    /** 864x480 @ 60Hz  ~ VMODE_864_480_60_P*/
-                NULL, 60, 864, 480, KHZ2PICOS(40000),
+        }, {
+                /* * 480x864 @ 60Hz  ~ VMODE_480_864_60_P*/
+                "WVGA_Portrait", 60, 480, 864, KHZ2PICOS(40000),
                 88, 40, 23, 1, 128, 4,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
-        },
-         {
+        }, {
+		    /** 864x480 @ 60Hz  ~ VMODE_864_480_60_P*/
+                "WVGA", 60, 864, 480, KHZ2PICOS(40000),
+                88, 40, 23, 1, 128, 4,
+                FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
+        }, {
 		    /** 800x600 @ 56Hz  ~VMODE_800_600_56_P*/
                 "VUIB WVGA", 56, 800, 600, KHZ2PICOS(36000),
                 128, 24, 22, 1, 72, 2,
@@ -4466,7 +4863,6 @@ EXPORT_SYMBOL(u8500_mcde_tasklet_4);
 void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 {
 
-
 #ifndef CONFIG_FB_MCDE_MULTIBUFFER
 	   while(gpar[2]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts & 0x20);
 
@@ -4506,10 +4902,10 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 	   gpar[2]->clcd_event.event=1;
 
 	   /** send software sync */
-	   gpar[2]->ch_regbase1[2]->mcde_chsyn_sw=0x1;
+	   gpar[2]->ch_regbase1[MCDE_CH_A]->mcde_chsyn_sw=0x1;
 	   wake_up(&gpar[2]->clcd_event.wait);
 #else
-    gpar[2]->ch_regbase1[2]->mcde_chsyn_sw=0x1;
+    gpar[2]->ch_regbase1[MCDE_CH_A]->mcde_chsyn_sw=0x1;
 #endif
 
 
@@ -4594,14 +4990,11 @@ void u8500_mcde_tasklet_3(unsigned long tasklet_data)
 
 static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 {
-
 /** for dual display both the channels need to be controlled */
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-
-
 	if (gpar[2]->regbase->mcde_mis & 0xC0)
 	{
 
@@ -4636,18 +5029,11 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 
             gpar[2]->ch_regbase1[2]->mcde_chsyn_sw=0x1;
             gpar[3]->ch_regbase1[3]->mcde_chsyn_sw=0x1;
-
 	}
-
-
 #endif
 
 #else
-
-
 {
-
-
 		/** check for null */
 
 		if(gpar[2]!=0)
@@ -4661,17 +5047,16 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 
 		   }
 
-		   if (gpar[2]->regbase->mcde_mis & 0x40)
+		   if (gpar[2]->regbase->mcde_mis & 0x4)
 			{
 			  /** vcomp */
-			   gpar[2]->regbase->mcde_ris &= 0x40;
+			   gpar[2]->regbase->mcde_ris &= 0x4;
 
 			   //tasklet_schedule(&mcde_tasklet_1);
 			   u8500_mcde_tasklet_1(0);
 
 			}
 		}
-
 
 		/** check for null */
 
@@ -4700,12 +5085,8 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 			}
 
 		}
-
-
 }
-
 #endif
-
 
 /** check for null */
 
@@ -4723,16 +5104,10 @@ if(gpar[1]!=0)
 	   /** tasklet  */
 	   //tasklet_schedule(&mcde_tasklet_3);
 	    u8500_mcde_tasklet_3(0);
-
 	}
-
-
-
-
 }
 
     interrupt_counter++;
-
 	return IRQ_HANDLED;
 }
 
@@ -4761,7 +5136,7 @@ static int mcde_ioctl(struct fb_info *info,
 	u32 flags;
 	u32 scanMode = 0;
 	void __user *argp = (void __user *) arg;
-
+	mcde_fb_lock(info, __func__);
 	memset (&blend_ctrl, 0, sizeof(struct mcde_blend_control));
 	switch (cmd)
 	{
@@ -4773,19 +5148,23 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&extsrc_ovl, argp, sizeof(struct mcde_overlay_create)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to copy data from user space\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 
 			if (mcde_extsrc_ovl_create(&extsrc_ovl,info,&create_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to create a new overlay surface\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
 			extsrc_ovl.key = ((create_key) << PAGE_SHIFT);
 
-			if (copy_to_user(argp, &extsrc_ovl, sizeof(struct mcde_overlay_create)))
+			if (copy_to_user(argp, &extsrc_ovl, sizeof(struct mcde_overlay_create))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			break;
 
 		/*
@@ -4793,8 +5172,10 @@ static int mcde_ioctl(struct fb_info *info,
 		 */
 		case MCDE_IOCTL_OVERLAY_REMOVE:
 
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			rem_key = rem_key >> PAGE_SHIFT;
 			dbgprintk(MCDE_DEBUG_INFO, "remove overlay id  %d\n",rem_key);
@@ -4803,12 +5184,14 @@ static int mcde_ioctl(struct fb_info *info,
 			if(rem_key < num_of_display_devices)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Cant remove base overlay 0\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
 			if (mcde_extsrc_ovl_remove(info,rem_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "cant remove overlay id  %d\n",rem_key);
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -4817,13 +5200,16 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_ALLOC_FRAMEBUFFER: This ioctl is used to allocate the memory for frame buffer.
 		 */
 		case MCDE_IOCTL_ALLOC_FRAMEBUFFER:
-			if (copy_from_user(&source_buff, argp, sizeof(struct mcde_sourcebuffer_alloc)))
+			if (copy_from_user(&source_buff, argp, sizeof(struct mcde_sourcebuffer_alloc))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			flags = claim_mcde_lock(currentpar->chid);
 			if (mcde_alloc_source_buffer(source_buff,info,&create_key, TRUE) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to allocate framebuffer\n");
 				release_mcde_lock(currentpar->chid, flags);
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			source_buff.buff_addr.dmaaddr = currentpar->buffaddr[create_key].dmaaddr;
@@ -4831,15 +5217,19 @@ static int mcde_ioctl(struct fb_info *info,
 			source_buff.key = ((create_key) << PAGE_SHIFT);
 			release_mcde_lock(currentpar->chid, flags);
 
-			if (copy_to_user(argp, &source_buff, sizeof(struct mcde_sourcebuffer_alloc)))
+			if (copy_to_user(argp, &source_buff, sizeof(struct mcde_sourcebuffer_alloc))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			break;
 		/*
 		 *   MCDE_IOCTL_DEALLOC_FRAMEBUFFER: This ioctl is used to de -allocate the memory used for frame buffer.
 		 */
 		case MCDE_IOCTL_DEALLOC_FRAMEBUFFER:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			rem_key = rem_key >> PAGE_SHIFT;
 			dbgprintk(MCDE_ERROR_INFO, "remove source buffer id  %d\n",rem_key);
@@ -4847,6 +5237,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if((rem_key <= MCDE_MAX_FRAMEBUFF) &&  (rem_key > 2*MCDE_MAX_FRAMEBUFF))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Cant remove the source buffer\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			//flags = claim_mcde_lock(currentpar->chid);
@@ -4854,6 +5245,7 @@ static int mcde_ioctl(struct fb_info *info,
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to deallocate framebuffer\n");
 			//	release_mcde_lock(currentpar->chid, flags);
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			//release_mcde_lock(currentpar->chid, flags);
@@ -4862,12 +5254,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_EXTSRC: This ioctl is used to configure the external source configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_EXTSRC:
-			if (copy_from_user(&ext_src_config, argp, sizeof(struct mcde_ext_conf)))
+			if (copy_from_user(&ext_src_config, argp, sizeof(struct mcde_ext_conf))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_extsource(ext_src_config,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure the extsrc reg\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -4876,12 +5271,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_OVRLAY: This ioctl is used to configure the overlay configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_OVRLAY:
-			if (copy_from_user(&overlay_config, argp, sizeof(struct mcde_conf_overlay)))
+			if (copy_from_user(&overlay_config, argp, sizeof(struct mcde_conf_overlay))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_overlay(overlay_config,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure overlay reg\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -4890,12 +5288,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_CHANNEL: This ioctl is used to configure the channel configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_CHANNEL:
-			if (copy_from_user(&ch_config, argp, sizeof(struct mcde_ch_conf)))
+			if (copy_from_user(&ch_config, argp, sizeof(struct mcde_ch_conf))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_channel(ch_config,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure the channel reg\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -4904,12 +5305,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CONFIGURE_PANEL: This ioctl is used to configure the panel(output interface) configuration.
 		 */
 		case MCDE_IOCTL_CONFIGURE_PANEL:
-			if (copy_from_user(&chnl_lcd_ctrl, argp, sizeof(struct mcde_chnl_lcd_ctrl)))
+			if (copy_from_user(&chnl_lcd_ctrl, argp, sizeof(struct mcde_chnl_lcd_ctrl))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_lcd_timing(chnl_lcd_ctrl,info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to configure the panel timings\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4920,6 +5324,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_enable(info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable MCDE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4930,6 +5335,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_disable(info) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to disable MCDE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4937,12 +5343,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_COLOR_KEYING_ENABLE: This ioctl is used to enable color keying.
 		 */
 		case MCDE_IOCTL_COLOR_KEYING_ENABLE:
-			if (copy_from_user(&chnannel_color_key, argp, sizeof(struct mcde_channel_color_key)))
+			if (copy_from_user(&chnannel_color_key, argp, sizeof(struct mcde_channel_color_key))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_channel_color_key(info, chnannel_color_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4954,6 +5363,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_conf_channel_color_key(info, chnannel_color_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to disable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4961,12 +5371,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_COLOR_COVERSION_ENABLE: This ioctl is used to enable color color conversion.
 		 */
 		case MCDE_IOCTL_COLOR_COVERSION_ENABLE:
-			if (copy_from_user(&color_conv_ctrl, argp, sizeof(struct mcde_conf_color_conv)))
+			if (copy_from_user(&color_conv_ctrl, argp, sizeof(struct mcde_conf_color_conv))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_color_conversion(info, color_conv_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4978,6 +5391,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_conf_color_conversion(info, color_conv_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -4985,12 +5399,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_CHANNEL_BLEND_ENABLE: This ioctl is used to enable alpha blending.
 		 */
 		case MCDE_IOCTL_CHANNEL_BLEND_ENABLE:
-			if (copy_from_user(&blend_ctrl, argp, sizeof(struct mcde_blend_control)))
+			if (copy_from_user(&blend_ctrl, argp, sizeof(struct mcde_blend_control))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_conf_blend_ctrl(info, blend_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -5005,6 +5422,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_conf_blend_ctrl(info, blend_ctrl) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to enable channel color keying\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -5012,8 +5430,10 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_ROTATION_ENABLE: This ioctl is used to enable rotation.
 		 */
 		case MCDE_IOCTL_ROTATION_ENABLE:
-			if (copy_from_user(&rot_dir, argp, sizeof(char)))
+			if (copy_from_user(&rot_dir, argp, sizeof(char))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			rot_ctrl = MCDE_ROTATION_ENABLE;
 			mcde_conf_rotation(info, rot_dir, rot_ctrl, currentpar->rotationbuffaddr0.dmaaddr, currentpar->rotationbuffaddr1.dmaaddr);
 			break;
@@ -5031,6 +5451,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&videoMode, argp, sizeof(u32)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to set video mode\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			/** SPINLOCK in use :  */
@@ -5039,6 +5460,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (mcde_dealloc_source_buffer(info, currentpar->mcde_cur_ovl_bmp, FALSE) != MCDE_OK)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to set video mode\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 		        currentpar->isHwInitalized = 0;
@@ -5066,6 +5488,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&src_buffer, argp, sizeof(struct mcde_source_buffer)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to copy the data from user space in MCDE_IOCTL_SET_SOURCE_BUFFER\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			mcde_set_buffer(info, src_buffer.buffaddr.dmaaddr, src_buffer.buffid);
@@ -5077,6 +5500,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&dithering_ctrl_conf, argp, sizeof(struct mcde_dithering_ctrl_conf)))
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to copy the data from user space in MCDE_IOCTL_DITHERING_ENABLE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			mcde_conf_dithering_ctrl(dithering_ctrl_conf, info);
@@ -5088,6 +5512,7 @@ static int mcde_ioctl(struct fb_info *info,
 			if (copy_from_user(&scanMode, argp, sizeof(u32)))
 			{
 				dbgprintk(MCDE_IOCTL_SET_SCAN_MODE, "Failed to copy the data from user space in MCDE_IOCTL_SET_SCAN_MODE\n");
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
 			}
 			mcde_conf_scan_mode(scanMode, info);
@@ -5096,19 +5521,24 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_GET_SCAN_MODE: This ioctl is used to get the scan mode.
 		 */
 		case MCDE_IOCTL_GET_SCAN_MODE:
-			if (copy_to_user(argp, &info->var.vmode, sizeof(u32)))
+			if (copy_to_user(argp, &info->var.vmode, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 			break;
 		/*
 		 *   MCDE_IOCTL_TEST_DSI_HSMODE: This ioctl is used to test the dsi direct command high speed mode.
 		 */
 		case MCDE_IOCTL_TEST_DSI_HSMODE:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_dsi_test_dsi_HS_directcommand_mode(info,rem_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "HS direct command test case failed\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 			break;
@@ -5116,12 +5546,15 @@ static int mcde_ioctl(struct fb_info *info,
 		 *   MCDE_IOCTL_TEST_DSI_LPMODE: This ioctl is used to test the dsi direct command low power mode.
 		 */
 		case MCDE_IOCTL_TEST_DSI_LPMODE:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 			if (mcde_dsi_test_LP_directcommand_mode(info,rem_key) < 0)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Low Power direct command test case failed\n");
+				mcde_fb_unlock(info, __func__);
 				return -EINVAL;
 			}
 
@@ -5136,16 +5569,20 @@ static int mcde_ioctl(struct fb_info *info,
 		    if(rem_key&0x4) rem_key=1;
 		    else rem_key=0;
 
-			if (copy_to_user(argp, &rem_key, sizeof(u32)))
-				return -EFAULT;
+		    if (copy_to_user(argp, &rem_key, sizeof(u32))) {
+			    mcde_fb_unlock(info, __func__);
+			    return -EFAULT;
+		    }
 			break;
 
 	    /*
 	     *  MCDE_IOCTL_TV_CHANGE_MODE: This ioctl is used to change TV mode
 	     */
 		case MCDE_IOCTL_TV_CHANGE_MODE:
-			if (copy_from_user(&rem_key, argp, sizeof(u32)))
+			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
 				return -EFAULT;
+			}
 
 
 
@@ -5193,15 +5630,19 @@ static int mcde_ioctl(struct fb_info *info,
             if(rem_key&0x40) rem_key=1;
             else rem_key=0;
 
-			if (copy_to_user(argp, &rem_key, sizeof(u32)))
-				return -EFAULT;
+		    if (copy_to_user(argp, &rem_key, sizeof(u32))) {
+			    mcde_fb_unlock(info, __func__);
+			    return -EFAULT;
+		    }
 			break;
 
 		default:
+			mcde_fb_unlock(info, __func__);
 			return -EINVAL;
 
 	}
 
+	mcde_fb_unlock(info, __func__);
 	return 0;
 }
 
@@ -5962,14 +6403,10 @@ static void mcde_conf_video_mode(struct fb_info *info)
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	if((currentpar->chid==MCDE_CH_C0)&&(!(currentpar->regbase->mcde_cr&0x4)))
 	{
-
-
 		/** disable MCDE first then configure */
         currentpar->regbase->mcde_cr=(currentpar->regbase->mcde_cr & ~ MCDE_ENABLE);
 
-
 		/** configure mcde external registers */
-
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
 
 		if (currentpar->chnl_info->inbpp==16)
@@ -5981,68 +6418,67 @@ static void mcde_conf_video_mode(struct fb_info *info)
 
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_cr=(MCDE_FS_FREQ_DIV_DISABLE<<3)|MCDE_BUFFER_SOFTWARE_SELECT;
 
-
-
-        /** configure mcde overlay registers */
-
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x22b00001;
-
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_0<<11)|(0x360);
-
-		//currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=(0x30<<16)|(MCDE_EXT_SRC_0<<11)|(0x10);
+		/** configure mcde overlay registers */
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0xB2b00001;
 
 		/** rgb888 24 bit format packed data 3 bytes limited to 480 X 682 */
-
 		if(currentpar->chnl_info->inbpp==24)
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_0<<11)|(0x2AA);
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_0<<11)|(0x2AA);
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2=0x004003FF;
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp=(MCDE_CH_A<<11); /* Connecting overlay 0 with channel A */
+
+		/** configure mcde channel config registers */
+		currentpar->ch_regbase1[MCDE_CH_A]->mcde_chsyn_mod=MCDE_SYNCHRO_SOFTWARE;
+		currentpar->ch_regbase1[MCDE_CH_A]->mcde_chsyn_bck=0xff;
+
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=(0x360<<16)|(MCDE_EXT_SRC_0<<11)|(0x1E0);
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=(0x1E0)*(currentpar->chnl_info->inbpp/8);
+		currentpar->ch_regbase1[MCDE_CH_A]->mcde_ch_conf=0x35f01df; /** screen parameters */
+
+		/* U8500_ESRAM_BASE + 0x60000 */
+		currentpar->ch_regbase2[MCDE_CH_A]->mcde_rotadd0 = U8500_ESRAM_BASE + 0x20000 * 5;
+		currentpar->ch_regbase2[MCDE_CH_A]->mcde_rotadd1 = U8500_ESRAM_BASE + 0x20000 * 5 + 0x10000;
+		currentpar->ch_regbase2[MCDE_CH_A]->mcde_ch_cr0 = (0xB << 24) | (0 << 15) | (1 << 6) | (1 << 1) | 1;
+		currentpar->ch_regbase2[MCDE_CH_A]->mcde_ch_cr1 = (1 << 29) | (0x9 << 25) | (0x5 << 10);
+		currentpar->regbase->mcde_cfg0 = 0x22487001;//0x5E147001;
+
+#else
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_0<<11)|(0x360);
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=(0x360)*(currentpar->chnl_info->inbpp/8);
+		currentpar->ch_regbase1[MCDE_CH_A]->mcde_ch_conf=0x1df035f; /** screen parameters */
+		currentpar->ch_regbase2[MCDE_CH_A]->mcde_ch_cr0 = (1 << 1) | 1;
+		currentpar->ch_regbase2[MCDE_CH_A]->mcde_ch_cr1 = (1 << 29) | (0x7 << 25) | (0x5 << 10);
 
 		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2=0xa200000;
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x22b00001;
+		currentpar->regbase->mcde_cfg0 = 0x22487001;
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=(0x360)*(currentpar->chnl_info->inbpp/8);
-
-		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp=(MCDE_CH_C0<<11);
-
-
-
-        /** configure mcde channel config registers */
-
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_ch_conf=0x1df035f; /** screen parameters */
-
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chsyn_mod=MCDE_SYNCHRO_SOFTWARE;
-
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chsyn_bck=0xff;
-
-
-
-		/** configure channel C0 register */
-
-		currentpar->ch_c_reg->mcde_chc_crc |=0x387B0027;
-
-
-
-        /** configure mcde base registers */
-
-#ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
-
-		currentpar->regbase->mcde_imsc |=0x40;
 #endif
 
-		currentpar->regbase->mcde_cfg0 |=0x5E145001;
+		/** configure channel C0 register */
+		//currentpar->ch_c_reg->mcde_chc_crc |=0x387B0027;
 
-		currentpar->regbase->mcde_cr |=0x80000004;
+		/** configure mcde base registers */
+#ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
+		/*currentpar->regbase->mcde_imsc |=0x40;*/
+#endif
+
+		currentpar->regbase->mcde_cr |= 0x80000020;
 
 		mdelay(100);
 
-        /** configure mcde DSI formatter */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en &= ~0x400; /* Disable IF2_EN */
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_en |= 0x200; /* Enable IF1_EN */
 
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_conf0=(0x2<<20)|(0x1<<18)|(0x1<<13);
+		currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_data_ctl &= ~0x2; /* Set interface 1 to command mode */
 
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_frame=(1+(864*24/8))*480;
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_pkt=1+(864*24/8);
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD0]->mcde_dsi_cmd=(0x3<<4)|MCDE_DSI_VID_MODE_SHIFT;
+		/** configure mcde DSI formatter */
+		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID0]->mcde_dsi_conf0=(0x2<<20)|(0x1<<18)|(0x0<<17)|(0x0<<16)|(0x1<<13);
+		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID0]->mcde_dsi_frame=(1+(864*24/8))*480;
+		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID0]->mcde_dsi_pkt=1+(864*24/8);
+		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID0]->mcde_dsi_cmd=(0x3<<4)|MCDE_DSI_VID_MODE_SHIFT;
 
 		mdelay(100);
 
@@ -6052,24 +6488,17 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_wrdat0=0x2c;
 		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
 
-
-
 		mdelay(100);
 
-
-	    currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings|=0x200004;
-
+		currentpar->dsi_lnk_registers[DSI_LINK0]->direct_cmd_main_settings|=0x200004;
+		//currentpar->regbase->mcde_imsc |= 0x4;
 
 		/** do a software sync */
-
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
-
-		currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chsyn_sw=MCDE_NEW_FRAME_SYNCHRO;
+		currentpar->ch_regbase1[MCDE_CH_A]->mcde_chsyn_sw=MCDE_NEW_FRAME_SYNCHRO;
 #endif
 
-
-	   mdelay(100);
-
+		mdelay(100);
 	}
 #endif  /** CONFIG_FB_U8500_MCDE_CHANNELC0 */
 
@@ -6208,6 +6637,7 @@ static void mcde_conf_video_mode(struct fb_info *info)
  */
 static int mcde_blank(int blank_mode, struct fb_info *info)
 {
+	mcde_fb_lock(info, __func__);
 	if (blank_mode != 0) {
 		/** ---- disable display engine */
 		mcde_disable(info);
@@ -6215,6 +6645,7 @@ static int mcde_blank(int blank_mode, struct fb_info *info)
 		/**---- enable display engine */
 		mcde_enable(info);
 	}
+	mcde_fb_unlock(info, __func__);
 
 	return 0;
 }
@@ -6225,7 +6656,7 @@ static int mcde_blank(int blank_mode, struct fb_info *info)
  * This function configures MCDE & DSI hardware for the device(primary/secondary/HDMI/TVOUT) according to info->var.
  *
  */
-static int mcde_set_par(struct fb_info *info)
+static int mcde_set_par_internal(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 	u8 border=0;
@@ -6249,6 +6680,14 @@ static int mcde_set_par(struct fb_info *info)
 #else
 	mcde_conf_video_mode(info);
 #endif
+	return 0;
+}
+
+static int mcde_set_par(struct fb_info *info)
+{
+	mcde_fb_lock(info, __func__);
+	mcde_set_par_internal(info);
+	mcde_fb_unlock(info, __func__);
 	return 0;
 }
 /**
@@ -6309,7 +6748,9 @@ static int mcde_setcolreg(u_int regno, u_int red, u_int green,
 			break;
 
 		case FB_VISUAL_PSEUDOCOLOR:
+			mcde_fb_lock(info, __func__);
 			ret=mcde_setpalettereg(red, green, blue, transp, info);
+			mcde_fb_unlock(info, __func__);
 			break;
 	}
 
@@ -6341,6 +6782,7 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		   return -EINVAL;
    }
 
+	mcde_fb_lock(info, __func__);
    info->var.xoffset = var->xoffset;
    info->var.yoffset = var->yoffset;
 
@@ -6355,16 +6797,18 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
    //enable next base update interrupt
    /** unmask VSYNCs of channel C0 */
    if (currentpar->chid == CHANNEL_C0)
-	gpar[currentpar->chid]->regbase->mcde_imsc |= 0x40;
+	gpar[currentpar->chid]->regbase->mcde_imsc |= 0x4;
    if (currentpar->chid == CHANNEL_C1)
 	gpar[currentpar->chid]->regbase->mcde_imsc |= 0x80;
 
    if (currentpar->chid == MCDE_CH_B)
 	gpar[currentpar->chid]->regbase->mcde_imsc |= 0x8;
 
+	mcde_fb_unlock(info, __func__);
     wait_event(currentpar->clcd_event.wait,currentpar->clcd_event.event==1);
     currentpar->clcd_event.event = 0;
-
+#else
+	mcde_fb_unlock(info, __func__);
 #endif
 
    return 0;
@@ -6601,6 +7045,8 @@ void find_video_mode(struct fb_info *info)
 		currentpar->video_mode = VMODE_712_568_60_P;
 	   else if (strcmp(currentpar->chnl_info->restype,"VGA")==0)
 		currentpar->video_mode = VMODE_640_480_60_P;
+	   else if (strcmp(currentpar->chnl_info->restype,"WVGA_Portrait")==0)
+		currentpar->video_mode = VMODE_480_864_60_P;
 	   else if (strcmp(currentpar->chnl_info->restype,"WVGA")==0)
 		currentpar->video_mode = VMODE_864_480_60_P;
 	   else if (strcmp(currentpar->chnl_info->restype,"HDTV")==0)
@@ -6629,6 +7075,8 @@ void find_restype_from_video_mode(struct fb_info *info, mcde_video_mode videoMod
 		currentpar->chnl_info->restype = "SDTV";
 	   else if(videoMode == VMODE_640_480_60_P)
 		currentpar->chnl_info->restype = "VGA";
+	   else if(videoMode == VMODE_480_864_60_P)
+		currentpar->chnl_info->restype = "WVGA_Portrait";
 	   else if(videoMode == VMODE_864_480_60_P)
 		currentpar->chnl_info->restype = "WVGA";
 	   else if(videoMode == VMODE_1920_1080_50_I)
@@ -6714,7 +7162,7 @@ static int mcde_set_video_mode(struct fb_info *info, mcde_video_mode videoMode)
    info->screen_base = (u8 *)currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].cpuaddr;
 
    /** initialize the hardware as per the configuration */
-   mcde_set_par(info);
+   mcde_set_par_internal(info);
 
    return retVal;
 
@@ -7067,6 +7515,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	currentpar->bpp16_type = channel_info->bpp16_type;
 	currentpar->bgrinput = channel_info->bgrinput;
 	currentpar->chnl_info = channel_info;
+	init_MUTEX(&currentpar->fb_sem);
 
 	/** MCDE top register */
         res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -7120,12 +7569,17 @@ static int __init mcde_probe(struct platform_device *pdev)
 			goto out_unmap4;
 	}else
 	{
-	if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1)
-	{
-		currentpar->ch_c_reg = (struct mcde_chc_reg *) ioremap(res->start, res->end - res->start + 1);
-		if (currentpar->ch_c_reg == NULL)
-			goto out_unmap4;
-	}
+		if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1)
+		{
+			currentpar->ch_c_reg = (struct mcde_chc_reg *) ioremap(res->start, res->end - res->start + 1);
+			if (currentpar->ch_c_reg == NULL)
+					goto out_unmap4;
+		}
+		if (currentpar->chid == CHANNEL_C0)
+		{
+			res = platform_get_resource(pdev, IORESOURCE_MEM, 10);
+			currentpar->ch_regbase2[MCDE_CH_A] = (struct mcde_ch_reg *) ioremap(res->start, res->end - res->start + 1);
+		}
 	}
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 5);
 	if (res == NULL)
@@ -7302,13 +7756,85 @@ static int __init mcde_probe(struct platform_device *pdev)
 
 if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  currentpar->chid == CHANNEL_B || currentpar->chid == CHANNEL_A)
 {
+	u32 errors_on_dsi;
+	u32 self_diagnostic_result;
+	bool retry;
+	int n_retry = 3;
+	u32 id1,id2,id3;
+
+	if (currentpar->chid == CHANNEL_C0)
+		printk(KERN_INFO "%s: Initializing DSI and display for C0\n",
+			__func__);
+	else if (currentpar->chid == CHANNEL_C1)
+		printk(KERN_INFO "%s: Initializing DSI and display for C1\n",
+			__func__);
+	else
+		printk(KERN_INFO "%s: Initializing DSI and display for B\n",
+			__func__);
 
 	mcde_dsi_set_params(info);
+	mcde_dsi_start(info);
+
+	printk(KERN_ERR "DSI started\n");
+#ifndef PEPS_PLATFORM
 
 	/** Make the screen up first */
 
-	mcde_dsi_start(info);
+	if (mcde_dsi_read_reg(info, 0x05, &errors_on_dsi) >= 0 ||
+	    currentpar->chid == CHANNEL_C0)
+	{
+		do
+		{
+			mcde_dsi_write_reg(info, 0x01, 1);
+			mdelay(150);
 
+			mcde_dsi_start(info);
+
+			/* Check that display is OK */
+			mcde_dsi_read_reg(info, 0x05, &errors_on_dsi);
+			mcde_dsi_read_reg(info, 0x0F, &self_diagnostic_result);
+
+			mcde_dsi_read_reg(info, 0xDA, &id1);
+			mcde_dsi_read_reg(info, 0xDB, &id2);
+			mcde_dsi_read_reg(info, 0xDC, &id3);
+
+			printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
+			       __func__, id1, id2, id3);
+
+			retry = errors_on_dsi != 0 ||
+				(self_diagnostic_result != 0xC0 &&
+				 self_diagnostic_result != 0x80 &&
+				 self_diagnostic_result != 0x40);
+			n_retry--;
+			if (retry) {
+				/* Oops! Pink display? */
+				if (n_retry) {
+					/* Display not initialized correctly,
+					   try again */
+					printk(
+						KERN_WARNING
+						"%s: Failed to initialize"
+						" display, potential 'pink' "
+						"display. "
+					       " errors_on_dsi=%X, "
+					       " self_diagnostic_result=%X, "
+					       " retrying...\n", __func__,
+					       errors_on_dsi,
+						self_diagnostic_result);
+				}
+			}
+			else
+				printk(KERN_WARNING "%s: Display initialized OK, "
+				       " errors_on_dsi=%X, "
+				       " self_diagnostic_result=%X\n",
+				       __func__,
+				       errors_on_dsi, self_diagnostic_result);
+		} while (n_retry && retry);
+	}
+
+	printk(KERN_ERR "Pink display success");
+
+#endif
 }
 
       /* variable to find the num of display devices initalized */
@@ -7343,6 +7869,7 @@ if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  current
 	/** register_framebuffer unsets the DMA mask, but we require it set for subsequent buffer allocations */
 	info->dev->coherent_dma_mask = ~0x0;
 	platform_set_drvdata(pdev, info);
+	printk(KERN_ERR "Display initialization done, chid = %d\n", currentpar->chid);
 
 	return 0;
 
@@ -7386,6 +7913,92 @@ out_fballoc:
 	return retVal;
 
 }
+
+void  mcde_test(struct fb_info *info)
+{
+	struct mcdefb_info *currentpar=
+		(struct mcdefb_info *) info->par;
+
+	mcde_fb_lock(info, __func__);
+
+	gpio_set_value(268, 0);
+	gpio_set_value(269, 0);
+
+	mdelay(10);
+
+	gpio_set_value(268, 1);
+	gpio_set_value(269, 1);
+
+	mdelay(10); /** let the high value settle  */
+
+	mdelay(200); /* Must wait at least 120 ms after reset */
+
+	if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  currentpar->chid == CHANNEL_B)
+	{
+		u32 errors_on_dsi;
+		u32 self_diagnostic_result;
+		bool retry;
+		int n_retry = 3;
+		u32 id1,id2,id3;
+
+		mcde_dsi_set_params(info);
+
+#ifndef PEPS_PLATFORM
+		do
+		{
+			/** Make the screen up first */
+
+			currentpar->dsi_lnk_registers[DSI_LINK2]->
+				mctl_main_en=0x0;
+			mcde_dsi_start(info);
+
+			/* Check that display is OK */
+			mcde_dsi_read_reg(info, 0x05, &errors_on_dsi);
+			mcde_dsi_read_reg(info, 0x0F, &self_diagnostic_result);
+
+			mcde_dsi_read_reg(info, 0xDA, &id1);
+			mcde_dsi_read_reg(info, 0xDB, &id2);
+			mcde_dsi_read_reg(info, 0xDC, &id3);
+
+			printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
+			       __func__, id1, id2, id3);
+
+			retry = errors_on_dsi != 0 ||
+				(self_diagnostic_result != 0xC0 &&
+				 self_diagnostic_result != 0x80 &&
+				 self_diagnostic_result != 0x40);
+			n_retry--;
+			if (retry) {
+				/* Oops! Pink display? */
+				if (n_retry) {
+					/* Display not initialized correctly,
+					   try again */
+					printk(KERN_WARNING "%s: Failed to initialize"
+					       " display, potential 'pink' display. "
+					       " errors_on_dsi=%X, "
+					       " self_diagnostic_result=%X, "
+					       " retrying...\n", __func__,
+					       errors_on_dsi, self_diagnostic_result);
+					mcde_dsi_write_reg(info, 0x01, 1);
+				}
+			}
+			else
+				printk(KERN_WARNING "%s: Display initialized OK, "
+				       " errors_on_dsi=%X, "
+				       " self_diagnostic_result=%X\n",
+				       __func__,
+				       errors_on_dsi, self_diagnostic_result);
+		} while (n_retry && retry);
+#endif
+	}
+
+
+	/** initialize the hardware as per the configuration */
+	mcde_set_par_internal(info);
+
+	mcde_fb_unlock(info, __func__);
+}
+
 /**
  * mcde_remove() - This routine de-initializes and de-register the FB device.
  * @pdev: platform device.

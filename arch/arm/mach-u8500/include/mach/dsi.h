@@ -722,6 +722,9 @@ int mcde_dsi_test_LP_directcommand_mode(struct fb_info *info,u32 key);
 int mcde_dsi_start(struct fb_info *info);
 int mcde_dsi_test_dsi_HS_directcommand_mode(struct fb_info *info,u32 key);
 
+int mcde_dsi_read_reg(struct fb_info *info, u32 reg, u32 *value);
+int mcde_dsi_write_reg(struct fb_info *info, u32 reg, u32 value);
+
 dsi_error dsisetPLLcontrol(dsi_link link, mcde_ch_id chid, dsi_pll_ctl pll_ctl);
 dsi_error dsisetPLLmode(dsi_link link, mcde_ch_id chid, dsi_pll_mode mode);
 dsi_error dsigetlinkstatus(dsi_link link, mcde_ch_id chid, u8 *p_status);

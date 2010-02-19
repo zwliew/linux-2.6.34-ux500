@@ -826,6 +826,20 @@ static struct resource mcde2_resources[] = {
 		.name  = "mcde_irq",
 		.flags = IORESOURCE_IRQ
 	},
+	[11] = {
+		.start = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "cha_specific",
+		.flags = IORESOURCE_MEM,
+	},
+	[12] = {
+		.start = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "chb_specific",
+		.flags = IORESOURCE_MEM,
+	},
 };
 
 #else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
@@ -899,6 +913,13 @@ static struct resource mcde2_resources[] = {
 		.end = IRQ_DISP,
 		.name = "mcde_irq",
 		.flags = IORESOURCE_IRQ
+	},
+	[11] = {
+		.start = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNEL_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "cha_specific",
+		.flags = IORESOURCE_MEM,
 	},
 };
 
@@ -1894,7 +1915,7 @@ static void __init early_pmem_generic_parse(char **p, struct android_pmem_platfo
 static struct android_pmem_platform_data pmem_pdata = {
 	.name = "pmem",
 	.no_allocator = 1,	/* MemoryHeapBase is having an allocator */
-	.cached = 0,
+	.cached = 1,
 	.start = 0,
 	.size = 0,
 };

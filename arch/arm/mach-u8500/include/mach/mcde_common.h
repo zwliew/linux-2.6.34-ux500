@@ -102,6 +102,11 @@ struct mcdefb_info {
 	u16 palette_size;
 	u32 cmap[16];
 
+	mcde_ch_id pixel_pipeline;
+	u32 vcomp_irq;
+	u32 dsi_formatter;
+	u32 dsi_mode;
+
 	/** phy-virtual addresses allocated for framebuffer and overlays */
 	struct mcde_addrmap buffaddr[MCDE_MAX_FRAMEBUFF*2];
 	struct mcde_addrmap rotationbuffaddr0;
@@ -144,6 +149,15 @@ struct mcdefb_info {
 	dsi_link dsi_lnk_no;
 	dsi_link_context dsi_lnk_context;
 	struct dsi_link_conf dsi_lnk_conf;
+
+	/* Added by QCSPWAN below for "pink display" */
+#ifdef CONFIG_DEBUG_FS
+	struct dentry *debugfs_dentry;
+	char debugfs_name[10];
+#endif
+	/* To serialize access from user space */
+	struct semaphore fb_sem;
+	/* End QCSPWAN */
 };
 
 
