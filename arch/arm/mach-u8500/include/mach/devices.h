@@ -9,6 +9,12 @@
 #ifndef __ASM_ARCH_DEVICES_H__
 #define __ASM_ARCH_DEVICES_H__
 
+struct platform_device;
+struct amba_device;
+
+void __init u8500_register_device(struct platform_device *dev, void *data);
+void __init u8500_register_amba_device(struct amba_device *dev, void *data);
+
 extern struct amba_device u8500_gpio0_device;
 extern struct amba_device u8500_gpio1_device;
 extern struct amba_device u8500_gpio2_device;
@@ -51,5 +57,13 @@ extern struct amba_device u8500_uart0_device;
 extern struct amba_device u8500_uart0_device;
 extern struct amba_device u8500_uart1_device;
 extern struct amba_device u8500_uart2_device;
+
+/*
+ * Do not use inside drivers.  Check it in the board file and alter platform
+ * data.
+ */
+extern int platform_id;
+#define MOP500_PLATFORM_ID	0
+#define HREF_PLATFORM_ID	1
 
 #endif

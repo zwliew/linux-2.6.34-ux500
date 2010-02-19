@@ -64,6 +64,28 @@ int u8500_is_earlydrop(void)
 #endif
 }
 
+void __init u8500_register_device(struct platform_device *dev, void *data)
+{
+	int ret;
+
+	dev->dev.platform_data = data;
+
+	ret = platform_device_register(dev);
+	if (ret)
+		dev_err(&dev->dev, "unable to register device: %d\n", ret);
+}
+
+void __init u8500_register_amba_device(struct amba_device *dev, void *data)
+{
+	int ret;
+
+	dev->dev.platform_data = data;
+
+	ret = amba_device_register(dev, &iomem_resource);
+	if (ret)
+		dev_err(&dev->dev, "unable to register device: %d\n", ret);
+}
+
 /* we have equally similar boards with very minimal
  * changes, so we detect the platform during boot
  */
