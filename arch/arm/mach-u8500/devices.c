@@ -254,104 +254,104 @@ struct amba_device u8500_msp2_spi_device = {
 	.periphid = MSP_PER_ID,
 };
 
-static struct resource u8500_i2c_0_resources[] = {
+static struct resource u8500_i2c0_resources[] = {
 	[0] = {
-		.start = U8500_I2C0_BASE,
-		.end = U8500_I2C0_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
+		.start	= U8500_I2C0_BASE,
+		.end	= U8500_I2C0_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start = IRQ_I2C0,
-		.end = IRQ_I2C0,
-		.flags = IORESOURCE_IRQ
-	}
-};
-
-static struct resource u8500_i2c_1_resources[] = {
-	[0] = {
-		.start = U8500_I2C1_BASE,
-		.end = U8500_I2C1_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start = IRQ_I2C1,
-		.end = IRQ_I2C1,
-		.flags = IORESOURCE_IRQ
-	}
-};
-
-static struct resource u8500_i2c_2_resources[] = {
-	[0] = {
-		.start = U8500_I2C2_BASE,
-		.end = U8500_I2C2_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start = IRQ_I2C2,
-		.end = IRQ_I2C2,
-		.flags = IORESOURCE_IRQ
-	}
-};
-
-static struct resource u8500_i2c_3_resources[] = {
-	[0] = {
-		.start = U8500_I2C3_BASE,
-		.end = U8500_I2C3_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start = IRQ_I2C3,
-		.end = IRQ_I2C3,
-		.flags = IORESOURCE_IRQ
-	}
-};
-
-static struct resource u8500_i2c_4_resources[] = {
-	[0] = {
-		.start = U8500_I2C4_BASE,
-		.end = U8500_I2C4_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-		},
-	[1] = {
-		.start = IRQ_I2C4,
-		.end = IRQ_I2C4,
-		.flags = IORESOURCE_IRQ
+		.start	= IRQ_I2C0,
+		.end	= IRQ_I2C0,
+		.flags	= IORESOURCE_IRQ,
 	}
 };
 
 struct platform_device u8500_i2c0_device = {
-	.name = "STM-I2C",
-	.id = 0,
-	.num_resources = 2,
-	.resource = u8500_i2c_0_resources,
+	.name		= "STM-I2C",
+	.id		= 0,
+	.resource	= u8500_i2c0_resources,
+	.num_resources	= ARRAY_SIZE(u8500_i2c0_resources),
+};
+
+static struct resource u8500_i2c1_resources[] = {
+	[0] = {
+		.start	= U8500_I2C1_BASE,
+		.end	= U8500_I2C1_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_I2C1,
+		.end	= IRQ_I2C1,
+		.flags	= IORESOURCE_IRQ
+	}
 };
 
 struct platform_device u8500_i2c1_device = {
-	.name = "STM-I2C",
-	.id = 1,
-	.num_resources = 2,
-	.resource = u8500_i2c_1_resources,
+	.name		= "STM-I2C",
+	.id		= 1,
+	.resource	= u8500_i2c1_resources,
+	.num_resources	= ARRAY_SIZE(u8500_i2c1_resources),
+};
+
+static struct resource u8500_i2c2_resources[] = {
+	[0] = {
+		.start	= U8500_I2C2_BASE,
+		.end	= U8500_I2C2_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_I2C2,
+		.end	= IRQ_I2C2,
+		.flags	= IORESOURCE_IRQ,
+	}
 };
 
 struct platform_device u8500_i2c2_device = {
-	.name = "STM-I2C",
-	.id = 2,
-	.num_resources = 2,
-	.resource = u8500_i2c_2_resources,
+	.name		= "STM-I2C",
+	.id		= 2,
+	.resource	= u8500_i2c2_resources,
+	.num_resources	= ARRAY_SIZE(u8500_i2c2_resources),
+};
+
+static struct resource u8500_i2c3_resources[] = {
+	[0] = {
+		.start	= U8500_I2C3_BASE,
+		.end	= U8500_I2C3_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_I2C3,
+		.end	= IRQ_I2C3,
+		.flags	= IORESOURCE_IRQ,
+	}
 };
 
 struct platform_device u8500_i2c3_device = {
-	.name = "STM-I2C",
-	.id = 3,
-	.num_resources = 2,
-	.resource = u8500_i2c_3_resources,
+	.name		= "STM-I2C",
+	.id		= 3,
+	.resource	= u8500_i2c3_resources,
+	.num_resources	= ARRAY_SIZE(u8500_i2c3_resources),
+};
+
+static struct resource u8500_i2c4_resources[] = {
+	[0] = {
+		.start	= U8500_I2C4_BASE,
+		.end	= U8500_I2C4_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_I2C4,
+		.end	= IRQ_I2C4,
+		.flags	= IORESOURCE_IRQ,
+	}
 };
 
 struct platform_device u8500_i2c4_device = {
-	.name = "STM-I2C",
-	.id = 4,
-	.num_resources = 2,
-	.resource = u8500_i2c_4_resources,
+	.name		= "STM-I2C",
+	.id		= 4,
+	.resource	= u8500_i2c4_resources,
+	.num_resources	= ARRAY_SIZE(u8500_i2c4_resources),
 };
 
 static struct shrm_plat_data shrm_platform_data = {
