@@ -12,7 +12,7 @@ PLATFORM_NAME = $(shell echo $(CONFIG_U8500_TARGET))
 
 obj-y					:= clock.o timer.o prcmu-fw.o timer-rtt.o
 obj-$(CONFIG_REGULATOR)			+= regulator.o
-obj-$(CONFIG_ARCH_U8500)		+= devices.o mcde.o
+obj-$(CONFIG_ARCH_U8500)		+= devices.o mcde.o hsi.o
 obj-$(CONFIG_STM_DMA)			+= dma_40.o   #part1 no. of dma is 0x40
 obj-$(CONFIG_HOTPLUG_CPU)           += hotplug.o
 obj-$(CONFIG_MACH_U8500_MOP)		+= mop500_devices.o
