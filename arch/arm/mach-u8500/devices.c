@@ -836,56 +836,56 @@ struct amba_device u8500_spi0_device = {
 	.periphid = SPI_PER_ID,
 };
 
-struct amba_device u8500_sdi4_device = {
-	.dev = {
-		.bus_id = "sdi4",
-	},
-	.res = {
-		.start = U8500_SDI4_BASE,
-		.end = U8500_SDI4_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-	.irq = {IRQ_SDMMC4, NO_IRQ },
-	.periphid = SDI_PER_ID,
-};
-
 struct amba_device u8500_sdi0_device = {
-	.dev = {
-		.bus_id = "sdi0",
+	.dev		= {
+		.init_name = "sdi0",
 	},
-	.res = {
-		.start = U8500_SDI0_BASE,
-		.end = U8500_SDI0_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
+	.res		= {
+		.start	= U8500_SDI0_BASE,
+		.end	= U8500_SDI0_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
 	},
-	.irq = {IRQ_SDMMC0, NO_IRQ },
-		.periphid = SDI_PER_ID,
+	.irq		= {IRQ_SDMMC0, NO_IRQ},
+	.periphid	= SDI_PER_ID,
 };
 
 struct amba_device u8500_sdi1_device = {
-	.dev = {
-	    .bus_id = "sdi1",
+	.dev		= {
+		.init_name = "sdi1",
 	},
-	.res = {
-	    .start = U8500_SDI1_BASE,
-	    .end = U8500_SDI1_BASE + SZ_4K - 1,
-	    .flags = IORESOURCE_MEM,
+	.res		= {
+		.start	= U8500_SDI1_BASE,
+		.end	= U8500_SDI1_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
 	},
-	.irq = {IRQ_SDMMC1, NO_IRQ },
-	.periphid = SDI_PER_ID,
+	.irq		= {IRQ_SDMMC1, NO_IRQ},
+	.periphid	= SDI_PER_ID,
 };
 
 struct amba_device u8500_sdi2_device = {
-	.dev = {
-		.bus_id = "sdi2",
+	.dev		= {
+		.init_name = "sdi2",
 	},
-	.res = {
-		.start = U8500_SDI2_BASE,
-		.end = U8500_SDI2_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
+	.res		= {
+		.start	= U8500_SDI2_BASE,
+		.end	= U8500_SDI2_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
 	},
-	.irq = {IRQ_SDMMC2, NO_IRQ},
-	.periphid = SDI_PER_ID,
+	.irq		= {IRQ_SDMMC2, NO_IRQ},
+	.periphid	= SDI_PER_ID,
+};
+
+struct amba_device u8500_sdi4_device = {
+	.dev 		= {
+		.init_name = "sdi4",
+	},
+	.res 		= {
+		.start	= U8500_SDI4_BASE,
+		.end	= U8500_SDI4_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	.irq		= {IRQ_SDMMC4, NO_IRQ},
+	.periphid	= SDI_PER_ID,
 };
 
 static struct resource ab8500_resources[] = {

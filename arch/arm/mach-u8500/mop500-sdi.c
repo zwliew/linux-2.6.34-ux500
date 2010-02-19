@@ -264,7 +264,9 @@ static int __init mop500_sdi_init(void)
 
 	u8500_register_amba_device(&u8500_sdi4_device, &emmc_data);
 	u8500_register_amba_device(&u8500_sdi0_device, &mmc_data);
+#ifdef CONFIG_U8500_SDIO
 	u8500_register_amba_device(&u8500_sdi1_device, &sdi1_data);
+#endif
 
 	return 0;
 }

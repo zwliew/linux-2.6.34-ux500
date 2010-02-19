@@ -734,11 +734,6 @@ static struct amba_device *amba_board_devs[] __initdata = {
 	&u8500_ssp1_device,
 	&u8500_spi0_device,
 	&u8500_msp2_spi_device,
-	&u8500_sdi4_device,	/* On-board eMMC */
-	&u8500_sdi0_device,	/* SD/MMC card */
-#ifdef CONFIG_U8500_SDIO
-	&u8500_sdi1_device,
-#endif
 	&u8500_rtc_device,
 #endif
 };
