@@ -319,144 +319,39 @@ static struct resource u8500_i2c_4_resources[] = {
 	}
 };
 
-static struct i2c_platform_data u8500_i2c_0_private_data = {
-	.gpio_alt_func = GPIO_ALT_I2C_0,
-	.name = "i2c0",
-	.own_addr = I2C0_LP_OWNADDR,
-	.mode = I2C_FREQ_MODE_STANDARD,
-	.clk_freq = 100000,
-	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
-	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control = I2C_DISABLED,
-	.start_byte_procedure = I2C_DISABLED,
-	.slave_data_setup_time = 0xE,
-	.bus_control_mode = I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode = I2C_DISABLED,
-	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code = 0,
-	.i2c_tx_int_threshold = 1,
-	.i2c_rx_int_threshold = 1
-};
-
-static struct i2c_platform_data u8500_i2c_1_private_data = {
-	.gpio_alt_func = GPIO_ALT_I2C_1,
-	.name = "i2c1",
-	.own_addr = I2C1_LP_OWNADDR,
-	.mode = I2C_FREQ_MODE_STANDARD,
-	.clk_freq = 100000,
-	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
-	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control = I2C_DISABLED,
-	.start_byte_procedure = I2C_DISABLED,
-	.slave_data_setup_time = 0xE,
-	.bus_control_mode = I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode = I2C_DISABLED,
-	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code = 0,
-	.i2c_tx_int_threshold = 1,
-	.i2c_rx_int_threshold = 1
-};
-
-static struct i2c_platform_data u8500_i2c_2_private_data = {
-	.gpio_alt_func = GPIO_ALT_I2C_2,
-	.name = "i2c2",
-	.own_addr = I2C2_LP_OWNADDR,
-	.mode = I2C_FREQ_MODE_STANDARD,
-	.clk_freq = 100000,
-	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
-	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control = I2C_DISABLED,
-	.start_byte_procedure = I2C_DISABLED,
-	.slave_data_setup_time = 0xE,
-	.bus_control_mode = I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode = I2C_DISABLED,
-	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code = 0,
-	.i2c_tx_int_threshold = 1,
-	.i2c_rx_int_threshold = 1
-};
-
-static struct i2c_platform_data u8500_i2c_3_private_data = {
-	.gpio_alt_func = GPIO_ALT_I2C_3,
-	.name = "i2c3",
-	.own_addr = I2C3_LP_OWNADDR,
-	.mode = I2C_FREQ_MODE_STANDARD,
-	.clk_freq = 100000,
-	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
-	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control = I2C_DISABLED,
-	.start_byte_procedure = I2C_DISABLED,
-	.slave_data_setup_time = 0xE,
-	.bus_control_mode = I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode = I2C_DISABLED,
-	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code = 0,
-	.i2c_tx_int_threshold = 1,
-	.i2c_rx_int_threshold = 1
-};
-
-static struct i2c_platform_data u8500_i2c_4_private_data = {
-	.gpio_alt_func = GPIO_ALT_I2C_4,
-	.name = "i2c4",
-	.own_addr = I2C4_LP_OWNADDR,
-	.mode = I2C_FREQ_MODE_STANDARD,
-	.clk_freq = 100000,
-	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
-	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control = I2C_DISABLED,
-	.start_byte_procedure = I2C_DISABLED,
-	.slave_data_setup_time = 0xE,
-	.bus_control_mode = I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode = I2C_DISABLED,
-	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code = 0,
-	.i2c_tx_int_threshold = 1,
-	.i2c_rx_int_threshold = 1
-};
-
-struct platform_device u8500_i2c_0_controller = {
+struct platform_device u8500_i2c0_device = {
 	.name = "STM-I2C",
 	.id = 0,
 	.num_resources = 2,
 	.resource = u8500_i2c_0_resources,
-	.dev = {
-		.platform_data = &u8500_i2c_0_private_data}
 };
 
-struct platform_device u8500_i2c_1_controller = {
+struct platform_device u8500_i2c1_device = {
 	.name = "STM-I2C",
 	.id = 1,
 	.num_resources = 2,
 	.resource = u8500_i2c_1_resources,
-	.dev = {
-		.platform_data = &u8500_i2c_1_private_data}
 };
 
-struct platform_device u8500_i2c_2_controller = {
+struct platform_device u8500_i2c2_device = {
 	.name = "STM-I2C",
 	.id = 2,
 	.num_resources = 2,
 	.resource = u8500_i2c_2_resources,
-	.dev = {
-		.platform_data = &u8500_i2c_2_private_data}
 };
 
-struct platform_device u8500_i2c_3_controller = {
+struct platform_device u8500_i2c3_device = {
 	.name = "STM-I2C",
 	.id = 3,
 	.num_resources = 2,
 	.resource = u8500_i2c_3_resources,
-	.dev = {
-		.platform_data = &u8500_i2c_3_private_data}
 };
 
-struct platform_device u8500_i2c_4_controller = {
+struct platform_device u8500_i2c4_device = {
 	.name = "STM-I2C",
 	.id = 4,
 	.num_resources = 2,
 	.resource = u8500_i2c_4_resources,
-	.dev = {
-		.platform_data = &u8500_i2c_4_private_data}
 };
 
 static struct shrm_plat_data shrm_platform_data = {

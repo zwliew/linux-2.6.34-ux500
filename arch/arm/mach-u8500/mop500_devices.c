@@ -28,6 +28,7 @@
 #include <mach/av8100_p.h>
 #include <mach/ab8500.h>
 #include <mach/mmc.h>
+#include <mach/i2c-stm.h>
 
 #include <mach/u8500_tsc.h>
 
@@ -690,6 +691,102 @@ static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 
 };
 
+static struct i2c_platform_data u8500_i2c0_data = {
+	.gpio_alt_func = GPIO_ALT_I2C_0,
+	.name = "i2c0",
+	.own_addr = I2C0_LP_OWNADDR,
+	.mode = I2C_FREQ_MODE_STANDARD,
+	.clk_freq = 100000,
+	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
+	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
+	.dma_sync_logic_control = I2C_DISABLED,
+	.start_byte_procedure = I2C_DISABLED,
+	.slave_data_setup_time = 0xE,
+	.bus_control_mode = I2C_BUS_MASTER_MODE,
+	.i2c_loopback_mode = I2C_DISABLED,
+	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
+	.high_speed_master_code = 0,
+	.i2c_tx_int_threshold = 1,
+	.i2c_rx_int_threshold = 1
+};
+
+static struct i2c_platform_data u8500_i2c1_data = {
+	.gpio_alt_func = GPIO_ALT_I2C_1,
+	.name = "i2c1",
+	.own_addr = I2C1_LP_OWNADDR,
+	.mode = I2C_FREQ_MODE_STANDARD,
+	.clk_freq = 100000,
+	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
+	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
+	.dma_sync_logic_control = I2C_DISABLED,
+	.start_byte_procedure = I2C_DISABLED,
+	.slave_data_setup_time = 0xE,
+	.bus_control_mode = I2C_BUS_MASTER_MODE,
+	.i2c_loopback_mode = I2C_DISABLED,
+	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
+	.high_speed_master_code = 0,
+	.i2c_tx_int_threshold = 1,
+	.i2c_rx_int_threshold = 1
+};
+
+static struct i2c_platform_data u8500_i2c2_data = {
+	.gpio_alt_func = GPIO_ALT_I2C_2,
+	.name = "i2c2",
+	.own_addr = I2C2_LP_OWNADDR,
+	.mode = I2C_FREQ_MODE_STANDARD,
+	.clk_freq = 100000,
+	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
+	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
+	.dma_sync_logic_control = I2C_DISABLED,
+	.start_byte_procedure = I2C_DISABLED,
+	.slave_data_setup_time = 0xE,
+	.bus_control_mode = I2C_BUS_MASTER_MODE,
+	.i2c_loopback_mode = I2C_DISABLED,
+	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
+	.high_speed_master_code = 0,
+	.i2c_tx_int_threshold = 1,
+	.i2c_rx_int_threshold = 1
+};
+
+static struct i2c_platform_data u8500_i2c3_data = {
+	.gpio_alt_func = GPIO_ALT_I2C_3,
+	.name = "i2c3",
+	.own_addr = I2C3_LP_OWNADDR,
+	.mode = I2C_FREQ_MODE_STANDARD,
+	.clk_freq = 100000,
+	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
+	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
+	.dma_sync_logic_control = I2C_DISABLED,
+	.start_byte_procedure = I2C_DISABLED,
+	.slave_data_setup_time = 0xE,
+	.bus_control_mode = I2C_BUS_MASTER_MODE,
+	.i2c_loopback_mode = I2C_DISABLED,
+	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
+	.high_speed_master_code = 0,
+	.i2c_tx_int_threshold = 1,
+	.i2c_rx_int_threshold = 1
+};
+
+static struct i2c_platform_data u8500_i2c4_data = {
+	.gpio_alt_func = GPIO_ALT_I2C_4,
+	.name = "i2c4",
+	.own_addr = I2C4_LP_OWNADDR,
+	.mode = I2C_FREQ_MODE_STANDARD,
+	.clk_freq = 100000,
+	.slave_addressing_mode = I2C_7_BIT_ADDRESS,
+	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
+	.dma_sync_logic_control = I2C_DISABLED,
+	.start_byte_procedure = I2C_DISABLED,
+	.slave_data_setup_time = 0xE,
+	.bus_control_mode = I2C_BUS_MASTER_MODE,
+	.i2c_loopback_mode = I2C_DISABLED,
+	.xfer_mode = I2C_TRANSFER_MODE_INTERRUPT,
+	.high_speed_master_code = 0,
+	.i2c_tx_int_threshold = 1,
+	.i2c_rx_int_threshold = 1
+};
+
+
 static struct hsi_board_info __initdata stm_hsi_devices[] = {
 	{.type = "HSI_LOOPBACK", .flags = 0, .controller_id = 0,
 	 .chan_num = 0, .mode = 1},
@@ -738,20 +835,10 @@ static struct amba_device *amba_board_devs[] __initdata = {
 #endif
 };
 
-static struct platform_device *platform_v1_devices[] __initdata = {
-	&u8500_i2c_4_controller,
-};
-
 static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_msp0_device,
 	&u8500_msp1_device,
 	&u8500_msp2_device,
-	&u8500_i2c_0_controller,
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	&u8500_i2c_1_controller,
-	&u8500_i2c_2_controller,
-	&u8500_i2c_3_controller,
-#endif
 #if !defined(CONFIG_MACH_U8500_SIMULATOR)
 	&u8500_hsit_device,
 	&u8500_hsir_device,
@@ -793,16 +880,28 @@ static void __init mop500_platdata_init(void)
 {
 }
 
+
+static void __init mop500_i2c_init(void)
+{
+	u8500_register_device(&u8500_i2c0_device, &u8500_i2c0_data);
+#if !defined(CONFIG_MACH_U5500_SIMULATOR)
+	u8500_register_device(&u8500_i2c1_device, &u8500_i2c1_data);
+	u8500_register_device(&u8500_i2c2_device, &u8500_i2c2_data);
+	u8500_register_device(&u8500_i2c3_device, &u8500_i2c3_data);
+
+	if (!u8500_is_earlydrop())
+		u8500_register_device(&u8500_i2c4_device, &u8500_i2c4_data);
+#endif
+}
+
 void __init mop500_platform_init(void)
 {
 	mop500_platdata_init();
 
-	if (!u8500_is_earlydrop())
-		platform_add_devices(platform_v1_devices,
-				     ARRAY_SIZE(platform_v1_devices));
-
 	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
 	platform_add_devices(platform_board_devs, ARRAY_SIZE(platform_board_devs));
+
+	mop500_i2c_init();
 
 	/* enable RTC as a wakeup capable */
 	device_init_wakeup(&u8500_rtc_device.dev, true);
