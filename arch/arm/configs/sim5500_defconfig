@@ -1,4 +1,4 @@
-#
+	#
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.29
 # Fri Dec 18 23:46:35 2009
@@ -296,7 +296,7 @@ CONFIG_ALIGNMENT_TRAP=y
 #
 CONFIG_ZBOOT_ROM_TEXT=0
 CONFIG_ZBOOT_ROM_BSS=0
-CONFIG_CMDLINE="cachepolicy=writealloc root=/dev/ram0 init=init  rw console=ttyAMA2,115200n8 mem=256M initrd=0x800000,20M"
+CONFIG_CMDLINE="cachepolicy=writealloc root=/dev/ram0 init=init  rw console=ttyAMA2,115200n8 mem=256M initrd=0x800000,60M"
 
 # CONFIG_XIP_KERNEL is not set
 # CONFIG_KEXEC is not set
@@ -459,8 +459,7 @@ CONFIG_BLK_DEV_LOOP=m
 # CONFIG_BLK_DEV_UB is not set
 CONFIG_BLK_DEV_RAM=y
 CONFIG_BLK_DEV_RAM_COUNT=16
-#CONFIG_BLK_DEV_RAM_SIZE=73728
-CONFIG_BLK_DEV_RAM_SIZE=20480
+CONFIG_BLK_DEV_RAM_SIZE=61440
 # CONFIG_BLK_DEV_XIP is not set
 # CONFIG_CDROM_PKTCDVD is not set
 # CONFIG_ATA_OVER_ETH is not set
