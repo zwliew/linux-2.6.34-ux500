@@ -103,7 +103,8 @@ static unsigned int m_regs[] = {
 /*
  * work queue for interrupt processing
  */
-DECLARE_WORK(ab8500_handler, ab8500_work);
+static struct work_struct ab8500_handler;
+static struct workqueue_struct *ab8500_wq;
 
 /**
  *  ab8500_spi_cs_control() - callback function for ssp
@@ -240,7 +241,7 @@ EXPORT_SYMBOL(ab8500_remove_callback_handler);
 static irqreturn_t ab8500_interrupt_handler(int irq, void *dev_id)
 {
 	/* schedule a thread to handle interrupts */
-	schedule_work(&ab8500_handler);
+	queue_work(ab8500_wq, &ab8500_handler);
 	disable_irq_nosync(ab8500->irq);
 	return IRQ_HANDLED;
 }
@@ -528,6 +529,14 @@ static int __init ab8500_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "IORESOURCE_IRQ unavailable\n");
 		return -ENOENT;
 	}
+	/* create a thread for work */
+	ab8500_wq = create_singlethread_workqueue("ab8500_wq");
+	if (ab8500_wq == NULL) {
+		dev_err(&pdev->dev, "failed to create work queue\n");
+		return -ENOMEM;
+	}
+
+	INIT_WORK(&ab8500_handler, ab8500_work);
 	ab8500->irq = res->start;
 
 	if (ab8500_ssp_init(ab8500)) {
@@ -636,6 +645,8 @@ static int ab8500_remove(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	kfree(ab8500);
 	ab8500_ssp_close(ab8500);
+	/* delete the work queue */
+	destroy_workqueue(ab8500_wq);
 	free_irq(res->start, 0);
 	return 0;
 }

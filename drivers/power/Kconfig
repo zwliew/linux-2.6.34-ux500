@@ -131,4 +131,10 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config AB8500_BM
+	bool "AB8500 Battery Management Driver"
+	depends on AB8500
+	help
+	 say Y to include support for AB8500 battery management.
+
 endif # POWER_SUPPLY

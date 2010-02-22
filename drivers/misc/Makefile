@@ -35,5 +35,6 @@ obj-$(CONFIG_U8500_HSI_LEGACY)  += hsi/hsi-legacy/
 obj-$(CONFIG_STM_I2S)           += i2s/
 obj-$(CONFIG_AB8500)            += ab8500.o
 obj-$(CONFIG_AB8500)            += ab8500-dev.o
+obj-$(CONFIG_AB8500_GPADC)	+= ab8500_gpadc.o
 obj-$(CONFIG_ISA_HSI_MODEM)     += msw/
 obj-$(CONFIG_U8500_SHRM)        += shrm/

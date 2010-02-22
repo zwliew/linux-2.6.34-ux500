@@ -2498,6 +2498,14 @@ static struct platform_device ab8500_device = {
 	.resource = ab8500_resources,
 };
 
+static struct platform_device ab8500_gpadc_device = {
+	.name = "ab8500_gpadc"
+};
+
+static struct platform_device ab8500_bm_device = {
+	.name = "ab8500_bm"
+};
+
 #if  defined(CONFIG_USB_MUSB_HOST)
 #define MUSB_MODE	MUSB_HOST
 #elif defined(CONFIG_USB_MUSB_PERIPHERAL)
@@ -2680,6 +2688,8 @@ static struct platform_device *core_devices[] __initdata = {
 	&u8500_hsir_device,
 	&u8500_shrm_device,
 	&ab8500_device,
+	&ab8500_gpadc_device,
+	&ab8500_bm_device,
 	&musb_device,
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	&mcde2_device,

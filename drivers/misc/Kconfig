@@ -337,6 +337,12 @@ config AB8500
 	  read/write functions for the devices to get access to this chip.
 	  This chip embeds various other multimedia funtionalities as well.
 
+config AB8500_GPADC
+	bool "AB8500 GPADC driver"
+	depends on AB8500
+	default y
+	help
+	  AB8500 GPADC driver used to convert Acc and battery/ac/usb voltage
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

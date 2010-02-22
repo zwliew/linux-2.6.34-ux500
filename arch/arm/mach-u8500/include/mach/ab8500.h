@@ -28,6 +28,7 @@
 #define AB8500_ECI_AV_ACC	0x8
 #define AB8500_RESERVED	0x9
 #define STw4550_GPADC		0xA
+#define AB8500_GPADC		0xA
 #define AB8500_CHARGER		0xB
 #define AB8500_GAS_GAUGE	0xC
 #define AB8500_AUDIO		0xD
@@ -250,6 +251,10 @@
 #define AB8500_CH_OPT_CRNTLVL_MAX_REG	0x0B43	/*Only in Cut1.0*/
 #define AB8500_CH_WD_TIMER_REG		0x0B44	/*Only in Cut1.0*/
 #define AB8500_CH_WD_CTRL_REG		0x0B45	/*Only in Cut1.0*/
+#define AB8500_CHARG_WD_CTRL            0x0B51
+#define AB8500_LED_INDICATOR_PWM_CTRL   0x0B53
+#define AB8500_LED_INDICATOR_PWM_DUTY   0x0B54
+#define AB8500_BATT_OVV                 0x0B55
 /*
  * Charger / main control register offfsets
  * Bank : 0x0B
