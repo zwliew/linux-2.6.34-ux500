@@ -124,8 +124,6 @@ int tp_gpio_board_init(void)
  */
 int tp_gpio_board_exit(void)
 {
-	int val;
-
 	if (platform_id == MOP500_PLATFORM_ID) {
 		/** why set directtion is not working ~ FIXME */
 		/* gpio_direction_output(270,1); */
@@ -236,7 +234,9 @@ int tp_pen_down_irq_disable(void)
 int tp_read_pin_val(void)
 {
 	int data = 0;
+#ifdef CONFIG_TOUCH_HREF_V1
 	unsigned int touch_gpio_pin = 84;
+#endif
 
 	if (platform_id == MOP500_PLATFORM_ID)
 		data = gpio_get_value(TOUCHP_IRQ);

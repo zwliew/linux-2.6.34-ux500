@@ -190,11 +190,9 @@ void get_touch(struct u8500_tsc_data *data)
 	unsigned char count;
 	u16 tmp2x, tmp2y;
 #endif
-	if (!i2c) {
-		dev_err(&i2c->dev,
-			"get_touch:: i2c client has no data \n");
+	if (i2c == NULL)
 		return;
-	}
+
 	retval = tsc_read_block(i2c, 0x73, buf, 4);
 	if (retval != 0)
 		return;
@@ -301,11 +299,8 @@ int get_touch_message(struct u8500_tsc_data *data)
 
 	p_gesture_info->gesture_kind = GES_UNKNOWN;
 
-	if (!i2c) {
-		dev_err(&i2c->dev,
-			"get_touch_message:: client has no data \n");
+	if (i2c == NULL)
 		return -1;
-	}
 
 	get_touch(data);
 
@@ -656,7 +651,6 @@ static void tsc_timer_wq(struct work_struct *work)
 	struct u8500_tsc_data
 		*data = container_of(work, struct u8500_tsc_data, workq);
 	unsigned char pin_value;
-	int retval;
 	struct task_struct *tsk = current;
 
 	set_task_state(tsk, TASK_INTERRUPTIBLE);
@@ -1008,15 +1002,6 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 				goto err_init_irq;
 			}
 		}
-#else
-		retval = request_irq(pdev_data->chip->irq, tsc_callback,
-					IRQF_TRIGGER_FALLING, DRIVER_TP1, pdev_data);
-		if (retval) {
-			dev_err(&pdev_data->client->dev,
-				"unable to request for the irq %d\n", pdev_data->chip->irq);
-				gpio_free(pdev_data->chip->irq);
-				return retval;
-		}
 #endif
 		retval = getCalibStatus(pdev_data->client);
 		if (retval < 0) {
@@ -1134,6 +1119,16 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		goto err;
 	} else {
 		BUG_ON(tsc_data->touchp_tsk);
+#ifdef CONFIG_TOUCH_HREF_V1
+		retval = request_irq(tsc_data->chip->irq, tsc_callback,
+					IRQF_TRIGGER_FALLING, DRIVER_TP1, tsc_data);
+		if (retval) {
+			dev_err(&tsc_data->client->dev,
+				"unable to request for the irq %d\n", tsc_data->chip->irq);
+				gpio_free(tsc_data->chip->irq);
+				goto err;
+		}
+#endif
 		tsc_data->touchp_tsk = kthread_run(touchp_thread, \
 					tsc_data, DRIVER_TP1);
 		if (IS_ERR(tsc_data->touchp_tsk)) {

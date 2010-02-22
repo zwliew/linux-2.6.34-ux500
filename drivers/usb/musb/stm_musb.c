@@ -30,7 +30,7 @@
 #define AB8500_USB_HOST 0x68
 
 /**
- * usb_host_detect_handler() - Read the ab8500 register for enabling the 5V to OTG
+ * usb_host_detect_handler() - for enabling the 5V to usb host
  *
  * This function used to set the voltage for USB host mode
  */
@@ -46,6 +46,11 @@ void usb_host_detect_handler(void)
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
 }
 #else
+/**
+ * usb_device_detect_handler() - for enabling the 5V to usb device
+ *
+ * This function used to set the voltage for USB device mode
+ */
 void usb_device_detect_handler(void);
 void usb_device_remove_handler(void);
 void usb_device_detect_handler(void)
@@ -71,14 +76,13 @@ struct musb *musb_status;
 static struct kobject *usbstatus_kobj;
 static ssize_t usb_cable_status(struct kobject *kobj, struct attribute *attr, char *buf)
 {
-	int error = 0;
 	u8 is_active = 0;
 
 	if (strcmp(attr->name, "cable_connect") == 0) {
 		is_active = musb_status->is_active;
 		sprintf(buf, "%d\n", is_active);
 	}
-	return error == 0 ? strlen(buf) : 0;
+	return strlen(buf);
 }
 
 static struct attribute usb_cable_connect_attribute = {.name = "cable_connect", .mode = S_IRUGO};
@@ -147,10 +151,10 @@ static u8 ulpi_read_register(struct musb *musb, u8 address)
 }
 #endif
 /**
- * musb_stm_hs_otg_init() - Initialize the USB OTG.
+ * musb_stm_hs_otg_init() - Initialize the USB for paltform specific.
  * @musb: struct musb pointer.
  *
- * This function initialize the USB OTG with the given musb structure information.
+ * This function initialize the USB with the given musb structure information.
  */
 int __init musb_stm_hs_otg_init(struct musb *musb)
 {
@@ -195,7 +199,6 @@ int __init musb_stm_fs_init(struct musb *musb)
  */
 void musb_platform_enable(struct musb *musb)
 {
-
 }
 /**
  * musb_platform_disable() - Disable the USB.
@@ -294,8 +297,8 @@ static void set_vbus(struct musb *musb, int is_on)
 		musb_readb(musb->mregs, MUSB_DEVCTL));
 }
 /**
- * set_power() - Set the power for the OTG trasceiver.
- * @x: struct otg_transceiver pointer.
+ * set_power() - Set the power for the USB transceiver.
+ * @x: struct usb_transceiver pointer.
  * @mA: set mA power for USB.
  *
  * This function set the power for the USB.
@@ -369,6 +372,9 @@ int __init musb_platform_init(struct musb *musb)
 {
 	int ret;
 	u8 ab8500_rev;
+#ifdef CONFIG_USB_MUSB_HOST
+	u8 val = 0;
+#endif
 
 	ret = musb_stm_hs_otg_init(musb);
 	if (ret < 0)
@@ -380,7 +386,6 @@ int __init musb_platform_init(struct musb *musb)
 
 	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 	#ifdef CONFIG_USB_MUSB_HOST
-		u8 val = 0;
 		if ((ab8500_rev == 0x10) || (ab8500_rev == 0x11)) {
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, 0xFB);
