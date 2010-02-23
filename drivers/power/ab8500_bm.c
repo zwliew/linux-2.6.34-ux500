@@ -1318,9 +1318,9 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_TYPE_BATTERY;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		status = ab8500_read(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG);
+		status = ab8500_read(AB8500_CHARGER, AB8500_BATT_OVV);
 		if ((status | 0x01) == status)
-			val->intval = 4200000;
+			val->intval = 4750000;
 		else
 			val->intval = 3700000;
 		break;
@@ -1343,11 +1343,11 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = 0x01;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		/* TODO: calculate the percentage of charge based on
-		 * the battery. From gas guage
+		/* TODO:
+		 * need to get the correct percentage value per the
+		 * battery characteristics. Approx values for now.
 		 */
-		/* TODO: Need to remove this for time being tis value = 50% */
-		val->intval = 0x32;
+		val->intval = 50;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = di->temp_C;
@@ -1397,8 +1397,8 @@ static int ab8500_bm_ac_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_PRESENT:
-		status = ab8500_bm_status();
-		if (status == AC_PW_CONN)
+		status = ab8500_bm_charger_presence(di);
+		if (status == (AC_PW_CONN | USB_PW_CONN))
 			val->intval = 0x01;
 		else
 			val->intval = 0x00;
@@ -1434,8 +1434,8 @@ static int ab8500_bm_usb_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_PRESENT:
-		status = ab8500_bm_status();
-		if (status == USB_PW_CONN)
+		status = ab8500_bm_charger_presence(di);
+		if (status == (USB_PW_CONN | AC_PW_CONN))
 			val->intval = 0x01;
 		else
 			val->intval = 0x00;
