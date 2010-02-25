@@ -568,6 +568,85 @@ int prcmu_set_irq_wakeup(uint32_t irq)
 }
 EXPORT_SYMBOL(prcmu_set_irq_wakeup);
 
+/* FIXME : Make these generic enough to pass backup
+ *	   addresses for re-using the same functions
+ *	   for sleep/deep sleep modes
+ */
+/* Context Backups for ApSleep */
+unsigned int PRCC_backup[15];
+
+#define _PRCC_CLK_RST1_BASE 	IO_ADDRESS(U8500_PER1_BASE + 0xF000)
+#define _PRCC_CLK_RST2_BASE 	IO_ADDRESS(U8500_PER2_BASE + 0xF000)
+#define _PRCC_CLK_RST3_BASE 	IO_ADDRESS(U8500_PER3_BASE + 0xF000)
+#define _PRCC_CLK_RST5_BASE 	IO_ADDRESS(U8500_PER5_BASE + 0x1F000)
+#define _PRCC_CLK_RST6_BASE 	IO_ADDRESS(U8500_PER6_BASE + 0xF000)
+#define _PRCC_CLK_RST7_BASE 	IO_ADDRESS(U8500_PER7_BASE_ED + 0xF000)
+
+void pm_save_config_PRCC(void)
+{
+	uint8_t i = 0;
+
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST1_BASE + 0x10);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST1_BASE + 0x14);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST2_BASE + 0x10);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST2_BASE + 0x14);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST3_BASE + 0x10);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST3_BASE + 0x14);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST5_BASE + 0x10);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST5_BASE + 0x14);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST6_BASE + 0x10);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST6_BASE + 0x14);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST7_BASE + 0x10);
+	PRCC_backup[i++] = readl(_PRCC_CLK_RST7_BASE + 0x14);
+}
+
+void pm_restore_config_PRCC(void)
+{
+	uint8_t i = 0;
+
+	writel(PRCC_backup[i++], _PRCC_CLK_RST1_BASE + 0x0);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST1_BASE + 0x8);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST2_BASE + 0x0);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST2_BASE + 0x8);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST3_BASE + 0x0);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST3_BASE + 0x8);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST5_BASE + 0x0);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST5_BASE + 0x8);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST6_BASE + 0x0);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST6_BASE + 0x8);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST7_BASE + 0x0);
+	writel(PRCC_backup[i++], _PRCC_CLK_RST7_BASE + 0x8);
+}
+
+void __iomem *uart_backup_base, *uart_register_base;
+
+void pm_save_config_UART(void)
+{
+	uart_register_base = ioremap(U8500_UART2_BASE, SZ_4K);
+	if (!uart_register_base) {
+		printk(KERN_WARNING
+		 "u8500-prcm : cannot allocate uart register base\n");
+		return -EINVAL;
+	}
+
+	uart_backup_base = kzalloc(SZ_4K, GFP_KERNEL);
+	if (!uart_backup_base) {
+		printk(KERN_WARNING
+		 "u8500-prcm : cannot allocate uart register backup base\n");
+		return -EINVAL;
+	}
+
+	/* Copy UART config */
+	memcpy(uart_backup_base, uart_register_base, SZ_4K);
+}
+
+void __iomem *ab8500_backup_base, *ab8500_register_base;
+
+void pm_restore_config_UART(void)
+{
+	memcpy(uart_register_base, uart_backup_base, SZ_4K);
+}
+
 /**
  * prcmu_apply_ap_state_transition - PRCMU State Transition function
  * @transition: Transition to be requested to move to new AP power mode
@@ -643,6 +722,145 @@ int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
 
 	switch (transition) {
 	case APEXECUTE_TO_APSLEEP:
+
+		/* PROGRAM THE ITMASK* registers for a Sleep */
+		writel(0x00000000, PRCM_ARMITMSK31TO0);
+		writel(0x00000100, PRCM_ARMITMSK63TO32);
+		writel(0x00000000, PRCM_ARMITMSK95TO64);
+		writel(0x00000000, PRCM_ARMITMSK127TO96);
+
+		/* probe the GIC if its already frozen */
+		tmp = readl(PRCM_A9_MASK_ACK);
+		if (tmp & 0x00000001)
+			printk(KERN_WARNING "GIC is already frozen\n");
+
+		/* write to GIC freeze */
+		tmp = readl(PRCM_A9_MASK_REQ);
+		tmp |= 0x01;
+		writel(tmp, PRCM_A9_MASK_REQ);
+
+		/* we wait for a random timeout. as of now the
+		 * the GIC freeze isnt ACKed; so wait
+		 */
+		timeout = 100;
+		while (timeout--)
+			cpu_relax();
+
+		/* PROGRAM WAKEUP EVENTS */
+		/* write CfgWkUpsH in the Header */
+		writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
+
+		/* write to the mailbox */
+		/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
+		 * the firmware to set the register prcm_armit_maskxp70_it
+		 * (which is btw secure and thus only accessed by the xp70)
+		 */
+		writel((1<<17), PRCM_REQ_MB0_WKUP_8500);
+		writel(0x0, PRCM_REQ_MB0_WKUP_4500);
+
+		/* SIGNAL MAILBOX */
+		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
+		writel(1 << 0, PRCM_MBOX_CPU_SET);
+
+		/* wait for corresponding MB0X_CPU_VAL bit to be cleared */
+		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << 0)) && timeout--)
+			cpu_relax();
+		if (!timeout) {
+			printk(KERN_INFO
+			 "Timeout in prcmu_configure_wakeup_events!!\n");
+			return -EBUSY;
+		}
+
+		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
+		/* Write PwrStTrH=0 header to request a Power state xsition */
+		writeb(0x0, PRCM_MBOX_HEADER_REQ_MB0);
+
+		/* write request to the MBOX0 */
+		writeb(APEXECUTE_TO_APSLEEP, PRCM_REQ_MB0_PWRSTTRH_APPWRST);
+		writeb(OFF, PRCM_REQ_MB0_PWRSTTRH_APPLLST);
+		writeb(ON, PRCM_REQ_MB0_PWRSTTRH_ULPCLKST);
+		writeb(0x56, PRCM_REQ_MB0_PWRSTTRH_BYTEFILL);
+
+		/* As per the sync logic, we are supposed to be the final CPU.
+		 * If the other CPU isnt in wfi, better exit by putting
+		 * ourselves in wfi
+		 */
+		if (smp_processor_id()) {
+			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
+				printk(KERN_WARNING
+				"Other CPU(CPU%d) is not in WFI!(0x%x)\
+				 Aborting attempt\n",
+					!smp_processor_id(),
+					readl(PRCM_ARM_WFI_STANDBY));
+				__asm__ __volatile__(
+					"dsb\n\t" "wfi\n\t" : : : "memory");
+				return 0;
+			}
+		} else /* running on CPU0, check for CPU1 WFI standby */ {
+			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
+				printk(KERN_WARNING
+				"Other CPU(CPU%d) is not in WFI!(0x%x)\
+				 Aborting attempt\n",
+					!smp_processor_id(),
+					readl(PRCM_ARM_WFI_STANDBY));
+				__asm__ __volatile__(
+					"dsb\n\t" "wfi\n\t" : : : "memory");
+				return 0;
+			}
+		}
+
+		/* Enable RTC-INT in the GIC */
+		if (!(readl(PRCM_ARMITMSK31TO0) & 0x40000))
+			writel((readl(PRCM_ARMITMSK31TO0) | 0x40000),
+						PRCM_ARMITMSK31TO0);
+
+
+		/* FIXME : later on, the ARM should not request a Idle if one
+		 *         of the ITSTATUS0/5 are still alive!!!
+		 */
+		if (readl(PRCM_ITSTATUS0) == 0x80) {
+			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
+			__asm__ __volatile__(
+				"dsb\n\t" "wfi\n\t" : : : "memory");
+			return -EBUSY;
+		}
+
+		/*
+		 *
+		 * REQUEST POWER XSITION
+		 *
+		 */
+
+		/* clear ACK MB0 */
+		writeb(0x0, PRCM_ACK_MB0);
+
+		/* trigger the XP70 IT10 to the XP70 */
+		writel(1, PRCM_MBOX_CPU_SET);
+
+		timeout = 200;
+		while (timeout--)
+			cpu_relax();
+
+		printk(KERN_INFO "u8500-prcm : To Sleep\n");
+
+		/* Restore PRCC configs */
+		pm_save_config_PRCC();
+
+		pm_save_config_UART();
+
+		/* here comes the wfi */
+		__asm__ __volatile__(
+			"dsb\n\t" "wfi\n\t" : : : "memory");
+
+		/* Restore PRCC Configs */
+		pm_restore_config_PRCC();
+
+		/* Restore UART Configs */
+		pm_restore_config_UART();
+
+		if (readb(PRCM_ACK_MB0_AP_PWRST_STATUS) == 0xF3)
+			printk(KERN_INFO "u8500-prcm : Woken from Sleep OK\n");
+
 		break;
 	case APEXECUTE_TO_APIDLE:
 		/* Copy the current GIC set enable config as wakeup */
