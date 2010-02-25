@@ -620,10 +620,6 @@ config U8500_TSC
 		bool   "Multi Touch Mode"
 	endchoice
 
-config TOUCH_HREF_V1
-	bool "configure for HREF V1 touch panel"
-	depends on U8500_TSC
-
 config TOUCHP_EXT_CLK
 	default y
 	bool "Enable extenral clock for U8500 touch panel tuning"

@@ -40,11 +40,8 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c);
 static tsc_error tsc_config(struct u8500_tsc_data *pdev_data);
 static void tsc_clear_irq(struct i2c_client *i2c);
 static void tsc_en_irq(struct i2c_client *i2c);
-#ifndef CONFIG_TOUCH_HREF_V1
 static void tsc_callback(void *tsc);
-#else
-static irqreturn_t tsc_callback(int irq,  void *device_data);
-#endif
+static irqreturn_t tsc_gpio_callback(int irq,  void *device_data);
 static int tsc_driver_register(struct u8500_tsc_data *pdata);
 static void tsc_timer_callback(unsigned long data);
 
@@ -608,22 +605,30 @@ static void tsc_task(struct u8500_tsc_data *data)
  * This funtion calls, when we get the Pen down interrupt from Egpio Pin
  * and assigns the task and returns none.
  */
-#ifndef CONFIG_TOUCH_HREF_V1
+
 static void tsc_callback(void *device_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
 	data->touchp_flag = 1;
 	wake_up_interruptible(&data->touchp_event);
 }
-#else
-static irqreturn_t tsc_callback(int irq, void *device_data)
+/**
+ * tsc_gpio_callback() - callback handler for Pen down
+ * @device_data:void pointer
+ * @irq: irq value
+ *
+ * This funtion calls for HREF v1, when we get the Pen down interrupt from GPIO Pin
+ * and assigns the task and returns irqreturn_t.
+ */
+
+static irqreturn_t tsc_gpio_callback(int irq, void *device_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
 	data->touchp_flag = 1;
 	wake_up_interruptible(&data->touchp_event);
 	return IRQ_HANDLED;
 }
-#endif
+
 
 
 /**
@@ -741,6 +746,16 @@ int doCalibrate(struct i2c_client *i2c)
 	return retval;
 }
 /*
+ * check_board(): check for href v1 board
+ * @data: device structure pointer
+ * This function used to check_board
+ */
+void check_board(struct u8500_tsc_data *data)
+{
+	if (data->chip->board_href_v1)
+		data->href_v1_flag = data->chip->board_href_v1();
+}
+/*
  * init_config(): Initialize the Global variables
  * @data: device structure pointer
  * This function used to initialize the device variables and returns none
@@ -796,7 +811,7 @@ void init_config(struct u8500_tsc_data *data)
 
 	data->tap_start_point.x = 0x0;
 	data->tap_start_point.y = 0x0;
-
+	data->href_v1_flag = FALSE;
 	return;
 }
 /**
@@ -979,30 +994,31 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 	retval = bu21013_tsc_init(pdev_data->client);
 	if (retval == TSC_OK) {
 		init_config(pdev_data);
-#ifndef CONFIG_TOUCH_HREF_V1
-		if ((pdev_data->chip->pirq_en) && (pdev_data->chip->pirq_dis)
-				&& (pdev_data->chip->irq_init)) {
-			retval = pdev_data->chip->pirq_dis();
-			if (retval < 0) {
-				dev_err(&pdev_data->client->dev,
-					" irq disable failed \n");
-				goto err_init_irq;
-			}
-			retval = pdev_data->chip->pirq_en();
-			if (retval < 0) {
-				dev_err(&pdev_data->client->dev,
-					" irq en failed \n");
-				goto err_init_irq;
-			}
-			if \
-			(pdev_data->chip->irq_init \
-				(tsc_callback, (void *)pdev_data)) {
-				dev_err(&pdev_data->client->dev, \
-				" initiate the callback handler failed \n");
-				goto err_init_irq;
+		check_board(pdev_data);
+		if (pdev_data->href_v1_flag == FALSE) {
+			if ((pdev_data->chip->pirq_en) && (pdev_data->chip->pirq_dis)
+					&& (pdev_data->chip->irq_init)) {
+				retval = pdev_data->chip->pirq_dis();
+				if (retval < 0) {
+					dev_err(&pdev_data->client->dev,
+						" irq disable failed \n");
+					goto err_init_irq;
+				}
+				retval = pdev_data->chip->pirq_en();
+				if (retval < 0) {
+					dev_err(&pdev_data->client->dev,
+						" irq en failed \n");
+					goto err_init_irq;
+				}
+				if \
+				(pdev_data->chip->irq_init \
+					(tsc_callback, (void *)pdev_data)) {
+					dev_err(&pdev_data->client->dev, \
+					" initiate the callback handler failed \n");
+					goto err_init_irq;
+				}
 			}
 		}
-#endif
 		retval = getCalibStatus(pdev_data->client);
 		if (retval < 0) {
 			dev_err(&pdev_data->client->dev,
@@ -1119,16 +1135,16 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		goto err;
 	} else {
 		BUG_ON(tsc_data->touchp_tsk);
-#ifdef CONFIG_TOUCH_HREF_V1
-		retval = request_irq(tsc_data->chip->irq, tsc_callback,
-					IRQF_TRIGGER_FALLING, DRIVER_TP1, tsc_data);
-		if (retval) {
-			dev_err(&tsc_data->client->dev,
-				"unable to request for the irq %d\n", tsc_data->chip->irq);
+		if (tsc_data->href_v1_flag) {
+			retval = request_irq(tsc_data->chip->irq, tsc_gpio_callback,
+						IRQF_TRIGGER_FALLING, DRIVER_TP1, tsc_data);
+			if (retval) {
+				dev_err(&tsc_data->client->dev,
+					"unable to request for the irq %d\n", tsc_data->chip->irq);
 				gpio_free(tsc_data->chip->irq);
 				goto err;
+			}
 		}
-#endif
 		tsc_data->touchp_tsk = kthread_run(touchp_thread, \
 					tsc_data, DRIVER_TP1);
 		if (IS_ERR(tsc_data->touchp_tsk)) {

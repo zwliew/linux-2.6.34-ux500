@@ -154,6 +154,7 @@ struct tp_device {
 	int (*pirq_en) (void);
 	int (*pirq_dis)(void);
 	int (*pirq_read_val)(void);
+	int (*board_href_v1)(void);
 	unsigned int irq;
 };
 
@@ -202,6 +203,7 @@ struct u8500_tsc_data {
 	unsigned char dir_trace[DIRHEADER+DIRTRACEN];
 	unsigned char dir_idx;
 	unsigned char rotate_data[5][5];
+	bool href_v1_flag;
 };
 
 int doCalibrate(struct i2c_client *i2c);
@@ -210,4 +212,5 @@ void init_config(struct u8500_tsc_data *data);
 void get_touch(struct u8500_tsc_data *data);
 void touch_calculation(struct gesture_info *p_gesture_info);
 int get_touch_message(struct u8500_tsc_data *data);
+void check_board(struct u8500_tsc_data *data);
 #endif

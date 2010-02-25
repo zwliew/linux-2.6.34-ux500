@@ -137,11 +137,9 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_TRACE, 70, 74, 0, GPIO_ALTF_C, "stm"),
 	__GPIO_ALT(GPIO_ALT_SDMMC2, 128, 138, 0, GPIO_ALTF_A, "mmc2"),
 #ifndef CONFIG_FB_NOMADIK_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
-#ifndef CONFIG_TOUCH_HREF_V1
-	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 85, 1, GPIO_ALTF_A, "mcde tvout"),
-#else
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB_ED, 78, 85, 1, GPIO_ALTF_A, "mcde tvout"),
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB_ED, 150, 150, 0, GPIO_ALTF_B, "mcde tvout"),
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 81, 1, GPIO_ALTF_A, "mcde tvout"),
-#endif
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 150, 150, 0, GPIO_ALTF_B, "mcde tvout"),
 #else
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 153, 171, 1, GPIO_ALTF_B, "mcde tvout"),
@@ -2787,6 +2785,7 @@ static void __init u8500_earlydrop_fixup(void)
 	u8500_shrm_resources[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
 	u8500_shrm_resources[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
 	u8500_shrm_resources[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
+	mcde1_channel_data.gpio_alt_func =  GPIO_ALT_LCD_PANELB_ED;
 }
 
 static void __init amba_add_devices(struct amba_device *devs[], int num)

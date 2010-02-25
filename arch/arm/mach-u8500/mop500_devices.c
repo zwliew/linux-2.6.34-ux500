@@ -33,6 +33,7 @@
 #define HREF_PLATFORM_ID 1
 #define IRQ_KP 1 /*To DO*/
 
+int href_v1_board;
 extern int platform_id;
 
 static struct stmpe2401_platform_data stmpe_data = {
@@ -152,12 +153,12 @@ int tp_init_irq(void (*callback)(void *parameter), void *data)
 		if (retval < 0)
 			printk(KERN_ERR " stmpe2401_set_callback failed \n");
 	} else if (platform_id == HREF_PLATFORM_ID) {
-#ifndef CONFIG_TOUCH_HREF_V1
-		retval = tc35892_set_callback(EGPIO_PIN_12, callback,
-			(void *)data);
-		if (retval < 0)
-			printk(KERN_ERR " tc35892_set_callback failed \n");
-#endif
+		if (href_v1_board == 0) {
+			retval = tc35892_set_callback(EGPIO_PIN_12, callback,
+				(void *)data);
+			if (retval < 0)
+				printk(KERN_ERR " tc35892_set_callback failed \n");
+		}
 	}
 	return retval;
 }
@@ -172,10 +173,10 @@ int tp_exit_irq(void)
 	int retval = 0;
 	if (platform_id == MOP500_PLATFORM_ID)
 		stmpe2401_remove_callback(TOUCHP_IRQ);
-	else if (platform_id == HREF_PLATFORM_ID)
-#ifndef CONFIG_TOUCH_HREF_V1
-		tc35892_remove_callback(EGPIO_PIN_12);
-#endif
+	else if (platform_id == HREF_PLATFORM_ID) {
+		if (href_v1_board == 0)
+			tc35892_remove_callback(EGPIO_PIN_12);
+	}
 	return retval;
 }
 
@@ -189,64 +190,76 @@ int tp_pen_down_irq_enable(void)
 	if (platform_id == MOP500_PLATFORM_ID) {
 		/* do nothing */
 	} else if (platform_id == HREF_PLATFORM_ID) {
-#ifndef CONFIG_TOUCH_HREF_V1
-		retval = tc35892_set_gpio_intr_conf(EGPIO_PIN_12,
-			EDGE_SENSITIVE,	TC35892_FALLING_EDGE_OR_LOWLEVEL);
-		if (retval < 0)
-			printk(KERN_ERR " tc35892_set_gpio_intr_conf failed\n");
-		retval = tc35892_set_intr_enable(EGPIO_PIN_12,
-			ENABLE_INTERRUPT);
-		if (retval < 0)
-			printk(KERN_ERR " tc35892_set_intr_enable failed \n");
-#endif
+		if (href_v1_board == 0) {
+			retval = tc35892_set_gpio_intr_conf(EGPIO_PIN_12,
+				EDGE_SENSITIVE,	TC35892_FALLING_EDGE_OR_LOWLEVEL);
+			if (retval < 0)
+				printk(KERN_ERR " tc35892_set_gpio_intr_conf failed\n");
+			retval = tc35892_set_intr_enable(EGPIO_PIN_12,
+				ENABLE_INTERRUPT);
+			if (retval < 0)
+				printk(KERN_ERR " tc35892_set_intr_enable failed \n");
+		}
 	}
 	return retval;
 }
 
 /**
- * tp_pen_down_irq_disable : disable the interrupt for
- * touch panel controller
+ * tp_pen_down_irq_disable : disable the interrupt
  * This function can be used to disable the interrupt for
  * touch panel controller.
  */
 int tp_pen_down_irq_disable(void)
 {
 	int retval = 0;
-
 	if (platform_id == MOP500_PLATFORM_ID) {
 		/* do nothing */
 	} else if (platform_id == HREF_PLATFORM_ID) {
-#ifndef CONFIG_TOUCH_HREF_V1
-		retval = tc35892_set_intr_enable(EGPIO_PIN_12,
-				DISABLE_INTERRUPT);
-		if (retval < 0)
-			printk(KERN_ERR " tc35892_set_intr_enable failed \n");
-#endif
+		if (href_v1_board == 0) {
+			retval = tc35892_set_intr_enable(EGPIO_PIN_12,
+					DISABLE_INTERRUPT);
+			if (retval < 0)
+				printk(KERN_ERR " tc35892_set_intr_enable failed \n");
+		}
 	}
 	return retval;
 }
 
 /**
- * tp_read_pin_val : get the interrupt pin value for touch panel controller
+ * tp_read_pin_val : get the interrupt pin value
  * This function can be used to get the interrupt pin value for touch panel
  * controller.
  */
 int tp_read_pin_val(void)
 {
 	int data = 0;
-#ifdef CONFIG_TOUCH_HREF_V1
 	unsigned int touch_gpio_pin = 84;
-#endif
 
 	if (platform_id == MOP500_PLATFORM_ID)
 		data = gpio_get_value(TOUCHP_IRQ);
-	else if (platform_id == HREF_PLATFORM_ID)
-#ifndef CONFIG_TOUCH_HREF_V1
-		data = gpio_get_value(EGPIO_PIN_12);
-#else
-		data = gpio_get_value(touch_gpio_pin);
-#endif
+	else if (platform_id == HREF_PLATFORM_ID) {
+		if (href_v1_board == 0)
+			data = gpio_get_value(EGPIO_PIN_12);
+		else
+			data = gpio_get_value(touch_gpio_pin);
+	}
 	return data;
+}
+/**
+ * tp_board_href_v1 : update the href v1 flag
+ * This function can be used to update the board.
+ */
+int tp_board_href_v1(void)
+{
+	unsigned int touch_gpio_pin = 84;
+	if (platform_id == HREF_PLATFORM_ID) {
+		if (u8500_is_earlydrop())
+			href_v1_board = 0;
+		else
+			href_v1_board = gpio_get_value(touch_gpio_pin);
+	} else
+		href_v1_board = 0;
+	return href_v1_board;
 }
 
 static struct tp_device tsc_plat_device = {
@@ -257,6 +270,7 @@ static struct tp_device tsc_plat_device = {
 	.pirq_en  = tp_pen_down_irq_enable,
 	.pirq_dis = tp_pen_down_irq_disable,
 	.pirq_read_val = tp_read_pin_val,
+	.board_href_v1 = tp_board_href_v1,
 	.irq = GPIO_TO_IRQ(84),
 };
 #endif
