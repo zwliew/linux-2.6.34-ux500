@@ -769,7 +769,7 @@ static int av8100_download_firmware(struct i2c_client *i2c, char regOffset, char
 	char CheckSum = 0;
 
 	temp = numOfBytes % increment;
-	printk("temp:%d\n",temp);
+
 	for(size=0;size<(numOfBytes-temp);size=size+increment, index+=increment)
 	{
 		if(if_type == I2C_INTERFACE)

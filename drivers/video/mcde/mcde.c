@@ -3951,8 +3951,8 @@ static int __init mcde_probe(struct platform_device *pdev)
 			mcde_dsi_read_reg(info, 0xDB, &id2);
 			mcde_dsi_read_reg(info, 0xDC, &id3);*/
 
-			printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
-			       __func__, id1, id2, id3);
+			/*printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
+			       __func__, id1, id2, id3);*/
 
 			retry = errors_on_dsi != 0 ||
 				(self_diagnostic_result != 0xC0 &&
@@ -3964,7 +3964,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 				if (n_retry) {
 					/* Display not initialized correctly,
 					   try again */
-					printk(
+					/*printk(
 						KERN_WARNING
 						"%s: Failed to initialize"
 						" display, potential 'pink' "
@@ -3973,7 +3973,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 					       " self_diagnostic_result=%X, "
 					       " retrying...\n", __func__,
 					       errors_on_dsi,
-						self_diagnostic_result);
+					       self_diagnostic_result);*/
 				}
 			}
 			else
