@@ -587,6 +587,21 @@ EXPORT_SYMBOL(prcmu_set_irq_wakeup);
  * not support it. This also assumes that the non-boot cpu's are in wfi
  * and not wfe.
  */
+/* FIXME : get these from platform/header files instead */
+/* GIC BAse Address */
+#define GIC_BASE_ADDR           IO_ADDRESS(0xA0411000)
+
+/* ITs enabled for GIC. 104 is due to skipping of the STI and PPI sets.
+ * Rfer page 648 of the DB8500V1 spec v2.5
+ */
+#define DIST_ENABLE_SET         (GIC_BASE_ADDR + 0x104)
+#define DIST_PENDING_SET        (GIC_BASE_ADDR + 0x200)
+#define DIST_ENABLE_CLEAR       (GIC_BASE_ADDR + 0x180)
+#define DIST_ACTIVE_BIT         (GIC_BASE_ADDR + 0x304)
+
+#define PRCM_DEBUG_NOPWRDOWN_VAL        IO_ADDRESS(0x80157194)
+#define PRCM_POWER_STATE_VAL            IO_ADDRESS(0x8015725C)
+
 int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
 					ddr_pwrst_t ddr_state_req,
 					int _4500_fifo_wakeup)
@@ -630,6 +645,121 @@ int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
 	case APEXECUTE_TO_APSLEEP:
 		break;
 	case APEXECUTE_TO_APIDLE:
+		/* Copy the current GIC set enable config as wakeup */
+		for (val = 0; val < 4; val++) {
+			tmp = readl(DIST_ENABLE_SET + (val * 4));
+			writel(tmp, PRCM_ARMITMSK31TO0 + (val * 4));
+		}
+
+		/* PROGRAM WAKEUP EVENTS */
+		/* write CfgWkUpsH in the Header */
+		writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
+
+		/* write to the mailbox */
+		/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
+		 * the firmware to set the register prcm_armit_maskxp70_it
+		 * (which is btw secure and thus only accessed by the xp70)
+		 */
+		writel((1<<17), PRCM_REQ_MB0_WKUP_8500);
+		writel(0x0, PRCM_REQ_MB0_WKUP_4500);
+
+		/* SIGNAL MAILBOX */
+		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
+		writel(1 << 0, PRCM_MBOX_CPU_SET);
+
+		/* wait for corresponding MB0X_CPU_VAL bit to be cleared */
+		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << 0)) && timeout--)
+			cpu_relax();
+		if (!timeout) {
+			printk(KERN_INFO
+			 "Timeout in prcmu_configure_wakeup_events!!\n");
+			return -EBUSY;
+		}
+
+		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
+		/* Write PwrStTrH=0 header to request a Power state xsition */
+		writeb(0x0, PRCM_MBOX_HEADER_REQ_MB0);
+
+		/* write request to the MBOX0 */
+		writeb(APEXECUTE_TO_APIDLE, PRCM_REQ_MB0_PWRSTTRH_APPWRST);
+		writeb(ON, PRCM_REQ_MB0_PWRSTTRH_APPLLST);
+		writeb(ON, PRCM_REQ_MB0_PWRSTTRH_ULPCLKST);
+		writeb(0x55, PRCM_REQ_MB0_PWRSTTRH_BYTEFILL);
+
+		/* As per the sync logic, we are supposed to be the final CPU.
+		 * If the other CPU isnt in wfi, better exit by putting
+		 * ourselves in wfi
+		 */
+		if (smp_processor_id()) {
+			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
+				printk(KERN_WARNING
+					"Other CPU(CPU%d) is not in WFI!(0x%x)\
+					 Aborting attempt\n",
+					!smp_processor_id(),
+					readl(PRCM_ARM_WFI_STANDBY));
+				__asm__ __volatile__(
+					"dsb\n\t" "wfi\n\t" : : : "memory");
+				return 0;
+			}
+		} else /* running on CPU0, check for CPU1 WFI standby */ {
+			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
+				printk(KERN_WARNING
+					"Other CPU(CPU%d) is not in WFI!(0x%x)\
+					Aborting attempt\n",
+					!smp_processor_id(),
+					readl(PRCM_ARM_WFI_STANDBY));
+				__asm__ __volatile__(
+					"dsb\n\t" "wfi\n\t" : : : "memory");
+				return 0;
+			}
+		}
+
+		/* FIXME : temporary hack to let UART2 interrupts enable the
+		 *         wake-up from ARM
+		 */
+		if (!(readl(PRCM_ARMITMSK31TO0) & 0x04000000))
+			writel((readl(PRCM_ARMITMSK31TO0) | 0x04000000),
+					 PRCM_ARMITMSK31TO0);
+
+		/* FIXME : tempoeary hack to wake up from RTC */
+		if (!(readl(PRCM_ARMITMSK31TO0) & 0x40000))
+			writel((readl(PRCM_ARMITMSK31TO0) | 0x40000),
+					 PRCM_ARMITMSK31TO0);
+
+		/* FIXME : later on, the ARM should not request a Idle if one
+		 *	   of the ITSTATUS0/5 are still alive!!!
+		 */
+		if (readl(PRCM_ITSTATUS0) == 0x80) {
+			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
+			__asm__ __volatile__(
+				"dsb\n\t" "wfi\n\t" : : : "memory");
+			return -EBUSY;
+		}
+
+		/*
+		 *
+		 * REQUEST POWER XSITION
+		 *
+		 */
+
+		/* clear ACK MB0 */
+		writeb(0x0, PRCM_ACK_MB0);
+
+		/* trigger the XP70 IT10 to the XP70 */
+		writel(1, PRCM_MBOX_CPU_SET);
+
+		/* here comes the wfi */
+		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
+
+		writeb(RDWKUPACKH, PRCM_MBOX_HEADER_REQ_MB0);
+
+		/* Set an interrupt to XP70 */
+		writel(1 , PRCM_MBOX_CPU_SET);
+		while ((readl(PRCM_MBOX_CPU_VAL) & 1) && timeout--)
+			cpu_relax();
+		if (!timeout)
+			return -EBUSY;
+
 		break;
 	case APEXECUTE_TO_APDEEPSLEEP:
 		printk(KERN_INFO "TODO: deep sleep \n");

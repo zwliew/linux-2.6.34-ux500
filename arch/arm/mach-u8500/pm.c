@@ -40,13 +40,13 @@ static int u8500_pm_enter(suspend_state_t state)
 
 	switch (state) {
 	case PM_SUSPEND_STANDBY:
+		prcmu_apply_ap_state_transition(APEXECUTE_TO_APIDLE,
+				DDR_PWR_STATE_UNCHANGED, 0);
+		ret = 0;
+		break;
 	case PM_SUSPEND_MEM:
-
 		prcmu_apply_ap_state_transition(APEXECUTE_TO_APSLEEP,
-						DDR_PWR_STATE_UNCHANGED, 0);
-#if 0
-		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
-#endif
+				DDR_PWR_STATE_UNCHANGED, 0);
 		ret = 0;
 		break;
 	default:
