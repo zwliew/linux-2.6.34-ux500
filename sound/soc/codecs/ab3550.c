@@ -1,13 +1,14 @@
 /*
- * ab3550  --  ST-Ericsson Mixed Signaling ASIC
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * Author:	Xie Xiaolei <xie.xiaolei@etericsson.com>
+ * Author: Xie Xiaolei <xie.xiaolei@etericsson.com>
+ *         for ST-Ericsson.
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
+ * License terms:
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  */
 #include <linux/module.h>
 #include <linux/moduleparam.h>

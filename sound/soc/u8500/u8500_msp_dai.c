@@ -1,13 +1,16 @@
 /*
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * sound/soc/u8500/u8500_msp_dai.c
+ * Author: Ola Lilja ola.o.lilja@stericsson.com,
+ *         Roger Nilsson 	roger.xr.nilsson@stericsson.com
+ *         for ST-Ericsson.
  *
+ * License terms:
  *
- * Copyright (C) 2007 Ericsson AB
- * License terms: GNU General Public License (GPL) version 2
- * ALSA SoC I2S driver for the u8500 platforms.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  */
-
 #include <sound/soc.h>
 #include <sound/soc-dai.h>
 #include <asm/dma.h>

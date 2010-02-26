@@ -1,15 +1,18 @@
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * Author: Ola Lilja ola.o.lilja@stericsson.com,
+ *         Roger Nilsson 	roger.xr.nilsson@stericsson.com
+ *         for ST-Ericsson.
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 #ifndef U8500_msp_dai_H
 #define U8500_msp_dai_H
-
-/*
- *
- * sound/soc/u8500/u8500_msp_dai.h
- *
- *
- * Copyright (C) 2007 Ericsson AB
- * License terms: GNU General Public License (GPL) version 2
- * ALSA SoC I2S driver for the U8500 platforms.
- */
 
 #include <linux/types.h>
 #include <linux/spinlock.h>

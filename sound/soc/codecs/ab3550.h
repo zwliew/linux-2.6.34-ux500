@@ -1,3 +1,15 @@
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * Author: Xie Xiaolei <xie.xiaolei@etericsson.com>
+ *         for ST-Ericsson.
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 #ifndef AB3550_CODEC_REGISTERS_H
 #define AB3550_CODEC_REGISTERS_H
 

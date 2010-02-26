@@ -1,13 +1,16 @@
 /*
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * sound/soc/u8500/u8500_pcm.c
+ * Author: Ola Lilja ola.o.lilja@stericsson.com,
+ *         Roger Nilsson 	roger.xr.nilsson@stericsson.com
+ *         for ST-Ericsson.
  *
+ * License terms:
  *
- * Copyright (C) 2010 ST-Ericsson AB
- * License terms: GNU General Public License (GPL) version 2
- * ALSA SoC PCM driver for the u8500 platforms.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  */
-
 #include <asm/page.h>
 
 #include <linux/dma-mapping.h>

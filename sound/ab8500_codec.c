@@ -1,15 +1,16 @@
-/*****************************************************************************/
-/**
-*  © ST-Ericsson, 2009 - All rights reserved
-*  Reproduction and Communication of this document is strictly prohibited
-*  unless specifically authorized in writing by ST-Ericsson
-*
-* \brief   This module provides some support routines for the AB8500 CODEC
-* \author  ST-Ericsson
-*/
-/*****************************************************************************/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * Author: ST-Ericsson
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
-/*----------------------------------------------------------------------------
+ /*----------------------------------------------------------------------------
  * Includes
  *---------------------------------------------------------------------------*/
 #include <mach/ab8500_codec.h>

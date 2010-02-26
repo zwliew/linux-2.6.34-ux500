@@ -1,13 +1,16 @@
 /*
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * sound/soc/u8500/u8500_pcm.h
+ * Author: Ola Lilja ola.o.lilja@stericsson.com,
+ *         Roger Nilsson 	roger.xr.nilsson@stericsson.com
+ *         for ST-Ericsson.
  *
+ * License terms:
  *
- * Copyright (C) 2010 ST-Ericsson AB
- * License terms: GNU General Public License (GPL) version 2
- * ALSA SoC core support for the stw4500 chip.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  */
-
 #ifndef U8500_PCM_H
 #define U8500_PCM_H
 
