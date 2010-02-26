@@ -1657,15 +1657,18 @@ static int u8500_mmci_remove(struct amba_device *dev)
 static int u8500_mmci_suspend(struct amba_device *dev, pm_message_t state)
 {
 	struct mmc_host *mmc = amba_get_drvdata(dev);
+	struct u8500_mmci_host *host = mmc_priv(mmc);
 	int ret = 0;
-	if (strcmp(dev->dev.bus_id, "sdi4") != 0) {
-		if (mmc) {
-			struct u8500_mmci_host *host = mmc_priv(mmc);
-			ret = mmc_suspend_host(mmc, state);
-			if (ret == 0)
-				writel(0, host->base + MMCIMASK0);
-			clk_disable(host->clk);
-		}
+
+	/* FIXME : suspend only level_shifter devices right now
+	 *	   static eMMCs show a file remounting problem
+	 *	   as of now
+	 */
+	if (host->level_shifter) {
+		ret = mmc_suspend_host(mmc, state);
+		if (ret == 0)
+			writel(0, host->base + MMCIMASK0);
+		clk_disable(host->clk);
 	}
 	return ret;
 }
@@ -1676,14 +1679,13 @@ static int u8500_mmci_suspend(struct amba_device *dev, pm_message_t state)
 static int u8500_mmci_resume(struct amba_device *dev)
 {
 	struct mmc_host *mmc = amba_get_drvdata(dev);
+	struct u8500_mmci_host *host = mmc_priv(mmc);
 	int ret = 0;
-	if (strcmp(dev->dev.bus_id, "sdi4") != 0) {
-		if (mmc) {
-			struct u8500_mmci_host *host = mmc_priv(mmc);
-			clk_enable(host->clk);
-			writel(MCI_IRQENABLE, host->base + MMCIMASK0);
-			ret = mmc_resume_host(mmc);
-		}
+
+	if (host->level_shifter) {
+		clk_enable(host->clk);
+		writel(MCI_IRQENABLE, host->base + MMCIMASK0);
+		ret = mmc_resume_host(mmc);
 	}
 	return ret;
 }
