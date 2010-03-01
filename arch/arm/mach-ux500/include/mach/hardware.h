@@ -18,6 +18,8 @@
  * macro to get at IO space when running virtually
  */
 #define IO_ADDRESS(x)		(((x) & 0x0fffffff) + (((x) >> 4) & 0x0f000000) + IO_BASE)
+#define __io_address(n)		__io(IO_ADDRESS(n))
+#define io_p2v(n)		__io_address(n)
 
 #include <mach/db8500-regs.h>
 #include <mach/db5500-regs.h>
