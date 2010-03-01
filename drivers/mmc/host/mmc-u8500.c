@@ -846,12 +846,13 @@ static void start_data_xfer(struct u8500_mmci_host *host)
 	BUG_ON(!data);
 	BUG_ON(!(data->flags & (MMC_DATA_READ | MMC_DATA_WRITE)));
 	BUG_ON((data->flags & MMC_DATA_READ) && (data->flags & MMC_DATA_WRITE));
+	BUG_ON(!host->cmd);
 
 	/**
 	 * Required for SDIo CMD53, for transfer sizes <8, H/W flow
 	 * control should be disabled
 	 */
-	if (host->cmd && (host->cmd->opcode == SD_IO_RW_EXTENDED)) {
+	if (host->cmd->opcode == SD_IO_RW_EXTENDED) {
 		clk_reg = readl(host->base + MMCICLOCK);
 		if (host->size < 8)
 		    clk_reg &= ~(MCI_HWFC_EN);

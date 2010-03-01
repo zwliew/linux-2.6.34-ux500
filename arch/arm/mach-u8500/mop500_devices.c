@@ -433,7 +433,7 @@ irqreturn_t u8500_kp_intrhandler(/*int irq, */void *dev_id)
 	/* printk("\n Kp interrupt"); */
 	/* if (irq != kp->irq) return IRQ_NONE; */
 	if (!(test_bit(KPINTR_LKBIT, &kp->lockbits))) {
-		____atomic_set_bit(KPINTR_LKBIT, &kp->lockbits);
+		set_bit(KPINTR_LKBIT, &kp->lockbits);
 
 		if (kp->board->irqdis_int)
 			kp->board->irqdis_int(kp);
