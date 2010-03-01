@@ -12,6 +12,8 @@
  *
  * FIXME : PRCMU I2C calls to be replaced by ab8500_* calls once integrated
  *	   with the ab8500 driver.
+ * FIXME : Regulator IDs constants are defined here until the ab8500 driver
+ *	   is made into a mfd compliant code.
  */
 
 #include <linux/kernel.h>
@@ -28,10 +30,12 @@
 
 #define AB8500_LDO_VAUX1        (1)
 #define AB8500_LDO_VAUX2        (2)
+#define AB8500_LDO_VTVOUT	(3)
+#define AB8500_DCDC_VBUS	(4)
 
 static int ab8500_ldo_enable(struct regulator_dev *rdev)
 {
-	int regulator_id;
+	int regulator_id, ret, val;
 
 	regulator_id = rdev_get_id(rdev);
 	if (regulator_id >= AB8500_NUM_REGULATORS)
@@ -55,6 +59,16 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		prcmu_i2c_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX2_SEL_REG, 0x0D);
 		break;
+	case AB8500_LDO_VTVOUT:
+		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
+		ret = ab8500_write(AB8500_REGU_CTRL1,
+				AB8500_REGU_MISC1_REG, (val | 0x06));
+		if (ret < 0) {
+			dev_dbg(rdev_get_dev(rdev),
+					"cannot enable TVOUT LDO\n");
+			return -EINVAL;
+		}
+		break;
 	default:
 		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
 		return -EINVAL;
@@ -64,7 +78,7 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 
 static int ab8500_ldo_disable(struct regulator_dev *rdev)
 {
-	int regulator_id;
+	int regulator_id, ret, val;
 
 	regulator_id = rdev_get_id(rdev);
 	if (regulator_id >= AB8500_NUM_REGULATORS)
@@ -75,13 +89,27 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 	case AB8500_LDO_VAUX2:
 		prcmu_i2c_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX12_REGU_REG, 0x0);
+		break;
+	case AB8500_LDO_VTVOUT:
+		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
+		ret = ab8500_write(AB8500_REGU_CTRL1,
+				AB8500_REGU_MISC1_REG, (val & 0xF9));
+		if (ret < 0) {
+			dev_dbg(rdev_get_dev(rdev),
+					"cannot disable TVOUT LDO\n");
+			return -EINVAL;
+		}
+		break;
+	default:
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
 	}
 	return 0;
 }
 
 static int ab8500_ldo_is_enabled(struct regulator_dev *rdev)
 {
-	int regulator_id;
+	int regulator_id, val;
 
 	regulator_id = rdev_get_id(rdev);
 	if (regulator_id >= AB8500_NUM_REGULATORS)
@@ -91,16 +119,79 @@ static int ab8500_ldo_is_enabled(struct regulator_dev *rdev)
 	switch (regulator_id) {
 	case AB8500_LDO_VAUX1:
 	case AB8500_LDO_VAUX2:
+	case AB8500_LDO_VTVOUT:
+		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
+		if (val & 0x06)
+			return true;
 	default:
-		return 0;
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
 	}
+	return 0;
 }
 
-/* operations for LDOs (VAUX1/2) generalized */
+/* operations for LDOs (VAUX1/2, TVOut) generalized */
 static struct regulator_ops ab8500_ldo_ops = {
 	.enable			= ab8500_ldo_enable,
 	.disable		= ab8500_ldo_disable,
 	.is_enabled		= ab8500_ldo_is_enabled,
+};
+
+static int ab8500_dcdc_enable(struct regulator_dev *rdev)
+{
+	int regulator_id, ret;
+
+	regulator_id = rdev_get_id(rdev);
+	if (regulator_id >= AB8500_NUM_REGULATORS)
+		return -EINVAL;
+
+	switch (regulator_id) {
+	case AB8500_DCDC_VBUS:
+		ret = ab8500_write(AB8500_REGU_CTRL1,
+				AB8500_REGU_VUSB_CTRL_REG, 0x1);
+		if (ret < 0) {
+			dev_dbg(rdev_get_dev(rdev),
+					"cannot enable VBUS\n");
+			return -EINVAL;
+		}
+		break;
+	default:
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int ab8500_dcdc_disable(struct regulator_dev *rdev)
+{
+	int regulator_id, ret;
+
+	regulator_id = rdev_get_id(rdev);
+	if (regulator_id >= AB8500_NUM_REGULATORS)
+		return -EINVAL;
+
+	switch (regulator_id) {
+	case AB8500_DCDC_VBUS:
+		ret = ab8500_write(AB8500_REGU_CTRL1,
+				AB8500_REGU_VUSB_CTRL_REG, 0x0);
+		if (ret < 0) {
+			dev_dbg(rdev_get_dev(rdev),
+					"cannot disable VBUS\n");
+			return -EINVAL;
+		}
+		break;
+	default:
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+
+/* operations for DC-DC convertor supplies (VBUS, VSMPS1/2) */
+static struct regulator_ops ab8500_dcdc_ops = {
+	.enable		= ab8500_dcdc_enable,
+	.disable	= ab8500_dcdc_disable,
 };
 
 static struct regulator_desc ab8500_desc[AB8500_NUM_REGULATORS] = {
@@ -118,6 +209,21 @@ static struct regulator_desc ab8500_desc[AB8500_NUM_REGULATORS] = {
 		.type  	= REGULATOR_VOLTAGE,
 		.owner 	= THIS_MODULE,
 	},
+	{
+		.name   = "LDO-VTVOUT",
+		.id     = AB8500_LDO_VTVOUT,
+		.ops    = &ab8500_ldo_ops,
+		.type   = REGULATOR_VOLTAGE,
+		.owner  = THIS_MODULE,
+	},
+	{
+		.name   = "DCDC-VBUS",
+		.id     = AB8500_DCDC_VBUS,
+		.ops    = &ab8500_dcdc_ops,
+		.type   = REGULATOR_VOLTAGE,
+		.owner  = THIS_MODULE,
+	},
+
 };
 
 static int __devinit ab8500_regulator_probe(struct platform_device *pdev)
