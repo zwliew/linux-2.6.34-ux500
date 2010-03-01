@@ -1,21 +1,13 @@
-/*--------------------------------------------------------------------------------------------------*/
-/*© copyright ST Ericsson 2009									    */
-/*									                            */
-/* This program is free software; you can redistribute it and/or modify it under	            */
-/* the terms of the GNU General Public License as published by the Free	                            */
-/* Software Foundation; either version 2.1 of the License, or (at your option) 	                    */
-/* any later version.							                            */
-/*									                            */
-/* This program is distributed in the hope that it will be useful, but WITHOUT	                    */
-/* ANY WARRANTY; without even the implied warranty of 			                            */
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See	                                    */
-/* the GNU General Public License for more details.			                            */
-/*									                            */
-/* You should have received a copy of the GNU General Public License  	                            */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.          	            */
-/*--------------------------------------------------------------------------------------------------*/
-
-
+/*
+ * Overview:
+ *  	 stmpe1601 gpio port expander register definitions
+ *
+ * Copyright (C) 2009 ST Ericsson.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License
+ */
 
 #ifndef __STMPE1601_H_
 #define __STMPE1601_H_
@@ -68,49 +60,50 @@
 /*Gpio's defines*/
 /*GPIO Set Pin State register Index*/
 #define STMPE1601_GPIO_REG_OFFSET(offset) (0x80 + (offset))
-#define GPSR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x02) //0x82
-#define GPSR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x03) //0x85
+#define GPSR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x02) /* 0x82 */
+#define GPSR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x03) /* 0x85 */
 /*GPIO Clear Pin State register Index*/
-#define GPCR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x04) //0x86
-#define GPCR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x05) //0x87
+#define GPCR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x04) /* 0x86 */
+#define GPCR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x05) /* 0x87 */
 /*GPIO Monitor Pin register Index*/
-#define GPMR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x06) //0x88
-#define GPMR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x07) //0x89
+#define GPMR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x06) /* 0x88 */
+#define GPMR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x07) /* 0x89 */
 /*GPIO Set Pin Direction register*/
-#define GPDR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x08) //0x8A
-#define GPDR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x09) //0x8B
+#define GPDR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x08) /* 0x8A */
+#define GPDR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x09) /* 0x8B */
 /*GPIO Edge Detect Status register*/
-#define GPEDR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x0A) //0x8C
-#define GPEDR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x0B) //0x8D
+#define GPEDR_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x0A) /* 0x8C */
+#define GPEDR_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x0B) /* 0x8D */
 /*GPIO Rising Edge register*/
-#define GPRER_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x0C) //0x8E
-#define GPRER_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x0D) //0x8F
+#define GPRER_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x0C) /* 0x8E */
+#define GPRER_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x0D) /* 0x8F */
 /*GPIO Falling Edge register*/
-#define GPFER_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x0E) //0x90
-#define GPFER_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x0F) //0x91
+#define GPFER_Msb_Index      STMPE1601_GPIO_REG_OFFSET(0x0E) /* 0x90 */
+#define GPFER_Lsb_Index      STMPE1601_GPIO_REG_OFFSET(0x0F) /* 0x91 */
 /*GPIO Pull Up register*/
-#define GPPUR_Msb_Index     STMPE1601_GPIO_REG_OFFSET(0x10) //0x92
-#define GPPUR_Lsb_Index     STMPE1601_GPIO_REG_OFFSET(0x11) //0x93
+#define GPPUR_Msb_Index     STMPE1601_GPIO_REG_OFFSET(0x10) /* 0x92 */
+#define GPPUR_Lsb_Index     STMPE1601_GPIO_REG_OFFSET(0x11) /* 0x93 */
 
 /*GPIO Alternate Function register*/
-#define GPAFR_U_Msb_Index   STMPE1601_GPIO_REG_OFFSET(0x12) //0x94   /*Gpio alternate function register*/
-#define GPAFR_U_Lsb_Index   STMPE1601_GPIO_REG_OFFSET(0x13) //0x95
+#define GPAFR_U_Msb_Index   STMPE1601_GPIO_REG_OFFSET(0x12) /* 0x94 */
+#define GPAFR_U_Lsb_Index   STMPE1601_GPIO_REG_OFFSET(0x13) /* 0x95 */
 
-#define GPAFR_L_Msb_Index   STMPE1601_GPIO_REG_OFFSET(0x14) //0x96
-#define GPAFR_L_Lsb_Index   STMPE1601_GPIO_REG_OFFSET(0x15) //0x97
+#define GPAFR_L_Msb_Index   STMPE1601_GPIO_REG_OFFSET(0x14) /* 0x96 */
+#define GPAFR_L_Lsb_Index   STMPE1601_GPIO_REG_OFFSET(0x15) /* 0x97 */
 /*Level translator enable register */
-#define GPLT_EN_Index   STMPE1601_GPIO_REG_OFFSET(0x16) //0x98
+#define GPLT_EN_Index   STMPE1601_GPIO_REG_OFFSET(0x16) /* 0x98 */
 /*Level translator direction register */
-#define GPLT_DIR_Index   STMPE1601_GPIO_REG_OFFSET(0x17) //0x99
+#define GPLT_DIR_Index   STMPE1601_GPIO_REG_OFFSET(0x17) /* 0x99 */
 
-#if defined (CONFIG_MACH_U8500_MOP)
+#if defined(CONFIG_MACH_U8500_MOP)
 #define	STMPE1601_GPIO_INT		15
 #define KEYPAD_INT			(STMPE1601_GPIO_INT+1)
 #define STMPE1601_MAX_INT		KEYPAD_INT
 #endif
 
 /*gpio_cfg related define*/
-#define MAX_STMPE1601_GPIO		16	/*max number of STMPE1601 gpio allowed*/
+#define MAX_STMPE1601_GPIO		16
+/*max number of STMPE1601 gpio allowed*/
 
 /*keypad related define*/
 #define STMPE1601_SCAN_ON		1
@@ -118,75 +111,68 @@
 
 #define STMPE1601_MASK_NO_KEY	0x78 /*code for no key*/
 
-#define STMPE1601_KEY(col,row)	(col + (row << 3))	/*macro for key definition*/
+#define STMPE1601_KEY(col, row)	(col + (row << 3))
+/*macro for key definition*/
 
 /**
 * typedef struct t_stmpe1601_key_config
 * Keypad configuration, platform specific settings
 */
-typedef struct
-{
-	unsigned short columns;			//bit-field , 1=column used, 0=column not used
-	unsigned short rows;				//bit-field , 1=row used, 0=row not used
-	unsigned char  ncycles;			//number of cycles for key data updating
-	unsigned char  debounce;			//de-bounce time (0-128)ms
-	unsigned char  scan;				//scan status, ON or OFF
-
-}t_stmpe1601_key_config;
+typedef struct {
+	unsigned short columns;	/* bit-field , 1=column used, 0=column
+				 * not used
+				 */
+	unsigned short rows;	/* bit-field , 1=row used, 0=row not used */
+	unsigned char  ncycles;	/* number of cycles for key data updating */
+	unsigned char  debounce; /* de-bounce time (0-128)ms */
+	unsigned char  scan;	/* scan status, ON or OFF*/
+} t_stmpe1601_key_config;
 
 /**
 * typedef struct t_stmpe1601_key_status
 * Data structure to save key status during last scan.
 * E.g., no of keys pressed/released etc
 */
-typedef struct
-{
-	unsigned char button_pressed;		//number of button pressed
-	unsigned char button[5];			//id of buttons, 0 to 77
-	unsigned char button_released;		//number of button released
-	unsigned char released[5];		//id of buttons released, 0 to 77
-
-}t_stmpe1601_key_status;
+typedef struct {
+	unsigned char button_pressed; /* number of button pressed */
+	unsigned char button[5];    /* id of buttons, 0 to 77 */
+	unsigned char button_released;	/* number of button released */
+	unsigned char released[5];	/* id of buttons released, 0 to 77 */
+} t_stmpe1601_key_status;
 
 /**
 * typedef struct t_stmpe1601_device_config
 * General configuration
 */
-typedef struct
-{
+typedef struct {
 	unsigned char sys_con;
 	unsigned char sys_con_2;
 	t_stmpe1601_key_config	key_cfg;	/*not used*/
-
 } t_stmpe1601_device_config;
 
 /**
 * typedef struct t_stmpe1601_info
 * general device info
 */
-typedef struct
-{
+typedef struct {
 	unsigned char chip_id;
 	unsigned char version_id;
-
 } t_stmpe1601_info;
+
 /**
 * typedef struct t_stmpe1601_syscon_ds
 * data structire to save control register settings
 */
-typedef struct
-{
+typedef struct {
 	unsigned char syscon_data;
 	unsigned char syscon_2_data;
-
 } t_stmpe1601_syscon_ds;
 
 /**
 * typedef struct t_stmpe1601_interrupt_ds
 * data structure to save interrupt controllder register values
 */
-typedef struct
-{
+typedef struct {
 	/*ICR register info*/
 	unsigned char icr_msb_data;
 	unsigned char icr_lsb_data;
@@ -206,15 +192,13 @@ typedef struct
 	/*ISGPIOR register info*/
 	unsigned char isgpior_msb_data;
 	unsigned char isgpior_lsb_data;
-
 } t_stmpe1601_interrupt_ds;
 
 /**
 * typedef struct t_stmpe1601_kpc_ds
 * Data structure to save kpd controller resgister values
 */
-typedef struct
-{
+typedef struct {
 	unsigned char kpc_col_data;
 	unsigned char kpc_row_msb_data;
 	unsigned char kpc_row_lsb_data;
@@ -226,13 +210,15 @@ typedef struct
 	unsigned char kpc_data_byte3_data;
 	unsigned char kpc_data_byte4_data;
 	unsigned char kpc_data_byte5_data;
-}t_stmpe1601_kpc_ds;
+} t_stmpe1601_kpc_ds;
 
 /**
 * struct stmpe1601_platform_data
 * Pltform data to save gpio base address
-* @gpio_base:	start index for STMPE1601 expanded gpio: 268+24 for u8500 platform
-* @irq:	Interrupt no. for STMPE1601, For U8500 platform interrupt is through GPIO218
+* @gpio_base:	start index for STMPE1601 expanded gpio:
+* 268+24 for u8500 platform
+* @irq:	Interrupt no. for STMPE1601, For U8500 platform interrupt
+* is through GPIO218
 */
 struct stmpe1601_platform_data {
 	unsigned	gpio_base;
@@ -303,9 +289,4 @@ int stmpe1601_irqen(int irq);
 **/
 int stmpe1601_irqdis(int irq);
 
-
-
-
 #endif
-
-

@@ -108,19 +108,21 @@ static int stmpe1601_read_byte(struct stmpe1601_chip *chip, unsigned char reg,
  * @buf:	read the data in this buffer
  * @nbytes:	number of bytes to read
  *
- * This funtion uses smbus read block API to read multiple bytes from the reg offset.
+ * This funtion uses smbus read block API to read multiple bytes
+ * from the reg offset.
  **/
-static int stmpe1601_read(struct stmpe1601_chip *chip,unsigned char reg,
+static int stmpe1601_read(struct stmpe1601_chip *chip, unsigned char reg,
 			unsigned char *buf, unsigned char nbytes)
 {
-	int ret=0;
-	ret = i2c_smbus_read_i2c_block_data(chip->client,reg,nbytes,buf);
-	if(ret < 0)
+	int ret = 0;
+	ret = i2c_smbus_read_i2c_block_data(chip->client, reg, nbytes, buf);
+	if (ret < 0)
 		return ret;
 	if (ret < nbytes)
 		return -EIO;
 	/*
-	printk("stmpe1601_read: reg=%x,no. of data = %d, data =%x\n", reg,nbytes, *buf);
+	 * printk("stmpe1601_read: reg=%x,no. of data = %d, data =%x\n",
+	 * reg,nbytes, *buf);
 	*/
 	return 0;
 }
@@ -310,18 +312,19 @@ static void stmpe1601_setup_gpio(struct stmpe1601_chip *chip, int gpios)
  **/
 int stmpe1601_set_callback(int irq, void *handler, void *data)
 {
-	if((irq>STMPE1601_MAX_INT) || (irq<0))
+	if ((irq > STMPE1601_MAX_INT) || (irq < 0))
 		return -EINVAL;
 	mutex_lock(&the_stmpe1601->lock);
 
 	the_stmpe1601->handlers[irq] = handler;
 	the_stmpe1601->data[irq] = data;
 #if 0
-	if(irq==KEYPAD_INT) {
+	if (irq == KEYPAD_INT) {
 		/**
 		 * enable keypad interrupt mask
 		 */
-		stmpe1601_write_byte(the_stmpe1601, IER_Lsb_Index, (KPD_INT_MASK | KPD_OVERRUN_INT_MASK));
+		stmpe1601_write_byte(the_stmpe1601, IER_Lsb_Index,
+				     (KPD_INT_MASK | KPD_OVERRUN_INT_MASK));
 
 	}
 #endif
@@ -341,14 +344,13 @@ EXPORT_SYMBOL(stmpe1601_set_callback);
  **/
 int stmpe1601_remove_callback(int irq)
 {
-        if((irq>STMPE1601_MAX_INT) || (irq<0))
+	if ((irq > STMPE1601_MAX_INT) || (irq < 0))
 		return -EINVAL;
 	mutex_lock(&the_stmpe1601->lock);
 	the_stmpe1601->handlers[irq] = NULL;
 	the_stmpe1601->data[irq] = NULL;
-	if(irq==KEYPAD_INT) {
-	/*if required, you can disable interrupt here
-	 */
+	if (irq == KEYPAD_INT) {
+		/* if required, you can disable interrupt here */
 		stmpe1601_write_byte(the_stmpe1601, IER_Lsb_Index, 0x0);
 	}
 	mutex_unlock(&the_stmpe1601->lock);
@@ -371,10 +373,8 @@ static irqreturn_t stmpe1601_intr_handler(int irq, void *_chip)
 {
 	struct stmpe1601_chip *chip = _chip;
 
-	/*chip = container_of(gc,struct stmpe1601_chip, gpio_chip); */
-	/*
-	printk("Interrupt from STMPE1601 @ GPIO %d\n", irq);
-	*/
+	/* chip = container_of(gc,struct stmpe1601_chip, gpio_chip); */
+	/* printk("Interrupt from STMPE1601 @ GPIO %d\n", irq); */
 	schedule_work(&chip->work);
 
 	return IRQ_HANDLED;
@@ -387,11 +387,10 @@ static irqreturn_t stmpe1601_intr_handler(int irq, void *_chip)
  *
  * This is a work queue scheduled from the interrupt handler. This funtion
  * reads from the ISR and finds out the source of interrupt. At the moment
- * the handler handles only GPIO interrupts & keypad interrupt.
- * Once it figures out the interrupt
- * is from GPIO/Keypad, a subsequent read is performed on isgpior register to find
- * out the gpio number which triggered the interrupt. This funtion also clears
- * the interrupt after handling.
+ * the handler handles only GPIO interrupts & keypad interrupt. Once it
+ * figures out the interrupt is from GPIO/Keypad, a subsequent read is performed
+ * on isgpior register to find out the gpio number which triggered the
+ * interrupt. This funtion also clears the interrupt after handling.
  **/
 static void stmpe1601_work(struct work_struct *_chip)
 {
@@ -417,10 +416,12 @@ static void stmpe1601_work(struct work_struct *_chip)
 		printk("\n Work queue: Keypad interrupt");
 		*/
 		if (the_stmpe1601->handlers[KEYPAD_INT])
-					(the_stmpe1601->handlers[KEYPAD_INT])(the_stmpe1601->data[KEYPAD_INT]);
+			(the_stmpe1601->handlers[KEYPAD_INT])(the_stmpe1601->\
+							      data[KEYPAD_INT]);
 	}
-	if(!(isr & KPD_OVERRUN_INT_MASK) && !(isr & KPD_INT_MASK)){
-		printk(KERN_ERR "\n STMPE1601 : stray interrupt ISR reg = %x", isr);
+	if (!(isr & KPD_OVERRUN_INT_MASK) && !(isr & KPD_INT_MASK)) {
+		printk(KERN_ERR "\n STMPE1601 : stray interrupt ISR reg = %x",
+			isr);
 		/* clear all iterrupts in that case
 		*/
 		stmpe1601_write_byte(chip, ISR_Msb_Index, 0x1);
@@ -435,8 +436,8 @@ static void stmpe1601_work(struct work_struct *_chip)
  * @id:		pointer to the i2c device id table
  *
  * This funtion is called during the kernel boot. This set up the stmpe1601
- * in a predictable state and attaches the stmpe to the gpio library structure
- * and set up the i2c client information
+ * in a predictable state and attaches the stmpe to the gpio library
+ * structure and set up the i2c client information
  **/
 static int stmpe1601_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
@@ -451,7 +452,7 @@ static int stmpe1601_probe(struct i2c_client *client,
 		return -ENOMEM;
 	chip->client = client;
 
-	chip->gpio_start = pdata->gpio_base;	/*268 + 24*/
+	chip->gpio_start = pdata->gpio_base;	/* 268 + 24 */
 
 	/* setup the gpio chip structure
 	 */
@@ -469,15 +470,17 @@ static int stmpe1601_probe(struct i2c_client *client,
 
 	INIT_WORK(&chip->work, stmpe1601_work);
 
-	/*issue soft reset to the device */
+	/* issue soft reset to the device
+	 */
 	stmpe1601_write_byte(chip, SYSCON_Index, 0x80);
 
-        /*read the chip id and version id and exit in case of any error*/
-        ret =  stmpe1601_read_info();
-	if(ret)
+	/* read the chip id and version id and exit in case of any error
+	 */
+	ret =  stmpe1601_read_info();
+	if (ret)
 		goto out_failed;
 
-#if defined (CONFIG_MACH_U8500_MOP)
+#if defined(CONFIG_MACH_U8500_MOP)
 	/* setup the default keypad configuration for this platform
 	 * This may vary depending on the platform chosen
 	 */
@@ -508,60 +511,67 @@ static int stmpe1601_probe(struct i2c_client *client,
 	stmpe1601_write_byte(chip, GPRER_Lsb_Index, 0x0);
 
 
-	/* Enable only the keypad to trigger the interrupt,
-	 * disable the keypad interrupt mask, to be enabled later by keypad driver.
+	/* Enable only the keypad to trigger the interrupt, disable the
+	 * keypad interrupt mask, to be enabled later by keypad driver.
 	 * 0x6 to enable keypad interrupt and overrun interrupt
 	 */
-	stmpe1601_write_byte(chip, IER_Lsb_Index, 0x0 /*(KPD_INT_MASK | KPD_OVERRUN_INT_MASK)*/);
+	stmpe1601_write_byte(chip, IER_Lsb_Index, 0x0
+			     /*(KPD_INT_MASK | KPD_OVERRUN_INT_MASK)*/);
 
-	/**
-	* Empty FIFO by reading all data bytes
+	/* Empty FIFO by reading all data bytes
 	*/
-	ret = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index,buf, 5);
-	ret = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index,buf, 5);
+	ret = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index, buf, 5);
+	ret = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index, buf, 5);
 
 	ret =
 	    request_irq(pdata->irq, stmpe1601_intr_handler,
 			IRQF_TRIGGER_FALLING, "stmpe1601", chip);
 	if (ret) {
 		printk(KERN_ERR
-			"unable to request for the irq %d\n", GPIO_TO_IRQ(STMPE16010_INTR)); /*218*/
+			"unable to request for the irq %d\n",
+			GPIO_TO_IRQ(STMPE16010_INTR)); /* 218 */
 		gpio_free(pdata->irq);
 		return ret;
 	}
 
 	/**
-	* Need to enable internal pull up of GPIO PIN 218, required for STMPE1601 INT
-	*/
+	 * Need to enable internal pull up of GPIO PIN 218, required for
+	 * STMPE1601 INT
+	 */
 
 	/**
-	*  This does not work as the GPIO pin is already configured as IRQ, return busy
-	* gpio_set_value(STMPE16010_INTR, GPIO_HIGH);
+	*  This does not work as the GPIO pin is already configured as IRQ,
+	*  return busy gpio_set_value(STMPE16010_INTR, GPIO_HIGH);
 
 	gpio_set_value(STMPE16010_INTR, GPIO_PULLUP_EN);
 	gpio_set_value(STMPE16010_INTR, GPIO_HIGH);
 	*/
 
 	#if 1
-	/*HACK ... to be removed later - FIXME*/
+	/* HACK ... to be removed later - FIXME
+	 */
 	volatile unsigned int *gpio_base_address;
-	gpio_base_address = (unsigned int *)ioremap(0x8011E000,0x8011EFFC-0x8011E000 + 1);
-	/*Now set bit 26 of the GPIO_DAT register to enable pull up for GPIO218*/
+	gpio_base_address = (unsigned int *)ioremap(0x8011E000,
+						    0x8011EFFC-0x8011E000 + 1);
+	/* Now set bit 26 of the GPIO_DAT register to enable pull up for GPIO218
+	 */
 	*gpio_base_address = (*gpio_base_address) | 0x4000000;
 	iounmap(gpio_base_address);
 	gpio_base_address = NULL;
 	#endif
 
-         /* configure the Interrupt controller to trigger
-        * interrupt on falling edge & enable the global interrupt
-        * mask which allows host to trigger the interrupt.
-        */
-        stmpe1601_write_byte(chip, ICR_Lsb_Index, 0x3); /*Falling edge sensitive irq*/
 	/**
-        * clear all interrupts
-        */
-        stmpe1601_write_byte(chip, ISR_Msb_Index, 0x1);
-        stmpe1601_write_byte(chip, ISR_Lsb_Index, 0xFF);
+	 * configure the Interrupt controller to trigger
+	 * interrupt on falling edge & enable the global interrupt
+	 * mask which allows host to trigger the interrupt.
+	 */
+	stmpe1601_write_byte(chip, ICR_Lsb_Index, 0x3);
+	/* Falling edge sensitive irq */
+	/**
+	* clear all interrupts
+	*/
+	stmpe1601_write_byte(chip, ISR_Msb_Index, 0x1);
+	stmpe1601_write_byte(chip, ISR_Lsb_Index, 0xFF);
 
 #endif
 	return 0;
@@ -577,7 +587,6 @@ out_failed:
  * @kpconfig:    keypad configuration for a platform
  * This function configures keypad control registers of stmpe1601
  * The keypad driver should call this function to configure keypad matrix
- *
  **/
 int stmpe1601_keypad_init(t_stmpe1601_key_config  kpconfig)
 {
@@ -589,7 +598,7 @@ int stmpe1601_keypad_init(t_stmpe1601_key_config  kpconfig)
 	* settings verification max 8 columns & max 8
 	* rows, max debounce time & cycle count
 	*/
-	if((kpconfig.columns > 0x00FF) || (kpconfig.rows > 0x00FF)
+	if ((kpconfig.columns > 0x00FF) || (kpconfig.rows > 0x00FF)
 	|| (kpconfig.ncycles > 15) || (kpconfig.debounce > 127)) {
 		return -1;
 		/*
@@ -602,54 +611,59 @@ int stmpe1601_keypad_init(t_stmpe1601_key_config  kpconfig)
 	* columns 0-7 are connected to gpio 0-7
 	* rows 0-7 are connected to gpio 8-15
 	*/
-	temp_row =0x0; temp_col = 0x0;
-	for(i=0; i<8; i++ ){
-		if((kpconfig.columns & (1<<i)) != 0){
-			temp_col |= (0x01<<(i*2));
-		}
-		if((kpconfig.rows & (1<<i)) != 0){
-			temp_row |= (0x01<<(i*2));
-		}
+	temp_row = 0x0; temp_col = 0x0;
+	for (i = 0; i < 8; i++) {
+		if ((kpconfig.columns & (1 << i)) != 0)
+			temp_col |= (0x01 << (i*2));
+		if ((kpconfig.rows & (1 << i)) != 0)
+			temp_row |= (0x01 << (i*2));
 	}
 	mutex_lock(&the_stmpe1601->lock);
-	stmpe1601_write_byte(the_stmpe1601, GPAFR_L_Lsb_Index, temp_col & 0xFF);
-	stmpe1601_write_byte(the_stmpe1601, GPAFR_L_Msb_Index, (temp_col >> 8) & 0xFF);
+	stmpe1601_write_byte(the_stmpe1601, GPAFR_L_Lsb_Index,
+			     temp_col & 0xFF);
+	stmpe1601_write_byte(the_stmpe1601, GPAFR_L_Msb_Index,
+			     (temp_col >> 8) & 0xFF);
 
-	stmpe1601_write_byte(the_stmpe1601, GPAFR_U_Lsb_Index, temp_row & 0xFF);
-	stmpe1601_write_byte(the_stmpe1601, GPAFR_U_Msb_Index, (temp_row >> 8) & 0xFF);
+	stmpe1601_write_byte(the_stmpe1601, GPAFR_U_Lsb_Index,
+			     temp_row & 0xFF);
+	stmpe1601_write_byte(the_stmpe1601, GPAFR_U_Msb_Index,
+			     (temp_row >> 8) & 0xFF);
 	/*
 	* configure scan on/off
 	*/
 	stmpe1601_read_byte(the_stmpe1601, KPC_CTRL_Lsb_Index, &reg_val);
-	if(kpconfig.scan==1)
-		reg_val |=0x1;
+	if (kpconfig.scan == 1)
+		reg_val |= 0x1;
 	else
-		reg_val &=~0x1;
+		reg_val &= ~0x1;
 
 	stmpe1601_write_byte(the_stmpe1601, KPC_CTRL_Lsb_Index, reg_val);
 
 	/*
 	* configure individual row/column scan
 	*/
-	stmpe1601_write_byte(the_stmpe1601,KPC_COL_Index,(kpconfig.columns & 0xFF)); /*columns reg*/
-	stmpe1601_write_byte(the_stmpe1601,KPC_ROW_Lsb_Index,(kpconfig.rows & 0xFF)); /*row reg*/
+	stmpe1601_write_byte(the_stmpe1601, KPC_COL_Index,
+			     (kpconfig.columns & 0xFF)); /* columns reg */
+	stmpe1601_write_byte(the_stmpe1601, KPC_ROW_Lsb_Index,
+			     (kpconfig.rows & 0xFF)); /* row reg */
 
-        /**
+	/**
 	* configure ctrl reg msb, scan count
 	*/
-        stmpe1601_read_byte(the_stmpe1601, KPC_CTRL_Msb_Index, &reg_val);
-        reg_val &=0x0F;
-        reg_val |= (kpconfig.ncycles << 4) & 0xF0;
-        retval |= stmpe1601_write_byte(the_stmpe1601,KPC_CTRL_Msb_Index,reg_val);
-        /**
-        * configure ctrl reg lsb, debounce time
-        */
-        stmpe1601_write_byte(the_stmpe1601,KPC_CTRL_Lsb_Index,((kpconfig.debounce << 1) & 0xFE));
-        mutex_unlock(&the_stmpe1601->lock);
+	stmpe1601_read_byte(the_stmpe1601, KPC_CTRL_Msb_Index, &reg_val);
+	reg_val &= 0x0F;
+	reg_val |= (kpconfig.ncycles << 4) & 0xF0;
+	retval |= stmpe1601_write_byte(the_stmpe1601, KPC_CTRL_Msb_Index,
+				       reg_val);
+	/**
+	 * configure ctrl reg lsb, debounce time
+	 */
+	stmpe1601_write_byte(the_stmpe1601, KPC_CTRL_Lsb_Index,
+			     ((kpconfig.debounce << 1) & 0xFE));
+	mutex_unlock(&the_stmpe1601->lock);
 
 	return 0;
 }
-
 EXPORT_SYMBOL(stmpe1601_keypad_init);
 
 /**
@@ -667,28 +681,26 @@ int stmpe1601_keypad_scan(unsigned char status)
 	 */
 	stmpe1601_read_byte(the_stmpe1601, KPC_CTRL_Lsb_Index, &tempByte);
 
-	switch(status)
-	{
-		case STMPE1601_SCAN_ON:
-			tempByte |=  1;
-			break;
-		case STMPE1601_SCAN_OFF:
-			tempByte &=~ 1;
-			break;
-		default :
-			/**
-			 * TO DO return proper err code
-			 */
-			retval = -1;
-			break;
+	switch (status)	{
+	case STMPE1601_SCAN_ON:
+		tempByte |=  1;
+		break;
+	case STMPE1601_SCAN_OFF:
+		tempByte &= ~1;
+		break;
+	default:
+		/**
+		 * TO DO return proper err code
+		 */
+		retval = -1;
+		break;
 	};
 
-	if(retval == 0){
-		stmpe1601_write_byte(the_stmpe1601, KPC_CTRL_Lsb_Index, tempByte);
-	}
+	if (retval == 0)
+		stmpe1601_write_byte(the_stmpe1601, KPC_CTRL_Lsb_Index,
+				     tempByte);
 	return retval;
 }
-
 EXPORT_SYMBOL(stmpe1601_keypad_scan);
 
 /**
@@ -700,35 +712,36 @@ int stmpe1601_keypressed(t_stmpe1601_key_status *keys)
 {
 	int retval = 0;
 	static unsigned char tempBuffer[5];
-	int i=0;
-	/*
-	* check for NULL argument
-	*/
-	if(!keys)
+	int i = 0;
+	/** check for NULL argument
+	 */
+	if (!keys)
 		return -EINVAL;
 
 	keys->button_pressed = 0;
 	keys->button_released = 0;
 
-	retval = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index,tempBuffer, 5);
-	for(i=0;i<2; i++){
-		if((tempBuffer[i] & STMPE1601_MASK_NO_KEY) != STMPE1601_MASK_NO_KEY)
-		{
-			if((tempBuffer[i] & 0x80) == 0)
-			{
-				keys->button[keys->button_pressed] = tempBuffer[i] & 0x7F;
+	retval = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index,
+				tempBuffer, 5);
+	for (i = 0; i < 2; i++) {
+		if ((tempBuffer[i] & STMPE1601_MASK_NO_KEY) !=
+						    STMPE1601_MASK_NO_KEY) {
+			if ((tempBuffer[i] & 0x80) == 0) {
+				keys->button[keys->button_pressed] =
+				    tempBuffer[i] & 0x7F;
 				keys->button_pressed++;
 				/*
-				printk("\n button[%d]=[%d, %d] --- DOWN ",keys->button_pressed, (tempBuffer[i]>>3)& 0x7,
-				tempBuffer[i] & 0x7 );
-				*/
-			}
-			else
-			{
-				keys->released[keys->button_released] = tempBuffer[i] & 0x7F;
+				 printk("\n button[%d]=[%d, %d] --- DOWN ",
+				 keys->button_pressed, (tempBuffer[i] >> 3)\
+				 & 0x7, tempBuffer[i] & 0x7 );
+				 */
+			} else {
+				keys->released[keys->button_released] =
+				    tempBuffer[i] & 0x7F;
 				keys->button_released++;
 				/*
-				printk("\n released[%d]=[%d, %d] --- UP ",keys->button_released, (tempBuffer[i]>>3)& 0x7,
+				printk("\n released[%d]=[%d, %d] --- UP ",
+				keys->button_released, (tempBuffer[i]>>3)& 0x7,
 				tempBuffer[i] & 0x7 );
 				*/
 			}
@@ -738,11 +751,11 @@ int stmpe1601_keypressed(t_stmpe1601_key_status *keys)
 
 	/*
 	if(keys->button_pressed || keys->button_released)
-		printk("\nKey pressed = %d, released = %d\n",keys->button_pressed, keys->button_released);
+		printk("\nKey pressed = %d, released = %d\n",
+		keys->button_pressed, keys->button_released);
 
-	for(i=0;i<5; i++){
-	printk("Key[%d]=%x  ",i, tempBuffer[i]);
-	}
+	for( i = 0; i < 5; i++)
+	    printk("Key[%d]=%x  ",i, tempBuffer[i]);
 	printk("\n\n");
 	*/
 
@@ -763,18 +776,20 @@ EXPORT_SYMBOL(stmpe1601_keypressed);
 int stmpe1601_read_info()
 {
 	unsigned char chip_id, version_id;
-	/*read the chip id and version id */
-	if(!the_stmpe1601) /*STMPE1601 probe failed*/
+	/* read the chip id and version id */
+	if (!the_stmpe1601) /* STMPE1601 probe failed */
 		return -EIO;
 	stmpe1601_read_byte(the_stmpe1601, CHIP_ID_Index, &chip_id);
 	stmpe1601_read_byte(the_stmpe1601, VERSION_ID_Index, &version_id);
-	if((chip_id!=0x2) || (version_id!=0x12)){
+	if ((chip_id != 0x2) || (version_id != 0x12)) {
 		printk(KERN_ERR
-			"stmpe1601: Incorrect chip id:%x version id:%x\n",chip_id, version_id);
+			"stmpe1601: Incorrect chip id:%x version id:%x\n",
+			chip_id, version_id);
 		return -EIO;
 	} else {
 		printk(KERN_INFO
-		       "stmpe1601 gpio expander: chip id: %x, version id:%x\n", chip_id, version_id);
+		       "stmpe1601 gpio expander: chip id: %x, version id:%x\n",
+			chip_id, version_id);
 	}
 	return 0;
 }
@@ -788,8 +803,8 @@ int stmpe1601_irqen(int irq)
 {
 	int ret = 0;
 	unsigned char buf[5];
-	if(irq==KEYPAD_INT) {
-		/*printk(">> stmpe1601_irqen");*/
+	if (irq == KEYPAD_INT) {
+		/* printk(">> stmpe1601_irqen"); */
 		mutex_lock(&the_stmpe1601->lock);
 		/**
 		 * enable keypad interrupt mask
@@ -797,10 +812,15 @@ int stmpe1601_irqen(int irq)
 		/**
 		* Empty FIFO by reading all data bytes
 		*/
-		ret = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index,buf, 5);
-		stmpe1601_write_byte(the_stmpe1601, ISR_Lsb_Index, (KPD_INT_MASK | KPD_OVERRUN_INT_MASK));
-		stmpe1601_write_byte(the_stmpe1601, IER_Lsb_Index, (KPD_INT_MASK | KPD_OVERRUN_INT_MASK));
-		stmpe1601_write_byte(the_stmpe1601, ICR_Lsb_Index, 0x3); /*Falling edge sensitive irq*/
+		ret = stmpe1601_read(the_stmpe1601, KPC_DATA_BYTE0_Index,
+				     buf, 5);
+		stmpe1601_write_byte(the_stmpe1601, ISR_Lsb_Index,
+				     (KPD_INT_MASK | KPD_OVERRUN_INT_MASK));
+		stmpe1601_write_byte(the_stmpe1601, IER_Lsb_Index,
+				     (KPD_INT_MASK | KPD_OVERRUN_INT_MASK));
+		stmpe1601_write_byte(the_stmpe1601, ICR_Lsb_Index, 0x3);
+		/* Falling edge sensitive irq
+		 */
 		mutex_unlock(&the_stmpe1601->lock);
 
 	}
@@ -815,8 +835,8 @@ EXPORT_SYMBOL(stmpe1601_irqen);
 int stmpe1601_irqdis(int irq)
 {
 	unsigned char intr = 0;
-	if(irq==KEYPAD_INT) {
-		/*printk(">> stmpe1601_irdis");*/
+	if (irq == KEYPAD_INT) {
+		/* printk(">> stmpe1601_irdis"); */
 		mutex_lock(&the_stmpe1601->lock);
 		/**
 		 * disable keypad interrupt mask
@@ -832,10 +852,11 @@ EXPORT_SYMBOL(stmpe1601_irqdis);
 
 static int __exit stmpe1601_remove(struct i2c_client *client)
 {
-        struct stmpe1601_platform_data *pdata = client->dev.platform_data;
-	/*TODO- implement the teardown, gpiochip_remove */
+	struct stmpe1601_platform_data *pdata = client->dev.platform_data;
+	/* TODO- implement the teardown, gpiochip_remove
+	 */
 	gpio_free(pdata->irq);
-	i2c_set_clientdata(client,NULL);
+	i2c_set_clientdata(client, NULL);
 	return 0;
 }
 
@@ -871,3 +892,4 @@ module_exit(stmpe1601_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("jayeeta banerjee");
 MODULE_DESCRIPTION("stmpe1601 driver for Nomadik Platform");
+

@@ -17,7 +17,7 @@
  * <VERSION>v1.0.0
  *-------------------------------------------------------------------------
  */
-/*----------------------------------------------------------------------------------*/
+/*------------------------------i-----------------------------------------*/
 
 
 /*
@@ -43,8 +43,9 @@
 #define MCI_DIREN_DAT74		(1<<8)
 #define MCI_DIREN_1BIT		(MCI_DIREN_CMD|MCI_DIREN_DAT0)
 #define MCI_DIREN_4BIT		(MCI_DIREN_CMD|MCI_DIREN_DAT0|MCI_DIREN_DAT31)
-/*#define MCI_DIREN_8BIT		(MCI_DIREN_CMD|MCI_DIREN_DAT0|MCI_DIREN_DAT31)*/
-#define MCI_DIREN_BIT		(MCI_DIREN_CMD|MCI_DIREN_DAT0|MCI_DIREN_DAT31|MCI_DIREN_DAT2|MCI_DIREN_DAT74)
+/* #define MCI_DIREN_8BIT	(MCI_DIREN_CMD|MCI_DIREN_DAT0|MCI_DIREN_DAT31)*/
+#define MCI_DIREN_BIT		(MCI_DIREN_CMD|MCI_DIREN_DAT0|MCI_DIREN_DAT31|\
+				 MCI_DIREN_DAT2|MCI_DIREN_DAT74)
 /*
  * SDI Clock register offset
  */
@@ -203,17 +204,19 @@
 #define MMCIFIFO		0x080	/* to 0x0bc */
 
 #define MCI_DATA_ERR	\
-			(MCI_RXOVERRUN | MCI_TXUNDERRUN | MCI_DATATIMEOUT | MCI_DATACRCFAIL | \
-				MCI_STBITERR)
+			(MCI_RXOVERRUN | MCI_TXUNDERRUN | MCI_DATATIMEOUT | \
+			 MCI_DATACRCFAIL | MCI_STBITERR)
 #define MCI_IRQENABLE	\
-			(MCI_CMDCRCFAIL | MCI_DATACRCFAIL | MCI_CMDTIMEOUT |    \
-				MCI_DATATIMEOUT | MCI_TXUNDERRUN | MCI_RXOVERRUN |     \
-					MCI_CMDRESPEND | MCI_CMDSENT | MCI_DATABLOCKEND)
+			(MCI_CMDCRCFAIL | MCI_DATACRCFAIL | MCI_CMDTIMEOUT | \
+			 MCI_DATATIMEOUT | MCI_TXUNDERRUN | MCI_RXOVERRUN | \
+			 MCI_CMDRESPEND | MCI_CMDSENT | MCI_DATABLOCKEND)
 #define MCI_DATA_IRQ (MCI_DATA_ERR | MCI_DATAEND)
 #define MCI_XFER_IRQ_MASK \
-			(MCI_TXFIFOEMPTY | MCI_TXFIFOHALFEMPTY | MCI_RXFIFOHALFFULL | MCI_RXDATAAVLBL)
+			(MCI_TXFIFOEMPTY | MCI_TXFIFOHALFEMPTY | \
+			 MCI_RXFIFOHALFFULL | MCI_RXDATAAVLBL)
 #define MCI_CMD_IRQ \
-			(MCI_CMDCRCFAIL | MCI_CMDTIMEOUT | MCI_CMDRESPEND | MCI_CMDSENT)
+			(MCI_CMDCRCFAIL | MCI_CMDTIMEOUT | MCI_CMDRESPEND | \
+			 MCI_CMDSENT)
 #define MCI_XFER_IRQ \
 			(MCI_TXFIFOHALFEMPTY | MCI_RXFIFOHALFFULL)
 
@@ -226,7 +229,8 @@
 
 #define OCR_AVAIL	(MMC_VDD_17_18 | MMC_VDD_18_19 | \
 			/*MMC_VDD_28_29 |*/ \
-			MMC_VDD_29_30 | MMC_VDD_30_31 | MMC_VDD_32_33 | MMC_VDD_33_34)
+			MMC_VDD_29_30 | MMC_VDD_30_31 | MMC_VDD_32_33 | \
+			 MMC_VDD_33_34)
 #define INVALID_PIPEID	(-1)
 
 /**
@@ -323,8 +327,8 @@ struct mmc_board {
 	unsigned int dma_fifo_dev_type_rx;
 	unsigned int dma_fifo_dev_type_tx;
 	unsigned int level_shifter;
-	unsigned long	caps;		/* Host capabilities */
-	int is_sdio;			/*To check if the bus is SD/MMC or sdio*/
+	unsigned long	caps;	/* Host capabilities */
+	int is_sdio;		/* To check if the bus is SD/MMC or sdio */
 };
 
 

@@ -1,22 +1,11 @@
-/*----------------------------------------------------------------------------------*/
-/*  copyright STMicroelectronics, 2007.                                             */
-/* Copyright (C)ST-Ericsson, 2009 						    */
-/*                                                                                  */
-/* This program is free software; you can redistribute it and/or modify it under    */
-/* the terms of the GNU General Public License as published by the Free	            */
-/* Software Foundation; either version 2.1 of the License, or (at your option)      */
-/* any later version.                                                               */
-/*                                                                                  */
-/* This program is distributed in the hope that it will be useful, but WITHOUT      */
-/* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    */
-/* FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.   */
-/*                                                                                  */
-/* You should have received a copy of the GNU General Public License                */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.             */
-/*----------------------------------------------------------------------------------*/
-
-
-
+/*
+ * Copyright STMicroelectronics, 2009.
+ * Copyright (C) 2009 ST-Ericsson.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License
+ */
 
 #ifndef __U8500_KPD_H
 #define __U8500_KPD_H
@@ -45,10 +34,13 @@ struct keypad_t;
  * platform data for keypad driver
  * @init:		pointer to keypad init function
  * @exit:		pointer to keypad deinitialisation function
- * @autoscan_check:	pointer to read autoscan status function , not used currently
- * @autoscan_disable:	pointer to autoscan feature disable function, not used currently
+ * @autoscan_check:	pointer to read autoscan status function, not used
+ *			currently
+ * @autoscan_disable:	pointer to autoscan feature disable function,
+ *			not used currently
  * @autoscan_results:	pointer to read autoscan results function
- * @autoscan_en:	pointer to enable autoscan feature function, not used currently
+ * @autoscan_en:	pointer to enable autoscan feature function, not used
+ *			currently
  * @irqen:		pointer to enable irq function
  * @irqdis:		pointer to disable irq function
  * @kcode_tbl:		lookup table for keycodes
@@ -73,7 +65,8 @@ struct keypad_device {
 	u8 	*kcode_tbl;
 	u8 	krow;
 	u8 	kcol;
-	int 	(*irqdis_int)(struct keypad_t *kp); /* func used wen disable in interrupt handler */
+	int 	(*irqdis_int)(struct keypad_t *kp);
+	/* func used wen disable in interrupt handler */
 	u8 	debounce_period;
 	unsigned long	irqtype;
 	u8	irq; /*IRQ no*/
@@ -107,8 +100,8 @@ struct keypad_t {
  * @KP_INT_DISABLED:	interrupt disabled
  * @KP_INT_ENABLED:	interrupt enabled
  */
-enum kp_int_status{
-	KP_INT_DISABLED=0,
+enum kp_int_status {
+	KP_INT_DISABLED = 0,
 	KP_INT_ENABLED,
 };
 /**
@@ -117,7 +110,7 @@ enum kp_int_status{
  * @INT_LINE_SET: 	IRQ asserted
  */
 enum kp_int_line_behaviour {
-	INT_LINE_NOTSET=0,
+	INT_LINE_NOTSET = 0,
 	INT_LINE_SET,
 };
 #endif	/*__U8500_KPD_H*/

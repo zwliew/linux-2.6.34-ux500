@@ -34,9 +34,8 @@
 #include <linux/workqueue.h>
 #include <linux/wait.h>
 #include <linux/completion.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <mach/hardware.h>
-//#include <mach/defs.h>
 #include <mach/debug.h>
 #include <mach/kpd.h>
 
@@ -53,7 +52,7 @@ static void u8500_kp_wq_kscan(struct work_struct *work);
  * 0 = to initialize driver in Interrupt mode (default mode)
  * 1 = to Intialize driver in polling mode of operation
  */
-int kpmode = 0;
+int kpmode;
 module_param(kpmode, int, 0);
 MODULE_PARM_DESC(kpmode, "Keypad Operating mode (INT/POLL)=(0/1)");
 
@@ -69,13 +68,13 @@ irqreturn_t u8500_kp_intrhandler(/*int irq, */void *dev_id)
 	struct keypad_t *kp = (struct keypad_t *)dev_id;
 	/*if (irq != kp->irq) return IRQ_NONE;*/
 	if (!(test_bit(KPINTR_LKBIT, &kp->lockbits))) {
-		stm_dbg2(DBG_ST.keypad,"Kp interrupt");
+		stm_dbg2(DBG_ST.keypad, "Kp interrupt");
 		____atomic_set_bit(KPINTR_LKBIT, &kp->lockbits);
 
-		if(kp->board->irqdis_int)
-		{	kp->board->irqdis_int(kp);
-		}
-		//schedule_delayed_work(&kp->kscan_work, kp->board->debounce_period);
+		if (kp->board->irqdis_int)
+			kp->board->irqdis_int(kp);
+		/* schedule_delayed_work(&kp->kscan_work,
+					    kp->board->debounce_period); */
 		schedule_work(&kp->kscan_work);
 	}
 	return IRQ_HANDLED;
@@ -94,29 +93,28 @@ EXPORT_SYMBOL(u8500_kp_intrhandler);
 static void u8500_kp_wq_kscan(struct work_struct *work)
 {
 	int key_cnt = 0;
-	struct keypad_t *kp = container_of((struct delayed_work *)work, struct keypad_t, kscan_work);
+	struct keypad_t *kp = container_of((struct delayed_work *)work,
+					   struct keypad_t, kscan_work);
 
-        if (!kp->mode && kp->board->irqdis)
+	if (!kp->mode && kp->board->irqdis)
 		kp->board->irqdis(kp);
-	if (kp->board->autoscan_results) {
+	if (kp->board->autoscan_results)
 		key_cnt = kp->board->autoscan_results(kp);
-	}
 	else
 		printk(KERN_ERR"key scan function not found");
 
-	if (kp->mode){
+	if (kp->mode) {
 		if (0 == key_cnt) {
 			/*if no key is pressed and polling mode */
 			schedule_delayed_work(&kp->kscan_work,
 					      KEYPAD_SCAN_PERIOD);
-		}
-		else {
+		} else {
 			/*if key is pressed and hold condition */
 			printk("Work queue: pressed and hold\n");
-			schedule_delayed_work(&kp->kscan_work, KEYPAD_RELEASE_PERIOD);
+			schedule_delayed_work(&kp->kscan_work,
+					      KEYPAD_RELEASE_PERIOD);
 		}
-	}
-	else {
+	} else {
 		/**
 		 * if interrupt mode then just enable iterrupt and return
 		*/
@@ -139,13 +137,10 @@ int __init u8500_kp_init_keypad(struct keypad_t *kp)
 	int row, column, err = 0;
 	u8 *p_kcode = kp->board->kcode_tbl;
 
-
-
-	if (kp->board->init) {
+	if (kp->board->init)
 		err = kp->board->init(kp);
-	}
 	if (err)
-		return (err);
+		return err;
 
 	for (row = 0; row < MAX_KPROW; row++) {
 		for (column = 0; column < MAX_KPCOL; column++) {
@@ -156,7 +151,7 @@ int __init u8500_kp_init_keypad(struct keypad_t *kp)
 			p_kcode++;
 		}
 	}
-	return (err);
+	return err;
 }
 
 #ifdef CONFIG_PM
@@ -168,13 +163,12 @@ int __init u8500_kp_init_keypad(struct keypad_t *kp)
 int u8500_kp_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct keypad_t *kp = platform_get_drvdata(pdev);
-	if ( kpmode ) {
-		printk("Enabling interrupt \n");
-
+	if (kpmode) {
+		printk(KERN_INFO "Enabling interrupt \n");
 		kp->board->irqen(kp);
 	}
-	if ( !device_may_wakeup(&pdev->dev) )
-	{	printk("Disabling interrupt\n");
+	if (!device_may_wakeup(&pdev->dev)) {
+		printk(KERN_INFO "Disabling interrupt\n");
 		if (kp->board->irqdis)
 			kp->board->irqdis(kp);
 		if (kp->board->irqdis_int)
@@ -190,15 +184,15 @@ int u8500_kp_suspend(struct platform_device *pdev, pm_message_t state)
 
 int u8500_kp_resume(struct platform_device *pdev)
 {	struct keypad_t *kp = platform_get_drvdata(pdev);
-	if ( kpmode )
-	{	printk("Disabling interrupt\n");
-		if(kp->board->irqdis)
+	if (kpmode) {
+		printk(KERN_INFO "Disabling interrupt\n");
+		if (kp->board->irqdis)
 			kp->board->irqdis(kp);
 		if (kp->board->irqdis_int)
 			kp->board->irqdis_int(kp);
 	}
-	if ( !device_may_wakeup(&pdev->dev) )
-	{	printk("Enabling interrupt\n");
+	if (!device_may_wakeup(&pdev->dev)) {
+		printk(KERN_INFO "Enabling interrupt\n");
 		kp->board->irqen(kp);
 	}
 	return 0;
@@ -223,9 +217,9 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 	struct keypad_t *kp;
 	int err = 0;
 	struct keypad_device *keypad_board;
-	printk("\nkeypad probe called");
+	printk(KERN_INFO "\nkeypad probe called");
 
-	if(!pdev)
+	if (!pdev)
 		return -EINVAL;
 	keypad_board = pdev->dev.platform_data;
 	kp = kzalloc(sizeof(struct keypad_t), GFP_KERNEL);
@@ -264,14 +258,13 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 
 	kp->inp_dev->id.product = KEYPAD_VER_X;
 	kp->inp_dev->id.version = KEYPAD_VER_Y * 0x0ff + KEYPAD_VER_Z;
-//	kp->inp_dev->private = kp;
+	/* kp->inp_dev->private = kp; */
 
 	clear_bit(KPINTR_LKBIT, &kp->lockbits);
 
 	err = u8500_kp_init_keypad(kp);
-	if (err) {
+	if (err)
 		goto err_init_kpd;
-	}
 	printk("\nkp_probe 4");
 
 	if (input_register_device(kp->inp_dev) < 0) {
@@ -289,11 +282,12 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 	/* Initialize keypad interrupt handler  */
 	if (!kp->mode) {	/* true if interrupt mode operation */
 #if 0
-		err = request_irq(kp->irq, u8500_kp_intrhandler,kp->board->irqtype, kp->inp_dev->name, kp);
+		err = request_irq(kp->irq, u8500_kp_intrhandler,
+				  kp->board->irqtype, kp->inp_dev->name, kp);
 		if (err) {
 			stm_error("Could not allocate irq %d for keypad",
 				   kp->irq);
-			printk("ERROR = %d\n",err);
+			printk(KERN_ERR "ERROR = %d\n", err);
 			goto err_req_irq;
 		}
 		kp->board->irqen(kp);
@@ -301,7 +295,7 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 #endif
 	} else {
 		/* Schedule workqueue for polling mode operaion. */
-		//kp->board->autoscan_en();
+		/* kp->board->autoscan_en(); */
 		schedule_delayed_work(&kp->kscan_work, KEYPAD_SCAN_PERIOD);
 		printk(KERN_INFO "Keypad polling started");
 	}
@@ -310,16 +304,16 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 		 KEYPAD_VER_X, KEYPAD_VER_Y, KEYPAD_VER_Z);
 	return 0;
 
-      err_req_irq:
-      err_inp_reg:
+err_req_irq:
+err_inp_reg:
 	/* unregistering device */
 	input_unregister_device(kp->inp_dev);
-      err_inp_devalloc:
-      err_init_kpd:
+err_inp_devalloc:
+err_init_kpd:
 	input_free_device(kp->inp_dev);
-      err_board:
+err_board:
 	kfree(kp);
-      err_kzalloc:
+err_kzalloc:
 	return err;
 }
 
@@ -344,14 +338,13 @@ static int u8500_kp_remove(struct platform_device *pdev)
 #endif
 	/* cancel and flush keypad work queues if any  */
 	cancel_delayed_work(&kp->kscan_work);
-
-	cancel_delayed_work_sync(&kp->kscan_work); /* block until work struct's callback terminates */
-
+	cancel_delayed_work_sync(&kp->kscan_work);
+	/* block until work struct's callback terminates */
 	input_unregister_device(kp->inp_dev);
 	input_free_device(kp->inp_dev);
 	kfree(kp);
 	printk(KERN_INFO "Module removed....");
-	return (0);
+	return 0;
 }
 
 struct platform_driver u8500kpd_driver = {
