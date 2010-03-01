@@ -237,40 +237,40 @@ static struct clk clk_32khz = {
  */
 
 /* Bank 0 */
-static DEFINE_PRCMU_CLK(svaclk, 0x0, 2, SVAMMDSPCLK);
-static DEFINE_PRCMU_CLK(siaclk, 0x0, 3, SIAMMDSPCLK);
-static DEFINE_PRCMU_CLK(sgaclk, 0x0, 4, SGACLK);
-static DEFINE_PRCMU_CLK_RATE(uartclk, 0x0, 5, UARTCLK, 38400000);
-static DEFINE_PRCMU_CLK(msp02clk, 0x0, 6, MSP02CLK);
-static DEFINE_PRCMU_CLK(msp1clk, 0x0, 7, MSP1CLK); /* v1 */
-static DEFINE_PRCMU_CLK_RATE(i2cclk, 0x0, 8, I2CCLK, 48000000);
-static DEFINE_PRCMU_CLK_RATE(sdmmcclk, 0x0, 9, SDMMCCLK, 50000000);
-static DEFINE_PRCMU_CLK(slimclk, 0x0, 10, SLIMCLK);
-static DEFINE_PRCMU_CLK(per1clk, 0x0, 11, PER1CLK);
-static DEFINE_PRCMU_CLK(per2clk, 0x0, 12, PER2CLK);
-static DEFINE_PRCMU_CLK(per3clk, 0x0, 13, PER3CLK);
-static DEFINE_PRCMU_CLK(per5clk, 0x0, 14, PER5CLK);
-static DEFINE_PRCMU_CLK_RATE(per6clk, 0x0, 15, PER6CLK, 133330000);
-static DEFINE_PRCMU_CLK_RATE(per7clk, 0x0, 16, PER7CLK, 100000000);
-static DEFINE_PRCMU_CLK(lcdclk, 0x0, 17, LCDCLK);
-static DEFINE_PRCMU_CLK(bmlclk, 0x0, 18, BMLCLK);
-static DEFINE_PRCMU_CLK(hsitxclk, 0x0, 19, HSITXCLK);
-static DEFINE_PRCMU_CLK(hsirxclk, 0x0, 20, HSIRXCLK);
-static DEFINE_PRCMU_CLK(hdmiclk, 0x0, 21, HDMICLK);
-static DEFINE_PRCMU_CLK(apeatclk, 0x0, 22, APEATCLK);
-static DEFINE_PRCMU_CLK(apetraceclk, 0x0, 23, APETRACECLK);
-static DEFINE_PRCMU_CLK(mcdeclk, 0x0, 24, MCDECLK);
-static DEFINE_PRCMU_CLK(ipi2clk, 0x0, 25, IPI2CCLK);
-static DEFINE_PRCMU_CLK(dsialtclk, 0x0, 26, DSIALTCLK); /* v1 */
-static DEFINE_PRCMU_CLK(dmaclk, 0x0, 27, DMACLK);
-static DEFINE_PRCMU_CLK(b2r2clk, 0x0, 28, B2R2CLK);
-static DEFINE_PRCMU_CLK(tvclk, 0x0, 29, TVCLK);
-static DEFINE_PRCMU_CLK(uniproclk, 0x0, 30, UNIPROCLK); /* v1 */
-static DEFINE_PRCMU_CLK(sspclk, 0x0, 31, SSPCLK); /* v1 */
+static DEFINE_PRCMU_CLK(svaclk,		0x0, 2, SVAMMDSPCLK);
+static DEFINE_PRCMU_CLK(siaclk,		0x0, 3, SIAMMDSPCLK);
+static DEFINE_PRCMU_CLK(sgaclk,		0x0, 4, SGACLK);
+static DEFINE_PRCMU_CLK_RATE(uartclk,	0x0, 5, UARTCLK, 38400000);
+static DEFINE_PRCMU_CLK(msp02clk,	0x0, 6, MSP02CLK);
+static DEFINE_PRCMU_CLK(msp1clk,	0x0, 7, MSP1CLK); /* v1 */
+static DEFINE_PRCMU_CLK_RATE(i2cclk,	0x0, 8, I2CCLK, 48000000);
+static DEFINE_PRCMU_CLK_RATE(sdmmcclk,	0x0, 9, SDMMCCLK, 50000000);
+static DEFINE_PRCMU_CLK(slimclk,	0x0, 10, SLIMCLK);
+static DEFINE_PRCMU_CLK(per1clk,	0x0, 11, PER1CLK);
+static DEFINE_PRCMU_CLK(per2clk,	0x0, 12, PER2CLK);
+static DEFINE_PRCMU_CLK(per3clk,	0x0, 13, PER3CLK);
+static DEFINE_PRCMU_CLK(per5clk,	0x0, 14, PER5CLK);
+static DEFINE_PRCMU_CLK_RATE(per6clk,	0x0, 15, PER6CLK, 133330000);
+static DEFINE_PRCMU_CLK_RATE(per7clk,	0x0, 16, PER7CLK, 100000000);
+static DEFINE_PRCMU_CLK(lcdclk,		0x0, 17, LCDCLK);
+static DEFINE_PRCMU_CLK(bmlclk,		0x0, 18, BMLCLK);
+static DEFINE_PRCMU_CLK(hsitxclk,	0x0, 19, HSITXCLK);
+static DEFINE_PRCMU_CLK(hsirxclk,	0x0, 20, HSIRXCLK);
+static DEFINE_PRCMU_CLK(hdmiclk,	0x0, 21, HDMICLK);
+static DEFINE_PRCMU_CLK(apeatclk,	0x0, 22, APEATCLK);
+static DEFINE_PRCMU_CLK(apetraceclk,	0x0, 23, APETRACECLK);
+static DEFINE_PRCMU_CLK(mcdeclk,	0x0, 24, MCDECLK);
+static DEFINE_PRCMU_CLK(ipi2clk,	0x0, 25, IPI2CCLK);
+static DEFINE_PRCMU_CLK(dsialtclk,	0x0, 26, DSIALTCLK); /* v1 */
+static DEFINE_PRCMU_CLK(dmaclk,		0x0, 27, DMACLK);
+static DEFINE_PRCMU_CLK(b2r2clk,	0x0, 28, B2R2CLK);
+static DEFINE_PRCMU_CLK(tvclk,		0x0, 29, TVCLK);
+static DEFINE_PRCMU_CLK(uniproclk,	0x0, 30, UNIPROCLK); /* v1 */
+static DEFINE_PRCMU_CLK_RATE(sspclk,	0x0, 31, SSPCLK, 48000000); /* v1 */
 
 /* Bank 1 */
-static DEFINE_PRCMU_CLK(rngclk, 0x4, 0, RNGCLK); /* v1 */
-static DEFINE_PRCMU_CLK(uiccclk, 0x4, 1, UICCCLK); /* v1 */
+static DEFINE_PRCMU_CLK(rngclk,		0x4, 0, RNGCLK); /* v1 */
+static DEFINE_PRCMU_CLK(uiccclk,	0x4, 1, UICCCLK); /* v1 */
 
 /*
  * PRCC level clock gating
@@ -370,181 +370,174 @@ static DEFINE_PRCC_CLK(7, cfgreg_ed, 	0, -1, NULL);
 
 static struct clk_lookup u8500_common_clkregs[] = {
 	/* Peripheral Cluster #1 */
-	CLK(gpio0, "gpioblock0", NULL),
-	CLK(slimbus0, "slimbus0", NULL),
-	CLK(i2c2, "STM-I2C.2", NULL),
-	CLK(sdi0, NULL, "MMC"), /* remove */
-	CLK(sdi0, "sdi0", NULL),
-	CLK(msp0, "msp0", NULL),
-	CLK(msp0, "MSP_I2S.0", NULL),
-	CLK(i2c1, "STM-I2C.1", NULL),
-	CLK(uart1, "uart1", NULL),
-	CLK(uart0, "uart0", NULL),
+	CLK(gpio0,	"gpioblock0",	NULL),
+	CLK(slimbus0,	"slimbus0",	NULL),
+	CLK(i2c2,	"STM-I2C.2",	NULL),
+	CLK(sdi0,	"sdi0",		NULL),
+	CLK(msp0,	"msp0",		NULL),
+	CLK(msp0,	"MSP_I2S.0",	NULL),
+	CLK(i2c1,	"STM-I2C.1",	NULL),
+	CLK(uart1,	"uart1",	NULL),
+	CLK(uart0,	"uart0",	NULL),
 
 	/* Peripheral Cluster #3 */
-	CLK(gpio2, "gpioblock2", NULL),
-	CLK(sdi5, "sdi5", NULL),
-	CLK(uart2, "uart2", NULL),
-	CLK(ske, "ske", NULL),
-	CLK(sdi2, "sdi2", NULL),
-	CLK(i2c0, "STM-I2C.0", NULL),
-	CLK(fsmc, "fsmc", NULL),
+	CLK(gpio2,	"gpioblock2",	NULL),
+	CLK(sdi5,	"sdi5",		NULL),
+	CLK(uart2,	"uart2",	NULL),
+	CLK(ske,	"ske",		NULL),
+	CLK(sdi2,	"sdi2",		NULL),
+	CLK(i2c0,	"STM-I2C.0",	NULL),
+	CLK(fsmc,	"fsmc",		NULL),
 
 	/* Peripheral Cluster #5 */
-	CLK(gpio3, "gpioblock3", NULL),
+	CLK(gpio3,	"gpioblock3",	NULL),
 
 	/* Peripheral Cluster #6 */
-	CLK(hash1, "hash1", NULL),
-	CLK(pka, "pka", NULL),
-	CLK(hash0, "hash0", NULL),
-	CLK(cryp0, "cryp0", NULL),
+	CLK(hash1,	"hash1",	NULL),
+	CLK(pka,	"pka",		NULL),
+	CLK(hash0,	"hash0",	NULL),
+	CLK(cryp0,	"cryp0",	NULL),
 
-	/*
-	 * PRCMU level clock gating
-	 */
+	/* PRCMU level clock gating */
 
 	/* Bank 0 */
-	CLK(svaclk, "sva", NULL),
-	CLK(siaclk, "sia", NULL),
-	CLK(sgaclk, "sga", NULL),
-	CLK(uartclk, "UART", NULL),
-	CLK(msp02clk, "MSP02", NULL),
-	CLK(i2cclk, "I2C", NULL),
-	CLK(sdmmcclk, "sdmmc", NULL),
-	CLK(slimclk, "SLIM", NULL),
-	CLK(per1clk, "PERIPH1", NULL),
-	CLK(per2clk, "PERIPH2", NULL),
-	CLK(per3clk, "PERIPH3", NULL),
-	CLK(per5clk, "PERIPH5", NULL),
-	CLK(per6clk, "PERIPH6", NULL),
-	CLK(per7clk, "PERIPH7", NULL),
-	CLK(lcdclk, "lcd", NULL),
-	CLK(bmlclk, "bml", NULL),
-	CLK(hsitxclk, "stm-hsi.0", NULL),
-	CLK(hsirxclk, "stm-hsi.1", NULL),
-	CLK(hdmiclk, "hdmi", NULL),
-	CLK(apeatclk, "apeat", NULL),
-	CLK(apetraceclk, "apetrace", NULL),
-	CLK(mcdeclk, "mcde", NULL),
-	CLK(ipi2clk, "ipi2", NULL),
-	CLK(dmaclk, "STM-DMA.0", NULL),
-	CLK(b2r2clk, "b2r2", NULL),
-	CLK(tvclk, "tv", NULL),
+	CLK(svaclk,	"sva",		NULL),
+	CLK(siaclk,	"sia",		NULL),
+	CLK(sgaclk,	"sga",		NULL),
+	CLK(uartclk,	"UART",		NULL),
+	CLK(msp02clk,	"MSP02",	NULL),
+	CLK(i2cclk,	"I2C",		NULL),
+	CLK(sdmmcclk,	"sdmmc",	NULL),
+	CLK(slimclk,	"slim",		NULL),
+	CLK(per1clk,	"PERIPH1",	NULL),
+	CLK(per2clk,	"PERIPH2",	NULL),
+	CLK(per3clk,	"PERIPH3",	NULL),
+	CLK(per5clk,	"PERIPH5",	NULL),
+	CLK(per6clk,	"PERIPH6",	NULL),
+	CLK(per7clk,	"PERIPH7",	NULL),
+	CLK(lcdclk,	"lcd",		NULL),
+	CLK(bmlclk,	"bml",		NULL),
+	CLK(hsitxclk,	"stm-hsi.0",	NULL),
+	CLK(hsirxclk,	"stm-hsi.1",	NULL),
+	CLK(hdmiclk,	"hdmi",		NULL),
+	CLK(apeatclk,	"apeat",	NULL),
+	CLK(apetraceclk,	"apetrace",	NULL),
+	CLK(mcdeclk,	"mcde",		NULL),
+	CLK(ipi2clk,	"ipi2",		NULL),
+	CLK(dmaclk,	"STM-DMA.0",	NULL),
+	CLK(b2r2clk,	"b2r2",		NULL),
+	CLK(tvclk,	"tv",		NULL),
 
 	/* With device names */
 
-	CLK(mcdeclk, "U8500-MCDE.0", "mcde"),
-	CLK(hdmiclk, "U8500-MCDE.0", "hdmi"),
-	CLK(tvclk, "U8500-MCDE.0", "tv"),
-	CLK(lcdclk, "U8500-MCDE.0", "lcd"),
-	CLK(mcdeclk, "U8500-MCDE.1", "mcde"),
-	CLK(hdmiclk, "U8500-MCDE.1", "hdmi"),
-	CLK(tvclk, "U8500-MCDE.1", "tv"),
-	CLK(lcdclk, "U8500-MCDE.1", "lcd"),
-	CLK(mcdeclk, "U8500-MCDE.2", "mcde"),
-	CLK(hdmiclk, "U8500-MCDE.2", "hdmi"),
-	CLK(tvclk, "U8500-MCDE.2", "tv"),
-	CLK(lcdclk, "U8500-MCDE.2", "lcd"),
-	CLK(mcdeclk, "U8500-MCDE.3", "mcde"),
-	CLK(hdmiclk, "U8500-MCDE.3", "hdmi"),
-	CLK(tvclk, "U8500-MCDE.3", "tv"),
-	CLK(lcdclk, "U8500-MCDE.3", "lcd"),
-	CLK(b2r2clk, "U8500-B2R2.0", NULL),
+	CLK(mcdeclk,	"U8500-MCDE.0",	"mcde"),
+	CLK(hdmiclk,	"U8500-MCDE.0",	"hdmi"),
+	CLK(tvclk,	"U8500-MCDE.0",	"tv"),
+	CLK(lcdclk,	"U8500-MCDE.0",	"lcd"),
+	CLK(mcdeclk,	"U8500-MCDE.1",	"mcde"),
+	CLK(hdmiclk,	"U8500-MCDE.1",	"hdmi"),
+	CLK(tvclk,	"U8500-MCDE.1",	"tv"),
+	CLK(lcdclk,	"U8500-MCDE.1",	"lcd"),
+	CLK(mcdeclk,	"U8500-MCDE.2",	"mcde"),
+	CLK(hdmiclk,	"U8500-MCDE.2",	"hdmi"),
+	CLK(tvclk,	"U8500-MCDE.2",	"tv"),
+	CLK(lcdclk,	"U8500-MCDE.2",	"lcd"),
+	CLK(mcdeclk,	"U8500-MCDE.3",	"mcde"),
+	CLK(hdmiclk,	"U8500-MCDE.3",	"hdmi"),
+	CLK(tvclk,	"U8500-MCDE.3",	"tv"),
+	CLK(lcdclk,	"U8500-MCDE.3",	"lcd"),
+	CLK(b2r2clk,	"U8500-B2R2.0",	NULL),
 };
 
 static struct clk_lookup u8500_ed_clkregs[] = {
 	/* Peripheral Cluster #1 */
-	CLK(spi3_ed, "spi3", NULL),
-	CLK(msp1_ed, "msp1", NULL),
-	CLK(msp1_ed, "MSP_I2S.1", NULL),
+	CLK(spi3_ed,	"spi3",		NULL),
+	CLK(msp1_ed,	"msp1",		NULL),
+	CLK(msp1_ed,	"MSP_I2S.1",	NULL),
 
 	/* Peripheral Cluster #2 */
-	CLK(gpio1_ed, "gpioblock1", NULL),
-	CLK(ssitx_ed, "ssitx", NULL),
-	CLK(ssirx_ed, "ssirx", NULL),
-	CLK(spi0_ed, "spi0", NULL),
-	CLK(sdi3_ed, "sdi3", NULL),
-	CLK(sdi1_ed, "sdi1", NULL),
-	CLK(msp2_ed, "msp2", NULL),
-	CLK(msp2_ed, "MSP_I2S.2", NULL),
-	CLK(sdi4_ed, NULL, "EMMC"), /* remove */
-	CLK(sdi4_ed, "sdi4", NULL),
-	CLK(pwl_ed, "pwl", NULL),
-	CLK(spi1_ed, "spi1", NULL),
-	CLK(spi2_ed, "spi2", NULL),
-	CLK(i2c3_ed, "STM-I2C.3", NULL),
+	CLK(gpio1_ed,	"gpioblock1",	NULL),
+	CLK(ssitx_ed,	"ssitx",	NULL),
+	CLK(ssirx_ed,	"ssirx",	NULL),
+	CLK(spi0_ed,	"spi0",		NULL),
+	CLK(sdi3_ed,	"sdi3",		NULL),
+	CLK(sdi1_ed,	"sdi1",		NULL),
+	CLK(msp2_ed,	"msp2",		NULL),
+	CLK(msp2_ed,	"MSP_I2S.2",	NULL),
+	CLK(sdi4_ed,	"sdi4",		NULL),
+	CLK(pwl_ed,	"pwl",		NULL),
+	CLK(spi1_ed,	"spi1",		NULL),
+	CLK(spi2_ed,	"spi2",		NULL),
+	CLK(i2c3_ed,	"STM-I2C.3",	NULL),
 
 	/* Peripheral Cluster #3 */
-	CLK(ssp1_ed, "ssp1", NULL),
-	CLK(ssp0_ed, "ssp0", NULL),
+	CLK(ssp1_ed,	"ssp1",		NULL),
+	CLK(ssp0_ed,	"ssp0",		NULL),
 
 	/* Peripheral Cluster #5 */
-	CLK(usb_ed, "musb_hdrc.0", "usb"),
+	CLK(usb_ed,	"musb_hdrc.0",	"usb"),
 
 	/* Peripheral Cluster #6 */
-	CLK(dmc_ed, "dmc", NULL),
-	CLK(cryp1_ed, "cryp1", NULL),
-	CLK(rng_ed, "rng", NULL),
+	CLK(dmc_ed,	"dmc",		NULL),
+	CLK(cryp1_ed,	"cryp1",	NULL),
+	CLK(rng_ed,	"rng",		NULL),
 
 	/* Peripheral Cluster #7 */
-	CLK(tzpc0_ed, "tzpc0", NULL),
-	CLK(mtu1_ed, "mtu1", NULL),
-	CLK(mtu0_ed, "mtu0", NULL),
-	CLK(wdg_ed, "wdg", NULL),
-	CLK(cfgreg_ed, "cfgreg", NULL),
+	CLK(tzpc0_ed,	"tzpc0",	NULL),
+	CLK(mtu1_ed,	"mtu1",		NULL),
+	CLK(mtu0_ed,	"mtu0",		NULL),
+	CLK(wdg_ed,	"wdg",		NULL),
+	CLK(cfgreg_ed,	"cfgreg",	NULL),
 };
 
 static struct clk_lookup u8500_v1_clkregs[] = {
 	/* Peripheral Cluster #1 */
-	CLK(i2c4, "STM-I2C.4", NULL),
-	CLK(spi3_v1, "spi3", NULL),
-	CLK(msp1_v1, "msp1", NULL),
-	CLK(msp1_v1, "MSP_I2S.1", NULL),
+	CLK(i2c4,	"STM-I2C.4",	NULL),
+	CLK(spi3_v1,	"spi3",		NULL),
+	CLK(msp1_v1,	"msp1",		NULL),
+	CLK(msp1_v1,	"MSP_I2S.1",	NULL),
 
 	/* Peripheral Cluster #2 */
-	CLK(gpio1_v1, "gpioblock1", NULL),
-	CLK(ssitx_v1, "ssitx", NULL),
-	CLK(ssirx_v1, "ssirx", NULL),
-	CLK(spi0_v1, "spi0", NULL),
-	CLK(sdi3_v1, "sdi3", NULL),
-	CLK(sdi1_v1, "sdi1", NULL),
-	CLK(msp2_v1, "msp2", NULL),
-	CLK(msp2_v1, "MSP_I2S.2", NULL),
-	CLK(sdi4_v1, NULL, "EMMC"), /* remove */
-	CLK(sdi4_v1, "sdi4", NULL),
-	CLK(pwl_v1, "pwl", NULL),
-	CLK(spi1_v1, "spi1", NULL),
-	CLK(spi2_v1, "spi2", NULL),
-	CLK(i2c3_v1, "STM-I2C.3", NULL),
+	CLK(gpio1_v1,	"gpioblock1",	NULL),
+	CLK(ssitx_v1,	"ssitx",	NULL),
+	CLK(ssirx_v1,	"ssirx",	NULL),
+	CLK(spi0_v1,	"spi0",		NULL),
+	CLK(sdi3_v1,	"sdi3",		NULL),
+	CLK(sdi1_v1,	"sdi1",		NULL),
+	CLK(msp2_v1,	"msp2",		NULL),
+	CLK(msp2_v1,	"MSP_I2S.2",	NULL),
+	CLK(sdi4_v1,	"sdi4",		NULL),
+	CLK(pwl_v1,	"pwl",		NULL),
+	CLK(spi1_v1,	"spi1",		NULL),
+	CLK(spi2_v1,	"spi2",		NULL),
+	CLK(i2c3_v1,	"STM-I2C.3",	NULL),
 
 	/* Peripheral Cluster #3 */
-	CLK(ssp1_v1, "ssp1", NULL),
-	CLK(ssp0_v1, "ssp0", NULL),
+	CLK(ssp1_v1,	"ssp1",		NULL),
+	CLK(ssp0_v1,	"ssp0",		NULL),
 
 	/* Peripheral Cluster #5 */
-	CLK(usb_v1, "musb_hdrc.0", "usb"),
+	CLK(usb_v1,	"musb_hdrc.0",	"usb"),
 
 	/* Peripheral Cluster #6 */
-	CLK(mtu1_v1, "mtu1", NULL),
-	CLK(mtu0_v1, "mtu0", NULL),
-	CLK(cfgreg_v1, "cfgreg", NULL),
-	CLK(hash1, "hash1", NULL),
-	CLK(unipro_v1, "unipro", NULL),
-	CLK(rng_v1, "rng", NULL),
+	CLK(mtu1_v1,	"mtu1",		NULL),
+	CLK(mtu0_v1,	"mtu0",		NULL),
+	CLK(cfgreg_v1,	"cfgreg",	NULL),
+	CLK(hash1,	"hash1",	NULL),
+	CLK(unipro_v1,	"unipro",	NULL),
+	CLK(rng_v1,	"rng",		NULL),
 
-	/*
-	 * PRCMU level clock gating
-	 */
+	/* PRCMU level clock gating */
 
 	/* Bank 0 */
-	CLK(msp1clk, "MSP1", NULL),
-	CLK(uniproclk, "uniproclk", NULL),
-	CLK(sspclk, "SSP", NULL),
-	CLK(dsialtclk, "dsialt", NULL),
+	CLK(msp1clk,	"MSP1",		NULL),
+	CLK(uniproclk,	"uniproclk",	NULL),
+	CLK(sspclk,	"SSP",		NULL),
+	CLK(dsialtclk,	"dsialt",	NULL),
 
 	/* Bank 1 */
-	CLK(rngclk, "rng", NULL),
-	CLK(uiccclk, "uicc", NULL),
+	CLK(rngclk,	"rng",		NULL),
+	CLK(uiccclk,	"uicc",		NULL),
 };
 
 static void clk_register(struct clk *clk);
