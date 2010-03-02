@@ -2802,6 +2802,9 @@ static int db8500_vape_regulator_init(void)
 
 /* tying VAPE regulator to symbolic consumer devices */
 static struct regulator_consumer_supply db8500_vape_consumers[] = {
+	{
+		.supply = "v-ape",
+	},
 };
 
 /* VAPE supply, for interconnect */
@@ -3017,6 +3020,9 @@ static struct platform_device ab8500_vtvout_regulator_dev = {
 static int ab8500_vbus_regulator_init(void) { return 0; }
 
 static struct regulator_consumer_supply ab8500_vbus_consumers[] = {
+	{
+		.supply = "v-bus",
+	}
 };
 
 static struct regulator_init_data ab8500_vbus_init = {
