@@ -65,7 +65,6 @@ static DEFINE_MUTEX(ab8500_bm_lock);
  * @ac:			Structure that holds the ac/mains properties
  * @usb:		Structure that holds the usb properties
  * @ab8500_bm_monitor_work:		Work to monitor the main battery
- * @ab8500_bm_bk_battery_monitor_work:	Work to monitor backup battery
  * @ab8500_bm_watchdog_work:		Work to re-kick the watchdog
  * @ab8500_bm_ac_en_monitor_work:	Work to enable ac chaging
  * @ab8500_bm_ac_dis_monitor_work:	Work to disable ac charging
@@ -89,19 +88,21 @@ struct ab8500_bm_device_info {
 	struct power_supply ac;
 	struct power_supply usb;
 	struct delayed_work ab8500_bm_monitor_work;
-	struct delayed_work ab8500_bm_bk_battery_monitor_work;
 	struct delayed_work ab8500_bm_watchdog_work;
 	struct work_struct ab8500_bm_ac_en_monitor_work;
 	struct work_struct ab8500_bm_ac_dis_monitor_work;
 	struct work_struct ab8500_bm_usb_en_monitor_work;
 	struct work_struct ab8500_bm_usb_dis_monitor_work;
 	struct workqueue_struct *ab8500_bm_wq;
+	struct workqueue_struct *ab8500_bm_irq;
 	struct workqueue_struct *ab8500_bm_wd_kick_wq;
 };
 
 static int ab8500_bm_ac_en(struct ab8500_bm_device_info *, int);
 static int ab8500_bm_usb_en(struct ab8500_bm_device_info *, int);
 static int ab8500_bm_charger_presence(struct ab8500_bm_device_info *);
+static int ab8500_bm_status(void);
+static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *);
 
 /* Work queue function for enabling AC charging */
 static void ab8500_bm_ac_en_work(struct work_struct *work)
@@ -119,14 +120,14 @@ static void ab8500_bm_ac_en_work(struct work_struct *work)
 	if (val == (USB_PW_CONN + AC_PW_CONN)) {
 		ret = ab8500_bm_usb_en(di, false);
 		if (ret < 0)
-			dev_dbg(di->dev, "failed to disable USB charging\n");
-		dev_info
+			dev_vdbg(di->dev, "failed to disable USB charging\n");
+		dev_dbg
 		    (di->dev,
 		     "USB present, AC plug detected, hence disabling USB charging and enabling AC charging\n");
 	}
 	ret = ab8500_bm_ac_en(di, true);
 	if (ret < 0)
-		dev_dbg(di->dev, "failed to enable AC charging\n");
+		dev_vdbg(di->dev, "failed to enable AC charging\n");
 }
 
 /* Work queue function for disabling AC charging */
@@ -139,15 +140,16 @@ static void ab8500_bm_ac_dis_work(struct work_struct *work)
 	int ret = 0, val = 0;
 	val = ab8500_bm_charger_presence(di);
 	if (val == USB_PW_CONN) {
-		dev_info(di->dev,
-			 "disabling AC charging, and enabling USB charging\n");
+		dev_dbg(di->dev,
+			"disabling AC charging, and enabling USB charging\n");
 		ret = ab8500_bm_usb_en(di, true);
 		if (ret < 0)
-			dev_dbg(di->dev, "failed to enable USB charging\n");
+			dev_vdbg(di->dev, "failed to enable USB charging\n");
 	}
 	ret = ab8500_bm_ac_en(di, false);
 	if (ret < 0)
-		dev_dbg(di->dev, "failed to disable AC charging\n");
+		dev_vdbg(di->dev, "failed to disable AC charging\n");
+	ab8500_bm_battery_update_status(di);
 }
 
 /* Work queue function for enabling USB charging */
@@ -164,13 +166,13 @@ static void ab8500_bm_usb_en_work(struct work_struct *work)
 	 */
 	val = ab8500_bm_charger_presence(di);
 	if (val == (AC_PW_CONN + USB_PW_CONN))
-		dev_info
+		dev_dbg
 		    (di->dev,
 		     "AC charger present, hence not enabling USB charging\n");
 	else {
 		ab8500_bm_usb_en(di, true);
 		if (ret < 0)
-			dev_dbg(di->dev, "failed to enable USB charging\n");
+			dev_vdbg(di->dev, "failed to enable USB charging\n");
 	}
 }
 
@@ -184,7 +186,8 @@ static void ab8500_bm_usb_dis_work(struct work_struct *work)
 	int ret = 0;
 	ab8500_bm_usb_en(di, false);
 	if (ret < 0)
-		dev_dbg(di->dev, "failed to disable USB charging\n");
+		dev_vdbg(di->dev, "failed to disable USB charging\n");
+	ab8500_bm_battery_update_status(di);
 }
 
 /* callback handlers  - main charger not OK */
@@ -207,14 +210,15 @@ static void ab8500_bm_battovv_handler(void *_di)
 	/* For protection sw is also disabling charging */
 	val = ab8500_bm_charger_presence(di);
 	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling AC charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_ac_dis_monitor_work);
 	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling USB charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_usb_dis_monitor_work);
 	}
+	ab8500_bm_battery_update_status(di);
 }
 
 /* callback handlers  - main charge unplug detected */
@@ -222,8 +226,8 @@ static void ab8500_bm_mainchunplugdet_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
 	power_supply_changed(&di->bat);
-	dev_info(di->dev, "main charger unplug detected....!\n");
-	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_ac_dis_monitor_work);
+	dev_dbg(di->dev, "main charger unplug detected....!\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_ac_dis_monitor_work);
 }
 
 /* callback handlers  - main charge plug detected */
@@ -231,8 +235,8 @@ static void ab8500_bm_mainchplugdet_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
 	power_supply_changed(&di->bat);
-	dev_info(di->dev, "main charger plug detected....!\n");
-	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_ac_en_monitor_work);
+	dev_dbg(di->dev, "main charger plug detected....!\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_ac_en_monitor_work);
 }
 
 /* callback handlers  - rising edge on vbus detected */
@@ -240,8 +244,8 @@ static void ab8500_bm_vbusdetr_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
 	power_supply_changed(&di->bat);
-	dev_info(di->dev, "vbus rising edge detected....!\n");
-	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_usb_en_monitor_work);
+	dev_dbg(di->dev, "vbus rising edge detected....!\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_en_monitor_work);
 }
 
 /* callback handlers  - falling edge on vbus detected */
@@ -249,8 +253,8 @@ static void ab8500_bm_vbusdetf_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
 	power_supply_changed(&di->bat);
-	dev_info(di->dev, "vbus falling edge detected....!\n");
-	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_usb_dis_monitor_work);
+	dev_dbg(di->dev, "vbus falling edge detected....!\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
 
 /* callback handlers  - battery removal detected */
@@ -263,12 +267,12 @@ static void ab8500_bm_batctrlindb_handler(void *_di)
 	/* For protection sw is also disabling charging */
 	val = ab8500_bm_charger_presence(di);
 	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling AC charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_ac_dis_monitor_work);
 	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling USB charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_usb_dis_monitor_work);
 	}
 }
@@ -286,35 +290,26 @@ static void ab8500_bm_chwdexp_handler(void *_di)
 static void ab8500_bm_vbusovv_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
-	int val = 0;
 
 	dev_info
 	    (di->dev, "VBUS overvoltage detected, USB charging stopped...!\n");
 	/* For protection sw is also disabling charging */
-	val = ab8500_bm_charger_presence(di);
-	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
-			   &di->ab8500_bm_ac_dis_monitor_work);
-	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
-			   &di->ab8500_bm_usb_dis_monitor_work);
-	}
+	dev_dbg(di->dev, "Disabling USB charging\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
 
 /* callback handlers - bat voltage goes below LowBat detected */
 static void ab8500_bm_lowbatf_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
-	dev_info(di->dev, "Battery voltage goes below LowBat voltage\n");
+	dev_dbg(di->dev, "Battery voltage goes below LowBat voltage\n");
 }
 
 /* callback handlers - bat voltage goes above LowBat detected */
 static void ab8500_bm_lowbatr_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
-	dev_info(di->dev, "Battery voltage goes above LowBat voltage\n");
+	dev_dbg(di->dev, "Battery voltage goes above LowBat voltage\n");
 }
 
 /* callback handlers  - battery temp lower than 10c */
@@ -327,12 +322,12 @@ static void ab8500_bm_btemplow_handler(void *_di)
 	/* For protection sw is also disabling charging */
 	val = ab8500_bm_charger_presence(di);
 	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling AC charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_ac_dis_monitor_work);
 	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling USB charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_usb_dis_monitor_work);
 	}
 }
@@ -347,12 +342,12 @@ static void ab8500_bm_btemphigh_handler(void *_di)
 	/* For protection sw is also disabling charging */
 	val = ab8500_bm_charger_presence(di);
 	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling AC charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_ac_dis_monitor_work);
 	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling USB charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_usb_dis_monitor_work);
 	}
 }
@@ -371,8 +366,8 @@ static void ab8500_bm_usbchgdetdone_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
 	power_supply_changed(&di->bat);
-	dev_info(di->dev, "usb charger detected...!\n");
-	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_usb_en_monitor_work);
+	dev_dbg(di->dev, "usb charger detected...!\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_en_monitor_work);
 }
 
 /*
@@ -384,18 +379,18 @@ static void ab8500_bm_usbchthprotr_handler(void *_di)
 	struct ab8500_bm_device_info *di = _di;
 	int val = 0;
 
-	dev_info
+	dev_dbg
 	    (di->dev,
 	     "Die temp above USB charger thermal protection threshold, charging stopped...!\n");
 	/* For protection sw is also disabling charging */
 	val = ab8500_bm_charger_presence(di);
 	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling AC charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_ac_dis_monitor_work);
 	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling USB charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_usb_dis_monitor_work);
 	}
 }
@@ -409,18 +404,18 @@ static void ab8500_bm_mainchthprotr_handler(void *_di)
 	struct ab8500_bm_device_info *di = _di;
 	int val = 0;
 
-	dev_info
+	dev_dbg
 	    (di->dev,
 	     "Die temp above Main charger thermal protection threshold, charging stopped...!\n");
 	/* For protection sw is also disabling charging */
 	val = ab8500_bm_charger_presence(di);
 	if ((val == (AC_PW_CONN + USB_PW_CONN)) || (val == AC_PW_CONN)) {
-		dev_info(di->dev, "Disabling AC charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling AC charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_ac_dis_monitor_work);
 	} else if (val == USB_PW_CONN) {
-		dev_info(di->dev, "Disabling USB charging\n");
-		queue_work(di->ab8500_bm_wq,
+		dev_dbg(di->dev, "Disabling USB charging\n");
+		queue_work(di->ab8500_bm_irq,
 			   &di->ab8500_bm_usb_dis_monitor_work);
 	}
 }
@@ -430,8 +425,8 @@ static void ab8500_bm_usbchargernotokf_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
 	power_supply_changed(&di->bat);
-	dev_info(di->dev, "usb charger unplug detected...!\n");
-	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_usb_dis_monitor_work);
+	dev_dbg(di->dev, "usb charger unplug detected...!\n");
+	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
 
 /*
@@ -450,50 +445,50 @@ static int ab8500_bm_register_handler(int set, void *_di)
 						  ab8500_bm_mainextchnotok_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-main charger not ok\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-main charger not ok\n");
 		/* set callback handlers  - battery overvoltage detected */
 		ret = ab8500_set_callback_handler(BATT_OVV,
 						  ab8500_bm_battovv_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-battery over voltage detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-battery over voltage detected\n");
 		/* set callback handlers  - main charge unplug detected */
 		ret = ab8500_set_callback_handler(MAIN_CH_UNPLUG_DET,
 						  ab8500_bm_mainchunplugdet_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-main charge unplug detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-main charge unplug detected\n");
 		/* set callback handlers  - main charge plug detected */
 		ret = ab8500_set_callback_handler(MAIN_CH_PLUG_DET,
 						  ab8500_bm_mainchplugdet_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-main charge plug detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-main charge plug detected\n");
 		/* set callback handlers  - rising edge on vbus detected */
 		ret = ab8500_set_callback_handler(VBUS_DET_R,
 						  ab8500_bm_vbusdetr_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-rising edge on vbus detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-rising edge on vbus detected\n");
 		/* set callback handlers  - falling edge on vbus detected */
 		ret = ab8500_set_callback_handler(VBUS_DET_F,
 						  ab8500_bm_vbusdetf_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-falling edge on vbus detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-falling edge on vbus detected\n");
 		/* set callback handlers  - battery removal detected */
 		ret = ab8500_set_callback_handler(BAT_CTRL_INDB,
 						  ab8500_bm_batctrlindb_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-battery removal detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-battery removal detected\n");
 		/* set callback handlers  - watchdog charger expiration
 		 * detected
 		 */
@@ -501,15 +496,15 @@ static int ab8500_bm_register_handler(int set, void *_di)
 						  ab8500_bm_chwdexp_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-watchdog expiration detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-watchdog expiration detected\n");
 		/* set callback handlers  - vbus overvoltage detected */
 		ret = ab8500_set_callback_handler(VBUS_OVV,
 						  ab8500_bm_vbusovv_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-vbus overvoltage detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-vbus overvoltage detected\n");
 		/* set callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
@@ -517,8 +512,8 @@ static int ab8500_bm_register_handler(int set, void *_di)
 						  ab8500_bm_lowbatf_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-bat voltage goes below LowBat detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-bat voltage goes below LowBat detected\n");
 		/* set callback handlers  - bat voltage goes above LowBat
 		 * detected
 		 */
@@ -526,36 +521,36 @@ static int ab8500_bm_register_handler(int set, void *_di)
 						  ab8500_bm_lowbatr_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-bat voltage goes above LowBat detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-bat voltage goes above LowBat detected\n");
 		/* set callback handlers  - battery temp lower than 10c */
 		ret = ab8500_set_callback_handler(BTEMP_LOW,
 						  ab8500_bm_btemplow_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-battery temp below -10 deg\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-battery temp below -10 deg\n");
 		/* set callback handlers - battery temp higher than max temp */
 		ret = ab8500_set_callback_handler(BTEMP_HIGH,
 						  ab8500_bm_btemphigh_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-battery temp greater than max temp\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-battery temp greater than max temp\n");
 		/* set callback handlers  - not allowed usb charger detected */
 		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKR,
 						  ab8500_bm_usbchargernotokr_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-not allowed usb charger detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-not allowed usb charger detected\n");
 		/* set callback handlers  - usb charger detected */
 		ret = ab8500_set_callback_handler(USB_CHG_DET_DONE,
 						  ab8500_bm_usbchgdetdone_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-usb charger detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-usb charger detected\n");
 		/* set callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
@@ -563,8 +558,8 @@ static int ab8500_bm_register_handler(int set, void *_di)
 						  ab8500_bm_usbchthprotr_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-die temp above usb charger thermal protection threshold\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-die temp above usb charger thermal protection threshold\n");
 		/* set callback handlers  - Die temp is above main charger
 		 * thermal protection threshold
 		 */
@@ -572,122 +567,122 @@ static int ab8500_bm_register_handler(int set, void *_di)
 						  ab8500_bm_mainchthprotr_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-dir temp above main charger thermal protection threshold\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-dir temp above main charger thermal protection threshold\n");
 		/* set callback handlers  - usb charger unplug detected */
 		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKF,
 						  ab8500_bm_usbchargernotokf_handler,
 						  di);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to set callback handler-usb charger unplug detected\n");
+			dev_vdbg(di->dev,
+				 "failed to set callback handler-usb charger unplug detected\n");
 	}
 	/* Unregister irq_no and callback handler */
 	else {
 		/* remove callback handlers  - main charger not OK */
 		ret = ab8500_remove_callback_handler(MAIN_EXT_CH_NOT_OK);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-main charger not ok\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-main charger not ok\n");
 		/* remove callback handlers  - battery overvoltage detected */
 		ret = ab8500_remove_callback_handler(BATT_OVV);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-battery over voltage detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-battery over voltage detected\n");
 		/* remove callback handlers  - main charge unplug detected */
 		ret = ab8500_remove_callback_handler(MAIN_CH_UNPLUG_DET);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-main charge unplug detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-main charge unplug detected\n");
 		/* remove callback handlers  - main charge plug detected */
 		ret = ab8500_remove_callback_handler(MAIN_CH_PLUG_DET);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-main charge plug detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-main charge plug detected\n");
 		/* remove callback handlers  - rising edge on vbus detected */
 		ret = ab8500_remove_callback_handler(VBUS_DET_R);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-rising edge on vbus detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-rising edge on vbus detected\n");
 		/* remove callback handlers  - falling edge on vbus detected */
 		ret = ab8500_remove_callback_handler(VBUS_DET_F);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-falling edge on vbus detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-falling edge on vbus detected\n");
 		/* remove callback handlers  - battery removal detected */
 		ret = ab8500_remove_callback_handler(BAT_CTRL_INDB);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-battery removal detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-battery removal detected\n");
 		/* remove callback handlers  - watchdog charger expiration
 		 * detected
 		 */
 		ret = ab8500_remove_callback_handler(CH_WD_EXP);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-watchdog expiration detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-watchdog expiration detected\n");
 		/* remove callback handlers  - vbus overvoltage detected */
 		ret = ab8500_remove_callback_handler(VBUS_OVV);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-vbus overvoltage detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-vbus overvoltage detected\n");
 		/* remove callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
 		ret = ab8500_remove_callback_handler(LOW_BAT_F);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-bat voltage goes below LowBat detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-bat voltage goes below LowBat detected\n");
 		/* remove callback handlers  - bat voltage goes above LowBat
 		 * detected
 		 */
 		ret = ab8500_remove_callback_handler(LOW_BAT_R);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-bat voltage goes above LowBat detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-bat voltage goes above LowBat detected\n");
 		/* remove callback handlers  - battery temp lower than 10c */
 		ret = ab8500_remove_callback_handler(BTEMP_LOW);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-battery temp below -10 deg\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-battery temp below -10 deg\n");
 		/* remove callback handlers  - battery temp higher than
 		 * max temp
 		 */
 		ret = ab8500_remove_callback_handler(BTEMP_HIGH);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-battery temp greater than max temp\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-battery temp greater than max temp\n");
 		/* remove callback handlers  - not allowed usb charger
 		 * detected
 		 */
 		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKR);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-not allowed usb charger detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-not allowed usb charger detected\n");
 		/* remove callback handlers  - usb charger detected */
 		ret = ab8500_remove_callback_handler(USB_CHG_DET_DONE);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-usb charger detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-usb charger detected\n");
 		/* remove callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
 		ret = ab8500_remove_callback_handler(USB_CH_TH_PROT_R);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-die temp above usb charger thermal protection threshold\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-die temp above usb charger thermal protection threshold\n");
 		/* remove callback handlers  - Die temp is above main charger
 		 * thermal protection threshold
 		 */
 		ret = ab8500_remove_callback_handler(MAIN_CH_TH_PROT_R);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-dir temp above main charger thermal protection threshold\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-dir temp above main charger thermal protection threshold\n");
 		/* remove callback handlers  - usb charger unplug detected */
 		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKF);
 		if (ret < 0)
-			dev_dbg(di->dev,
-				"failed to remove callback handler-usb charger unplug detected\n");
+			dev_vdbg(di->dev,
+				 "failed to remove callback handler-usb charger unplug detected\n");
 	}
 
 	return ret;
@@ -797,9 +792,51 @@ static int ab8500_bm_current(struct ab8500_bm_device_info *di)
 
 static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 {
+	int val, status, ret = 0;
+
 	di->temp_C = ab8500_bm_temperature(di);
 	di->voltage_uV = ab8500_bm_voltage(di);
 	di->current_uA = ab8500_bm_current(di);
+
+	/* Li-ion batteries gets charged upto 4.2v, hence 4.2v should be one of
+	 * the criteria for termination charging. Another factor to terminate the
+	 * the charging is the CV method, on occurance of Constant Voltage charging
+	 * the termination current has to be checked. For this the integrated
+	 * current has to be in the range of 50-200mA
+	 */
+	if (di->charge_status == POWER_SUPPLY_STATUS_CHARGING) {
+		if (di->voltage_uV > 4175 && di->voltage_uV < 4200) {
+			/* Check if charging is in constant voltage */
+			val =
+			    ab8500_read(AB8500_CHARGER, AB8500_CH_STATUS1_REG);
+			if ((val | 0x04) == val) {
+				/* Check for termination current */
+				/* TODO: Need to verify this from for valid
+				 * units from the gas guage
+				 */
+				if (di->current_uA > 5000
+				    && di->current_uA < 20000) {
+					/* TODO: Revisit need to use
+					 * ab8500_bm_status()
+					 */
+					status = ab8500_bm_charger_presence(di);
+					if ((status ==
+					    (AC_PW_CONN + USB_PW_CONN))
+					    || (status == AC_PW_CONN))
+						ret =
+						    ab8500_bm_ac_en(di, false);
+					else
+						ret =
+						    ab8500_bm_usb_en(di, false);
+					di->charge_status =
+					    POWER_SUPPLY_STATUS_FULL;
+				}
+				if (ret < 0)
+					dev_dbg(di->dev,
+						"Battery reached threshold, failed to stop charging\n");
+			}
+		}
+	}
 }
 
 static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
@@ -824,8 +861,7 @@ static void ab8500_bm_battery_work(struct work_struct *work)
 	struct ab8500_bm_device_info *di = container_of(work,
 							struct
 							ab8500_bm_device_info,
-							ab8500_bm_monitor_work.
-							work);
+							ab8500_bm_monitor_work.work);
 
 	ab8500_bm_battery_update_status(di);
 	queue_delayed_work(di->ab8500_bm_wq, &di->ab8500_bm_monitor_work, 100);
@@ -843,37 +879,12 @@ static int ab8500_bm_bk_battery_voltage(struct ab8500_bm_device_info *di)
 	return data;
 }
 
-static void ab8500_bm_bk_battery_update_status(struct ab8500_bm_device_info *di)
-{
-	di->bk_voltage_uV = ab8500_bm_bk_battery_voltage(di);
-	di->bk_battery_charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
-
-	if (power_supply_am_i_supplied(&di->bk_bat))
-		di->bk_battery_charge_status = POWER_SUPPLY_STATUS_CHARGING;
-	else
-		di->bk_battery_charge_status = POWER_SUPPLY_STATUS_DISCHARGING;
-}
-
-static void ab8500_bm_bk_battery_work(struct work_struct *work)
-{
-	struct ab8500_bm_device_info *di = container_of(work,
-							struct
-							ab8500_bm_device_info,
-							ab8500_bm_bk_battery_monitor_work.
-							work);
-
-	ab8500_bm_bk_battery_update_status(di);
-	queue_delayed_work(di->ab8500_bm_wq,
-			   &di->ab8500_bm_bk_battery_monitor_work, 500);
-}
-
 static void ab8500_bm_watchdog_kick_work(struct work_struct *work)
 {
 	struct ab8500_bm_device_info *di = container_of(work,
 							struct
 							ab8500_bm_device_info,
-							ab8500_bm_watchdog_work.
-							work);
+							ab8500_bm_watchdog_work.work);
 	/* Kickoff main watchdog */
 	ab8500_write(AB8500_CHARGER, AB8500_CHARG_WD_CTRL, 0x01);
 	queue_delayed_work(di->ab8500_bm_wd_kick_wq,
@@ -893,8 +904,8 @@ static int ab8500_bm_led_en(struct ab8500_bm_device_info *di, int on)
 		    ab8500_write(AB8500_CHARGER, AB8500_LED_INDICATOR_PWM_CTRL,
 				 0x05);
 		if (ret) {
-			dev_dbg(di->dev,
-				"ab8500_bm_led_en: power ON LED failed\n");
+			dev_vdbg(di->dev,
+				 "ab8500_bm_led_en: power ON LED failed\n");
 			return ret;
 		}
 		/* LED indicator PWM duty cycle */
@@ -902,8 +913,8 @@ static int ab8500_bm_led_en(struct ab8500_bm_device_info *di, int on)
 		    ab8500_write(AB8500_CHARGER, AB8500_LED_INDICATOR_PWM_DUTY,
 				 0xBF);
 		if (ret) {
-			dev_dbg(di->dev,
-				"ab8500_bm_led_en: set LED PWM duty cycle failed\n");
+			dev_vdbg(di->dev,
+				 "ab8500_bm_led_en: set LED PWM duty cycle failed\n");
 			return ret;
 		}
 	} else {
@@ -912,8 +923,8 @@ static int ab8500_bm_led_en(struct ab8500_bm_device_info *di, int on)
 		    ab8500_write(AB8500_CHARGER, AB8500_LED_INDICATOR_PWM_CTRL,
 				 0x00);
 		if (ret) {
-			dev_dbg(di->dev,
-				"ab8500_bm_led_en: power-off LED failed\n");
+			dev_vdbg(di->dev,
+				 "ab8500_bm_led_en: power-off LED failed\n");
 			return ret;
 		}
 	}
@@ -950,7 +961,7 @@ static int ab8500_bm_charger_presence(struct ab8500_bm_device_info *di)
 			ret = USB_PW_CONN;
 	}
 	mutex_unlock(&ab8500_bm_lock);
-	dev_dbg(di->dev, "Return value of charger presence = %d\n", ret);
+	dev_vdbg(di->dev, "Return value of charger presence = %d\n", ret);
 	return ret;
 }
 
@@ -965,18 +976,18 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 		/* Check if AC is connected */
 		ret = ab8500_bm_charger_presence(di);
 		if (ret < 0) {
-			dev_dbg(di->dev, "AC charger presence check failed\n");
+			dev_vdbg(di->dev, "AC charger presence check failed\n");
 			return ret;
 		}
 		if ((ret != AC_PW_CONN) && (ret != (AC_PW_CONN + USB_PW_CONN))) {
-			dev_dbg(di->dev, "AC charger not connected\n");
+			dev_vdbg(di->dev, "AC charger not connected\n");
 			return -ENXIO;
 		}
 		ret = 0;
 		/* BattOVV threshold = 4.75v */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_BATT_OVV, 0x03);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 
@@ -986,53 +997,53 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 		ret =
 		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG, 0x18);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		/* MainChInputCurr = 900mA */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_MCH_IPT_CURLVL_REG,
 				   0x80);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		/* ChOutputCurentLevel = 0.9A */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CH_OPT_CRNTLVL_REG,
 				   0x08);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		/* Enable Main Charger */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_MCH_CTRL1, 0x01);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		/* Enable main watchdog */
 		ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK,
 				   AB8500_MAIN_WDOG_CTRL_REG, 0x01);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK,
 				   AB8500_MAIN_WDOG_CTRL_REG, 0x03);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		/* Disable main watchdog */
 		ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK,
 				   AB8500_MAIN_WDOG_CTRL_REG, 0x00);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 		/* Kickoff main watchdog */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CHARG_WD_CTRL, 0x01);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
 
@@ -1040,7 +1051,7 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 		if (ret == 0) {
 			ret = ab8500_bm_led_en(di, true);
 			if (ret < 0)
-				dev_dbg(di->dev, "failed to enable LED\n");
+				dev_vdbg(di->dev, "failed to enable LED\n");
 		}
 		/* Schedule delayed work to re-kick watchdog */
 		queue_delayed_work(di->ab8500_bm_wd_kick_wq,
@@ -1057,8 +1068,8 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			if (ret != USB_PW_CONN) {
 				ret = ab8500_bm_led_en(di, false);
 				if (ret < 0)
-					dev_dbg(di->dev,
-						"failed to disable LED\n");
+					dev_vdbg(di->dev,
+						 "failed to disable LED\n");
 			}
 		}
 		/* Schedule delayed work to re-kick watchdog */
@@ -1079,17 +1090,18 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 		/* Check if USB is connected */
 		ret = ab8500_bm_charger_presence(di);
 		if (ret < 0) {
-			dev_dbg(di->dev, "USB charger presence check failed\n");
+			dev_vdbg(di->dev,
+				 "USB charger presence check failed\n");
 			return ret;
 		}
 		if ((ret != USB_PW_CONN) && (ret != (AC_PW_CONN + USB_PW_CONN))) {
-			dev_dbg(di->dev, "USB charger not connected\n");
+			dev_vdbg(di->dev, "USB charger not connected\n");
 			return -ENXIO;
 		}
 		/* BattOVV threshold = 4.75v */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_BATT_OVV, 0x03);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 
@@ -1099,61 +1111,61 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 		ret =
 		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG, 0x18);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* USBChInputCurr = 500mA */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_USBCH_IPT_CRNTLVL_REG,
 				   0x60);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* ChOutputCurentLevel = 0.9A */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CH_OPT_CRNTLVL_REG,
 				   0x08);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* Enable USB Charger */
 		ret =
 		    ab8500_write(AB8500_CHARGER, AB8500_USBCH_CTRL1_REG, 0x01);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* Enable main watchdog */
 		ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK,
 				   AB8500_MAIN_WDOG_CTRL_REG, 0x01);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK,
 				   AB8500_MAIN_WDOG_CTRL_REG, 0x03);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* Disable main watchdog */
 		ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK,
 				   AB8500_MAIN_WDOG_CTRL_REG, 0x00);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* Kickoff main watchdog */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CHARG_WD_CTRL, 0x01);
 		if (ret) {
-			dev_dbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
+			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
 		/* If success power on charging LED indication */
 		if (ret == 0) {
 			ret = ab8500_bm_led_en(di, true);
 			if (ret < 0)
-				dev_dbg(di->dev, "failed to enable LED\n");
+				dev_vdbg(di->dev, "failed to enable LED\n");
 		}
 		/* Schedule delayed work to re-kick watchdog */
 		queue_delayed_work(di->ab8500_bm_wd_kick_wq,
@@ -1171,8 +1183,8 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 			if (ret != AC_PW_CONN) {
 				ret = ab8500_bm_led_en(di, false);
 				if (ret < 0)
-					dev_dbg(di->dev,
-						"failed to disable LED\n");
+					dev_vdbg(di->dev,
+						 "failed to disable LED\n");
 			}
 		}
 		/* Schedule delayed work to re-kick watchdog */
@@ -1194,7 +1206,7 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_OTP_EMUL, 0x150E,
 			   (enable ? (val | 0x01) : (val & 0xFE)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 	ret = ab8500_write(AB8500_OTP_EMUL, 0x1504, (enable ? (0xC0) : (0x00)));
@@ -1204,7 +1216,7 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK1_REG,
 			   (enable ? (val & 0xFE) : (val | 0x01)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 
@@ -1215,7 +1227,7 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG,
 			   (enable ? (val & 0x30) : (val | 0xDE)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 
@@ -1224,7 +1236,7 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK3_REG,
 			   (enable ? (val & 0x8F) : (val | 0x70)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 
@@ -1233,7 +1245,7 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK19_REG,
 			   (enable ? (val & 0xF6) : (val | 0x09)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 
@@ -1242,7 +1254,7 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG,
 			   (enable ? (val & 0xFD) : (val | 0x02)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 
@@ -1251,18 +1263,19 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK21_REG,
 			   (enable ? (val & 0xBF) : (val | 0x40)));
 	if (ret) {
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
 
 	/* Die temp above USB/AC charger thermal protection,
-	 * USB charger unpleg detect
+	 * USB charger unplug detect
+	 * TODO: Die temp has been masked.
 	 */
 	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK22_REG);
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK22_REG,
-			   (enable ? (val & 0x75) : (val | 0x8A)));
+			   (enable ? (val & 0x7F) : (val | 0x8A)));
 	if (ret)
-		dev_dbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
 	return ret;
 }
 
@@ -1279,6 +1292,9 @@ static int ab8500_bm_status(void)
 	if ((val & 0x02) == 0x02)
 		ret = AC_PW_CONN;
 	/* Check for USB charging */
+	/* TODO: USB Charger is on bit 3 on Reg USBChStatus1 is not
+	 * working - Revisit
+	 */
 	val = ab8500_read(AB8500_CHARGER, AB8500_CH_USBCH_STAT1_REG);
 	if ((val & 0x03) == 0x03)
 		ret = USB_PW_CONN;
@@ -1299,6 +1315,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
+		ab8500_bm_battery_update_status(di);
 		val->intval = di->charge_status;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -1334,20 +1351,31 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
 		/* TODO: Need to update this from gauguage driver */
-		val->intval = 0x01;
+		val->intval = 10000;
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		/* TODO: Need to calculate the present energu and update
 		 * the same in uWh from gasguage driver
 		 */
-		val->intval = 0x01;
+		val->intval = 10000;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		/* TODO:
 		 * need to get the correct percentage value per the
 		 * battery characteristics. Approx values for now.
 		 */
-		val->intval = 50;
+		if (di->voltage_uV < 2894)
+			val->intval = 5;
+		else if (di->voltage_uV < 3451 && di->voltage_uV > 2894)
+			val->intval = 20;
+		else if (di->voltage_uV < 3702 && di->voltage_uV > 3451)
+			val->intval = 40;
+		else if (di->voltage_uV < 3902 && di->voltage_uV > 3702)
+			val->intval = 50;
+		else if (di->voltage_uV < 3949 && di->voltage_uV > 3902)
+			val->intval = 75;
+		else if (di->voltage_uV > 3949)
+			val->intval = 90;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = di->temp_C;
@@ -1396,14 +1424,14 @@ static int ab8500_bm_ac_get_property(struct power_supply *psy,
 	di = to_ab8500_bm_ac_device_info(psy);
 
 	switch (psp) {
-	case POWER_SUPPLY_PROP_PRESENT:
+	case POWER_SUPPLY_PROP_ONLINE:
 		status = ab8500_bm_charger_presence(di);
-		if (status == (AC_PW_CONN | USB_PW_CONN))
+		if ((status == (AC_PW_CONN | USB_PW_CONN)) || (status == AC_PW_CONN))
 			val->intval = 0x01;
 		else
 			val->intval = 0x00;
 		break;
-	case POWER_SUPPLY_PROP_ONLINE:
+	case POWER_SUPPLY_PROP_PRESENT:
 		status = ab8500_bm_status();
 		if (status == AC_PW_CONN)
 			val->intval = 0x01;
@@ -1433,14 +1461,14 @@ static int ab8500_bm_usb_get_property(struct power_supply *psy,
 	di = to_ab8500_bm_usb_device_info(psy);
 
 	switch (psp) {
-	case POWER_SUPPLY_PROP_PRESENT:
+	case POWER_SUPPLY_PROP_ONLINE:
 		status = ab8500_bm_charger_presence(di);
-		if (status == (USB_PW_CONN | AC_PW_CONN))
+		if (status == USB_PW_CONN)
 			val->intval = 0x01;
 		else
 			val->intval = 0x00;
 		break;
-	case POWER_SUPPLY_PROP_ONLINE:
+	case POWER_SUPPLY_PROP_PRESENT:
 		status = ab8500_bm_status();
 		if (status == USB_PW_CONN)
 			val->intval = 0x01;
@@ -1463,9 +1491,6 @@ static int ab8500_bm_resume(struct platform_device *pdev)
 	struct ab8500_bm_device_info *di = platform_get_drvdata(pdev);
 
 	queue_delayed_work(di->ab8500_bm_wq, &di->ab8500_bm_monitor_work, 0);
-	queue_delayed_work(di->ab8500_bm_wq,
-			   &di->ab8500_bm_bk_battery_monitor_work, 50);
-
 	return 0;
 }
 
@@ -1475,8 +1500,6 @@ static int ab8500_bm_suspend(struct platform_device *pdev, pm_message_t state)
 
 	di->charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
 	cancel_delayed_work(&di->ab8500_bm_monitor_work);
-	cancel_delayed_work(&di->ab8500_bm_bk_battery_monitor_work);
-
 	return 0;
 }
 #else
@@ -1508,12 +1531,12 @@ static int __devexit ab8500_bm_remove(struct platform_device *pdev)
 	/* Delete the work queue */
 	destroy_workqueue(di->ab8500_bm_wq);
 	destroy_workqueue(di->ab8500_bm_wd_kick_wq);
+	destroy_workqueue(di->ab8500_bm_irq);
 
 	flush_scheduled_work();
 	power_supply_unregister(&di->ac);
 	power_supply_unregister(&di->usb);
 	power_supply_unregister(&di->bat);
-	power_supply_unregister(&di->bk_bat);
 	platform_set_drvdata(pdev, NULL);
 	kfree(di);
 
@@ -1617,6 +1640,13 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 		goto free_wq;
 	}
 
+	/* Create a work queue for en/dis AC/USB from irq handler */
+	di->ab8500_bm_irq = create_singlethread_workqueue("ab8500_bm_irq");
+	if (di->ab8500_bm_irq == NULL) {
+		dev_err(&pdev->dev, "failed to create work queue\n");
+		goto free_wq;
+	}
+
 	/* Create a work queue for rekicking the watchdog */
 	di->ab8500_bm_wd_kick_wq =
 	    create_singlethread_workqueue("ab8500_bm_wd_kick_wq");
@@ -1632,10 +1662,6 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	/* Monitor Main Battery */
 	INIT_DELAYED_WORK_DEFERRABLE(&di->ab8500_bm_monitor_work,
 				     ab8500_bm_battery_work);
-
-	/* Monitor Backup Battery */
-	INIT_DELAYED_WORK_DEFERRABLE(&di->ab8500_bm_bk_battery_monitor_work,
-				     ab8500_bm_bk_battery_work);
 
 	/* Init work queue for enable/desable AC/USB charge */
 	INIT_WORK(&di->ab8500_bm_ac_en_monitor_work, ab8500_bm_ac_en_work);
@@ -1670,16 +1696,6 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 
 	/* Monitor Main Battery */
 	queue_delayed_work(di->ab8500_bm_wq, &di->ab8500_bm_monitor_work, 0);
-	/* Register backup battery */
-	ret = power_supply_register(&pdev->dev, &di->bk_bat);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to register backup battery\n");
-		goto bk_batt_fail;
-	}
-
-	/* Monitor Backup Battery */
-	queue_delayed_work(di->ab8500_bm_wq,
-			   &di->ab8500_bm_bk_battery_monitor_work, 500);
 	/* Register AC charger class */
 	ret = power_supply_register(&pdev->dev, &di->ac);
 	if (ret) {
@@ -1714,8 +1730,6 @@ ac_fail:
 	power_supply_unregister(&di->ac);
 usb_fail:
 	power_supply_unregister(&di->usb);
-bk_batt_fail:
-	power_supply_unregister(&di->bk_bat);
 batt_fail:
 	power_supply_unregister(&di->bat);
 irq_fail:
@@ -1733,6 +1747,7 @@ free_wq:
 	/* Delete the work queue */
 	destroy_workqueue(di->ab8500_bm_wq);
 	destroy_workqueue(di->ab8500_bm_wd_kick_wq);
+	destroy_workqueue(di->ab8500_bm_irq);
 
 	return ret;
 }
