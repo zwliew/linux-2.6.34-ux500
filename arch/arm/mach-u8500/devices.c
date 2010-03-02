@@ -2012,6 +2012,8 @@ static struct map_desc u8500_common_io_desc[] __initdata = {
 	 MT_DEVICE_CACHED},
 	{IO_ADDRESS(U8500_UART0_BASE), __phys_to_pfn(U8500_UART0_BASE), SZ_4K,
 	 MT_DEVICE},
+	{IO_ADDRESS(U8500_RTC_BASE), __phys_to_pfn(U8500_RTC_BASE), SZ_4K,
+	 MT_DEVICE},
 	{IO_ADDRESS(U8500_MSP0_BASE), __phys_to_pfn(U8500_MSP0_BASE), SZ_4K,
 	 MT_DEVICE},
 	{IO_ADDRESS(U8500_MSP1_BASE), __phys_to_pfn(U8500_MSP1_BASE), SZ_4K,

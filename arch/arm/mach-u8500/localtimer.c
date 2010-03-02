@@ -152,7 +152,8 @@ void __cpuinit local_timer_setup(void)
 
 	clk->name		= "local_timer";
 	clk->features		= CLOCK_EVT_FEAT_PERIODIC |
-					CLOCK_EVT_FEAT_ONESHOT;
+					CLOCK_EVT_FEAT_ONESHOT |
+						CLOCK_EVT_FEAT_C3STOP;
 	clk->rating		= 550;
 	clk->set_mode		= local_timer_set_mode;
 	clk->set_next_event	= local_timer_set_next_event;
@@ -163,6 +164,7 @@ void __cpuinit local_timer_setup(void)
 					clk->shift);
 	clk->max_delta_ns	= clockevent_delta2ns(0xffffffff, clk);
 	clk->min_delta_ns	= clockevent_delta2ns(0xf, clk);
+	clk->broadcast		= smp_timer_broadcast;
 
 	/* Make sure our local interrupt controller has this enabled */
 	local_irq_save(flags);
@@ -187,7 +189,7 @@ static void dummy_timer_set_mode(enum clock_event_mode mode,
 {
 }
 
-void __cpuinit local_timer_setup(unsigned int cpu)
+void __cpuinit local_timer_setup(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct clock_event_device *clk = &per_cpu(local_clockevent, cpu);
@@ -196,8 +198,9 @@ void __cpuinit local_timer_setup(unsigned int cpu)
 	clk->features           = CLOCK_EVT_FEAT_DUMMY;
 	clk->rating             = 200;
 	clk->set_mode           = dummy_timer_set_mode;
+	clk->broadcast		= smp_timer_broadcast;
 	clk->cpumask            = cpumask_of(cpu);
-	clk->mult		    = 1;
+	clk->mult		= 1;
 
 	clockevents_register_device(clk);
 }

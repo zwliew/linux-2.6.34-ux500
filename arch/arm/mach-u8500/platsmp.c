@@ -201,8 +201,9 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	/*
 	 * Enable the local timer for primary CPU
 	 */
+#ifdef CONFIG_LOCAL_TIMERS
 	local_timer_setup();
-
+#endif
 	/*
 	 * Initialise the present map, which describes the set of CPUs
 	 * actually populated at the present time.

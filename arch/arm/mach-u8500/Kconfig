@@ -33,7 +33,7 @@ endmenu
 config U8500_CPUIDLE
     tristate "CPUIdle support"
     depends on CPU_IDLE
-    default y
+    select GENERIC_CLOCKEVENTS_BROADCAST
     help
         Add support for CPUIdle for U8500
 

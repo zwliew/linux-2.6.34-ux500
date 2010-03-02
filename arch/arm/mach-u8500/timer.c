@@ -86,6 +86,7 @@ static struct clock_event_device u8500_clkevt = {
 	.shift		= 32,
 	.rating		= 400,
 	.set_mode	= u8500_clkevt_mode,
+	.irq		= IRQ_MTU0,
 };
 
 /*
@@ -143,7 +144,6 @@ static void __init u8500_timer_init(void)
 #ifdef CONFIG_LOCAL_TIMERS
 	twd_base = (void *)IO_ADDRESS(U8500_TWD_BASE);
 #endif
-
 	clk0 = clk_get_sys("mtu0", NULL);
 	BUG_ON(IS_ERR(clk0));
 
@@ -178,6 +178,10 @@ static void __init u8500_timer_init(void)
 	u8500_clkevt.mult = div_sc(rate, NSEC_PER_SEC, u8500_clkevt.shift);
 	u8500_clkevt.cpumask = cpumask_of(0);
 	clockevents_register_device(&u8500_clkevt);
+	{
+		extern void u8500_rtc_init(unsigned int cpu);
+		u8500_rtc_init(0);
+	}
 }
 
 static void u8500_timer_suspend(void)
