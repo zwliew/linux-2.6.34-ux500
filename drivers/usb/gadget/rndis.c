@@ -292,9 +292,24 @@ gen_ndis_query_resp (int configNr, u32 OID, u8 *buf, unsigned buf_len,
 	/* mandatory */
 	case OID_GEN_VENDOR_DESCRIPTION:
 		pr_debug("%s: OID_GEN_VENDOR_DESCRIPTION\n", __func__);
+	#ifdef CONFIG_ARCH_U8500
+		if (rndis_per_dev_params[configNr].vendorDescr) {
+			length = strlen(rndis_per_dev_params[configNr].vendorDescr);
+			memcpy(outbuf, rndis_per_dev_params[configNr].vendorDescr, length);
+		} else {
+			/*
+			* FIXME: Openmoko hack by Paul Fertser to avoid
+			* panic with Win XP SP2 when vendorDescr is NULL
+			* (always ATM).
+			*/
+			length = 5;
+			memcpy(outbuf, "dummy", length);
+		}
+	#else
 		length = strlen (rndis_per_dev_params [configNr].vendorDescr);
 		memcpy (outbuf,
 			rndis_per_dev_params [configNr].vendorDescr, length);
+	#endif
 		retval = 0;
 		break;
 
