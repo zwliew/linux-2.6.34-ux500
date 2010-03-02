@@ -36,15 +36,20 @@
 #define REGULATOR_ENABLED       (1)
 #define REGULATOR_DISABLED      (0)
 
-#define APE_50_OPP		(0)
-#define APE_100_OPP		(1)
-
 uint32_t vape_mode = REGULATOR_MODE_NORMAL;
 
 struct regulator_priv {
 	unsigned int status;
 	unsigned int operating_point;
 };
+
+static int dcdc_vape_get_voltage(struct regulator_dev *rdev)
+{
+	/* returning a dummy non-zero to support optimum_mode*
+	 * helpers
+	 */
+	return 1;
+}
 
 static int dcdc_vape_set_mode(struct regulator_dev *rdev, unsigned int mode)
 {
@@ -187,6 +192,7 @@ static int ldo_vana_disable(struct regulator_dev *rdev)
 }
 
 static struct regulator_ops dcdc_vape_ops = {
+	.get_voltage            = dcdc_vape_get_voltage,
 	.set_mode		= dcdc_vape_set_mode,
 	.get_mode		= dcdc_vape_get_mode,
 	.get_optimum_mode	= dcdc_vape_get_optimum_mode,

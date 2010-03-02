@@ -204,7 +204,8 @@ typedef enum {
  */
 typedef enum {
 	APE_NO_CHANGE = 0x00,
-	APE_100_OPP = 0x01
+	APE_100_OPP = 0x02,
+	APE_50_OPP = 0x03
 } ape_opp_t;
 
 /**

@@ -437,21 +437,64 @@ EXPORT_SYMBOL(prcmu_get_arm_opp);
  */
 int prcmu_set_ape_opp(ape_opp_t ape_opp)
 {
-	req_mb1_t request = { {0} };
-	if (u8500_is_earlydrop()) {
-		if (ape_opp < APE_NO_CHANGE_ED || ape_opp > APE_100_OPP_ED)
-			return -EINVAL;
-		request.req_field.ape_opp = ape_opp;
-		return prcmu_request_mailbox1(&request);
+	int timeout = 200;
+	ape_opp_t current_ape_opp;
+
+	if (ape_opp < APE_NO_CHANGE || ape_opp > APE_50_OPP)
+		return -EINVAL;
+
+	/* check for any ongoing AP state transitions */
+	while ((readl(PRCM_MBOX_CPU_VAL) & 1) && timeout--)
+		cpu_relax();
+	if (!timeout)
+		return -EBUSY;
+
+	/* check for any ongoing ARM DVFS */
+	timeout = 200;
+	while ((readb(PRCM_ACK_MB1_CURR_DVFS_STATUS) == 0xff) && timeout--)
+		cpu_relax();
+	if (!timeout)
+		return -EBUSY;
+
+	/* clear the mailbox */
+	writel(0, PRCM_ACK_MB1);
+
+	/* write 0x0 into the header for ARM/APE operating point mgmt */
+	writel(0x0, _PRCM_MBOX_HEADER);
+
+	/* write ARMOPP request into the mailbox */
+	writel(ARM_NO_CHANGE, PRCM_REQ_MB1_ARMOPP);
+	writel(ape_opp, PRCM_REQ_MB1_APEOPP);
+
+	/* trigger the XP70 IT11 to the XP70 */
+	writel(PRCM_XP70_TRIG_IT11, PRCM_MBOX_CPU_SET);
+
+	timeout = 1000;
+	while ((readl(PRCM_MBOX_CPU_VAL) & PRCM_XP70_TRIG_IT11)
+			&& timeout--)
+		cpu_relax();
+
+	current_ape_opp = readb(PRCM_ACK_MB1_CURR_APEOPP);
+	if (ape_opp != current_ape_opp) {
+		printk(KERN_WARNING
+			"u8500-prcm : requested APE DVFS Not Complete\n");
+		return -EINVAL;
 	}
 
-
-	if (ape_opp < APE_NO_CHANGE || ape_opp > APE_100_OPP)
-		return -EINVAL;
-	request.req_field.ape_opp = ape_opp;
-	return prcmu_request_mailbox1(&request);
+	return 0;
 }
 EXPORT_SYMBOL(prcmu_set_ape_opp);
+
+/**
+ * prcmu_get_arm_opp - get the appropriate ARM OPP
+ *
+ * Returns: the current ARM OPP
+ */
+int prcmu_get_ape_opp(void)
+{
+	return readb(PRCM_ACK_MB1_CURR_APEOPP);
+}
+EXPORT_SYMBOL(prcmu_get_ape_opp);
 
 /**
  * prcmu_set_ape_opp - set the appropriate h/w accelerator to power mode
