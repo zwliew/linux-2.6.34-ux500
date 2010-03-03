@@ -232,6 +232,50 @@ int ab8500_remove_callback_handler(int int_no)
 EXPORT_SYMBOL(ab8500_remove_callback_handler);
 
 /**
+ * ab8500_set_signal_handler - To set signal handler
+ * @int_no:	interrupt number
+ * @sig_no:	signal number
+ *
+ * This function sets the signal number to be sent to a process
+ * for a particular interrupt
+ */
+int ab8500_set_signal_handler(int int_no, int sig_no)
+{
+	unsigned long flags;
+
+	if (is_intid_invalid(int_no)) {
+		printk(KERN_ERR "invalid interrupt id\n");
+		return -1;
+	}
+
+	spin_lock_irqsave(&ab8500->ab8500_cfgsig_lock, flags);
+	(ab8500->c_signals[int_no]).pid = get_task_pid(current, PIDTYPE_PID);
+	(ab8500->c_signals[int_no]).signal = sig_no;
+	spin_unlock_irqrestore(&ab8500->ab8500_cfgsig_lock, flags);
+	return 0;
+}
+EXPORT_SYMBOL(ab8500_set_signal_handler);
+
+
+int ab8500_remove_signal_handler(int int_no)
+{
+	unsigned long flags;
+
+	if (is_intid_invalid(int_no)) {
+		printk(KERN_ERR "invalid interrupt id\n");
+		return -1;
+	}
+
+	spin_lock_irqsave(&ab8500->ab8500_cfgsig_lock, flags);
+	(ab8500->c_signals[int_no]).pid = NULL;
+	(ab8500->c_signals[int_no]).signal = 0;
+	spin_unlock_irqrestore(&ab8500->ab8500_cfgsig_lock, flags);
+	return 0;
+
+}
+EXPORT_SYMBOL(ab8500_remove_signal_handler);
+
+/**
  * ab8500_interrupt_handler() - Interrupt handler for AB8500
  * @irq:	irq number from AB8500 to U8500
  * @dev_id:	device id
@@ -276,6 +320,10 @@ static void ab8500_work(struct work_struct *work)
 				(ab8500->c_callback[bit + count]).
 				    callback((ab8500->
 					      c_callback[bit + count]).data);
+			if ((ab8500->c_signals[bit + count]).signal)
+				kill_pid((ab8500->c_signals[bit + count]).
+					  pid, (ab8500->c_signals[bit + count]).
+						signal, 1);
 			bit = find_next_bit(&intl, 8, bit + 1);
 		}
 		count = count + 8;

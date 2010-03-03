@@ -109,6 +109,26 @@ ab8500dev_ioctl(struct inode *inode, struct file *file,
 				ab8500dev->data);
 		break;
 		}
+
+	case SET_INT_SIGNAL:
+		{
+		if (copy_from_user(ab8500dev, (void __user *)arg,
+			sizeof(struct ab8500dev_data))) {
+				retval = -EFAULT;
+				goto clean_up;
+			}
+		/*printk("in kernel: int_no = %x; sig_no = %x",
+			ab8500dev->int_no, ab8500dev->sig_no);*/
+
+		if (ab8500dev->sig_no) {
+			retval = ab8500_set_signal_handler(
+				ab8500dev->int_no, ab8500dev->sig_no);
+			} else {
+			retval = ab8500_remove_signal_handler(
+				ab8500dev->int_no);
+			}
+		break;
+		}
 	}
 clean_up:
 	kfree(ab8500dev);

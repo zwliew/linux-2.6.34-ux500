@@ -498,6 +498,19 @@ struct client_callbacks	{
 };
 
 /**
+ * struct client_signals - Client signals
+ * @pid:	pid of process
+ * @signal:	signal to be delivered
+ *
+ * AB8500 maintains an internal data structure for the delivery of
+ * required signals to registered processes
+ */
+struct client_signals {
+	struct pid *pid;
+	u32 signal;
+};
+
+/**
  * struct ab8500 - AB8500 Internal data structure
  * @ab8500_master:	Pointer to the spi_master
  * @ab8500_board_info:	Pointer to the board information structure
@@ -527,8 +540,10 @@ struct ab8500	{
 	u32 ssp_wrbuf[4];
 	u32 ssp_rdbuf[4];
 	struct client_callbacks	c_callback[184];
+	struct client_signals 	c_signals[184];
 	struct work_struct	work;
 	spinlock_t		ab8500_cfg_lock;
+	spinlock_t		ab8500_cfgsig_lock;
 	struct semaphore	ab8500_sem;
 	unsigned char		irq;
 	unsigned char		revision;
@@ -541,5 +556,6 @@ int ab8500_set_callback_handler(int int_no, void *callback_handler, void *data);
 int ab8500_remove_callback_handler(int int_no);
 void ab8500_int_mask(int int_no);
 void ab8500_int_unmask(int int_no);
-
+int ab8500_set_signal_handler(int int_no, int sig_no);
+int ab8500_remove_signal_handler(int int_no);
 #endif /* AB8500_H_ */
