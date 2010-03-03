@@ -20,7 +20,7 @@
 #define __STE_CONFIG_H__
 
 #if (defined(CONFIG_ARCH_U8500) && !defined(CONFIG_MUSB_PIO_ONLY))
-#define CONFIG_USB_U8500
+#define CONFIG_USB_U8500_DMA
 #endif
 #define U8500_DMA_END_POINTS 7
 #define DMA_MODE_0 0

@@ -106,7 +106,7 @@
 #endif
 
 #include "musb_core.h"
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_ARCH_U8500
 #include "ste_config.h"
 #endif
 
@@ -991,7 +991,7 @@ static void musb_shutdown(struct platform_device *pdev)
 	defined(CONFIG_ARCH_OMAP2430) || defined(CONFIG_ARCH_OMAP3)
 static ushort __initdata fifo_mode = 4;
 #else
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_ARCH_U8500
 static ushort __initdata fifo_mode = 2;
 #else
 static ushort __initdata fifo_mode = 5;
@@ -2441,7 +2441,7 @@ static int __init musb_init(void)
 	return platform_driver_probe(&musb_driver, musb_probe);
 }
 
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_ARCH_U8500
 /* make us init after usbcore and i2c (transceivers, regulators, etc)
  * and before usb gadget and host-side drivers start to register
  */

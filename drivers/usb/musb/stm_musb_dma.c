@@ -76,7 +76,7 @@ static int dma_controller_start(struct dma_controller *c)
 	int retval = 0;
 	struct dma_channel *channel = NULL;
 	/*bit 0 for receive and bit 1 for transmit*/
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	for (bit = 0; bit < 2; bit++) {
 #else
 	for (bit = 0; bit < (U8500_DMA_END_POINTS*2); bit++) {
@@ -87,7 +87,7 @@ static int dma_controller_start(struct dma_controller *c)
 			ERR("could not allocate dma info structure\n");
 		musb_channel->info = info;
 		musb_channel->controller = controller;
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_USB_U8500_DMA
 		info->channel_type = (STANDARD_CHANNEL|CHANNEL_IN_LOGICAL_MODE|
 					LCHAN_SRC_LOG_DEST_LOG|NO_TIM_FOR_LINK|
 					NON_SECURE_CHANNEL|HIGH_PRIORITY_CHANNEL);
@@ -97,7 +97,7 @@ static int dma_controller_start(struct dma_controller *c)
 
 		info->flow_cntlr = DMA_IS_FLOW_CNTLR;
 #if 1
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 		if (bit)
 			{
 #else
@@ -113,7 +113,7 @@ static int dma_controller_start(struct dma_controller *c)
 			info->dst_dev_type = DMA_DEV_USB_OTG_OEP_2_10;
 #endif
 
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_USB_U8500_DMA
 			switch (bit) {
 
 			case TX_CHANNEL_1:
@@ -151,7 +151,7 @@ static int dma_controller_start(struct dma_controller *c)
 			info->src_dev_type = DMA_DEV_USB_OTG_IEP_1_9;
 #endif
 
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_USB_U8500_DMA
 			switch (bit) {
 
 			case RX_CHANNEL_1:
@@ -203,7 +203,7 @@ static int dma_controller_start(struct dma_controller *c)
 		if (retval < 0) {
 			ERR("dma pipe can't be allocated\n");
 		}
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 		/* Tx => mode 1; Rx => mode 0 */
 		if (bit) {
 #else
@@ -237,7 +237,7 @@ static int dma_controller_stop(struct dma_controller *c)
 	struct musb_dma_channel *musb_channel;
 	struct dma_channel *channel;
 	u8 bit;
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	for (bit = 0; bit < 2; bit++) {
 #else
 	for (bit = 0; bit < (U8500_DMA_END_POINTS*2); bit++) {
@@ -275,7 +275,7 @@ static struct dma_channel *dma_channel_allocate(struct dma_controller *c,
 	struct dma_channel *channel = NULL;
 	u8 bit;
 
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 
 	 /*bit 0 for receive and bit 1 for transmit*/
 	for (bit = 0; bit < 2; bit++) {
@@ -306,7 +306,7 @@ static struct dma_channel *dma_channel_allocate(struct dma_controller *c,
 			musb_channel->transmit = transmit;
 			musb_channel->is_pipe_allocated = 1;
 			channel = &(musb_channel->channel);
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 			break;
 		}
 	}
@@ -366,13 +366,13 @@ static void configure_channel(struct dma_channel *channel,
 	u32 dma_count;
 	struct stm_dma_pipe_info *info;
 
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh;
 	struct urb              *urb;
 #endif
 	unsigned int usb_fifo_addr = (unsigned int)(MUSB_FIFO_OFFSET(hw_ep->epnum) + mbase);
 
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	if (musb_channel->transmit)
 		qh = hw_ep->out_qh;
 	else
@@ -399,7 +399,7 @@ static void configure_channel(struct dma_channel *channel,
 	musb_channel->cur_len = dma_count;
 	usb_fifo_addr = U8500_USBOTG_BASE + ((unsigned int)usb_fifo_addr & 0xFFFF);
 
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	if (!(urb->transfer_flags & URB_NO_TRANSFER_DMA_MAP)) {
 		if (musb_channel->transmit)
 		{
@@ -557,20 +557,20 @@ void musb_rx_dma_controller_handler(void *private_data, int error)
 	void __iomem *mbase = musb->mregs;
 	unsigned long flags, pio;
 	unsigned int rxcsr;
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh = hw_ep->in_qh;
 	struct urb              *urb;
 #else
 	udelay(DELAY_IN_MICROSECONDS);
 #endif
 	spin_lock_irqsave(&musb->lock, flags);
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	urb = next_urb(qh);
 #endif
 	musb_ep_select(mbase, hw_ep->epnum);
 	channel->actual_len = musb_channel->cur_len;
 	pio = musb_channel->len - channel->actual_len;
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	if (!(urb->transfer_flags & URB_NO_TRANSFER_DMA_MAP))
 	{
 #ifdef CONFIG_NOMADIK_NDK15
@@ -611,7 +611,7 @@ void musb_tx_dma_controller_handler(void *private_data, int error)
 	void __iomem *mbase = musb->mregs;
 	unsigned long flags, pio;
 	unsigned int txcsr;
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh = hw_ep->out_qh;
 	struct urb              *urb;
 #else
@@ -620,7 +620,7 @@ void musb_tx_dma_controller_handler(void *private_data, int error)
 	spin_lock_irqsave(&musb->lock, flags);
 	musb_ep_select(mbase, hw_ep->epnum);
 	txcsr =  musb_readw(hw_ep->regs, MUSB_TXCSR);
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_USB_U8500_DMA
 	txcsr &= ~MUSB_TXCSR_P_UNDERRUN;
 	txcsr &= ~MUSB_TXCSR_DMAMODE;
 	musb_writew(hw_ep->regs, MUSB_TXCSR,
@@ -644,7 +644,7 @@ void musb_tx_dma_controller_handler(void *private_data, int error)
 	if (pio)
 	{
 		channel->status = MUSB_DMA_STATUS_FREE;
-#ifndef CONFIG_USB_U8500
+#ifndef CONFIG_USB_U8500_DMA
 		urb = next_urb(qh);
 		qh->offset += channel->actual_len;
 		buf = urb->transfer_buffer + qh->offset;
