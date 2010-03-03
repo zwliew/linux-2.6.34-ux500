@@ -144,6 +144,33 @@ static inline int nmk_gpio_get_bitmask(int gpio)
 	return 1 << (gpio % 32);
 }
 
+static unsigned int nmk_gpio_irq_startup(unsigned int irq)
+{
+	int gpio = NOMADIK_IRQ_TO_GPIO(irq);
+
+	gpio_request(gpio, "IRQ");
+
+	gpio_direction_input(gpio);
+	nmk_gpio_set_mode(gpio, NMK_GPIO_ALT_GPIO);
+
+	/* go on as default_startup() */
+	get_irq_chip(irq)->enable(irq);
+
+	return 0;
+}
+
+static void nmk_gpio_irq_shutdown(unsigned int irq)
+{
+	struct irq_desc *desc = irq_to_desc(irq);
+	int gpio = NOMADIK_IRQ_TO_GPIO(irq);
+
+	/* default_shutdown() */
+	desc->chip->mask(irq);
+	desc->status |= IRQ_MASKED;
+
+	gpio_free(gpio);
+}
+
 static void nmk_gpio_irq_ack(unsigned int irq)
 {
 	int gpio;
@@ -251,6 +278,8 @@ static int nmk_gpio_irq_set_type(unsigned int irq, unsigned int type)
 
 static struct irq_chip nmk_gpio_irq_chip = {
 	.name		= "Nomadik-GPIO",
+	.startup	= nmk_gpio_irq_startup,
+	.shutdown	= nmk_gpio_irq_shutdown,
 	.ack		= nmk_gpio_irq_ack,
 	.mask		= nmk_gpio_irq_mask,
 	.unmask		= nmk_gpio_irq_unmask,
