@@ -271,7 +271,7 @@ static void stmpe2401_setup_gpio(struct stmpe2401_chip *chip, int gpios)
 int stmpe2401_set_callback(int irq, void *handler, void *data)
 {
 	mutex_lock(&the_stmpe2401->lock);
-	irq -= 268;
+	irq -= the_stmpe2401->gpio_start;
 	the_stmpe2401->handlers[irq] = handler;
 	the_stmpe2401->data[irq] = data;
 
@@ -291,7 +291,7 @@ EXPORT_SYMBOL(stmpe2401_set_callback);
 int stmpe2401_remove_callback(int irq)
 {
 	mutex_lock(&the_stmpe2401->lock);
-	irq -= 268;
+	irq -= the_stmpe2401->gpio_start;
 	the_stmpe2401->handlers[irq] = NULL;
 	the_stmpe2401->data[irq] = 0;
 	/*if required, you can disable interrupt here
