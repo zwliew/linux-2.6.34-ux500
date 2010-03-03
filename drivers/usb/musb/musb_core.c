@@ -106,7 +106,9 @@
 #endif
 
 #include "musb_core.h"
+#ifdef CONFIG_USB_U8500
 #include "ste_config.h"
+#endif
 
 #ifdef CONFIG_ARCH_DAVINCI
 #include "davinci.h"
@@ -1522,6 +1524,10 @@ irqreturn_t musb_interrupt(struct musb *musb)
 		}
 #endif
 
+#if (defined(CONFIG_ARCH_U8500) && defined(CONFIG_USB_NET_AX8817X))
+	mdelay(10);
+#endif
+
 	/* the core can interrupt us for multiple reasons; docs have
 	 * a generic interrupt flowchart to follow
 	 */
@@ -2431,16 +2437,18 @@ static int __init musb_init(void)
 	return platform_driver_probe(&musb_driver, musb_probe);
 }
 
+#ifndef CONFIG_USB_U8500
 /* make us init after usbcore and i2c (transceivers, regulators, etc)
  * and before usb gadget and host-side drivers start to register
  */
-//fs_initcall(musb_init);
-
+fs_initcall(musb_init);
+#else
 /* with fs_initcall the dma controller driver was loaded after mentor IP
  * driver so when DMA is enabled, it will break as DMA controller driver is
  * not loaded. This has been done to correct the order
  */
 module_init(musb_init);
+#endif
 
 static void __exit musb_cleanup(void)
 {

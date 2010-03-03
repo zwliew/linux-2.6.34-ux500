@@ -46,7 +46,9 @@
 #include <linux/slab.h>
 
 #include "musb_core.h"
+#ifdef CONFIG_USB_U8500
 #include "ste_config.h"
+#endif
 
 /* MUSB PERIPHERAL status 3-mar-2006:
  *

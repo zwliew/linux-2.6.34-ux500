@@ -27,7 +27,6 @@
 #include <mach/ab8500.h>
 
 #ifdef CONFIG_USB_MUSB_HOST
-#define AB8500_USB_HOST 0x68
 
 /**
  * usb_host_detect_handler() - for enabling the 5V to usb host
@@ -41,18 +40,18 @@ void usb_host_detect_handler(void)
 	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_LATCH20_REG);
 	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
 	if ((val & AB8500_USB_HOST) == AB8500_USB_HOST)
-		printk("host cable is detected \n");
+		DBG(1, "USB host cable is detected \n");
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
 }
 #else
+void usb_device_detect_handler(void);
+void usb_device_remove_handler(void);
 /**
  * usb_device_detect_handler() - for enabling the 5V to usb device
  *
  * This function used to set the voltage for USB device mode
  */
-void usb_device_detect_handler(void);
-void usb_device_remove_handler(void);
 void usb_device_detect_handler(void)
 {
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x1);
@@ -63,6 +62,11 @@ void usb_device_detect_handler(void)
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
 }
+/**
+ * usb_device_remove_handler() - remove the 5V to usb device
+ *
+ * This function used to remove the voltage for USB device mode
+ */
 void usb_device_remove_handler(void)
 {
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0);
@@ -70,7 +74,6 @@ void usb_device_remove_handler(void)
 }
 #endif
 
-#ifndef CONFIG_USB_MUSB_HOST
 /* Sys interfaces*/
 struct musb *musb_status;
 static struct kobject *usbstatus_kobj;
@@ -99,7 +102,6 @@ static struct kobj_type ktype_usbstatus = {
 	.sysfs_ops = &usb_sysfs_ops,
 	.default_attrs = usb_status,
 };
-#endif
 
 #ifdef CONFIG_USB_MUSB_HOST
 /*
@@ -165,7 +167,7 @@ int __init musb_stm_hs_otg_init(struct musb *musb)
 		clk_enable(musb->clock);
 	status = stm_gpio_altfuncenable(GPIO_ALT_USB_OTG);
 	if (status) {
-		printk("U8500 USB : Problem in enabling alternate function\n");
+		DBG(1, "U8500 USB : Problem in enabling alternate function\n");
 		return -EBUSY;
 	}
 
@@ -386,11 +388,11 @@ int __init musb_platform_init(struct musb *musb)
 
 	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 	#ifdef CONFIG_USB_MUSB_HOST
-		if ((ab8500_rev == 0x10) || (ab8500_rev == 0x11)) {
+		if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, 0xFB);
+			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, AB8500_IT_MASK20_MASK);
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-			ab8500_set_callback_handler(90, usb_host_detect_handler, NULL);
+			ab8500_set_callback_handler(AB8500_ID_WAKEUP, usb_host_detect_handler, NULL);
 		} else {
 		#ifndef CONFIG_USB_SERIAL
 			val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG);
@@ -399,33 +401,30 @@ int __init musb_platform_init(struct musb *musb)
 		#endif
 		}
 	#else
-		if ((ab8500_rev == 0x10) || (ab8500_rev == 0x11)) {
-			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG, 0x3F);
-			ab8500_set_callback_handler(15, usb_device_detect_handler, NULL);
-			ab8500_set_callback_handler(14, usb_device_remove_handler, NULL);
+		if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
+			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG, AB8500_IT_MASK2_MASK);
+			ab8500_set_callback_handler(AB8500_VBUS_RISING, usb_device_detect_handler, NULL);
+			ab8500_set_callback_handler(AB8500_VBUS_FALLING, usb_device_remove_handler, NULL);
 		}
 	#endif
-	#ifndef CONFIG_USB_MUSB_HOST
-		/* Registering usb device  for sysfs */
-		musb_status = musb;
-		usbstatus_kobj = kzalloc(sizeof(struct kobject), GFP_KERNEL);
 
-		if (usbstatus_kobj == NULL)
-			ret = -ENOMEM;
-		usbstatus_kobj->ktype = &ktype_usbstatus;
-		kobject_init(usbstatus_kobj, usbstatus_kobj->ktype);
+	/* Registering usb device  for sysfs */
+	musb_status = musb;
+	usbstatus_kobj = kzalloc(sizeof(struct kobject), GFP_KERNEL);
 
-		ret = kobject_set_name(usbstatus_kobj, "usb_status");
+	if (usbstatus_kobj == NULL)
+		ret = -ENOMEM;
+	usbstatus_kobj->ktype = &ktype_usbstatus;
+	kobject_init(usbstatus_kobj, usbstatus_kobj->ktype);
 
-		if (ret)
-			kfree(usbstatus_kobj);
+	ret = kobject_set_name(usbstatus_kobj, "usb_status");
+	if (ret)
+		kfree(usbstatus_kobj);
 
-		ret = kobject_add(usbstatus_kobj, NULL, "usb_status");
+	ret = kobject_add(usbstatus_kobj, NULL, "usb_status");
+	if (ret)
+		kfree(usbstatus_kobj);
 
-		if (ret)
-			kfree(usbstatus_kobj);
-
-	#endif
 #ifdef CONFIG_USB_MUSB_HOST
 	init_timer(&notify_timer);
 	notify_timer.expires = jiffies + msecs_to_jiffies(1000);
@@ -447,7 +446,7 @@ int musb_platform_exit(struct musb *musb)
 	musb->clock = 0;
 	status = stm_gpio_altfuncdisable(GPIO_ALT_USB_OTG);
 	if (status) {
-		printk("U8500 USB : Problem in disabling alternate function\n");
+		DBG(1, "U8500 USB : Problem in disabling alternate function\n");
 		return -EBUSY;
 	}
 #ifdef CONFIG_USB_MUSB_HOST
