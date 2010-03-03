@@ -14,7 +14,7 @@
 #include <linux/module.h>
 #include <linux/hrtimer.h>
 #include <linux/sched.h>
-
+#include <linux/clockchips.h>
 #include <mach/prcmu-fw-api.h>
 #include "cpuidle.h"
 
@@ -126,24 +126,8 @@ static int wfi_retention_idle(struct cpuidle_device *dev,
 	per_cpu(u8500_cpu_in_wfi, smp_processor_id()) = 1;
 	smp_wmb();
 
-#if 0
-	writel(1, PRCM_A9_MASK_REQ);
-	while (!readl(PRCM_A9_MASK_ACK))
-		cpu_relax();
-
-	/*check pending interrupts */
-
-	/* slow down the cpu's */
-	writel(0x3, PRCM_ARM_PLLDIVPS);
-	udelay(30);
-	writel(0x7, PRCM_ARM_PLLDIVPS);
-	udelay(30);
-	writel(0xf, PRCM_ARM_PLLDIVPS);
-
-	writel(0x1, PRCM_ARM_CHGCLKREQ); /* switch to external clock 400mhz */
-	/*keep ARMPLL on */
-	writel(readl(PRCM_PLLARM_ENABLE) & (~0x100), PRCM_PLLARM_ENABLE);
-#endif
+	cpu = smp_processor_id();
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
 
 	for_each_online_cpu(cpu)
 	    if (per_cpu(u8500_cpu_in_wfi, cpu) == 1)
@@ -155,6 +139,10 @@ static int wfi_retention_idle(struct cpuidle_device *dev,
 	else {
 		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
 	}
+
+	local_irq_disable();
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
+	local_irq_enable();
 
 	per_cpu(u8500_cpu_in_wfi, smp_processor_id()) = 0;
 	smp_wmb();
