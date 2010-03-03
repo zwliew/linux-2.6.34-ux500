@@ -75,7 +75,7 @@ static int __init board_id_setup(char *str)
 __setup("board_id=", board_id_setup);
 
 static struct stmpe2401_platform_data stmpe_data = {
-	.gpio_base = 268,
+	.gpio_base = U8500_NR_GPIO,
 	.irq    = GPIO_TO_IRQ(217),
 };
 
@@ -84,12 +84,13 @@ static struct av8100_platform_data av8100_plat_data = {
 };
 
 static struct stmpe1601_platform_data stmpe1601_data = {
-	.gpio_base = (268 + 24), /* 268 GPIOs + 24 extended GPIOs ofSTMPE2401*/
+	.gpio_base = (U8500_NR_GPIO + 24), /* U8500_NR_GPIO GPIOs + 24 extended
+					      GPIOs of STMPE2401*/
 	.irq    = GPIO_TO_IRQ(218),
 };
 
 static struct tc35892_platform_data tc35892_data = {
-	.gpio_base = 268,
+	.gpio_base = U8500_NR_GPIO,
 	.irq    = GPIO_TO_IRQ(217),
 };
 
