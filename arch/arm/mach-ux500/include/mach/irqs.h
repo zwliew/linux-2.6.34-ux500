@@ -87,24 +87,14 @@
 #define IRQ_CA_MSG_PEND_NOTIFICATION_0_V1	(IRQ_SPI_START + 79)
 #define IRQ_CA_MSG_PEND_NOTIFICATION_1_V1	(IRQ_SPI_START + 77)
 
-#define U8500_NR_GPIO	268
-#define GPIO_TOTAL_PINS	267
+#define U8500_SOC_NR_IRQS	161
 
-#define MAX_CHIP_IRQ	161
-#define MAX_GPIO_IRQ	(MAX_CHIP_IRQ  + GPIO_TOTAL_PINS)
+/* After chip-specific IRQ numbers we have the GPIO ones */
+#define U8500_NR_GPIO		268
+#define GPIO_TO_IRQ(gpio)	(gpio + U8500_SOC_NR_IRQS)
+#define IRQ_TO_GPIO(irq)	(irq - U8500_SOC_NR_IRQS)
 
-#ifndef NR_IRQS
-#define NR_IRQS         (MAX_GPIO_IRQ + 1)
-#endif
-
-/*  Macros to get irqno for GPIO pin and vice-versa*/
-#define IRQNO_GPIO(x)		(MAX_CHIP_IRQ  + x)
-#define GPIO_PIN_FOR_IRQ(x)	(x - MAX_CHIP_IRQ)
-
-/*  Macros to get irqno for DMA channels and vice-versa*/
-#define IRQNO_FOR_DMACH(x)	(MAX_GPIO_IRQ + x)
-#define DMACH_FOR_IRQNO(x)	(x - MAX_GPIO_IRQ)
+#define NR_IRQS			GPIO_TO_IRQ(U8500_NR_GPIO)
 
 
-#endif /*ASM_ARCH_IRQS_H*/
-
+#endif /* ASM_ARCH_IRQS_H */

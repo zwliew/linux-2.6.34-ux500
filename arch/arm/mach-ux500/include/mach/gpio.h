@@ -22,6 +22,9 @@
 
 #define ARCH_NR_GPIOS       309 /* 292+17 for STMPE1601*/
 
+/* Used by test applications */
+#define GPIO_TOTAL_PINS		267
+
 #include <mach/hardware.h>
 #include <asm-generic/gpio.h>
 #include <mach/irqs.h>
@@ -31,11 +34,6 @@
  */
 #define GPIO(x)				(x)
 #define stm_get_gpio_base(base, offset) base
-/*
- * Macros to get IRQ number from GPIO pin and vice-versa
- */
-#define GPIO_TO_IRQ(gpio)	(gpio + MAX_CHIP_IRQ)
-#define IRQ_TO_GPIO(irq)	(irq - MAX_CHIP_IRQ)
 
 /*
  * Standard GPIOLIB APIs (additional APIs in include/asm-generic/gpio.h)

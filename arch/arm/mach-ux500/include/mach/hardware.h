@@ -106,7 +106,6 @@
 #define DMA_PER_ID			0x8A280080
 #define DMA_PER_MASK			0xffffffff
 
-#define GPIO_TOTAL_PINS                 267
 #define GPIO_PER_ID                     0x1f380060
 #define GPIO_PER_MASK                   0xffffffff
 
