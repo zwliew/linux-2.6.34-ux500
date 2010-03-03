@@ -275,6 +275,10 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 	/* Initialize keypad workques  */
 	INIT_DELAYED_WORK(&kp->kscan_work, u8500_kp_wq_kscan);
 
+	/* Enable wakeup from keypad */
+	device_init_wakeup(&pdev->dev, kp->board->enable_wakeup);
+	device_set_wakeup_capable(&pdev->dev, kp->board->enable_wakeup);
+
 	/* Initialize keypad interrupt handler  */
 	if (!kp->mode) {	/* true if interrupt mode operation */
 #if 0

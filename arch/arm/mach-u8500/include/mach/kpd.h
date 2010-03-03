@@ -72,6 +72,7 @@ struct keypad_device {
 	u8	irq; /*IRQ no*/
 	u8      int_status;
 	u8 	int_line_behaviour;
+	bool	enable_wakeup;
 };
 
 /**

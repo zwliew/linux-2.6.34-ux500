@@ -640,6 +640,7 @@ static struct keypad_device keypad_board = {
 	/* .irq=GPIO_TO_IRQ(KEYPAD_INT), */
 	.int_status = KP_INT_DISABLED,
 	.int_line_behaviour = INT_LINE_NOTSET,
+	.enable_wakeup = true,
 };
 
 static struct resource keypad_resources[] = {
