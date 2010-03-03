@@ -2785,7 +2785,9 @@ static void __init u8500_earlydrop_fixup(void)
 	u8500_shrm_resources[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
 	u8500_shrm_resources[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
 	u8500_shrm_resources[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
-	mcde1_channel_data.gpio_alt_func =  GPIO_ALT_LCD_PANELB_ED;
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
+	mcde1_channel_data.gpio_alt_func = GPIO_ALT_LCD_PANELB_ED;
+#endif
 }
 
 static void __init amba_add_devices(struct amba_device *devs[], int num)
