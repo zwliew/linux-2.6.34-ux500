@@ -405,6 +405,8 @@ static void u8500_mmc_dma_transfer_done(struct u8500_mmci_host *host)
 	struct mmc_data *data;
 	struct mmc_host *mmc;
 	void __iomem *base;
+	u32 temp_reg;
+	int retry;
 	base = host->base;
 	data = host->data;
 	mmc = host->mmc;
@@ -414,6 +416,18 @@ static void u8500_mmc_dma_transfer_done(struct u8500_mmci_host *host)
 		u8500_mmci_request_end(host, host->mrq);
 		return;
 	}
+	/*
+	 * Need to wait for end of transfer, i.e.,
+	 * DATAEND bit to be set in SDI STATUS register
+	 */
+	temp_reg = readl(base + MMCISTATUS);
+	retry = 200*100; /* Max wait for 100 usec */
+	while (!(temp_reg & MCI_DATAEND) && (retry > 0)) {
+		ndelay(5);
+		retry--;
+		temp_reg = readl(host->base + MMCISTATUS);
+	}
+
 #ifndef DMA_SCATERGATHER
 	spin_lock(&host->lock);
 	if (!data->error) {
@@ -905,13 +919,6 @@ static void start_data_xfer(struct u8500_mmci_host *host)
 		temp_reg |= MCI_SDIO_ENABLE;
 
 	writel(temp_reg, (base + MMCIDATACTRL));
-
-	/**
-	 * Required for SDIO DMA mode, not functional without delay,
-	 * To be fixed later
-	 */
-	if ((host->cmd->opcode == SD_IO_RW_EXTENDED) && (host->devicemode == MCI_DMAMODE))
-		udelay(300);
 
 }
 static void u8500_mmci_xfer_irq(struct u8500_mmci_host *host,
