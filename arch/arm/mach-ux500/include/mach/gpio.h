@@ -184,6 +184,7 @@ struct gpio_block_data {
 	int irq;
 };
 
+extern int stm_gpio_set_altfunctable(struct gpio_altfun_data *table, int size);
 extern int stm_gpio_altfuncenable(gpio_alt_function alt_func);
 extern int stm_gpio_altfuncdisable(gpio_alt_function alt_func);
 
