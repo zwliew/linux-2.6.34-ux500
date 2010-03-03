@@ -21,8 +21,8 @@
  * Touchpanel related macros declaration
  */
 #define I2C3_TOUCHP_ADDRESS 0x5C/* I2C slave address */
-#define TOUCHP_IRQ 271/* PENIRQNO egpio3   */
-#define TOUCHP_CS0 270/* Chip select egpio2 */
+#define TOUCHP_IRQ	EGPIO_PIN_3	/* PENIRQNO egpio3   */
+#define TOUCHP_CS0	EGPIO_PIN_2	/* Chip select egpio2 */
 
 #define DRIVER_TP1 "u8500_tp1"
 /*
