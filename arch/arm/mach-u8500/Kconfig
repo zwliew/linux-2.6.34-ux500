@@ -1,5 +1,15 @@
 if ARCH_U8500
 
+config UX500_SOC_DB8500
+	bool
+	depends on (MACH_U8500_MOP || MACH_U8500_SIMULATOR)
+	default y
+
+config UX500_SOC_DB5500
+	bool
+	default y
+	depends on MACH_U5500_SIMULATOR
+
 menu "8500 target platform"
 
 config MACH_U8500_SIMULATOR
@@ -7,7 +17,6 @@ config MACH_U8500_SIMULATOR
 	select CPU_V7
 	select ARM_GIC
 	select SMP
-	select MACH_U8500_MOP
 	help
 		Supports Simulation for u8500 platform
 
@@ -16,7 +25,6 @@ config MACH_U5500_SIMULATOR
 	select CPU_V7
 	select ARM_GIC
 	select SMP
-	select MACH_U8500_MOP
 	help
 		Supports Simulation for u5500(FairBanks) platform
 
