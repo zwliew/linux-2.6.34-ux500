@@ -139,8 +139,8 @@
 /**
  * AB8500 USB macros
  */
-#define AB8500_REV_10 10
-#define AB8500_REV_11 11
+#define AB8500_REV_10 0x10
+#define AB8500_REV_11 0x11
 #define AB8500_USB_HOST 0x68
 #define AB8500_ID_WAKEUP 90
 #define AB8500_VBUS_RISING 15
