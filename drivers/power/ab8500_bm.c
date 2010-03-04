@@ -48,6 +48,12 @@
 #define AC_PW_CONN	1
 #define USB_PW_CONN	2
 
+/* TODO: For time being since there is not sync between the USB connectivity
+ * and the battery driver both cant be used simultaneously. Hence when
+ * enabling this flag make sure to disable USB gadget serial driver.
+ * #define CONFIG_USB_CHARGER
+ */
+
 static DEFINE_MUTEX(ab8500_bm_lock);
 
 /* Structure - Device Information
@@ -468,6 +474,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-main charge plug detected\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* set callback handlers  - rising edge on vbus detected */
 		ret = ab8500_set_callback_handler(VBUS_DET_R,
 						  ab8500_bm_vbusdetr_handler,
@@ -482,6 +489,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-falling edge on vbus detected\n");
+#endif
 		/* set callback handlers  - battery removal detected */
 		ret = ab8500_set_callback_handler(BAT_CTRL_INDB,
 						  ab8500_bm_batctrlindb_handler,
@@ -498,6 +506,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-watchdog expiration detected\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* set callback handlers  - vbus overvoltage detected */
 		ret = ab8500_set_callback_handler(VBUS_OVV,
 						  ab8500_bm_vbusovv_handler,
@@ -505,6 +514,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-vbus overvoltage detected\n");
+#endif
 		/* set callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
@@ -537,6 +547,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-battery temp greater than max temp\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* set callback handlers  - not allowed usb charger detected */
 		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKR,
 						  ab8500_bm_usbchargernotokr_handler,
@@ -551,6 +562,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-usb charger detected\n");
+#endif
 		/* set callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
@@ -569,6 +581,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-dir temp above main charger thermal protection threshold\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* set callback handlers  - usb charger unplug detected */
 		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKF,
 						  ab8500_bm_usbchargernotokf_handler,
@@ -576,6 +589,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-usb charger unplug detected\n");
+#endif
 	}
 	/* Unregister irq_no and callback handler */
 	else {
@@ -599,6 +613,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-main charge plug detected\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - rising edge on vbus detected */
 		ret = ab8500_remove_callback_handler(VBUS_DET_R);
 		if (ret < 0)
@@ -609,6 +624,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-falling edge on vbus detected\n");
+#endif
 		/* remove callback handlers  - battery removal detected */
 		ret = ab8500_remove_callback_handler(BAT_CTRL_INDB);
 		if (ret < 0)
@@ -621,11 +637,13 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-watchdog expiration detected\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - vbus overvoltage detected */
 		ret = ab8500_remove_callback_handler(VBUS_OVV);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-vbus overvoltage detected\n");
+#endif
 		/* remove callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
@@ -652,6 +670,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-battery temp greater than max temp\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - not allowed usb charger
 		 * detected
 		 */
@@ -664,6 +683,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-usb charger detected\n");
+#endif
 		/* remove callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
@@ -678,11 +698,13 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-dir temp above main charger thermal protection threshold\n");
+#if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - usb charger unplug detected */
 		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKF);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-usb charger unplug detected\n");
+#endif
 	}
 
 	return ret;
@@ -1169,7 +1191,7 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 		}
 		/* Schedule delayed work to re-kick watchdog */
 		queue_delayed_work(di->ab8500_bm_wd_kick_wq,
-				   &di->ab8500_bm_watchdog_work, HZ * 200);
+				   &di->ab8500_bm_watchdog_work, 300);
 	} else {
 		/* Disable USB charging */
 		ret =
@@ -1673,11 +1695,12 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	ret = ab8500_bm_ac_en(di, true);
 	if (ret)
 		dev_err(&pdev->dev, "failed to enable AC charging\n");
+#if defined(CONFIG_USB_CHARGER)
 	/* Enable USB charging */
 	ret = ab8500_bm_usb_en(di, true);
 	if (ret)
 		dev_err(&pdev->dev, "failed to enable USB charging\n");
-
+#endif
 	platform_set_drvdata(pdev, di);
 
 	/* Register callback handlers */
@@ -1743,11 +1766,11 @@ irq_fail:
 	if (ret)
 		dev_err(&pdev->dev, "failed to disable USB charging\n");
 free_wq:
-	kfree(di);
 	/* Delete the work queue */
 	destroy_workqueue(di->ab8500_bm_wq);
 	destroy_workqueue(di->ab8500_bm_wd_kick_wq);
 	destroy_workqueue(di->ab8500_bm_irq);
+	kfree(di);
 
 	return ret;
 }

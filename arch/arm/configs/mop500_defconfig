@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.29
-# Thu Mar  4 15:23:49 2010
+# Linux kernel version: 2.6.29-gcov
+# Thu Mar  4 18:05:53 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -847,7 +847,7 @@ CONFIG_POWER_SUPPLY=y
 # CONFIG_PDA_POWER is not set
 # CONFIG_BATTERY_DS2760 is not set
 # CONFIG_BATTERY_BQ27x00 is not set
-# CONFIG_AB8500_BM is not set
+CONFIG_AB8500_BM=y
 # CONFIG_HWMON is not set
 # CONFIG_THERMAL is not set
 CONFIG_THERMAL_HWMON=y
@@ -1417,6 +1417,11 @@ CONFIG_HAVE_FUNCTION_TRACER=y
 # CONFIG_SAMPLES is not set
 CONFIG_HAVE_ARCH_KGDB=y
 # CONFIG_KGDB is not set
+
+#
+# GCOV coverage profiling
+#
+# CONFIG_GCOV_PROFILE is not set
 CONFIG_DEBUG_USER=y
 CONFIG_DEBUG_ERRORS=y
 # CONFIG_DEBUG_STACK_USAGE is not set
