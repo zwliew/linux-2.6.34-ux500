@@ -30,6 +30,16 @@
 
 void __iomem *rtc_register_base ;
 
+struct hw_usage{
+	char b2r2:1;
+	char mcde:1;
+	char esram1:1;
+	char esram2:1;
+	char esram3:1;
+	char esram4:1;
+};
+struct hw_usage hw_usg_state = {0};
+
 /* TASKLET declarations */
 static void prcmu_ack_mb7_status_tasklet(unsigned long);
 DECLARE_TASKLET(prcmu_ack_mb7_tasklet, prcmu_ack_mb7_status_tasklet, 0);
@@ -51,6 +61,7 @@ static void (*prcmu_modem_wakes_arm_shrm)(void);
 /* function pointer for shrm callback sequence for modem requesting reset */
 static void (*prcmu_modem_reset_shrm)(void);
 
+static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst);
 
 /* Internal functions */
 
@@ -496,6 +507,95 @@ int prcmu_get_ape_opp(void)
 }
 EXPORT_SYMBOL(prcmu_get_ape_opp);
 
+
+int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
+{
+	hw_acc_t hw_acc_device;
+	/* check on which device is being used */
+	switch (hw_acc) {
+	case HW_ACC_SVAMMDSP:
+		hw_acc_device = SVAMMDSP;
+		break;
+	case HW_ACC_SVAPIPE:
+		hw_acc_device = SVAPIPE;
+		break;
+	case HW_ACC_SIAMMDSP:
+		hw_acc_device = SIAMMDSP;
+		break;
+	case HW_ACC_SIAPIPE:
+		hw_acc_device = SIAPIPE;
+		break;
+	case HW_ACC_SGA:
+		hw_acc_device = SGA;
+		break;
+	case HW_ACC_B2R2:
+		if (hw_accst == HW_ON) {
+			hw_usg_state.b2r2 = 1;
+		} else if (hw_accst == HW_OFF) {
+			hw_usg_state.b2r2 = 0;
+		}
+		if (hw_usg_state.mcde == 1)
+		return 0;
+		hw_acc_device = B2R2MCDE;
+		break;
+	case HW_ACC_MCDE:
+		if (hw_accst == HW_ON) {
+			hw_usg_state.mcde = 1;
+		} else if (hw_accst == HW_OFF) {
+			hw_usg_state.mcde = 0;
+		}
+		if (hw_usg_state.b2r2 == 1)
+		return 0;
+		hw_acc_device = B2R2MCDE;
+		break;
+	case HW_ACC_ESRAM1:
+		if (hw_accst == HW_ON) {
+			hw_usg_state.esram1 = 1;
+		} else if (hw_accst == HW_OFF) {
+			hw_usg_state.esram1 = 0;
+		}
+		if (hw_usg_state.esram2 == 1)
+			return 0;
+		hw_acc_device = ESRAM1;
+		break;
+	case HW_ACC_ESRAM2:
+		if (hw_accst == HW_ON) {
+			hw_usg_state.esram2 = 1;
+		} else if (hw_accst == HW_OFF) {
+			hw_usg_state.esram2 = 0;
+		}
+		if (hw_usg_state.esram1 == 1)
+			return 0;
+		hw_acc_device = ESRAM2;
+		break;
+	case HW_ACC_ESRAM3:
+		if (hw_accst == HW_ON) {
+			hw_usg_state.esram3 = 1;
+		} else if (hw_accst == HW_OFF) {
+			hw_usg_state.esram3 = 0;
+		}
+		if (hw_usg_state.esram4 == 1)
+		return 0;
+		hw_acc_device = ESRAM3;
+		break;
+	case HW_ACC_ESRAM4:
+		if (hw_accst == HW_ON) {
+			hw_usg_state.esram4 = 1;
+		} else if (hw_accst == HW_OFF) {
+			hw_usg_state.esram4 = 0;
+		}
+		if (hw_usg_state.esram3 == 1)
+			return 0;
+		hw_acc_device = ESRAM4;
+		break;
+	default:
+		break;
+	};
+	return prcmu_set_hwacc_st(hw_acc_device, hw_accst);
+}
+EXPORT_SYMBOL(prcmu_set_hwacc);
+
+
 /**
  * prcmu_set_ape_opp - set the appropriate h/w accelerator to power mode
  * @hw_acc: the hardware accelerator being considered
@@ -506,10 +606,10 @@ EXPORT_SYMBOL(prcmu_get_ape_opp);
  * power mode.
  * The caller can check the status following this call.
  */
-int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
+static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
 {
 	req_mb2_t request;
-
+	int err = 0;
 	if (u8500_is_earlydrop()) {
 		if (hw_acc < SVAMMDSP_ED || hw_acc > ESRAM4_ED ||
 				hw_accst < HW_NO_CHANGE_ED || hw_accst \
@@ -523,11 +623,26 @@ int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
 	if (hw_acc < SVAMMDSP || hw_acc > ESRAM4 ||
 	    hw_accst < HW_NO_CHANGE || hw_accst > HW_ON)
 		return -EINVAL;
+#if 0
 	memset(&request, 0x0, sizeof(request));
 	request.hw_accst_list[hw_acc].hw_accst = hw_accst;
 	return prcmu_request_mailbox2(&request);
+#endif
+	/* write the header into mailbox 2 */
+	writeb(DPS_H, PRCM_MBOX_HEADER_REQ_MB2);
+	/* fill out the request */
+	writel(0x0, PRCM_REQ_MB2_DPS_SVAMMDSP);
+	writel(0x0, PRCM_REQ_MB2_DPS_SGA);
+	writeb(hw_accst, PRCM_REQ_MB2 + hw_acc);
+	/* request for completion */
+	err = _wait_for_req_complete(REQ_MB2);
+	printk("\n readb(PRCM_ACK_MB2) = %x\n", readb(PRCM_ACK_MB2));\
+	if (readb(PRCM_ACK_MB2) == HWACC_PWRST_OK)
+		err = 0;
+	else
+		err = -EINVAL;
+	return err;
 }
-EXPORT_SYMBOL(prcmu_set_hwacc_st);
 
 /**
  * prcmu_get_m2a_status - Get the status or transition of the last request

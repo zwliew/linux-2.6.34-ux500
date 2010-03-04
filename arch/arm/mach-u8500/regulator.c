@@ -41,6 +41,7 @@ uint32_t vape_mode = REGULATOR_MODE_NORMAL;
 struct regulator_priv {
 	unsigned int status;
 	unsigned int operating_point;
+	unsigned int opp_mode_dep_count;
 };
 
 static int dcdc_vape_get_voltage(struct regulator_dev *rdev)
@@ -70,6 +71,8 @@ static int dcdc_vape_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	 */
 	switch (mode) {
 	case REGULATOR_MODE_IDLE:
+		if (priv->operating_point == APE_50_OPP)
+			return 0;
 		/* request PRCMU for a transition to 50OPP */
 		if (prcmu_set_ape_opp(APE_50_OPP)) {
 			dev_dbg(rdev_get_dev(rdev),
@@ -79,6 +82,8 @@ static int dcdc_vape_set_mode(struct regulator_dev *rdev, unsigned int mode)
 		priv->operating_point = APE_50_OPP;
 		break;
 	case REGULATOR_MODE_NORMAL:
+		if (priv->operating_point == APE_100_OPP)
+			return 0;
 		/* request PRCMU for a transition to 50OPP */
 		if (prcmu_set_ape_opp(APE_100_OPP)) {
 			dev_dbg(rdev_get_dev(rdev),
@@ -118,11 +123,14 @@ static unsigned int dcdc_vape_get_optimum_mode(struct regulator_dev *rdev,
 			input_uV, output_uV, load_uA);
 
 	/* load_uA will be non-zero if any non-dvfs client is active */
-	if (load_uA) {
-		priv->operating_point = APE_100_OPP;
+	if (load_uA)
+		priv->opp_mode_dep_count++;
+	else
+		priv->opp_mode_dep_count--;
+
+	if (priv->opp_mode_dep_count) {
 		return REGULATOR_MODE_NORMAL;
 	} else {
-		priv->operating_point = APE_50_OPP;
 		return REGULATOR_MODE_IDLE;
 	}
 }
@@ -236,6 +244,7 @@ static int __devinit db8500_regulator_probe(struct platform_device *pdev)
 
 	priv->status = 0;
 	priv->operating_point = 0;
+	priv->opp_mode_dep_count = 0;
 
 	/* TODO : pass the regulator specific data to register */
 	rdev = regulator_register(&db8500_desc[pdev->id], &pdev->dev, priv);

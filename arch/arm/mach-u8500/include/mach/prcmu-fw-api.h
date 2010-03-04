@@ -12,6 +12,19 @@
 #include <linux/interrupt.h>
 #include "prcmu-fw-defs_v1.h"
 
+enum hw_acc_dev{
+	HW_ACC_SVAMMDSP = 0,
+	HW_ACC_SVAPIPE = 1,
+	HW_ACC_SIAMMDSP = 2,
+	HW_ACC_SIAPIPE = 3,
+	HW_ACC_SGA = 4,
+	HW_ACC_B2R2 = 5,
+	HW_ACC_MCDE = 6,
+	HW_ACC_ESRAM1 = 7,
+	HW_ACC_ESRAM2 = 8,
+	HW_ACC_ESRAM3 = 9,
+	HW_ACC_ESRAM4 = 10,
+};
 
 int prcmu_get_boot_status(void);
 int prcmu_set_rc_a2p(romcode_write_t);
@@ -24,7 +37,7 @@ int prcmu_set_arm_opp(arm_opp_t);
 int prcmu_get_arm_opp(void);
 int prcmu_set_ape_opp(ape_opp_t);
 int prcmu_get_ape_opp(void);
-int prcmu_set_hwacc_st(hw_acc_t, hw_accst_t);
+int prcmu_set_hwacc(enum hw_acc_dev, hw_accst_t);
 /*mbox_2_arm_stat_t prcmu_get_m2a_status(void); */
 /*mbox_to_arm_err_t prcmu_get_m2a_error(void); */
 dvfs_stat_t prcmu_get_m2a_dvfs_status(void);

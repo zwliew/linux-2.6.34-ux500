@@ -496,6 +496,10 @@ typedef enum{
 	WKUPCS1   = 3
 } cs_pwrmgt_t;
 
+typedef enum {
+	DPS_H   = 0,
+	HW_ACCT_AUTO_PWR_H = 1,
+} reqmb2_header_t;
 
 /**
  * Header type for mail box 4

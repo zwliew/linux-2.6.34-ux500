@@ -88,6 +88,19 @@
 #define PRCM_ACK_MB1_CURR_BOOSTOPP      (PRCM_ACK_MB1 + 0x2)
 #define PRCM_ACK_MB1_CURR_DVFS_STATUS   (PRCM_ACK_MB1 + 0x3)
 
+/* Mailbox 2 REQs */
+#define PRCM_REQ_MB2_DPS_SVAMMDSP        (PRCM_REQ_MB2 + 0x0)
+#define PRCM_REQ_MB2_DPS_SVAPIPE         (PRCM_REQ_MB2 + 0x1)
+#define PRCM_REQ_MB2_DPS_SIAMMDSP        (PRCM_REQ_MB2 + 0x2)
+#define PRCM_REQ_MB2_DPS_SIAPIPE         (PRCM_REQ_MB2 + 0x3)
+#define PRCM_REQ_MB2_DPS_SGA             (PRCM_REQ_MB2 + 0x4)
+#define PRCM_REQ_MB2_DPS_B2R2MCDE        (PRCM_REQ_MB2 + 0x5)
+#define PRCM_REQ_MB2_DPS_ESRAM12         (PRCM_REQ_MB2 + 0x6)
+#define PRCM_REQ_MB2_DPS_ESRAM34         (PRCM_REQ_MB2 + 0x7)
+
+/* Mailbox 2 ACKs */
+#define PRCM_ACK_MB2_DPS_STATUS          (PRCM_ACK_MB2 + 0x0)
+
 /* Mailbox 5 Requests */
 #define PRCM_REQ_MB5_I2COPTYPE	(PRCM_REQ_MB5 + 0x0)
 #define PRCM_REQ_MB5_I2CREG	(PRCM_REQ_MB5 + 0x1)
