@@ -985,12 +985,7 @@ err:
 static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 {
 	int retval;
-	retval = pdev_data->chip->cs_en();
-	if (retval != TSC_OK) {
-		dev_err(&pdev_data->client->dev,
-			"error in init the tsc platform initialization\n");
-		goto err;
-	}
+
 	retval = bu21013_tsc_init(pdev_data->client);
 	if (retval == TSC_OK) {
 		init_config(pdev_data);
@@ -1127,6 +1122,14 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	INIT_WORK(&tsc_data->workq, tsc_timer_wq);
 	i2c_set_clientdata(i2c, tsc_data);
 	init_waitqueue_head(&tsc_data->touchp_event);
+
+	/* configure the gpio pins */
+	retval = tsc_data->chip->cs_en();
+	if (retval != TSC_OK) {
+		dev_err(&tsc_data->client->dev,
+			"error in init the tsc platform initialization\n");
+		goto err;
+	}
 
 	/** configure the touch panel controller */
 	retval = tsc_config(tsc_data);
