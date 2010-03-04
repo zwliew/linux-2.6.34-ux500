@@ -173,6 +173,8 @@ static void i2c_abort(struct i2c_driver_data *priv)
 	disable_all_interrupts(priv);
 	clear_all_interrupts(priv);
 	disable_controller(priv);
+	if (priv->clk)
+		clk_disable(priv->clk);
 	mdelay(1);
 	priv->cli_data.operation = I2C_NO_OPERATION;
 }
@@ -658,8 +660,11 @@ init_completion(&priv->xfer_complete);
 
 		timeout = wait_for_completion_interruptible_timeout(
 				&priv->xfer_complete, I2C_TIMEOUT);
-		if (timeout == 0)
+		if (timeout == 0) {
+			priv->result = -1;
+			i2c_abort(priv);
 			status = -EIO;
+		}
 		break;
 	}
 	case I2C_TRANSFER_MODE_DMA:
@@ -757,6 +762,9 @@ static int stm_i2c_xfer(struct i2c_adapter *i2c_adap,
 	i2c_error_t cause;
 	struct i2c_driver_data *priv = i2c_adap->algo_data;
 
+	if (priv->clk)
+		clk_enable(priv->clk);
+
 	if (reset_i2c_controller(priv))
 		return -1;
 	setup_i2c_controller(priv);
@@ -789,6 +797,8 @@ static int stm_i2c_xfer(struct i2c_adapter *i2c_adap,
 		}
 		mdelay(1);
 	}
+	if (priv->clk)
+		clk_disable(priv->clk);
 	return status;
 }
 
@@ -967,8 +977,6 @@ static int stm_i2c_probe(struct platform_device *pdev)
 		goto iounmap;
 	}
 
-	clk_enable(drv_data->clk);
-
 	p_adap = &drv_data->adap;
 	p_adap->dev.parent = &pdev->dev;
 	p_adap->id = I2C_ALGO_STM | I2C_HW_STM;
@@ -1040,7 +1048,6 @@ static int stm_i2c_probe(struct platform_device *pdev)
 altfuncdisable:
 	stm_gpio_altfuncdisable(pdata->gpio_alt_func);
 clk_disable:
-	clk_disable(drv_data->clk);
 	clk_put(drv_data->clk);
 iounmap:
 	iounmap(drv_data->regs);
@@ -1058,7 +1065,6 @@ static int stm_i2c_remove(struct platform_device *pdev)
 	pdata = pdev->dev.platform_data;
 	i2c_del_adapter(&(drv_data->adap));
 	free_irq(drv_data->irq, drv_data);
-	clk_disable(drv_data->clk);
 	clk_put(drv_data->clk);
 	iounmap(drv_data->regs);
 	kfree(drv_data);
