@@ -285,6 +285,7 @@ struct u8500_mmci_host {
 	int aligned_blksz;
 	int aligned_size;
 	struct mmc_board *board;
+	unsigned long reg_context[2];
 };
 
 /* Define the current mode  */
