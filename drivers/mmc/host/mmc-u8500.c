@@ -1705,8 +1705,10 @@ static int u8500_mmci_suspend(struct amba_device *dev, pm_message_t state)
 			writel(0, host->base + MMCIMASK0);
 		}
 		clk_disable(host->clk);
+#if CONFIG_REGULATOR
 		if (host->board->supply)
 			regulator_disable(host->regulator);
+#endif
 	}
 	return ret;
 }
@@ -1720,8 +1722,10 @@ static int u8500_mmci_resume(struct amba_device *dev)
 	int ret = 0;
 	if (mmc) {
 		struct u8500_mmci_host *host = mmc_priv(mmc);
+#if CONFIG_REGULATOR
 		if (host->board->supply)
 			regulator_enable(host->regulator);
+#endif
 		clk_enable(host->clk);
 		if (host->level_shifter) {
 			writel(MCI_IRQENABLE, host->base + MMCIMASK0);
