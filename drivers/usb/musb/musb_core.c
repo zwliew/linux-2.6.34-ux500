@@ -1524,6 +1524,10 @@ irqreturn_t musb_interrupt(struct musb *musb)
 		}
 #endif
 
+	/**
+	 * HACK for detecting the AX8817X series Ethernet over USB
+	 * Adapters for U8500 platform
+	 */
 #if (defined(CONFIG_ARCH_U8500) && defined(CONFIG_USB_NET_AX8817X))
 	mdelay(10);
 #endif
