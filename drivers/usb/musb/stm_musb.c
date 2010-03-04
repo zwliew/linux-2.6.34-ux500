@@ -21,10 +21,14 @@
 #include <linux/io.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
-
+#include <linux/regulator/consumer.h>
 #include "musb_core.h"
 #include "stm_musb.h"
 #include <mach/ab8500.h>
+
+#ifdef CONFIG_REGULATOR
+struct regulator *musb_vape_supply, *musb_vbus_supply;
+#endif
 
 #ifdef CONFIG_USB_MUSB_HOST
 
@@ -41,7 +45,12 @@ void usb_host_detect_handler(void)
 	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
 	if ((val & AB8500_USB_HOST) == AB8500_USB_HOST)
 		DBG(1, "USB host cable is detected \n");
+#ifdef CONFIG_REGULATOR
+	regulator_enable(musb_vbus_supply);
+	regulator_set_optimum_mode(musb_vape_supply, 1);
+#else
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
+#endif
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
 }
 #else
@@ -59,7 +68,12 @@ void usb_device_detect_handler(void)
 	mdelay(10);
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x0);
 	mdelay(10);
+#ifdef CONFIG_REGULATOR
+	regulator_enable(musb_vbus_supply);
+	regulator_set_optimum_mode(musb_vape_supply, 1);
+#else
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
+#endif
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
 }
 /**
@@ -69,7 +83,12 @@ void usb_device_detect_handler(void)
  */
 void usb_device_remove_handler(void)
 {
+#ifdef CONFIG_REGULATOR
+	regulator_disable(musb_vbus_supply);
+	regulator_set_optimum_mode(musb_vape_supply, 0);
+#else
 	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0);
+#endif
 	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0);
 }
 #endif
@@ -385,6 +404,22 @@ int __init musb_platform_init(struct musb *musb)
 		musb->board_set_vbus = set_vbus;
 	if (is_peripheral_enabled(musb))
 		musb->xceiv.set_power = set_power;
+
+#if CONFIG_REGULATOR
+	musb_vape_supply = regulator_get(NULL, "v-ape");
+	if (IS_ERR(musb_vape_supply)) {
+		ret = PTR_ERR(musb_vape_supply);
+		printk(KERN_WARNING "stm-musb : failed to get v-ape supply\n");
+		return -1;
+	}
+	regulator_enable(musb_vape_supply);
+	musb_vbus_supply = regulator_get(NULL, "v-bus");
+	if (IS_ERR(musb_vbus_supply)) {
+		ret = PTR_ERR(musb_vbus_supply);
+		printk(KERN_WARNING "stm-musb : failed to get v-bus supply\n");
+		return -1;
+	}
+#endif
 
 	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 	#ifdef CONFIG_USB_MUSB_HOST
