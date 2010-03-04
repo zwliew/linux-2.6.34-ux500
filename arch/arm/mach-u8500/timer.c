@@ -41,6 +41,13 @@ static cycle_t u8500_read_timer(void)
 	return ~count;
 }
 
+static void u8500_timer_reset(void);
+
+static void u8500_clocksource_resume(void)
+{
+	u8500_timer_reset();
+}
+
 static struct clocksource u8500_clksrc = {
 	.name		= "mtu_1",
 	.rating		= 400,
@@ -48,6 +55,7 @@ static struct clocksource u8500_clksrc = {
 	.shift		= 20,
 	.mask = CLOCKSOURCE_MASK(32),
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
+	.resume		= u8500_clocksource_resume,
 };
 
 /*
