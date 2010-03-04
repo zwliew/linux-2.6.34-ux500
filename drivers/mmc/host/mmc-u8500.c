@@ -42,7 +42,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/vmalloc.h>
 #include <linux/completion.h>
-
+#include <linux/regulator/consumer.h>
 
 #include <asm/cacheflush.h>
 #include <asm/div64.h>
@@ -1498,6 +1498,21 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 		mmc->max_blk_count = 64;
 	spin_lock_init(&host->lock);
 
+#if CONFIG_REGULATOR
+	/* attach regulator for on board emmc */
+	if (board->supply) {
+		host->regulator = regulator_get(&dev->dev, board->supply);
+		if (IS_ERR(host->regulator)) {
+			ret = PTR_ERR(host->regulator);
+#if CONFIG_REGULATOR
+			goto put_regulator;
+#else
+			goto unmap;
+#endif
+		}
+		regulator_enable(host->regulator);
+	}
+#endif
 	host->clk = clk_get(&dev->dev, NULL);
 	if (IS_ERR(host->clk)) {
 		ret = PTR_ERR(host->clk);
@@ -1605,6 +1620,13 @@ irq0_free:
 put_clk:
 	clk_disable(host->clk);
 	clk_put(host->clk);
+#if CONFIG_REGULATOR
+put_regulator:
+	if (host->regulator) {
+		regulator_disable(host->regulator);
+		regulator_put(host->regulator);
+	}
+#endif
 unmap:
 	iounmap(host->base);
 host_free:
@@ -1652,6 +1674,12 @@ static int u8500_mmci_remove(struct amba_device *dev)
 		board->exit(dev);
 		clk_disable(host->clk);
 		clk_put(host->clk);
+#if CONFIG_REGULATOR
+		if (host->regulator) {
+			regulator_disable(host->regulator);
+			regulator_put(host->regulator);
+		}
+#endif
 	}
 	return 0;
 }
