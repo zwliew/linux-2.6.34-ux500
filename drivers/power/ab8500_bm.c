@@ -245,6 +245,7 @@ static void ab8500_bm_mainchplugdet_handler(void *_di)
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_ac_en_monitor_work);
 }
 
+#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - rising edge on vbus detected */
 static void ab8500_bm_vbusdetr_handler(void *_di)
 {
@@ -262,6 +263,7 @@ static void ab8500_bm_vbusdetf_handler(void *_di)
 	dev_dbg(di->dev, "vbus falling edge detected....!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
+#endif
 
 /* callback handlers  - battery removal detected */
 static void ab8500_bm_batctrlindb_handler(void *_di)
@@ -292,6 +294,7 @@ static void ab8500_bm_chwdexp_handler(void *_di)
 	     "Watchdog charger expiration detected, charging stopped...!\n");
 }
 
+#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - vbus overvoltage detected */
 static void ab8500_bm_vbusovv_handler(void *_di)
 {
@@ -303,6 +306,7 @@ static void ab8500_bm_vbusovv_handler(void *_di)
 	dev_dbg(di->dev, "Disabling USB charging\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
+#endif
 
 /* callback handlers - bat voltage goes below LowBat detected */
 static void ab8500_bm_lowbatf_handler(void *_di)
@@ -358,6 +362,7 @@ static void ab8500_bm_btemphigh_handler(void *_di)
 	}
 }
 
+#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - not allowed usb charger detected */
 static void ab8500_bm_usbchargernotokr_handler(void *_di)
 {
@@ -375,6 +380,7 @@ static void ab8500_bm_usbchgdetdone_handler(void *_di)
 	dev_dbg(di->dev, "usb charger detected...!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_en_monitor_work);
 }
+#endif
 
 /*
  * callback handlers  - Die temp is above usb charger
@@ -426,6 +432,7 @@ static void ab8500_bm_mainchthprotr_handler(void *_di)
 	}
 }
 
+#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - usb charger unplug detected */
 static void ab8500_bm_usbchargernotokf_handler(void *_di)
 {
@@ -434,7 +441,7 @@ static void ab8500_bm_usbchargernotokf_handler(void *_di)
 	dev_dbg(di->dev, "usb charger unplug detected...!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
-
+#endif
 /*
  * Registers/Unregisters irq_no and callback handler functions
  * with the AB8500 core driver
