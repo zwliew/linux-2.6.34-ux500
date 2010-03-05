@@ -88,7 +88,7 @@ int tp_gpio_board_init(void)
 	void __iomem *clk_base;
 	unsigned int clk_value;
 #endif
-#if !CONFIG_REGULATOR
+#ifndef CONFIG_REGULATOR
 	/** Set the voltage for Bu21013 controller */
 	val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG);
 

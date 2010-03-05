@@ -29,11 +29,6 @@ static int u8500_pm_prepare(void)
 	return 0;
 }
 
-static int u8500_pm_suspend(void)
-{
-	return 0;
-}
-
 static int u8500_pm_enter(suspend_state_t state)
 {
 	int ret;

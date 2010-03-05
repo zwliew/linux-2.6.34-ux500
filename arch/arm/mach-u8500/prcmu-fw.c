@@ -511,6 +511,7 @@ EXPORT_SYMBOL(prcmu_get_ape_opp);
 int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 {
 	hw_acc_t hw_acc_device;
+
 	/* check on which device is being used */
 	switch (hw_acc) {
 	case HW_ACC_SVAMMDSP:
@@ -778,20 +779,21 @@ void pm_restore_config_PRCC(void)
 
 void __iomem *uart_backup_base, *uart_register_base;
 
+/* TODO : return success value to let decide to proceed
+ * 	  for low power request or not
+ */
 void pm_save_config_UART(void)
 {
 	uart_register_base = ioremap(U8500_UART2_BASE, SZ_4K);
 	if (!uart_register_base) {
 		printk(KERN_WARNING
 		 "u8500-prcm : cannot allocate uart register base\n");
-		return -EINVAL;
 	}
 
 	uart_backup_base = kzalloc(SZ_4K, GFP_KERNEL);
 	if (!uart_backup_base) {
 		printk(KERN_WARNING
 		 "u8500-prcm : cannot allocate uart register backup base\n");
-		return -EINVAL;
 	}
 
 	/* Copy UART config */
@@ -843,9 +845,9 @@ int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
 					ddr_pwrst_t ddr_state_req,
 					int _4500_fifo_wakeup)
 {
-	int ret = 0, flags;
+	int ret = 0;
 	int sync = 0;
-	unsigned int val = 0, timeout, tmp ;
+	unsigned int val = 0, timeout = 0, tmp ;
 
 	if (u8500_is_earlydrop()) {
 		/* The PRCMU does do state transition validation, so we wl not
@@ -1229,7 +1231,6 @@ EXPORT_SYMBOL(prcmu_i2c_read);
 int prcmu_i2c_write(u8 reg, u8 slave, u8 reg_data)
 {
 	uint8_t i2c_status;
-	uint32_t timeout;
 
 	/* NOTE : due to the I2C workaround, use
 	 *	  MB5 for data, MB4 for the header
@@ -1442,13 +1443,14 @@ EXPORT_SYMBOL(prcmu_get_wakeup_reason);
 int prcmu_clear_wakeup_reason()
 {
 	int i = 0;
+	uint8_t rdp;
 
 	/* write the header WKUPH for AckMb0 */
 	writeb(WKUPH, PRCM_MBOX_HEADER_ACK_MB0);
 
 	/* Ping pong not in place in firmware as of now */
 	/* read the Rdp field */
-	uint8_t rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
+	rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
 
 	/* clear the event fields */
 	if (rdp == 0) {

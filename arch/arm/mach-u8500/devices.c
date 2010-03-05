@@ -2202,7 +2202,7 @@ static int emmc_configure(struct amba_device *dev)
 	}
 	stm_gpio_altfuncenable(GPIO_ALT_EMMC);
 
-#if !CONFIG_REGULATOR
+#ifndef CONFIG_REGULATOR
 	/* FIXME: Move to board file! */
 	if (!u8500_is_earlydrop()) {
 		int val;
@@ -2235,7 +2235,7 @@ static struct mmc_board emmc_data = {
 	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM4_RX,
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM4_TX,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA | MMC_CAP_MMC_HIGHSPEED,
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 	.supply = "v-eMMC" /* tying to VAUX1 regulator */
 #endif
 };
@@ -2810,7 +2810,7 @@ static void __init amba_add_devices(struct amba_device *devs[], int num)
 }
 
 /* U8500 Power section */
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 
 #define U8500_VAPE_REGULATOR_MIN_VOLTAGE       (1800000)
 #define U8500_VAPE_REGULATOR_MAX_VOLTAGE       (2000000)
@@ -3079,7 +3079,7 @@ static struct platform_device *u8500_regulators[] = {
 
 static void __init u8500_platform_init(void)
 {
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 	/* we want the on-chip regulator before any device registration */
 	platform_add_devices(u8500_regulators, ARRAY_SIZE(u8500_regulators));
 #endif

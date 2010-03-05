@@ -43,8 +43,6 @@ int u8500_verify_speed(struct cpufreq_policy *policy)
 	return cpufreq_frequency_table_verify(policy, freq_table);
 }
 
-static int last_freq = 6000000;	/* TODO: remove temporary hack */
-
 static int u8500_target(struct cpufreq_policy *policy, unsigned int target_freq,
 			unsigned int relation)
 {

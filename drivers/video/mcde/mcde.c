@@ -95,7 +95,7 @@ void mcde_fb_unlock(struct fb_info *info, const char *caller)
 
 int mcde_debug = MCDE_DEFAULT_LOG_LEVEL;
 
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 static const char *supply_names[] = {
 	"v-ana",
 	"v-mcde",
@@ -3543,7 +3543,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	dev = &pdev->dev;
 	channel_info = (struct mcde_channel_data *) dev->platform_data;
 
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 	for (i = 0; i < ARRAY_SIZE(supply_names); i++)
 		mcde_supplies[i].supply = supply_names[i];
 

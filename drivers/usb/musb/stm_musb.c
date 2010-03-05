@@ -405,7 +405,7 @@ int __init musb_platform_init(struct musb *musb)
 	if (is_peripheral_enabled(musb))
 		musb->xceiv.set_power = set_power;
 
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 	musb_vape_supply = regulator_get(NULL, "v-ape");
 	if (IS_ERR(musb_vape_supply)) {
 		ret = PTR_ERR(musb_vape_supply);

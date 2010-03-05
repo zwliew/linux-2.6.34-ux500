@@ -1498,7 +1498,7 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 		mmc->max_blk_count = 64;
 	spin_lock_init(&host->lock);
 
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 	/* attach regulator for on board emmc */
 	if (board->supply) {
 		host->regulator = regulator_get(&dev->dev, board->supply);
@@ -1511,7 +1511,7 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	host->clk = clk_get(&dev->dev, NULL);
 	if (IS_ERR(host->clk)) {
 		ret = PTR_ERR(host->clk);
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 		goto put_regulator;
 #else
 		goto unmap;
@@ -1619,7 +1619,7 @@ irq0_free:
 put_clk:
 	clk_disable(host->clk);
 	clk_put(host->clk);
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 put_regulator:
 	if (host->regulator) {
 		regulator_disable(host->regulator);
@@ -1673,7 +1673,7 @@ static int u8500_mmci_remove(struct amba_device *dev)
 		board->exit(dev);
 		clk_disable(host->clk);
 		clk_put(host->clk);
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 		if (host->regulator) {
 			regulator_disable(host->regulator);
 			regulator_put(host->regulator);
@@ -1704,7 +1704,7 @@ static int u8500_mmci_suspend(struct amba_device *dev, pm_message_t state)
 			writel(0, host->base + MMCIMASK0);
 		}
 		clk_disable(host->clk);
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 		if (host->board->supply)
 			regulator_disable(host->regulator);
 #endif
@@ -1721,7 +1721,7 @@ static int u8500_mmci_resume(struct amba_device *dev)
 	int ret = 0;
 	if (mmc) {
 		struct u8500_mmci_host *host = mmc_priv(mmc);
-#if CONFIG_REGULATOR
+#ifdef CONFIG_REGULATOR
 		if (host->board->supply)
 			regulator_enable(host->regulator);
 #endif
