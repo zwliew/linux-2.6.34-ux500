@@ -494,6 +494,73 @@ static void clks_register(struct clk_lookup *clks, size_t num)
 	}
 }
 
+/* these are the clocks which are default from the bootloader */
+static const char *u8500_boot_clk[] = {
+	"uart0",
+	"uart1",
+	"uart2",
+	"gpio0",
+	"gpio1",
+	"gpio2",
+	"gpio3",
+	"mtu0",
+	"mtu1",
+	"ssp0",
+	"ssp1",
+	"spi0",
+	"spi1",
+	"spi2",
+	"spi3",
+	"msp0",
+	"msp1",
+	"msp2",
+	"msp3",
+	"i2c0",
+	"i2c1",
+	"i2c2",
+	"i2c3",
+	"i2c4"
+};
+
+struct clk *boot_clks[ARRAY_SIZE(u8500_boot_clk)];
+
+/* we disable a majority of peripherals enabled by default
+ * but without drivers
+ */
+static void __init u8500_boot_clk_disable(void)
+{
+	int i = 0;
+	for (i = 0; i < ARRAY_SIZE(u8500_boot_clk); i++) {
+		clk_disable(boot_clks[i]);
+		clk_put(boot_clks[i]);
+	}
+}
+late_initcall_sync(u8500_boot_clk_disable);
+
+static void u8500_amba_clk_enable(void)
+{
+	int i = 0;
+
+	writel(~0x0  & ~(1 << 9), IO_ADDRESS(U8500_PER1_BASE + 0xF000 + 0x04));
+	writel(~0x0, IO_ADDRESS(U8500_PER1_BASE + 0xF000 + 0x0C));
+
+	writel(~0x0 & ~(1 << 11), IO_ADDRESS(U8500_PER2_BASE + 0xF000 + 0x04));
+	writel(~0x0, IO_ADDRESS(U8500_PER2_BASE + 0xF000 + 0x0C));
+
+	/*GPIO,UART2 are enabled for booting*/
+	writel(0xBF, IO_ADDRESS(U8500_PER3_BASE + 0xF000 + 0x04));
+	writel(~0x0 & ~(1 << 6), IO_ADDRESS(U8500_PER3_BASE + 0xF000 + 0x0C));
+
+	/* enable AMBA configuration clock ONLY */
+	writel(~0x0, IO_ADDRESS(U8500_PER6_BASE + 0xF000 + 0x04));
+	writel(~0x0, IO_ADDRESS(U8500_PER6_BASE + 0xF000 + 0x0C));
+
+	for (i = 0; i < ARRAY_SIZE(u8500_boot_clk); i++) {
+		boot_clks[i] = clk_get_sys(u8500_boot_clk[i], NULL);
+		clk_enable(boot_clks[i]);
+	}
+}
+
 int __init clk_init(void)
 {
 	if (u8500_is_earlydrop()) {
@@ -515,6 +582,8 @@ int __init clk_init(void)
 		clks_register(u8500_ed_clkregs, ARRAY_SIZE(u8500_ed_clkregs));
 	else
 		clks_register(u8500_v1_clkregs, ARRAY_SIZE(u8500_v1_clkregs));
+
+	u8500_amba_clk_enable();
 
 	return 0;
 }
@@ -587,6 +656,27 @@ static int u8500_clocks_show(struct seq_file *m, void *v)
 
 		seq_printf(m, "%s\n", first ? "" : "]");
 	}
+
+	printk(KERN_INFO "Periph1 PCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER1_BASE + 0xF000 + 0x10)));
+	printk(KERN_INFO "Periph1 KCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER1_BASE + 0xF000 + 0x14)));
+	printk(KERN_INFO "Periph2 PCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER2_BASE + 0xF000 + 0x10)));
+	printk(KERN_INFO "Periph2 KCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER2_BASE + 0xF000 + 0x14)));
+	printk(KERN_INFO "Periph3 PCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER3_BASE + 0xF000 + 0x10)));
+	printk(KERN_INFO "Periph3 KCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER3_BASE + 0xF000 + 0x14)));
+	printk(KERN_INFO "Periph5 PCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER5_BASE + 0x1F000 + 0x10)));
+	printk(KERN_INFO "Periph5 KCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER5_BASE + 0x1F000 + 0x14)));
+	printk(KERN_INFO "Periph6 PCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER6_BASE + 0xF000 + 0x10)));
+	printk(KERN_INFO "Periph6 KCKEN : 0x%x\n",
+		readl(IO_ADDRESS(U8500_PER6_BASE + 0xF000 + 0x14)));
 
 	return 0;
 }
