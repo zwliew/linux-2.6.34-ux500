@@ -193,6 +193,12 @@ int ab8500_set_callback_handler(int int_no, void *callback_handler,
 {
 	unsigned long flags;
 
+	/* TODO: Need to remove this once the clients start
+	 * registering to the ab8500 core driver
+	 */
+	if (!ab8500)
+		return -ENODEV;
+
 	if (is_intid_invalid(int_no)) {
 		printk(KERN_ERR "invalid interrupt id\n");
 		return -1;
@@ -215,6 +221,12 @@ EXPORT_SYMBOL(ab8500_set_callback_handler);
 int ab8500_remove_callback_handler(int int_no)
 {
 	unsigned long flags;
+
+	/* TODO: Need to remove this once the clients start
+	 * registering to the ab8500 core driver
+	 */
+	if (!ab8500)
+		return -ENODEV;
 
 	if (is_intid_invalid(int_no)) {
 		printk(KERN_ERR "invalid interrupt id\n");
@@ -241,6 +253,12 @@ int ab8500_set_signal_handler(int int_no, int sig_no)
 {
 	unsigned long flags;
 
+	/* TODO: Need to remove this once the clients start
+	 * registering to the ab8500 core driver
+	 */
+	if (!ab8500)
+		return -ENODEV;
+
 	if (is_intid_invalid(int_no)) {
 		printk(KERN_ERR "invalid interrupt id\n");
 		return -1;
@@ -258,6 +276,12 @@ EXPORT_SYMBOL(ab8500_set_signal_handler);
 int ab8500_remove_signal_handler(int int_no)
 {
 	unsigned long flags;
+
+	/* TODO: Need to remove this once the clients start
+	 * registering to the ab8500 core driver
+	 */
+	if (!ab8500)
+		return -ENODEV;
 
 	if (is_intid_invalid(int_no)) {
 		printk(KERN_ERR "invalid interrupt id\n");
@@ -448,6 +472,12 @@ int ab8500_write(u8 block, u32 adr, u8 data)
 		return -1;
 	}
 
+	/* TODO: Need to remove this once the clients start
+	 * registering to the ab8500 core driver
+	 */
+	if (!ab8500)
+		return -ENODEV;
+
 #if 0
 	/* disabled as prcmu i2c not tested */
 	if (!u8500_is_earlydrop()) {
@@ -507,6 +537,11 @@ int ab8500_read(u8 block, u32 adr)
 		return -1;
 	}
 
+	/* TODO: Need to remove this once the clients start
+	 * registering to the ab8500 core driver
+	 */
+	if (!ab8500)
+		return -ENODEV;
 #if 0
 	/* disabled as prcmu i2c not tested */
 	if (!u8500_is_earlydrop()) {
@@ -699,6 +734,7 @@ static int __init ab8500_probe(struct platform_device *pdev)
 
 err_interface:
 	kfree(ab8500);
+	ab8500 = NULL;
 err_zalloc:
 	return result;
 driver_cleanup:
