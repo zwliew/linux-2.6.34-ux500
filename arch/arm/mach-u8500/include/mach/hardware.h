@@ -196,4 +196,39 @@ extern int u8500_is_earlydrop(void);
 
 #include <mach/mcde-base.h>
 
+#ifndef __ASSEMBLY__
+
+#include <asm/cputype.h>
+
+/* TODO: dynamic detection */
+static inline bool cpu_is_u8500(void)
+{
+#ifdef CONFIG_UX500_SOC_DB8500
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+static inline bool cpu_is_u8500ed(void)
+{
+	return cpu_is_u8500() && ((read_cpuid_id() & 15) == 0);
+}
+
+static inline bool cpu_is_u8500v1(void)
+{
+	return cpu_is_u8500() && ((read_cpuid_id() & 15) == 1);
+}
+
+static inline bool cpu_is_u5500(void)
+{
+#ifdef CONFIG_UX500_SOC_DB5500
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+#endif
+
 #endif				/* __ASM_ARCH_HARDWARE_H */
