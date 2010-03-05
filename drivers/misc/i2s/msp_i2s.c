@@ -63,7 +63,6 @@ static const struct msp_protocol_desc protocol_desc_tab[] = {
 
 /******************************************************************************/
 /* Local static functions */
-static irqreturn_t msp_handle_irq(int irq, void *dev_id);
 static int msp_dma_xfer(struct msp_struct *msp, struct i2s_message *msg);
 static int msp_polling_xfer(struct msp_struct *msp, struct i2s_message *msg);
 static int msp_interrupt_xfer(struct msp_struct *msp, struct i2s_message *msg);
@@ -1087,6 +1086,7 @@ static int msp_dma_xfer(struct msp_struct *msp, struct i2s_message *msg)
 	return status;
 }
 
+#if 0
 /**
  * msp_handle_irq - Interrupt handler routine.
  * @irq: irq no.
@@ -1183,6 +1183,7 @@ static irqreturn_t msp_handle_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 
 }
+#endif
 
 /**
  * msp_interrupt_xfer - Handles Interrupt transfers over i2s bus.
@@ -1614,13 +1615,15 @@ int msp_probe(struct platform_device *pdev)
 		status = -EINVAL;
 		goto free_msp;
 	}
-/*
+
+#if 0
 	status =
 	    request_irq(msp->irq, msp_handle_irq,
 			IRQF_DISABLED | IRQF_SHARED, MSP_NAME, msp);
 	if (status)
 		goto iounmap;
-*/
+#endif
+
 	msp->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(msp->clk)) {
 		status = PTR_ERR(msp->clk);
@@ -1671,8 +1674,10 @@ del_timer:
 	del_timer_sync(&msp->notify_timer);
 	clk_put(msp->clk);
 free_irq:
+#if 0
 	free_irq(msp->irq, msp);
 iounmap:
+#endif
 	iounmap(msp->registers);
 free_msp:
 	kfree(msp);
@@ -1696,7 +1701,9 @@ static int msp_remove(struct platform_device *pdev)
 	    (struct msp_struct *)dev_get_drvdata(&pdev->dev);
 	int status = 0;
 	i2s_del_controller(msp->i2s_cont);
-	/*free_irq(msp->irq, (void *)msp);*/
+#if 0
+	free_irq(msp->irq, msp);
+#endif
 	del_timer_sync(&msp->notify_timer);
 	clk_put(msp->clk);
 	iounmap(msp->registers);
