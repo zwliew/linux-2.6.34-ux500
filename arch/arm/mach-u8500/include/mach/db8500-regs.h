@@ -59,6 +59,4 @@
 #define U8500_UART0_BASE	(U8500_PER1_BASE + 0x0000)
 #define U8500_UART1_BASE	(U8500_PER1_BASE + 0x1000)
 
-#define UART_PER_ID                     0x00380802
-
 #endif

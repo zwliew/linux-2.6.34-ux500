@@ -125,20 +125,6 @@ extern int u8500_is_earlydrop(void);
 #define U8500_DMA_LCLA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCLA_OFFSET)
 #define U8500_DMA_LCPA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCPA_OFFSET)
 
-/* UART specific declaration */
-#define UART_FIFO_SIZE			64
-#define UART_TX_RX_HALF			0x2D
-#define UART_CONTROL_MASK_RTSFLOW   	0x04000
-#define UART_CONTROL_MASK_CTSFLOW   	0x08000
-
-#define UART_PER_MASK                   0x00ffffff
-
-#define STM_UART_DR    (*(volatile unsigned char *)(U8500_UART0_BASE))
-#define STM_UART_LCRH  (*(volatile unsigned char *)(U8500_UART0_BASE + 0x2c))
-#define STM_UART_CR    (*(volatile unsigned char *)(U8500_UART0_BASE + 0x30))
-#define STM_UART_FR    (*(volatile unsigned char *)(U8500_UART0_BASE  + 0x18))
-
-
 /* SSP specific declaration */
 #define SSP_PER_ID                      0x01080022
 #define SSP_PER_MASK                    0x0fffffff
