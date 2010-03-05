@@ -36,10 +36,8 @@
 #include <linux/mmc/host.h>
 #include <mach/mcde.h>
 #include <mach/mcde_common.h>
-#if defined(CONFIG_ANDROID_PMEM)
 #include <asm/setup.h>
 #include <linux/android_pmem.h>
-#endif
 #include <mach/msp.h>
 #include <mach/i2c-stm.h>
 #include <mach/hsi-stm.h>
