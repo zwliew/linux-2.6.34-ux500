@@ -19,6 +19,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
 #include <asm/mach/map.h>
+#include <asm/mach-types.h>
 
 #include <mach/devices.h>
 #include <mach/kpd.h>
@@ -28,6 +29,7 @@
 #include <mach/av8100_p.h>
 #include <mach/ab8500.h>
 #include <mach/mmc.h>
+#include <mach/setup.h>
 #include <mach/i2c-stm.h>
 
 #include <mach/u8500_tsc.h>
@@ -893,8 +895,10 @@ static void __init mop500_i2c_init(void)
 #endif
 }
 
-void __init mop500_platform_init(void)
+static void __init mop500_init_machine(void)
 {
+	u8500_init_devices();
+
 	mop500_platdata_init();
 
 	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
@@ -933,3 +937,19 @@ void __init mop500_platform_init(void)
 	platform_add_devices(u8500_platform_devices,
 			     ARRAY_SIZE(u8500_platform_devices));
 }
+
+MACHINE_START(NOMADIK, "ST-Ericsson U8500 Platform")
+	/* Maintainer: ST-Ericsson */
+#if defined(CONFIG_MACH_U5500_SIMULATOR)
+	.phys_io	= U8500_UART0_BASE,
+	.io_pg_offst	= (IO_ADDRESS(U8500_UART0_BASE) >> 18) & 0xfffc,
+#else
+	.phys_io	= U8500_UART2_BASE,
+	.io_pg_offst	= (IO_ADDRESS(U8500_UART2_BASE) >> 18) & 0xfffc,
+#endif
+	.boot_params	= 0x00000100,
+	.map_io		= u8500_map_io,
+	.init_irq	= u8500_init_irq,
+	.timer		= &u8500_timer,
+	.init_machine	= mop500_init_machine,
+MACHINE_END

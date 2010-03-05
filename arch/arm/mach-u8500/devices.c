@@ -20,8 +20,6 @@
 #include <linux/regulator/machine.h>
 
 #include <asm/irq.h>
-#include <asm/mach-types.h>
-#include <asm/hardware/gic.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -844,7 +842,7 @@ struct platform_device u8500_musb_device = {
 	.resource = usb_resources,
 };
 
-static void __init u8500_map_io(void)
+void __init u8500_map_io(void)
 {
 	iotable_init(u8500_common_io_desc, ARRAY_SIZE(u8500_common_io_desc));
 
@@ -854,7 +852,7 @@ static void __init u8500_map_io(void)
 		iotable_init(u8500_v1_io_desc, ARRAY_SIZE(u8500_v1_io_desc));
 }
 
-static void __init u8500_gic_init_irq(void)
+void __init u8500_init_irq(void)
 {
 	gic_dist_init(0, (void __iomem *)IO_ADDRESS(U8500_GIC_DIST_BASE), 29);
 	gic_cpu_init(0, (void __iomem *)IO_ADDRESS(U8500_GIC_CPU_BASE));
@@ -1279,7 +1277,7 @@ static struct platform_device *u8500_regulators[] = {
 
 #endif
 
-static void __init u8500_platform_init(void)
+void __init u8500_init_devices(void)
 {
 #ifdef CONFIG_REGULATOR
 	/* we want the on-chip regulator before any device registration */
@@ -1291,28 +1289,4 @@ static void __init u8500_platform_init(void)
 
 	amba_add_devices(amba_core_devs, ARRAY_SIZE(amba_core_devs));
 	platform_add_devices(platform_core_devs, ARRAY_SIZE(platform_core_devs));
-
-	mop500_platform_init();
 }
-
-extern struct sys_timer u8500_timer;
-
-/* TODO: Here I used NOMADIK name, U8500 is not yet in 2.6.29
- * but is already registered in the kernel version > 2.6.31
- * till that time I'm forced to keep NOMADIK - srinidhi
- */
-MACHINE_START(NOMADIK, "ST Ericsson U8500 Platform")
-	/* Maintainer: ST-Ericsson */
-#if defined(CONFIG_MACH_U5500_SIMULATOR)
-	.phys_io = U8500_UART0_BASE,
-	.io_pg_offst = (IO_ADDRESS(U8500_UART0_BASE) >> 18) & 0xfffc,
-#else
-	.phys_io = U8500_UART2_BASE,
-	.io_pg_offst = (IO_ADDRESS(U8500_UART2_BASE) >> 18) & 0xfffc,
-#endif
-	.boot_params = 0x00000100,
-	.map_io = u8500_map_io,
-	.init_irq = u8500_gic_init_irq,
-	.timer = &u8500_timer,
-	.init_machine = u8500_platform_init,
-MACHINE_END

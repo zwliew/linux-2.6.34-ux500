@@ -21,6 +21,7 @@
 #include <linux/jiffies.h>
 #include <asm/mach/time.h>
 #include <mach/mtu.h>
+#include <mach/setup.h>
 
 #define TIMER_CTRL	0x80	/* No divisor */
 #define TIMER_PERIODIC	0x40
