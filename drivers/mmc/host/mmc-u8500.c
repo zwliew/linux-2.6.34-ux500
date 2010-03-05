@@ -1504,11 +1504,6 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 		host->regulator = regulator_get(&dev->dev, board->supply);
 		if (IS_ERR(host->regulator)) {
 			ret = PTR_ERR(host->regulator);
-#if CONFIG_REGULATOR
-			goto put_regulator;
-#else
-			goto unmap;
-#endif
 		}
 		regulator_enable(host->regulator);
 	}
@@ -1516,7 +1511,11 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	host->clk = clk_get(&dev->dev, NULL);
 	if (IS_ERR(host->clk)) {
 		ret = PTR_ERR(host->clk);
+#if CONFIG_REGULATOR
+		goto put_regulator;
+#else
 		goto unmap;
+#endif
 	}
 
 	clk_enable(host->clk);
