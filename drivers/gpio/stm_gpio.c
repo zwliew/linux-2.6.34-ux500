@@ -367,7 +367,6 @@ EXPORT_SYMBOL(stm_gpio_altfuncenable);
  **/
 int stm_gpio_altfuncdisable(gpio_alt_function alt_func)
 {
-	unsigned long flags;
 	int i, j, found = 0;
 	int start, end;
 
@@ -707,7 +706,7 @@ static void gpio_irq_handler(u32 irq, struct irq_desc *desc)
  * It alse registers gpio_chip structure with GPIOLIB framework.
  *
  **/
-static int gpio_probe(struct amba_device *dev, void *id)
+static int gpio_probe(struct amba_device *dev, struct amba_id *id)
 {
 	struct gpio_platform_data *plat = dev->dev.platform_data;
 	struct gpio_block_data *gpio_block_data;
