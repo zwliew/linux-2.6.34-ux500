@@ -336,7 +336,7 @@ static void stmpe2401_work(struct work_struct *_chip)
 {
 	struct stmpe2401_chip *chip =
 	    container_of(_chip, struct stmpe2401_chip, work);
-	unsigned char isr, mask, isgpior_index = ISGPIOR_MSB_REG;
+	unsigned char isr, mask = 0, isgpior_index = ISGPIOR_MSB_REG;
 	unsigned char gpedr_index = GPEDR_MSB_REG, gpedr;
 	unsigned char val;
 	int count = 16, i, bit;
