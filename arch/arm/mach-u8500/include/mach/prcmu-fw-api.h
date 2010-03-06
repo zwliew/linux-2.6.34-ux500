@@ -56,9 +56,8 @@ int prcmu_i2c_get_val(void);
 
 int prcmu_arm_wakeup_modem(void);
 int prcmu_arm_free_modem(void);
-int prcmu_configure_wakeup_events(uint32_t, uint32_t);
-int prcmu_get_wakeup_reason(uint32_t *, unsigned char *);
-int prcmu_clear_wakeup_reason(void);
+int prcmu_configure_wakeup_events(u32, u32);
+int prcmu_get_wakeup_reason(u32 *, u8 *);
 int prcmu_ack_wakeup_reason(void);
 int prcmu_modem_wakup_ape(void);
 int prcmu_modem_freed_ape(void);

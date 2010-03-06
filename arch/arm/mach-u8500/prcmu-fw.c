@@ -1356,10 +1356,10 @@ EXPORT_SYMBOL(prcmu_arm_free_modem);
  * Header  : WKUPCFGH
  * ACK     : None
  */
-int prcmu_configure_wakeup_events(uint32_t event_8500_mask, \
-		uint32_t event_4500_mask)
+int prcmu_configure_wakeup_events(u32 event_8500_mask, \
+		u32 event_4500_mask)
 {
-	int timeout = 200;
+	int err = 0;
 
 	/* write CfgWkUpsH in the Header */
 	writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
@@ -1368,22 +1368,17 @@ int prcmu_configure_wakeup_events(uint32_t event_8500_mask, \
 	writel(event_8500_mask, PRCM_REQ_MB0_WKUP_8500);
 	writel(event_4500_mask, PRCM_REQ_MB0_WKUP_4500);
 
-	/* set the corresponding MBOX_CPU_SET bit to set an interrupt to xP70 */
-	writel(1 << 0, PRCM_MBOX_CPU_SET);
+	err = _wait_for_req_complete(REQ_MB0);
 
-	/* wait for corresponding MB0X_CPU_VAL bit to be cleared */
-	while ((readl(PRCM_MBOX_CPU_VAL) & (1 << 0)) && timeout--)
-		cpu_relax();
-
-	if (!timeout) {
-		printk(KERN_INFO "\nTimeout prcmu_configure_wakeup_events\n");
+	if (err) {
+		dbg_printk(KERN_INFO "\nTimeout configure_wakeup_events\n");
 	} else {
-		printk(KERN_INFO "\nprcmu_configure_wakeup_events \
+		dbg_printk(KERN_INFO "\nprcmu_configure_wakeup_events \
 				done successfully!!\n");
 	}
 
 	/* No ack for this service. Directly return */
-	return 0;
+	return err;
 
 
 
@@ -1401,74 +1396,30 @@ EXPORT_SYMBOL(prcmu_configure_wakeup_events);
  * Header  : WKUPH
  * ACK     : None
  */
-int prcmu_get_wakeup_reason(uint32_t *event_8500, \
-		unsigned char *event_4500 /* 20 bytes */)
+int prcmu_get_wakeup_reason(u32 *event_8500, u8 *event_4500 /* 20 bytes */)
 {
-
 	int i = 0;
 
 	/* read the Rdp field */
-	uint8_t rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
+	u8 rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
 
-	/* right now, ping pong not in place :) */
+	/* right now, some issues present in ping pong from fw side :) */
 	/* read the event fields */
-	if (rdp == 0) {
-		*event_8500 = readl(PRCM_ACK_MB0_WK0_EVENT_8500);
-		for (i = 0; i < PRCM_ACK_MB0_EVENT_4500_NUMBERS; i++)
-			event_4500[i] = readb(PRCM_ACK_MB0_WK0_EVENT_4500);
-	} else {
+
+	if (rdp) {
 		*event_8500 = readl(PRCM_ACK_MB0_WK1_EVENT_8500);
 		for (i = 0; i < PRCM_ACK_MB0_EVENT_4500_NUMBERS; i++)
-			event_4500[i] = readb(PRCM_ACK_MB0_WK1_EVENT_8500);
-
+			event_4500[i] = readb(PRCM_ACK_MB0_WK1_EVENT_4500 + i);
+	} else {
+		*event_8500 = readl(PRCM_ACK_MB0_WK0_EVENT_8500);
+		for (i = 0; i < PRCM_ACK_MB0_EVENT_4500_NUMBERS; i++)
+			event_4500[i] = readb(PRCM_ACK_MB0_WK0_EVENT_4500 + i);
 	}
-
 
 	/* No ack. Directly return */
 	return 0;
-
-
 }
 EXPORT_SYMBOL(prcmu_get_wakeup_reason);
-
-
-/**
- * prcmu_clear_wakeup_reason - Clear the wakeup fields in AckMb0 after reading
- *
- *
- * Mailbox : PRCM_ACK_MB0
- * Header  : None
- * ACK     : None
- */
-int prcmu_clear_wakeup_reason()
-{
-	int i = 0;
-	uint8_t rdp;
-
-	/* write the header WKUPH for AckMb0 */
-	writeb(WKUPH, PRCM_MBOX_HEADER_ACK_MB0);
-
-	/* Ping pong not in place in firmware as of now */
-	/* read the Rdp field */
-	rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
-
-	/* clear the event fields */
-	if (rdp == 0) {
-		writel(0, PRCM_ACK_MB0_WK0_EVENT_8500);
-		for (i = 0; i < 20; i++)
-			writeb(0, PRCM_ACK_MB0_WK0_EVENT_4500 + i);
-	} else {
-		writel(0, PRCM_ACK_MB0_WK1_EVENT_8500);
-		for (i = 0; i < 20; i++)
-			writeb(0, PRCM_ACK_MB0_WK1_EVENT_4500 + i);
-
-	}
-
-
-	/* No ack. Directly return */
-	return 0;
-}
-EXPORT_SYMBOL(prcmu_clear_wakeup_reason);
 
 
 /**
@@ -1481,18 +1432,13 @@ EXPORT_SYMBOL(prcmu_clear_wakeup_reason);
  */
 int prcmu_ack_wakeup_reason()
 {
-	uint8_t rdp;
+	int err = 0;
 
-	/* write RDWKUPACKH in the Header */
+	/* Acknowledge the wakeup events */
 	writeb(RDWKUPACKH, PRCM_MBOX_HEADER_REQ_MB0);
+	err = _wait_for_req_complete(REQ_MB0);
 
-	/* toggle the Rdp field in AckMb0 */
-	rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
-	rdp = !rdp;
-	writeb(rdp, PRCM_ACK_MB0_PINGPONG_RDP);
-
-	/*No ack for this service. Directly return */
-	return 0;
+	return err;
 }
 EXPORT_SYMBOL(prcmu_ack_wakeup_reason);
 
@@ -1587,8 +1533,6 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 		if (prcmu_modem_wakes_arm_shrm != NULL) {
 			(*prcmu_modem_wakes_arm_shrm)();
 
-			/* clear the wakeup reason */
-			prcmu_clear_wakeup_reason();
 		} else {
 			printk(KERN_INFO "\n prcmu: SHRM callback for \
 					ca_wake_req not registered!!\n");
