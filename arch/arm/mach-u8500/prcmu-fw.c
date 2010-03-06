@@ -1718,8 +1718,9 @@ static int prcmu_fw_init(void)
 {
 	int err = 0;
 	/* configure the wake-up events */
-	uint32_t event_8500 = (1 << 17) | (1 << 0);
-	uint32_t event_4500 = 0x0;
+	u32 event_8500 = 0x0;
+	u32 event_4500 = 0x0;
+	int prcm_arm_it1_val = 0;
 
 	if (u8500_is_earlydrop()) {
 		int i;
@@ -1741,18 +1742,37 @@ static int prcmu_fw_init(void)
 		return 0;
 	}
 
-	/* clear the arm_it1_val to low the IT#47 */
-	writeb(0xFF, PRCM_ARM_IT1_CLEAR);
+	/* configure the wakeup events */
+	event_8500 = (1 << 5);
+	event_4500 = 0x0;
+	prcmu_configure_wakeup_events(event_8500, event_4500);
+	dbg_printk("(WkUpCfgOk=0xEA)PRCM_ACK_MB0_AP_PWRST_STATUS = %x\n",
+			readb(PRCM_ACK_MB0_AP_PWRST_STATUS));
 
-	/* init irqs */
-        err = request_irq(IRQ_PRCM_ACK_MBOX, prcmu_ack_mbox_irq_handler, \
-			IRQF_TRIGGER_RISING, "prcmu_ack_mbox", NULL);
-        if (err<0) {
-                printk(KERN_ERR "\nUnable to allocate irq IRQ_PRCM_ACK_MBOX!!\n");
-                err = -EBUSY;
-                free_irq(IRQ_PRCM_ACK_MBOX,NULL);
-		goto err_return;
-        }
+	/* retrieve the current interrupt status from PRCMU FW */
+	prcm_arm_it1_val = readb(PRCM_ARM_IT1_VAL);
+	if (prcm_arm_it1_val && (1 << 0)) {
+		/* clear the arm_it1_val to low the IT#47 */
+		writeb(0xFF, PRCM_ARM_IT1_CLEAR);
+
+		/* init irqs */
+		err = request_irq(IRQ_PRCM_ACK_MBOX,
+			prcmu_ack_mbox_irq_handler, IRQF_TRIGGER_RISING,
+				"prcmu_ack_mbox", NULL);
+		if (err < 0) {
+			printk(KERN_ERR "\nFailed to allocate \
+					IRQ_PRCM_ACK_MBOX!!\n");
+			err = -EBUSY;
+			free_irq(IRQ_PRCM_ACK_MBOX, NULL);
+			goto err_return;
+		}
+
+		/* check for any existing wakeup events and ack*/
+		if (readb(PRCM_MBOX_HEADER_ACK_MB0) == WKUPH) {
+			/* acknowledge reading the wakeup reason to fw */
+			prcmu_ack_wakeup_reason();
+		}
+	}
 
 
         if (prcmu_get_xp70_current_state() == AP_BOOT)
@@ -1764,19 +1784,6 @@ static int prcmu_fw_init(void)
                 printk(KERN_WARNING "WARNING - PRCMU firmware not yet booted!!!\n");
                 return -ENODEV;
         }
-
-	/* write CfgWkUpsH in the Header */
-	writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
-
-	/* write to the mailbox */
-	/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
-	 * the firmware to set the register prcm_armit_maskxp70_it
-	 * (which is btw secure and thus only accessed by the xp70)
-	 */
-	writel(event_8500, PRCM_REQ_MB0_WKUP_8500);
-	writel(event_4500, PRCM_REQ_MB0_WKUP_4500);
-
-	_wait_for_req_complete(REQ_MB0);
 
 err_return:
 	return err;
