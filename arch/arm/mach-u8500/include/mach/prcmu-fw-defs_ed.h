@@ -12,18 +12,18 @@
 #define __MACH_PRCMU_FW_DEFS_ED_H
 
 /**
- * typedef state_t - ON/OFF state definition
+ * enum state_t - ON/OFF state definition
  *
  * OFF: State is ON
  * ON: State is OFF
  */
-typedef enum {
+enum state_ed_t {
 	OFF_ED = 0x00,
 	ON_ED = 0x01
-} state_ed_t;
+};
 
 /**
- * typedef clk_arm_t - ARM Cortex A9 clock schemes
+ * enum clk_arm_t - ARM Cortex A9 clock schemes
  *
  * A9_OFF:
  * A9_BOOT:
@@ -31,43 +31,43 @@ typedef enum {
  * A9_OPPT2:
  * A9_EXTCLK:
  */
-typedef enum {
+enum clk_arm_ed_t {
 	A9_OFF_ED,
 	A9_BOOT_ED,
 	A9_OPPT1_ED,
 	A9_OPPT2_ED,
 	A9_EXTCLK_ED
-} clk_arm_ed_t;
+};
 
 /**
- * typedef clk_gen_t - GEN#0/GEN#1 clock schemes
+ * enum clk_gen_t - GEN#0/GEN#1 clock schemes
  *
  * GEN_OFF:
  * GEN_BOOT:
  * GEN_OPPT1:
  */
-typedef enum {
+enum clk_gen_ed_t {
 	GEN_OFF_ED,
 	GEN_BOOT_ED,
 	GEN_OPPT1_ED,
-} clk_gen_ed_t;
+};
 
 /* some information between arm and xp70 */
 
 /**
- * typedef romcode_write_t - Romcode message written by A9 AND read by XP70
+ * enum romcode_write_t - Romcode message written by A9 AND read by XP70
  *
  * RDY_2_DS: Value set when ApDeepSleep state can be executed by XP70
  * RDY_2_XP70_RST: Value set when 0x0F has been successfully polled by the
  *                 romcode. The xp70 will go into self-reset
  */
-typedef enum {
+enum romcode_write_ed_t {
 	RDY_2_DS_ED = 0x09,
 	RDY_2_XP70_RST_ED = 0x10
-} romcode_write_ed_t;
+};
 
 /**
- * typedef romcode_read_t - Romcode message written by XP70 and read by A9
+ * enum romcode_read_t - Romcode message written by XP70 and read by A9
  *
  * INIT: Init value when romcode field is not used
  * FS_2_DS: Value set when power state is going from ApExecute to
@@ -82,7 +82,7 @@ typedef enum {
  * END_SWR: Value set when the xp70 finished executing ApReset actions and
  *          waits for romcode acknowledgment to go to self-reset
  */
-typedef enum {
+enum romcode_read_ed_t {
 	INIT_ED = 0x00,
 	FS_2_DS_ED = 0x0A,
 	END_DS_ED = 0x0B,
@@ -90,10 +90,10 @@ typedef enum {
 	END_FS_ED = 0x0D,
 	SWR_ED = 0x0E,
 	END_SWR_ED = 0x0F
-} romcode_read_ed_t;
+};
 
 /**
- * typedef ap_pwrst_t - current power states defined in PRCMU firmware
+ * enum ap_pwrst_t - current power states defined in PRCMU firmware
  *
  * NO_PWRST: Current power state init
  * AP_BOOT: Current power state is apBoot
@@ -103,7 +103,7 @@ typedef enum {
  * AP_IDLE: Current power state is apIdle
  * AP_RESET: Current power state is apReset
  */
-typedef enum {
+enum ap_pwrst_ed_t {
 	NO_PWRST_ED = 0x00,
 	AP_BOOT_ED = 0x01,
 	AP_EXECUTE_ED = 0x02,
@@ -111,10 +111,10 @@ typedef enum {
 	AP_SLEEP_ED = 0x04,
 	AP_IDLE_ED = 0x05,
 	AP_RESET_ED = 0x06
-} ap_pwrst_ed_t;
+};
 
 /**
- * typedef ap_pwrst_trans_t - Transition states defined in PRCMU firmware
+ * enum ap_pwrst_trans_t - Transition states defined in PRCMU firmware
  *
  * NO_TRANSITION: No power state transition
  * APEXECUTE_TO_APSLEEP: Power state transition from ApExecute to ApSleep
@@ -124,54 +124,54 @@ typedef enum {
  *                          ApDeepSleep
  * APEXECUTE_TO_APIDLE: Power state transition from ApExecute to ApIdle
  */
-typedef enum {
+enum ap_pwrst_trans_ed_t {
 	NO_TRANSITION_ED = 0x00,
 	APEXECUTE_TO_APSLEEP_ED = 0xFB,
 	APIDLE_TO_APSLEEP_ED = 0xFC,
 	APBOOT_TO_APEXECUTE_ED = 0xFD,
 	APEXECUTE_TO_APDEEPSLEEP_ED = 0xFE,
 	APEXECUTE_TO_APIDLE_ED = 0xFF
-} ap_pwrst_trans_ed_t;
+};
 
 /**
- * typedef ddr_pwrst_t - DDR power states definition
+ * enum ddr_pwrst_t - DDR power states definition
  *
  * DDR_PWR_STATE_UNCHANGED: SDRAM and DDR controller state is unchanged
  * TOBEDEFINED: to be defined
  */
-typedef enum {
+enum ddr_pwrst_ed_t {
 	DDR_PWR_STATE_UNCHANGED_ED = 0x00,
 	TOBEDEFINED_ED = 0x01
-} ddr_pwrst_ed_t;
+};
 
 /**
- * typedef arm_opp_t - ARM OPP states definition
+ * enum arm_opp_t - ARM OPP states definition
  *
  * ARM_NO_CHANGE: The ARM operating point is unchanged
  * ARM_100_OPP: The new ARM operating point is arm100opp
  * ARM_50_OPP: The new ARM operating point is arm100opp
  * ARM_EXTCLK: The new ARM operating point is armExtClk
  */
-typedef enum {
+enum arm_opp_ed_t {
 	ARM_NO_CHANGE_ED = 0x00,
 	ARM_100_OPP_ED = 0x01,
 	ARM_50_OPP_ED = 0x02,
 	ARM_EXTCLK_ED = 0x03
-} arm_opp_ed_t;
+};
 
 /**
- * typedef ape_opp_t - APE OPP states definition
+ * enum ape_opp_t - APE OPP states definition
  *
  * APE_NO_CHANGE: The APE operating point is unchanged
  * APE_100_OPP: The new APE operating point is ape100opp
  */
-typedef enum {
+enum ape_opp_ed_t {
 	APE_NO_CHANGE_ED = 0x00,
 	APE_100_OPP_ED = 0x01
-} ape_opp_ed_t;
+};
 
 /**
- * typedef hw_accst_t - State definition for hardware accelerator
+ * enum hw_accst_t - State definition for hardware accelerator
  *
  * HW_NO_CHANGE: The hardware accelerator state must remain unchanged
  * HW_OFF: The hardware accelerator must be switched off
@@ -179,15 +179,15 @@ typedef enum {
  *               internal RAM in retention
  * HW_ON: The hwa hadware accelerator hwa must be switched on
  */
-typedef enum {
+enum hw_accst_ed_t {
 	HW_NO_CHANGE_ED = 0x00,
 	HW_OFF_ED = 0x01,
 	HW_OFF_RAMRET_ED = 0x02,
 	HW_ON_ED = 0x03
-} hw_accst_ed_t;
+};
 
 /**
- * typedef mbox_2_arm_stat_t - Status messages definition for mbox_arm
+ * enum mbox_2_arm_stat_t - Status messages definition for mbox_arm
  *
  * Status messages definition for mbox_arm coming from XP70 to ARM
  *
@@ -216,7 +216,7 @@ typedef enum {
  *                    completed
  * INIT_STATUS: Status init
  */
-typedef enum {
+enum mbox_2_arm_stat_ed_t {
 	BOOT_TO_EXECUTEOK_ED = 0xFF,
 	DEEPSLEEPOK_ED = 0xFE,
 	SLEEPOK_ED = 0xFD,
@@ -234,10 +234,10 @@ typedef enum {
 	IDLE_TO_EXECUTE_ED = 0xF1,
 	IDLE_TO_EXECUTEOK_ED = 0xF0,
 	INIT_STATUS_ED = 0x00
-} mbox_2_arm_stat_ed_t;
+};
 
 /**
- * typedef mbox_2_armdvfs_stat_t - DVFS status messages definition
+ * enum mbox_2_armdvfs_stat_t - DVFS status messages definition
  *
  * DVFS status messages definition for mbox_arm coming from XP70 to ARM
  * DVFS_GO: A state transition DVFS is on going
@@ -248,65 +248,65 @@ typedef enum {
  *                   NOCHGCLK
  * DVFS_INITSTATUS: Value init
  */
-typedef enum {
+enum mbox_2_armdvfs_stat_ed_t {
 	DVFS_GO_ED = 0xFF,
 	DVFS_ARM100OPPOK_ED = 0xFE,
 	DVFS_ARM50OPPOK_ED = 0xFD,
 	DVFS_ARMEXTCLKOK_ED = 0xFC,
 	DVFS_NOCHGTCLKOK_ED = 0xFB,
 	DVFS_INITSTATUS_ED = 0x00
-} mbox_2_armdvfs_stat_ed_t;
+};
 
 /**
- * typedef mbox_2_arm_hwacc_pwr_stat_t - Hardware Accelarator status message
+ * enum mbox_2_arm_hwacc_pwr_stat_t - Hardware Accelarator status message
  *
  * HWACC_PWRST_GO: A state transition on hardware accelerator is on going
  * HWACC_PWRST_OK: The state transition on hardware accelerator has been
  *                 completed
  * HWACC_PWRSTATUS_INIT: Value init
  */
-typedef enum {
+enum mbox_2_arm_hwacc_pwr_stat_ed_t {
 	HWACC_PWRST_GO_ED = 0xFF,
 	HWACC_PWRST_OK_ED = 0xFE,
 	HWACC_PWRSTATUS_INIT_ED = 0x00
-} mbox_2_arm_hwacc_pwr_stat_ed_t;
+};
 
 /**
- * typedef sva_mmdsp_stat_t - SVA MMDSP status messages
+ * enum sva_mmdsp_stat_t - SVA MMDSP status messages
  *
  * SVA_MMDSP_GO: SVAMMDSP interrupt has happened
  * SVA_MMDSP_INIT: Status init
  */
-typedef enum {
+enum sva_mmdsp_stat_ed_t {
 	SVA_MMDSP_GO_ED = 0xFF,
 	SVA_MMDSP_INIT_ED = 0x00
-} sva_mmdsp_stat_ed_t;
+};
 
 /**
- * typedef sia_mmdsp_stat_t - SIA MMDSP status messages
+ * enum sia_mmdsp_stat_t - SIA MMDSP status messages
  *
  * SIA_MMDSP_GO: SIAMMDSP interrupt has happened
  * SIA_MMDSP_INIT: Status init
  */
-typedef enum {
+enum sia_mmdsp_stat_ed_t {
 	SIA_MMDSP_GO_ED = 0xFF,
 	SIA_MMDSP_INIT_ED = 0x00
-} sia_mmdsp_stat_ed_t;
+};
 
 /**
- * typedef intr_wakeup_t - Configure STW4500 FIFO interrupt as wake-up
+ * enum intr_wakeup_t - Configure STW4500 FIFO interrupt as wake-up
  *
  * INTR_NOT_AS_WAKEUP: The 4500 fifo interrupt is not configured as a
  *                     wake-up event
  * INTR_AS_WAKEUP: The 4500 fifo interrupt is configured as a wake-up event
  */
-typedef enum {
+enum intr_wakeup_ed_t {
 	INTR_NOT_AS_WAKEUP_ED = 0x0,
 	INTR_AS_WAKEUP_ED = 0x1
 } intr_wakeup_ed_t;
 
 /**
- * typedef mbox_to_arm_err_t - Error messages definition
+ * enum mbox_to_arm_err_t - Error messages definition
  *
  * Error messages definition for mbox_arm coming from XP70 to ARM
  *
@@ -365,7 +365,7 @@ typedef enum {
  * VMODREGUVALTO_ERR: The VModemRegu value transfered through I2C has not
  *                    been correctly executed in the given time
  */
-typedef enum {
+enum mbox_to_arm_err_ed_t {
 	INIT_ERR_ED = 0x00,
 	PLLARMLOCKP_ERR_ED = 0x01,
 	PLLDDRLOCKP_ERR_ED = 0x02,
@@ -397,9 +397,9 @@ typedef enum {
 	VAPEREGUVALTO_ERR_ED = 0x26,
 	VSMPS3REGUVALTO_ERR_ED = 0x27,
 	VMODREGUVALTO_ERR_ED = 0x28
-} mbox_to_arm_err_ed_t;
+};
 
-typedef enum {
+enum hw_acc_ed_t {
 	SVAMMDSP_ED = 0,
 	SVAPIPE_ED = 1,
 	SIAMMDSP_ED = 2,

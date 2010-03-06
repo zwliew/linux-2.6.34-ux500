@@ -62,18 +62,18 @@ enum clk_gen_t {
 /* some information between arm and xp70 */
 
 /**
- * typedef romcode_write_t - Romcode message written by A9 AND read by XP70
+ * enum romcode_write_t - Romcode message written by A9 AND read by XP70
  * @RDY_2_DS: Value set when ApDeepSleep state can be executed by XP70
  * @RDY_2_XP70_RST: Value set when 0x0F has been successfully polled by the
  *                 romcode. The xp70 will go into self-reset
  */
-typedef enum {
+enum romcode_write_t {
 	RDY_2_DS = 0x09,
 	RDY_2_XP70_RST = 0x10
-} romcode_write_t;
+};
 
 /**
- * typedef romcode_read_t - Romcode message written by XP70 and read by A9
+ * enum romcode_read_t - Romcode message written by XP70 and read by A9
  * @INIT: Init value when romcode field is not used
  * @FS_2_DS: Value set when power state is going from ApExecute to
  *          ApDeepSleep
@@ -87,7 +87,7 @@ typedef enum {
  * @END_SWR: Value set when the xp70 finished executing ApReset actions and
  *          waits for romcode acknowledgment to go to self-reset
  */
-typedef enum {
+enum romcode_read_t {
 	INIT = 0x00,
 	FS_2_DS = 0x0A,
 	END_DS = 0x0B,
@@ -95,7 +95,7 @@ typedef enum {
 	END_FS = 0x0D,
 	SWR = 0x0E,
 	END_SWR = 0x0F
-} romcode_read_t;
+};
 
 
 /**
@@ -131,7 +131,7 @@ enum wkup_reason_fdst_t {
 
 
 /**
- * typedef ap_pwrst_t - current power states defined in PRCMU firmware
+ * enum ap_pwrst_t - current power states defined in PRCMU firmware
  * @NO_PWRST: Current power state init
  * @AP_BOOT: Current power state is apBoot
  * @AP_EXECUTE: Current power state is apExecute
@@ -140,7 +140,7 @@ enum wkup_reason_fdst_t {
  * @AP_IDLE: Current power state is apIdle
  * @AP_RESET: Current power state is apReset
  */
-typedef enum {
+enum ap_pwrst_t {
 	NO_PWRST = 0x00,
 	AP_BOOT = 0x01,
 	AP_EXECUTE = 0x02,
@@ -148,10 +148,10 @@ typedef enum {
 	AP_SLEEP = 0x04,
 	AP_IDLE = 0x05,
 	AP_RESET = 0x06
-} ap_pwrst_t;
+};
 
 /**
- * typedef ap_pwrst_trans_t - Transition states defined in PRCMU firmware
+ * enum ap_pwrst_trans_t - Transition states defined in PRCMU firmware
  * @NO_TRANSITION: No power state transition
  * @APEXECUTE_TO_APSLEEP: Power state transition from ApExecute to ApSleep
  * @APIDLE_TO_APSLEEP: Power state transition from ApIdle to ApSleep
@@ -160,68 +160,68 @@ typedef enum {
  *                          ApDeepSleep
  * @APEXECUTE_TO_APIDLE: Power state transition from ApExecute to ApIdle
  */
-typedef enum {
+enum ap_pwrst_trans_t {
 	NO_TRANSITION = 0x00,
 	APEXECUTE_TO_APSLEEP = 0x01,
 	APIDLE_TO_APSLEEP = 0x02,
 	APBOOT_TO_APEXECUTE = 0x03,
 	APEXECUTE_TO_APDEEPSLEEP = 0x04,
 	APEXECUTE_TO_APIDLE = 0x05
-} ap_pwrst_trans_t;
+};
 
 /**
- * typedef ddr_pwrst_t - DDR power states definition
+ * enum ddr_pwrst_t - DDR power states definition
  * @DDR_PWR_STATE_UNCHANGED: SDRAM and DDR controller state is unchanged
  * @DDR_PWR_STATE_ON:
  * @DDR_PWR_STATE_OFFLOWLAT:
  * @DDR_PWR_STATE_OFFHIGHLAT:
  */
-typedef enum {
+enum ddr_pwrst_t {
 	DDR_PWR_STATE_UNCHANGED     = 0x00,
 	DDR_PWR_STATE_ON            = 0x01,
 	DDR_PWR_STATE_OFFLOWLAT     = 0x02,
 	DDR_PWR_STATE_OFFHIGHLAT    = 0x03
-} ddr_pwrst_t;
+};
 
 /**
- * typedef arm_opp_t - ARM OPP states definition
+ * enum arm_opp_t - ARM OPP states definition
  * @ARM_NO_CHANGE: The ARM operating point is unchanged
  * @ARM_100_OPP: The new ARM operating point is arm100opp
  * @ARM_50_OPP: The new ARM operating point is arm100opp
  * @ARM_EXTCLK: The new ARM operating point is armExtClk
  */
-typedef enum {
+enum arm_opp_t {
 	ARM_NO_CHANGE = 0x00,
 	ARM_100_OPP = 0x02,
 	ARM_50_OPP = 0x03,
 	ARM_EXTCLK = 0x07
-} arm_opp_t;
+};
 
 /**
- * typedef ape_opp_t - APE OPP states definition
+ * enum ape_opp_t - APE OPP states definition
  * @APE_NO_CHANGE: The APE operating point is unchanged
  * @APE_100_OPP: The new APE operating point is ape100opp
  */
-typedef enum {
+enum ape_opp_t {
 	APE_NO_CHANGE = 0x00,
 	APE_100_OPP = 0x02,
 	APE_50_OPP = 0x03
-} ape_opp_t;
+};
 
 /**
- * typedef hw_accst_t - State definition for hardware accelerator
+ * enum hw_accst_t - State definition for hardware accelerator
  * @HW_NO_CHANGE: The hardware accelerator state must remain unchanged
  * @HW_OFF: The hardware accelerator must be switched off
  * @HW_OFF_RAMRET: The hardware accelerator must be switched off with its
  *               internal RAM in retention
  * @HW_ON: The hwa hadware accelerator hwa must be switched on
  */
-typedef enum {
+enum hw_accst_t {
 	HW_NO_CHANGE = 0x00,
 	HW_OFF = 0x01,
 	HW_OFF_RAMRET = 0x02,
 	HW_ON = 0x03
-} hw_accst_t;
+};
 
 /**
  * enum  mbox_2_arm_stat_t - Status messages definition for mbox_arm
@@ -303,7 +303,7 @@ enum ap_pwrsttr_status_t {
 
 
 /**
- * typedef dvfs_stat_t - DVFS status messages definition
+ * enum dvfs_stat_t - DVFS status messages definition
  * @DVFS_GO: A state transition DVFS is on going
  * @DVFS_ARM100OPPOK: The state transition DVFS has been completed for 100OPP
  * @DVFS_ARM50OPPOK: The state transition DVFS has been completed for 50OPP
@@ -312,27 +312,27 @@ enum ap_pwrsttr_status_t {
  *                   NOCHGCLK
  * @DVFS_INITSTATUS: Value init
  */
-typedef enum {
+enum dvfs_stat_t {
 	DVFS_GO = 0xFF,
 	DVFS_ARM100OPPOK = 0xFE,
 	DVFS_ARM50OPPOK = 0xFD,
 	DVFS_ARMEXTCLKOK = 0xFC,
 	DVFS_NOCHGTCLKOK = 0xFB,
 	DVFS_INITSTATUS = 0x00
-} dvfs_stat_t;
+};
 
 /**
- * typedef mbox_2_arm_hwacc_pwr_stat_t - Hardware Accelarator status message
+ * enum mbox_2_arm_hwacc_pwr_stat_t - Hardware Accelarator status message
  * @HWACC_PWRST_GO: A state transition on hardware accelerator is on going
  * @HWACC_PWRST_OK: The state transition on hardware accelerator has been
  *                 completed
  * @HWACC_PWRSTATUS_INIT: Value init
  */
-typedef enum {
+enum mbox_2_arm_hwacc_pwr_stat_t {
 	HWACC_PWRST_GO = 0xFF,
 	HWACC_PWRST_OK = 0xFE,
 	HWACC_PWRSTATUS_INIT = 0x00
-} mbox_2_arm_hwacc_pwr_stat_t;
+};
 
 /**
  * enum sva_mmdsp_stat_t - SVA MMDSP status messages
@@ -355,15 +355,15 @@ enum sia_mmdsp_stat_t {
 };
 
 /**
- * typedef intr_wakeup_t - Configure STW4500 FIFO interrupt as wake-up
+ * enum intr_wakeup_t - Configure STW4500 FIFO interrupt as wake-up
  * @NTR_NOT_AS_WAKEUP: The 4500 fifo interrupt is not configured as a
  *                     wake-up event
  * @INTR_AS_WAKEUP: The 4500 fifo interrupt is configured as a wake-up event
  */
-typedef enum {
+enum intr_wakeup_t {
 	INTR_NOT_AS_WAKEUP = 0x0,
 	INTR_AS_WAKEUP = 0x1
-} intr_wakeup_t;
+};
 
 /**
  * enum  mbox_to_arm_err_t - Error messages definition
@@ -456,7 +456,7 @@ enum mbox_to_arm_err_t {
 	VMODREGUVALTO_ERR = 0x28
 };
 
-typedef enum {
+enum hw_acc_t {
 	SVAMMDSP = 0,
 	SVAPIPE = 1,
 	SIAMMDSP = 2,
@@ -467,7 +467,7 @@ typedef enum {
 	ESRAM2 = 7,
 	ESRAM3 = 8,
 	ESRAM4 = 9
-} hw_acc_t;
+};
 
 enum reqmb0_header_t {
 	PWRSTTRH    = 0,

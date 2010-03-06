@@ -43,44 +43,44 @@
 #define PRCM_REQ_MB7_ED        0xFE6
 #define PRCM_SIAMMDSPSTATUS_ED PRCM_REQ_MB7
 
-typedef enum {
+enum mailbox_ed_t {
 	REQ_MB0_ED = 0,	/* Uses XP70_IT_EVENT_10 */
 	REQ_MB1_ED = 1,	/* Uses XP70_IT_EVENT_11 */
 	REQ_MB2_ED = 2,	/* Uses XP70_IT_EVENT_12 */
-} mailbox_ed_t;
+};
 
 /* Union declaration */
 
 /* ARM to XP70 mailbox definition */
-typedef union {
+union req_mb0_ed_t {
 	struct {
-		ap_pwrst_trans_ed_t ap_pwrst_trans:8;
-		intr_wakeup_ed_t fifo_4500wu:8;
-		ddr_pwrst_ed_t ddr_pwrst:8;
+		enum ap_pwrst_trans_ed_t ap_pwrst_trans:8;
+		enum intr_wakeup_ed_t fifo_4500wu:8;
+		enum ddr_pwrst_ed_t ddr_pwrst:8;
 		unsigned int unused:8;
 	} req_field;
 	unsigned int complete_field;
-} req_mb0_ed_t;
+};
 
 /* mailbox definition for ARM/APE operation */
-typedef union {
+union req_mb1_ed_t {
 	struct {
-		arm_opp_ed_t arm_opp:8;
-		ape_opp_ed_t ape_opp:8;
+		enum arm_opp_ed_t arm_opp:8;
+		enum ape_opp_ed_t ape_opp:8;
 	} req_field;
 	unsigned short complete_field;
-} req_mb1_ed_t;
+};
 
 /* mailbox definition for hardware accelerator */
-typedef union {
+union req_mb2_ed_t {
 	struct {
-		hw_accst_ed_t hw_accst:8;
+		enum hw_accst_ed_t hw_accst:8;
 	} hw_accst_list[ESRAM4_ED + 1];
 	unsigned int complete_field[3];
-} req_mb2_ed_t;
+};
 
-typedef struct {
+struct arm_irq_mask_ed_t {
 	unsigned int arm_irq_mask[4];
-} arm_irq_mask_ed_t;
+};
 
 #endif /* __MACH_PRCMU_FW_ED_H */

@@ -25,7 +25,7 @@
 #define PRCM_SRAM_A9		(_PRCMU_BASE + 0x308)
 
 /* ARM WFI Standby signal register */
-#define PRCM_ARM_WFI_STANDBY    (_PRCMU_BASE + 0x130) //FIXME : rename to PRCM_ARMSTANDBY_STATUS
+#define PRCM_ARM_WFI_STANDBY    (_PRCMU_BASE + 0x130)
 #define PRCMU_IOCR              (_PRCMU_BASE + 0x310)
 
 

@@ -27,24 +27,24 @@ enum hw_acc_dev{
 };
 
 int prcmu_get_boot_status(void);
-int prcmu_set_rc_a2p(romcode_write_t);
-romcode_read_t prcmu_get_rc_p2a(void);
-int prcmu_set_fifo_4500wu(intr_wakeup_t);
-ap_pwrst_t prcmu_get_xp70_current_state(void);
-int prcmu_set_ap_mode(ap_pwrst_trans_t);
-int prcmu_set_ddr_pwrst(ddr_pwrst_t);
-int prcmu_set_arm_opp(arm_opp_t);
+int prcmu_set_rc_a2p(enum romcode_write_t);
+enum romcode_read_t prcmu_get_rc_p2a(void);
+int prcmu_set_fifo_4500wu(enum intr_wakeup_t);
+enum ap_pwrst_t prcmu_get_xp70_current_state(void);
+int prcmu_set_ap_mode(enum ap_pwrst_trans_t);
+int prcmu_set_ddr_pwrst(enum ddr_pwrst_t);
+int prcmu_set_arm_opp(enum arm_opp_t);
 int prcmu_get_arm_opp(void);
-int prcmu_set_ape_opp(ape_opp_t);
+int prcmu_set_ape_opp(enum ape_opp_t);
 int prcmu_get_ape_opp(void);
-int prcmu_set_hwacc(enum hw_acc_dev, hw_accst_t);
+int prcmu_set_hwacc(enum hw_acc_dev, enum hw_accst_t);
 /*mbox_2_arm_stat_t prcmu_get_m2a_status(void); */
 /*mbox_to_arm_err_t prcmu_get_m2a_error(void); */
-dvfs_stat_t prcmu_get_m2a_dvfs_status(void);
-mbox_2_arm_hwacc_pwr_stat_t prcmu_get_m2a_hwacc_status(void);
+enum dvfs_stat_t prcmu_get_m2a_dvfs_status(void);
+enum mbox_2_arm_hwacc_pwr_stat_t prcmu_get_m2a_hwacc_status(void);
 int prcmu_set_irq_wakeup(uint32_t);
-int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
-				    ddr_pwrst_t ddr_state_req,
+int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
+				    enum ddr_pwrst_t ddr_state_req,
 				    int _4500_fifo_wakeup);
 
 int prcmu_i2c_read(u8, u8);

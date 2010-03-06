@@ -127,48 +127,48 @@
 #define PRCM_XP70_TRIG_IT14	(1 << 4)
 #define PRCM_XP70_TRIG_IT17	(1 << 5)
 
-typedef enum {
+enum mailbox_t {
 	REQ_MB0 = 0,	/* Uses XP70_IT_EVENT_10 */
 	REQ_MB1 = 1,	/* Uses XP70_IT_EVENT_11 */
 	REQ_MB2 = 2,	/* Uses XP70_IT_EVENT_12 */
 	REQ_MB5 = 5,	/* Uses XP70_IT_EVENT_17 */
-} mailbox_t;
+};
 
 /* Union declaration */
 
 
 
 /* ARM to XP70 mailbox definition */
-typedef union {
+union req_mb0_t {
 	struct {
-		ap_pwrst_trans_t ap_pwrst_trans:8;
-		intr_wakeup_t fifo_4500wu:8;
-		ddr_pwrst_t ddr_pwrst:8;
+		enum ap_pwrst_trans_t ap_pwrst_trans:8;
+		enum intr_wakeup_t fifo_4500wu:8;
+		enum ddr_pwrst_t ddr_pwrst:8;
 		unsigned int unused:8;
 	} req_field;
 	unsigned int complete_field;
-} req_mb0_t;
+};
 
 /* mailbox definition for ARM/APE operation */
-typedef union {
+union req_mb1_t {
 	struct {
-		arm_opp_t arm_opp:8;
-		ape_opp_t ape_opp:8;
+		enum arm_opp_t arm_opp:8;
+		enum ape_opp_t ape_opp:8;
 	} req_field;
 	unsigned short complete_field;
-} req_mb1_t;
+};
 
 /* mailbox definition for hardware accelerator */
-typedef union {
+union req_mb2_t {
 	struct {
-		hw_accst_t hw_accst:8;
+		enum hw_accst_t hw_accst:8;
 	} hw_accst_list[ESRAM4 + 1];
 	unsigned int complete_field[3];
-} req_mb2_t;
+};
 
-typedef struct {
+struct arm_irq_mask_t {
 	unsigned int arm_irq_mask[4];
-} arm_irq_mask_t;
+};
 
 
 #endif /* __MACH_PRCMU_FW_V1_H */

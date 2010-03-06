@@ -48,7 +48,7 @@ static int u8500_target(struct cpufreq_policy *policy, unsigned int target_freq,
 {
 	struct cpufreq_freqs freqs;
 	unsigned int idx;
-	arm_opp_t op;
+	enum arm_opp_t op;
 
 
 	/* scale the target frequency to one of the extremes supported */
@@ -95,7 +95,7 @@ static int u8500_target(struct cpufreq_policy *policy, unsigned int target_freq,
 unsigned int u8500_getspeed(unsigned int cpu)
 {
 	/* request the prcm to get the current ARM opp */
-	arm_opp_t opp = prcmu_get_arm_opp();
+	enum arm_opp_t opp = prcmu_get_arm_opp();
 
 	switch (opp) {
 	case ARM_EXTCLK: return freq_table[0].frequency;

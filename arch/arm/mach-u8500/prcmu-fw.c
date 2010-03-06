@@ -63,7 +63,7 @@ static void (*prcmu_ca_wake_req_shrm_callback)(u8);
 /* function pointer for shrm callback sequence for modem requesting reset */
 static void (*prcmu_modem_reset_shrm)(void);
 
-static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst);
+static int prcmu_set_hwacc_st(enum hw_acc_t hw_acc, enum hw_accst_t hw_accst);
 
 /* Internal functions */
 
@@ -73,7 +73,7 @@ static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst);
  *
  * Polling loop to ensure that PRCMU FW has completed the requested op
  */
-int _wait_for_req_complete(mailbox_t num)
+int _wait_for_req_complete(enum mailbox_t num)
 {
 	int timeout = 1000;
 
@@ -104,11 +104,13 @@ int _wait_for_req_complete(mailbox_t num)
 
 
 		/* Clear any error/status */
-		if (num == REQ_MB0) {
+		if (num == REQ_MB0)
 			writeb(0, PRCM_ACK_MB0_AP_PWRST_STATUS);
-		} else if (num == REQ_MB1) {
+		else if (num == REQ_MB1)
 			writel(0, PRCM_ACK_MB1);
-		}
+		else if (num == REQ_MB2)
+			writel(0, PRCM_ACK_MB2);
+
 
 
 		/* Set an interrupt to XP70 */
@@ -134,7 +136,7 @@ int _wait_for_req_complete(mailbox_t num)
  *
  * Fill up the mailbox 0 required fields and call polling loop
  */
-int prcmu_request_mailbox0(req_mb0_t *req)
+int prcmu_request_mailbox0(union req_mb0_t *req)
 {
 	if (u8500_is_earlydrop()) {
 		writel(req->complete_field, PRCM_REQ_MB0_ED);
@@ -152,7 +154,7 @@ int prcmu_request_mailbox0(req_mb0_t *req)
  *
  * Fill up the mailbox 1 required fields and call polling loop
  */
-int prcmu_request_mailbox1(req_mb1_t *req)
+int prcmu_request_mailbox1(union req_mb1_t *req)
 {
 	if (u8500_is_earlydrop()) {
 		writew(req->complete_field, PRCM_REQ_MB1_ED);
@@ -169,7 +171,7 @@ int prcmu_request_mailbox1(req_mb1_t *req)
  *
  * Fill up the mailbox 2 required fields and call polling loop
  */
-int prcmu_request_mailbox2(req_mb2_t *req)
+int prcmu_request_mailbox2(union req_mb2_t *req)
 {
 	if (u8500_is_earlydrop()) {
 		writel(req->complete_field[0], PRCM_REQ_MB2_ED);
@@ -194,11 +196,10 @@ int prcmu_request_mailbox2(req_mb2_t *req)
  */
 int prcmu_get_boot_status(void)
 {
-	if (u8500_is_earlydrop()) {
+	if (u8500_is_earlydrop())
 		return readb(PRCM_BOOT_STATUS_ED);
-	} else {
+	else
 		return readb(PRCM_BOOT_STATUS);
-	}
 }
 EXPORT_SYMBOL(prcmu_get_boot_status);
 
@@ -210,7 +211,7 @@ EXPORT_SYMBOL(prcmu_get_boot_status);
  * This function is used to run the following power state sequences -
  * any state to ApReset,  ApDeepSleep to ApExecute, ApExecute to ApDeepSleep
  */
-int prcmu_set_rc_a2p(romcode_write_t val)
+int prcmu_set_rc_a2p(enum romcode_write_t val)
 {
 	if (u8500_is_earlydrop()) {
 		if (val < RDY_2_DS_ED || val > RDY_2_XP70_RST_ED)
@@ -234,11 +235,11 @@ EXPORT_SYMBOL(prcmu_set_rc_a2p);
  * This function can return the following transitions-
  * any state to ApReset,  ApDeepSleep to ApExecute, ApExecute to ApDeepSleep
  */
-romcode_read_t prcmu_get_rc_p2a(void)
+enum romcode_read_t prcmu_get_rc_p2a(void)
 {
-	if (u8500_is_earlydrop()) {
+	if (u8500_is_earlydrop())
 		return readb(PRCM_ROMCODE_P2A_ED);
-	}
+
 
 	return readb(PRCM_ROMCODE_P2A);
 }
@@ -249,11 +250,11 @@ EXPORT_SYMBOL(prcmu_get_rc_p2a);
  * Returns: Returns the current AP(ARM) power mode: init,
  * apBoot, apExecute, apDeepSleep, apSleep, apIdle, apReset
  */
-ap_pwrst_t prcmu_get_xp70_current_state(void)
+enum ap_pwrst_t prcmu_get_xp70_current_state(void)
 {
-	if (u8500_is_earlydrop()) {
+	if (u8500_is_earlydrop())
 		return readb(PRCM_AP_PWR_STATE_ED);
-	}
+
 
 	return readb(PRCM_XP70_CUR_PWR_STATE);
 }
@@ -267,9 +268,9 @@ EXPORT_SYMBOL(prcmu_get_xp70_current_state);
  * This function set the appropriate AP power mode.
  * The caller can check the status following this call.
  */
-int prcmu_set_ap_mode(ap_pwrst_trans_t ap_pwrst_trans)
+int prcmu_set_ap_mode(enum ap_pwrst_trans_t ap_pwrst_trans)
 {
-	req_mb0_t request = { {0} };
+	union req_mb0_t request = { {0} };
 
 	if (u8500_is_earlydrop()) {
 		if (ap_pwrst_trans
@@ -297,9 +298,9 @@ EXPORT_SYMBOL(prcmu_set_ap_mode);
  * This function de/configures 4500 fifo interrupt as wake-up events
  * The caller can check the status following this call.
  */
-int prcmu_set_fifo_4500wu(intr_wakeup_t fifo_4500wu)
+int prcmu_set_fifo_4500wu(enum intr_wakeup_t fifo_4500wu)
 {
-	req_mb0_t request = { {0} };
+	union req_mb0_t request = { {0} };
 
 	if (u8500_is_earlydrop()) {
 		if (fifo_4500wu < INTR_NOT_AS_WAKEUP_ED \
@@ -323,9 +324,9 @@ EXPORT_SYMBOL(prcmu_set_fifo_4500wu);
  *
  * This function is not supported on ED by the PRCMU firmware
  */
-int prcmu_set_ddr_pwrst(ddr_pwrst_t ddr_pwrst)
+int prcmu_set_ddr_pwrst(enum ddr_pwrst_t ddr_pwrst)
 {
-	req_mb0_t request = { {0} };
+	union req_mb0_t request = { {0} };
 
 	if (u8500_is_earlydrop()) {
 		if (ddr_pwrst < DDR_PWR_STATE_UNCHANGED_ED || \
@@ -354,10 +355,10 @@ EXPORT_SYMBOL(prcmu_set_ddr_pwrst);
  *	  XISITION REQUEST. HENCE WE DO NOT NEED A MAILBOX
  *	  TIMEOUT WAIT HERE FOR OPP DVFS
  */
-int prcmu_set_arm_opp(arm_opp_t arm_opp)
+int prcmu_set_arm_opp(enum arm_opp_t arm_opp)
 {
 	int timeout = 200;
-	arm_opp_t current_arm_opp;
+	enum arm_opp_t current_arm_opp;
 
 	if (u8500_is_earlydrop()) {
 		if (arm_opp < ARM_NO_CHANGE_ED || arm_opp > ARM_EXTCLK_ED)
@@ -448,10 +449,10 @@ EXPORT_SYMBOL(prcmu_get_arm_opp);
  * This function set the appropriate APE operation mode
  * The caller can check the status following this call.
  */
-int prcmu_set_ape_opp(ape_opp_t ape_opp)
+int prcmu_set_ape_opp(enum ape_opp_t ape_opp)
 {
 	int timeout = 200;
-	ape_opp_t current_ape_opp;
+	enum ape_opp_t current_ape_opp;
 
 	if (ape_opp < APE_NO_CHANGE || ape_opp > APE_50_OPP)
 		return -EINVAL;
@@ -510,9 +511,9 @@ int prcmu_get_ape_opp(void)
 EXPORT_SYMBOL(prcmu_get_ape_opp);
 
 
-int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
+int prcmu_set_hwacc(enum hw_acc_dev hw_acc, enum hw_accst_t hw_accst)
 {
-	hw_acc_t hw_acc_device;
+	enum hw_acc_t hw_acc_device;
 
 	/* check on which device is being used */
 	switch (hw_acc) {
@@ -532,61 +533,61 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 		hw_acc_device = SGA;
 		break;
 	case HW_ACC_B2R2:
-		if (hw_accst == HW_ON) {
+		if (hw_accst == HW_ON)
 			hw_usg_state.b2r2 = 1;
-		} else if (hw_accst == HW_OFF) {
+		else if (hw_accst == HW_OFF)
 			hw_usg_state.b2r2 = 0;
-		}
+
 		if (hw_usg_state.mcde == 1)
 			return -EINVAL;
 		hw_acc_device = B2R2MCDE;
 		break;
 	case HW_ACC_MCDE:
-		if (hw_accst == HW_ON) {
+		if (hw_accst == HW_ON)
 			hw_usg_state.mcde = 1;
-		} else if (hw_accst == HW_OFF) {
+		else if (hw_accst == HW_OFF)
 			hw_usg_state.mcde = 0;
-		}
+
 		if (hw_usg_state.b2r2 == 1)
 			return -EINVAL;
 		hw_acc_device = B2R2MCDE;
 		break;
 	case HW_ACC_ESRAM1:
-		if (hw_accst == HW_ON) {
+		if (hw_accst == HW_ON)
 			hw_usg_state.esram1 = 1;
-		} else if (hw_accst == HW_OFF) {
+		else if (hw_accst == HW_OFF)
 			hw_usg_state.esram1 = 0;
-		}
+
 		if (hw_usg_state.esram2 == 1)
 			return -EINVAL;
 		hw_acc_device = ESRAM1;
 		break;
 	case HW_ACC_ESRAM2:
-		if (hw_accst == HW_ON) {
+		if (hw_accst == HW_ON)
 			hw_usg_state.esram2 = 1;
-		} else if (hw_accst == HW_OFF) {
+		else if (hw_accst == HW_OFF)
 			hw_usg_state.esram2 = 0;
-		}
+
 		if (hw_usg_state.esram1 == 1)
 			return -EINVAL;
 		hw_acc_device = ESRAM2;
 		break;
 	case HW_ACC_ESRAM3:
-		if (hw_accst == HW_ON) {
+		if (hw_accst == HW_ON)
 			hw_usg_state.esram3 = 1;
-		} else if (hw_accst == HW_OFF) {
+		else if (hw_accst == HW_OFF)
 			hw_usg_state.esram3 = 0;
-		}
+
 		if (hw_usg_state.esram4 == 1)
 			return -EINVAL;
 		hw_acc_device = ESRAM3;
 		break;
 	case HW_ACC_ESRAM4:
-		if (hw_accst == HW_ON) {
+		if (hw_accst == HW_ON)
 			hw_usg_state.esram4 = 1;
-		} else if (hw_accst == HW_OFF) {
+		else if (hw_accst == HW_OFF)
 			hw_usg_state.esram4 = 0;
-		}
+
 		if (hw_usg_state.esram3 == 1)
 			return -EINVAL;
 		hw_acc_device = ESRAM4;
@@ -609,9 +610,9 @@ EXPORT_SYMBOL(prcmu_set_hwacc);
  * power mode.
  * The caller can check the status following this call.
  */
-static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
+static int prcmu_set_hwacc_st(enum hw_acc_t hw_acc, enum hw_accst_t hw_accst)
 {
-	req_mb2_t request;
+	union req_mb2_t request;
 	int err = 0;
 	if (u8500_is_earlydrop()) {
 		if (hw_acc < SVAMMDSP_ED || hw_acc > ESRAM4_ED ||
@@ -626,11 +627,7 @@ static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
 	if (hw_acc < SVAMMDSP || hw_acc > ESRAM4 ||
 	    hw_accst < HW_NO_CHANGE || hw_accst > HW_ON)
 		return -EINVAL;
-#if 0
-	memset(&request, 0x0, sizeof(request));
-	request.hw_accst_list[hw_acc].hw_accst = hw_accst;
-	return prcmu_request_mailbox2(&request);
-#endif
+
 	/* write the header into mailbox 2 */
 	writeb(DPS_H, PRCM_MBOX_HEADER_REQ_MB2);
 	/* fill out the request */
@@ -652,7 +649,7 @@ static int prcmu_set_hwacc_st(hw_acc_t hw_acc, hw_accst_t hw_accst)
  * Returns: The status from MBOX to ARM during the last request.
  * See the list of status/transitions for details.
  */
-mbox_2_arm_stat_ed_t prcmu_get_m2a_status(void)
+enum mbox_2_arm_stat_ed_t prcmu_get_m2a_status(void)
 {
 	return readb(PRCM_M2A_STATUS_ED);
 }
@@ -663,7 +660,7 @@ EXPORT_SYMBOL(prcmu_get_m2a_status);
  * Returns: The error from MBOX to ARM during the last request.
  * See the list of errors for details.
  */
-mbox_to_arm_err_ed_t prcmu_get_m2a_error(void)
+enum mbox_to_arm_err_ed_t prcmu_get_m2a_error(void)
 {
 	return readb(PRCM_M2A_ERROR_ED);
 }
@@ -674,11 +671,11 @@ EXPORT_SYMBOL(prcmu_get_m2a_error);
  * Returns: Either that state transition on DVFS is on going
  * or completed, 0 if not used.
  */
-dvfs_stat_t prcmu_get_m2a_dvfs_status(void)
+enum dvfs_stat_t prcmu_get_m2a_dvfs_status(void)
 {
-	if (u8500_is_earlydrop()) {
+	if (u8500_is_earlydrop())
 		return readb(PRCM_M2A_DVFS_STAT_ED);
-	}
+
 
 	return 0;
 }
@@ -689,11 +686,11 @@ EXPORT_SYMBOL(prcmu_get_m2a_dvfs_status);
  * Returns: Either that state transition on hardware accelerator
  * is on going or completed, 0 if not used.
  */
-mbox_2_arm_hwacc_pwr_stat_t prcmu_get_m2a_hwacc_status(void)
+enum mbox_2_arm_hwacc_pwr_stat_t prcmu_get_m2a_hwacc_status(void)
 {
-	if (u8500_is_earlydrop()) {
+	if (u8500_is_earlydrop())
 		return readb(PRCM_M2A_HWACC_STAT_ED);
-	}
+
 
 	return 0;
 }
@@ -843,8 +840,8 @@ void pm_restore_config_UART(void)
 #define PRCM_DEBUG_NOPWRDOWN_VAL        IO_ADDRESS(0x80157194)
 #define PRCM_POWER_STATE_VAL            IO_ADDRESS(0x8015725C)
 
-int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
-					ddr_pwrst_t ddr_state_req,
+int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
+					enum ddr_pwrst_t ddr_state_req,
 					int _4500_fifo_wakeup)
 {
 	int ret = 0;
@@ -869,7 +866,8 @@ int prcmu_apply_ap_state_transition(ap_pwrst_trans_t transition,
 
 		case APEXECUTE_TO_APSLEEP_ED:
 		case APEXECUTE_TO_APIDLE_ED:
-			__asm__ __volatile__("dsb\n\t" "wfi\n\t":::"memory");
+			__asm__ __volatile__("dsb\n\t" "wfi\n\t" \
+					: : : "memory");
 			break;
 		case APEXECUTE_TO_APDEEPSLEEP_ED:
 			printk(KERN_INFO "TODO: deep sleep \n");
@@ -1521,31 +1519,6 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 
 	prcmu_get_wakeup_reason(&event_8500, event_4500);
 
-	/* RTC wakeup signal */
-	if (event_8500 & (1 << 0)) {
-
-	}
-
-	/* RTT0 wakeup signal */
-	if (event_8500 & (1 << 1)) {
-
-	}
-
-	/* RTT1 wakeup signal */
-	if (event_8500 & (1 << 2)) {
-
-	}
-
-	/* HSI0 wakeup signal */
-	if (event_8500 & (1 << 3)) {
-
-	}
-
-	/* HSI1 wakeup signal */
-	if (event_8500 & (1 << 4)) {
-
-	}
-
 	/* ca_wake_req signal  - modem wakes up ARM */
 	if (event_8500 & (1 << 5)) {
 		/* call shrm driver callback */
@@ -1556,25 +1529,6 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 					ca_wake_req not registered!!\n");
 		}
 	}
-
-	/* USB wakeup signal */
-	if (event_8500 & (1<<6)) {
-
-	}
-
-	/* ape_int_4500 signal */
-	if (event_8500 & (1<<7)) {
-
-	}
-
-
-	/* fifo4500it signal */
-	if (event_8500 & (1<<8)) {
-
-	}
-
-
-
 }
 
 /**
@@ -1651,23 +1605,24 @@ irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
 			tasklet_schedule(&prcmu_ack_mb0_wkuph_tasklet);
 
 		}
-	} else if (prcm_arm_it1_val & (1<<1)) {
-
-	} else if (prcm_arm_it1_val & (1<<2)) {
-
-	} else if (prcm_arm_it1_val & (1<<3)) {
-
-	} else if (prcm_arm_it1_val & (1<<4)) {
-
-	} else if (prcm_arm_it1_val & (1<<5)) {
+	} else if (prcm_arm_it1_val & (1<<1))
+		dbg_printk("\n IRQ handler for Ack mb1\n");
+	else if (prcm_arm_it1_val & (1<<2))
+		dbg_printk("\n IRQ handler for Ack mb2\n");
+	else if (prcm_arm_it1_val & (1<<3))
+		dbg_printk("\n IRQ handler for Ack mb3\n");
+	else if (prcm_arm_it1_val & (1<<4))
+		dbg_printk("\n IRQ handler for Ack mb4\n");
+	else if (prcm_arm_it1_val & (1<<5)) {
 		/* No header reading required */
 		/* call wake_up_event_interruptible for mb5 transaction */
-		dbg_printk("\nInside prcmu IRQ handler for mb5 and calling wakeup");
+		dbg_printk("\nInside prcmu IRQ handler for mb5 ");
 		wake_up_interruptible(&ack_mb5_queue);
-	} else if (prcm_arm_it1_val & (1<<6)) {
-
-	} else if (prcm_arm_it1_val & (1<<7)) {
-		 /* No header reading required */
+	} else if (prcm_arm_it1_val & (1<<6))
+		dbg_printk("\n IRQ handler for Ack mb6\n");
+	else if (prcm_arm_it1_val & (1<<7)) {
+		/* No header reading required */
+		dbg_printk("\n IRQ handler for Ack mb7\n");
 		tasklet_schedule(&prcmu_ack_mb7_tasklet);
 	}
 
@@ -1692,8 +1647,7 @@ static int prcmu_fw_init(void)
 	if (u8500_is_earlydrop()) {
 		int i;
 		int status = prcmu_get_boot_status();
-		if (status != 0xFF || status != 0x2F)
-		{
+		if (status != 0xFF || status != 0x2F) {
 			printk("PRCMU Firmware not ready\n");
 			return -EIO;
 		}
@@ -1751,15 +1705,15 @@ static int prcmu_fw_init(void)
 	}
 
 
-        if (prcmu_get_xp70_current_state() == AP_BOOT)
-                prcmu_apply_ap_state_transition(APBOOT_TO_APEXECUTE, DDR_PWR_STATE_UNCHANGED, 0);
-        else if (prcmu_get_xp70_current_state() == AP_EXECUTE) {
-	        printk(KERN_INFO "PRCMU firmware booted.\n");
+	if (prcmu_get_xp70_current_state() == AP_BOOT)
+		prcmu_apply_ap_state_transition(APBOOT_TO_APEXECUTE, \
+				DDR_PWR_STATE_UNCHANGED, 0);
+	else if (prcmu_get_xp70_current_state() == AP_EXECUTE) {
+		printk(KERN_INFO "PRCMU firmware booted.\n");
+	} else {
+		printk(KERN_WARNING "WARNING - PRCMU firmware not yet booted!!!\n");
+		return -ENODEV;
 	}
-        else {
-                printk(KERN_WARNING "WARNING - PRCMU firmware not yet booted!!!\n");
-                return -ENODEV;
-        }
 
 err_return:
 	return err;
