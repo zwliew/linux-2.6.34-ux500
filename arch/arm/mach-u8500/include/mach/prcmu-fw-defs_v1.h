@@ -12,64 +12,59 @@
 #include <linux/interrupt.h>
 
 /**
- * typedef state_t - ON/OFF state definition
- *
- * OFF: State is ON
- * ON: State is OFF
+ * enum state_t - ON/OFF state definition
+ * @OFF: State is ON
+ * @ON: State is OFF
  */
-typedef enum {
+enum state_t {
 	OFF = 0x00,
 	ON = 0x01
-} state_t;
-
+};
 /**
- * general purpose On/Off/Retention states
+ * enum ret_state_t - general purpose On/Off/Retention states
  *
  */
-typedef enum{
+enum ret_state_t {
 	OFFST = 0,
 	ONST  = 1,
 	RETST = 2
-} ret_state_t;
+};
 
 
 /**
- * typedef clk_arm_t - ARM Cortex A9 clock schemes
- *
- * A9_OFF:
- * A9_BOOT:
- * A9_OPPT1:
- * A9_OPPT2:
- * A9_EXTCLK:
+ * enum clk_arm_t - ARM Cortex A9 clock schemes
+ * @A9_OFF:
+ * @A9_BOOT:
+ * @A9_OPPT1:
+ * @A9_OPPT2:
+ * @A9_EXTCLK:
  */
-typedef enum {
+enum clk_arm_t {
 	A9_OFF,
 	A9_BOOT,
 	A9_OPPT1,
 	A9_OPPT2,
 	A9_EXTCLK
-} clk_arm_t;
+};
 
 /**
- * typedef clk_gen_t - GEN#0/GEN#1 clock schemes
- *
- * GEN_OFF:
- * GEN_BOOT:
- * GEN_OPPT1:
+ * enum clk_gen_t - GEN#0/GEN#1 clock schemes
+ * @GEN_OFF:
+ * @GEN_BOOT:
+ * @GEN_OPPT1:
  */
-typedef enum {
+enum clk_gen_t {
 	GEN_OFF,
 	GEN_BOOT,
 	GEN_OPPT1,
-} clk_gen_t;
+};
 
 /* some information between arm and xp70 */
 
 /**
  * typedef romcode_write_t - Romcode message written by A9 AND read by XP70
- *
- * RDY_2_DS: Value set when ApDeepSleep state can be executed by XP70
- * RDY_2_XP70_RST: Value set when 0x0F has been successfully polled by the
+ * @RDY_2_DS: Value set when ApDeepSleep state can be executed by XP70
+ * @RDY_2_XP70_RST: Value set when 0x0F has been successfully polled by the
  *                 romcode. The xp70 will go into self-reset
  */
 typedef enum {
@@ -79,18 +74,17 @@ typedef enum {
 
 /**
  * typedef romcode_read_t - Romcode message written by XP70 and read by A9
- *
- * INIT: Init value when romcode field is not used
- * FS_2_DS: Value set when power state is going from ApExecute to
+ * @INIT: Init value when romcode field is not used
+ * @FS_2_DS: Value set when power state is going from ApExecute to
  *          ApDeepSleep
- * END_DS: Value set when ApDeepSleep power state is reached coming from
+ * @END_DS: Value set when ApDeepSleep power state is reached coming from
  *         ApExecute state
- * DS_TO_FS: Value set when power state is going from ApDeepSleep to
+ * @DS_TO_FS: Value set when power state is going from ApDeepSleep to
  *           ApExecute
- * END_FS: Value set when ApExecute power state is reached coming from
+ * @END_FS: Value set when ApExecute power state is reached coming from
  *         ApDeepSleep state
- * SWR: Value set when power state is going to ApReset
- * END_SWR: Value set when the xp70 finished executing ApReset actions and
+ * @SWR: Value set when power state is going to ApReset
+ * @END_SWR: Value set when the xp70 finished executing ApReset actions and
  *          waits for romcode acknowledgment to go to self-reset
  */
 typedef enum {
@@ -105,38 +99,46 @@ typedef enum {
 
 
 /**
+ * enum  pingpong_t
+ * @PING: value is 0
+ * @PONG: value is 1
+ *
  * implementation issue: the values are chosen the way that
  * we can change from ping to pong (resp. pong to ping) by
  * simply using the 'not' operator in C, e.g. toggling operation:
  * t_PingPong p = ping; p = ~p;
  */
-typedef enum {
+enum pingpong_t {
        PING = 0x00,
        PONG = 0xFF
-} pingpong_t;
+};
 
-
-typedef enum {
+/**
+ * enum wkup_reason_fdst_t
+ * @EVTWR: event has been read by ARM
+ * @EVTST: event has been sent by PRCMU FW
+ * @EVTRD: event has been written by PRCMU FW
+ */
+enum wkup_reason_fdst_t {
   /* WRF has been written but neither sent nor read by the arm */
        EVTWR = 1,
   /* WRF has been written and sent, but not yet read by the arm */
        EVTST = 2,
   /* WRF has been written, sent and read by the arm */
        EVTRD = 0
-} wkup_reason_fdst_t; /* Wake-up reason Field State */
+}; /* Wake-up reason Field State */
 
 
 
 /**
  * typedef ap_pwrst_t - current power states defined in PRCMU firmware
- *
- * NO_PWRST: Current power state init
- * AP_BOOT: Current power state is apBoot
- * AP_EXECUTE: Current power state is apExecute
- * AP_DEEP_SLEEP: Current power state is apDeepSleep
- * AP_SLEEP: Current power state is apSleep
- * AP_IDLE: Current power state is apIdle
- * AP_RESET: Current power state is apReset
+ * @NO_PWRST: Current power state init
+ * @AP_BOOT: Current power state is apBoot
+ * @AP_EXECUTE: Current power state is apExecute
+ * @AP_DEEP_SLEEP: Current power state is apDeepSleep
+ * @AP_SLEEP: Current power state is apSleep
+ * @AP_IDLE: Current power state is apIdle
+ * @AP_RESET: Current power state is apReset
  */
 typedef enum {
 	NO_PWRST = 0x00,
@@ -150,14 +152,13 @@ typedef enum {
 
 /**
  * typedef ap_pwrst_trans_t - Transition states defined in PRCMU firmware
- *
- * NO_TRANSITION: No power state transition
- * APEXECUTE_TO_APSLEEP: Power state transition from ApExecute to ApSleep
- * APIDLE_TO_APSLEEP: Power state transition from ApIdle to ApSleep
- * APBOOT_TO_APEXECUTE: Power state transition from ApBoot to ApExecute
- * APEXECUTE_TO_APDEEPSLEEP: Power state transition from ApExecute to
+ * @NO_TRANSITION: No power state transition
+ * @APEXECUTE_TO_APSLEEP: Power state transition from ApExecute to ApSleep
+ * @APIDLE_TO_APSLEEP: Power state transition from ApIdle to ApSleep
+ * @APBOOT_TO_APEXECUTE: Power state transition from ApBoot to ApExecute
+ * @APEXECUTE_TO_APDEEPSLEEP: Power state transition from ApExecute to
  *                          ApDeepSleep
- * APEXECUTE_TO_APIDLE: Power state transition from ApExecute to ApIdle
+ * @APEXECUTE_TO_APIDLE: Power state transition from ApExecute to ApIdle
  */
 typedef enum {
 	NO_TRANSITION = 0x00,
@@ -170,9 +171,10 @@ typedef enum {
 
 /**
  * typedef ddr_pwrst_t - DDR power states definition
- *
- * DDR_PWR_STATE_UNCHANGED: SDRAM and DDR controller state is unchanged
- * TOBEDEFINED: to be defined
+ * @DDR_PWR_STATE_UNCHANGED: SDRAM and DDR controller state is unchanged
+ * @DDR_PWR_STATE_ON:
+ * @DDR_PWR_STATE_OFFLOWLAT:
+ * @DDR_PWR_STATE_OFFHIGHLAT:
  */
 typedef enum {
 	DDR_PWR_STATE_UNCHANGED     = 0x00,
@@ -183,11 +185,10 @@ typedef enum {
 
 /**
  * typedef arm_opp_t - ARM OPP states definition
- *
- * ARM_NO_CHANGE: The ARM operating point is unchanged
- * ARM_100_OPP: The new ARM operating point is arm100opp
- * ARM_50_OPP: The new ARM operating point is arm100opp
- * ARM_EXTCLK: The new ARM operating point is armExtClk
+ * @ARM_NO_CHANGE: The ARM operating point is unchanged
+ * @ARM_100_OPP: The new ARM operating point is arm100opp
+ * @ARM_50_OPP: The new ARM operating point is arm100opp
+ * @ARM_EXTCLK: The new ARM operating point is armExtClk
  */
 typedef enum {
 	ARM_NO_CHANGE = 0x00,
@@ -198,9 +199,8 @@ typedef enum {
 
 /**
  * typedef ape_opp_t - APE OPP states definition
- *
- * APE_NO_CHANGE: The APE operating point is unchanged
- * APE_100_OPP: The new APE operating point is ape100opp
+ * @APE_NO_CHANGE: The APE operating point is unchanged
+ * @APE_100_OPP: The new APE operating point is ape100opp
  */
 typedef enum {
 	APE_NO_CHANGE = 0x00,
@@ -210,12 +210,11 @@ typedef enum {
 
 /**
  * typedef hw_accst_t - State definition for hardware accelerator
- *
- * HW_NO_CHANGE: The hardware accelerator state must remain unchanged
- * HW_OFF: The hardware accelerator must be switched off
- * HW_OFF_RAMRET: The hardware accelerator must be switched off with its
+ * @HW_NO_CHANGE: The hardware accelerator state must remain unchanged
+ * @HW_OFF: The hardware accelerator must be switched off
+ * @HW_OFF_RAMRET: The hardware accelerator must be switched off with its
  *               internal RAM in retention
- * HW_ON: The hwa hadware accelerator hwa must be switched on
+ * @HW_ON: The hwa hadware accelerator hwa must be switched on
  */
 typedef enum {
 	HW_NO_CHANGE = 0x00,
@@ -225,36 +224,33 @@ typedef enum {
 } hw_accst_t;
 
 /**
- * typedef mbox_2_arm_stat_t - Status messages definition for mbox_arm
- *
- * Status messages definition for mbox_arm coming from XP70 to ARM
- *
- * BOOT_TO_EXECUTEOK: The apBoot to apExecute state transition has been
+ * enum  mbox_2_arm_stat_t - Status messages definition for mbox_arm
+ * @BOOT_TO_EXECUTEOK: The apBoot to apExecute state transition has been
  *                    completed
- * DEEPSLEEPOK: The apExecute to apDeepSleep state transition has been
+ * @DEEPSLEEPOK: The apExecute to apDeepSleep state transition has been
  *              completed
- * SLEEPOK: The apExecute to apSleep state transition has been completed
- * IDLEOK: The apExecute to apIdle state transition has been completed
- * SOFTRESETOK: The A9 watchdog/ SoftReset state has been completed
- * SOFTRESETGO : The A9 watchdog/SoftReset state is on going
- * BOOT_TO_EXECUTE: The apBoot to apExecute state transition is on going
- * EXECUTE_TO_DEEPSLEEP: The apExecute to apDeepSleep state transition is on
+ * @SLEEPOK: The apExecute to apSleep state transition has been completed
+ * @IDLEOK: The apExecute to apIdle state transition has been completed
+ * @SOFTRESETOK: The A9 watchdog/ SoftReset state has been completed
+ * @SOFTRESETGO : The A9 watchdog/SoftReset state is on going
+ * @BOOT_TO_EXECUTE: The apBoot to apExecute state transition is on going
+ * @EXECUTE_TO_DEEPSLEEP: The apExecute to apDeepSleep state transition is on
  *                       going
- * DEEPSLEEP_TO_EXECUTE: The apDeepSleep to apExecute state transition is on
+ * @DEEPSLEEP_TO_EXECUTE: The apDeepSleep to apExecute state transition is on
  *                       going
- * DEEPSLEEP_TO_EXECUTEOK: The apDeepSleep to apExecute state transition has
+ * @DEEPSLEEP_TO_EXECUTEOK: The apDeepSleep to apExecute state transition has
  *                         been completed
- * EXECUTE_TO_SLEEP: The apExecute to apSleep state transition is on going
- * SLEEP_TO_EXECUTE: The apSleep to apExecute state transition is on going
- * SLEEP_TO_EXECUTEOK: The apSleep to apExecute state transition has been
+ * @EXECUTE_TO_SLEEP: The apExecute to apSleep state transition is on going
+ * @SLEEP_TO_EXECUTE: The apSleep to apExecute state transition is on going
+ * @SLEEP_TO_EXECUTEOK: The apSleep to apExecute state transition has been
  *                     completed
- * EXECUTE_TO_IDLE: The apExecute to apIdle state transition is on going
- * IDLE_TO_EXECUTE: The apIdle to apExecute state transition is on going
- * IDLE_TO_EXECUTEOK: The apIdle to apExecute state transition has been
+ * @EXECUTE_TO_IDLE: The apExecute to apIdle state transition is on going
+ * @IDLE_TO_EXECUTE: The apIdle to apExecute state transition is on going
+ * @IDLE_TO_EXECUTEOK: The apIdle to apExecute state transition has been
  *                    completed
- * INIT_STATUS: Status init
+ * @INIT_STATUS: Status init
  */
-typedef enum {
+enum ap_pwrsttr_status_t {
 	BOOT_TO_EXECUTEOK = 0xFF,
 	DEEPSLEEPOK = 0xFE,
 	SLEEPOK = 0xFD,
@@ -303,20 +299,18 @@ typedef enum {
 	DDRCONFIG_ER                  = 0x52,
 	WUPBEFORESLEEP                = 0x53,
 	WUPBEFOREIDLE                 = 0x54
-} ap_pwrsttr_status_t;  /* earlier called as  mbox_2_arm_stat_t */
+};  /* earlier called as  mbox_2_arm_stat_t */
 
 
 /**
  * typedef dvfs_stat_t - DVFS status messages definition
- *
- * DVFS status messages definition for mbox_arm coming from XP70 to ARM
- * DVFS_GO: A state transition DVFS is on going
- * DVFS_ARM100OPPOK: The state transition DVFS has been completed for 100OPP
- * DVFS_ARM50OPPOK: The state transition DVFS has been completed for 50OPP
- * DVFS_ARMEXTCLKOK: The state transition DVFS has been completed for EXTCLK
- * DVFS_NOCHGTCLKOK: The state transition DVFS has been completed for
+ * @DVFS_GO: A state transition DVFS is on going
+ * @DVFS_ARM100OPPOK: The state transition DVFS has been completed for 100OPP
+ * @DVFS_ARM50OPPOK: The state transition DVFS has been completed for 50OPP
+ * @DVFS_ARMEXTCLKOK: The state transition DVFS has been completed for EXTCLK
+ * @DVFS_NOCHGTCLKOK: The state transition DVFS has been completed for
  *                   NOCHGCLK
- * DVFS_INITSTATUS: Value init
+ * @DVFS_INITSTATUS: Value init
  */
 typedef enum {
 	DVFS_GO = 0xFF,
@@ -329,11 +323,10 @@ typedef enum {
 
 /**
  * typedef mbox_2_arm_hwacc_pwr_stat_t - Hardware Accelarator status message
- *
- * HWACC_PWRST_GO: A state transition on hardware accelerator is on going
- * HWACC_PWRST_OK: The state transition on hardware accelerator has been
+ * @HWACC_PWRST_GO: A state transition on hardware accelerator is on going
+ * @HWACC_PWRST_OK: The state transition on hardware accelerator has been
  *                 completed
- * HWACC_PWRSTATUS_INIT: Value init
+ * @HWACC_PWRSTATUS_INIT: Value init
  */
 typedef enum {
 	HWACC_PWRST_GO = 0xFF,
@@ -342,33 +335,30 @@ typedef enum {
 } mbox_2_arm_hwacc_pwr_stat_t;
 
 /**
- * typedef sva_mmdsp_stat_t - SVA MMDSP status messages
- *
- * SVA_MMDSP_GO: SVAMMDSP interrupt has happened
- * SVA_MMDSP_INIT: Status init
+ * enum sva_mmdsp_stat_t - SVA MMDSP status messages
+ * @SVA_MMDSP_GO: SVAMMDSP interrupt has happened
+ * @SVA_MMDSP_INIT: Status init
  */
-typedef enum {
+enum sva_mmdsp_stat_t {
 	SVA_MMDSP_GO = 0xFF,
 	SVA_MMDSP_INIT = 0x00
-} sva_mmdsp_stat_t;
+};
 
 /**
- * typedef sia_mmdsp_stat_t - SIA MMDSP status messages
- *
- * SIA_MMDSP_GO: SIAMMDSP interrupt has happened
- * SIA_MMDSP_INIT: Status init
+ * enum sia_mmdsp_stat_t - SIA MMDSP status messages
+ * @SIA_MMDSP_GO: SIAMMDSP interrupt has happened
+ * @SIA_MMDSP_INIT: Status init
  */
-typedef enum {
+enum sia_mmdsp_stat_t {
 	SIA_MMDSP_GO = 0xFF,
 	SIA_MMDSP_INIT = 0x00
-} sia_mmdsp_stat_t;
+};
 
 /**
  * typedef intr_wakeup_t - Configure STW4500 FIFO interrupt as wake-up
- *
- * INTR_NOT_AS_WAKEUP: The 4500 fifo interrupt is not configured as a
+ * @NTR_NOT_AS_WAKEUP: The 4500 fifo interrupt is not configured as a
  *                     wake-up event
- * INTR_AS_WAKEUP: The 4500 fifo interrupt is configured as a wake-up event
+ * @INTR_AS_WAKEUP: The 4500 fifo interrupt is configured as a wake-up event
  */
 typedef enum {
 	INTR_NOT_AS_WAKEUP = 0x0,
@@ -376,66 +366,63 @@ typedef enum {
 } intr_wakeup_t;
 
 /**
- * typedef mbox_to_arm_err_t - Error messages definition
- *
- * Error messages definition for mbox_arm coming from XP70 to ARM
- *
- * INIT_ERR: Init value
- * PLLARMLOCKP_ERR: PLLARM has not been correctly locked in given time
- * PLLDDRLOCKP_ERR: PLLDDR has not been correctly locked in the given time
- * PLLSOC0LOCKP_ERR: PLLSOC0 has not been correctly locked in the given time
- * PLLSOC1LOCKP_ERR: PLLSOC1 has not been correctly locked in the given time
- * ARMWFI_ERR: The ARM WFI has not been correctly executed in the given time
- * SYSCLKOK_ERR: The SYSCLK is not available in the given time
- * BOOT_ERR: Romcode has not validated the XP70 self reset in the given time
- * ROMCODESAVECONTEXT: The Romcode didn.t correctly save it secure context
- * VARMHIGHSPEEDVALTO_ERR: The ARM high speed supply value transfered
+ * enum  mbox_to_arm_err_t - Error messages definition
+ * @INIT_ERR: Init value
+ * @PLLARMLOCKP_ERR: PLLARM has not been correctly locked in given time
+ * @PLLDDRLOCKP_ERR: PLLDDR has not been correctly locked in the given time
+ * @PLLSOC0LOCKP_ERR: PLLSOC0 has not been correctly locked in the given time
+ * @PLLSOC1LOCKP_ERR: PLLSOC1 has not been correctly locked in the given time
+ * @ARMWFI_ERR: The ARM WFI has not been correctly executed in the given time
+ * @SYSCLKOK_ERR: The SYSCLK is not available in the given time
+ * @BOOT_ERR: Romcode has not validated the XP70 self reset in the given time
+ * @ROMCODESAVECONTEXT: The Romcode didn.t correctly save it secure context
+ * @VARMHIGHSPEEDVALTO_ERR: The ARM high speed supply value transfered
  *          through I2C has not been correctly executed in the given time
- * VARMHIGHSPEEDACCESS_ERR: The command value of VarmHighSpeedVal transfered
+ * @VARMHIGHSPEEDACCESS_ERR: The command value of VarmHighSpeedVal transfered
  *             through I2C has not been correctly executed in the given time
- * VARMLOWSPEEDVALTO_ERR:The ARM low speed supply value transfered through
+ * @VARMLOWSPEEDVALTO_ERR:The ARM low speed supply value transfered through
  *                     I2C has not been correctly executed in the given time
- * VARMLOWSPEEDACCESS_ERR: The command value of VarmLowSpeedVal transfered
+ * @VARMLOWSPEEDACCESS_ERR: The command value of VarmLowSpeedVal transfered
  *             through I2C has not been correctly executed in the given time
- * VARMRETENTIONVALTO_ERR: The ARM retention supply value transfered through
+ * @VARMRETENTIONVALTO_ERR: The ARM retention supply value transfered through
  *                     I2C has not been correctly executed in the given time
- * VARMRETENTIONACCESS_ERR: The command value of VarmRetentionVal transfered
+ * @VARMRETENTIONACCESS_ERR: The command value of VarmRetentionVal transfered
  *             through I2C has not been correctly executed in the given time
- * VAPEHIGHSPEEDVALTO_ERR: The APE highspeed supply value transfered through
+ * @VAPEHIGHSPEEDVALTO_ERR: The APE highspeed supply value transfered through
  *                     I2C has not been correctly executed in the given time
- * VSAFEHPVALTO_ERR: The SAFE high power supply value transfered through I2C
+ * @VSAFEHPVALTO_ERR: The SAFE high power supply value transfered through I2C
  *                         has not been correctly executed in the given time
- * VMODSEL1VALTO_ERR: The MODEM sel1 supply value transfered through I2C has
+ * @VMODSEL1VALTO_ERR: The MODEM sel1 supply value transfered through I2C has
  *                             not been correctly executed in the given time
- * VMODSEL2VALTO_ERR: The MODEM sel2 supply value transfered through I2C has
+ * @VMODSEL2VALTO_ERR: The MODEM sel2 supply value transfered through I2C has
  *                             not been correctly executed in the given time
- * VARMOFFACCESS_ERR: The command value of Varm ON/OFF transfered through
+ * @VARMOFFACCESS_ERR: The command value of Varm ON/OFF transfered through
  *                     I2C has not been correctly executed in the given time
- * VAPEOFFACCESS_ERR: The command value of Vape ON/OFF transfered through
+ * @VAPEOFFACCESS_ERR: The command value of Vape ON/OFF transfered through
  *                     I2C has not been correctly executed in the given time
- * VARMRETACCES_ERR: The command value of Varm retention ON/OFF transfered
+ * @VARMRETACCES_ERR: The command value of Varm retention ON/OFF transfered
  *             through I2C has not been correctly executed in the given time
- * CURAPPWRSTISNOTBOOT:Generated when Arm want to do power state transition
+ * @CURAPPWRSTISNOTBOOT:Generated when Arm want to do power state transition
  *             ApBoot to ApExecute but the power current state is not Apboot
- * CURAPPWRSTISNOTEXECUTE: Generated when Arm want to do power state
+ * @CURAPPWRSTISNOTEXECUTE: Generated when Arm want to do power state
  *              transition from ApExecute to others power state but the
  *              power current state is not ApExecute
- * CURAPPWRSTISNOTSLEEPMODE: Generated when wake up events are transmitted
+ * @CURAPPWRSTISNOTSLEEPMODE: Generated when wake up events are transmitted
  *             but the power current state is not ApDeepSleep/ApSleep/ApIdle
- * CURAPPWRSTISNOTCORRECTDBG:  Generated when wake up events are transmitted
+ * @CURAPPWRSTISNOTCORRECTDBG:  Generated when wake up events are transmitted
  *              but the power current state is not correct
- * ARMREGU1VALTO_ERR:The ArmRegu1 value transferred through I2C has not
+ * @ARMREGU1VALTO_ERR:The ArmRegu1 value transferred through I2C has not
  *                    been correctly executed in the given time
- * ARMREGU2VALTO_ERR: The ArmRegu2 value transferred through I2C has not
+ * @ARMREGU2VALTO_ERR: The ArmRegu2 value transferred through I2C has not
  *                    been correctly executed in the given time
- * VAPEREGUVALTO_ERR: The VApeRegu value transfered through I2C has not
+ * @VAPEREGUVALTO_ERR: The VApeRegu value transfered through I2C has not
  *                    been correctly executed in the given time
- * VSMPS3REGUVALTO_ERR: The VSmps3Regu value transfered through I2C has not
+ * @VSMPS3REGUVALTO_ERR: The VSmps3Regu value transfered through I2C has not
  *                      been correctly executed in the given time
- * VMODREGUVALTO_ERR: The VModemRegu value transfered through I2C has not
+ * @VMODREGUVALTO_ERR: The VModemRegu value transfered through I2C has not
  *                    been correctly executed in the given time
  */
-typedef enum {
+enum mbox_to_arm_err_t {
 	INIT_ERR = 0x00,
 	PLLARMLOCKP_ERR = 0x01,
 	PLLDDRLOCKP_ERR = 0x02,
@@ -467,7 +454,7 @@ typedef enum {
 	VAPEREGUVALTO_ERR = 0x26,
 	VSMPS3REGUVALTO_ERR = 0x27,
 	VMODREGUVALTO_ERR = 0x28
-} mbox_to_arm_err_t;
+};
 
 typedef enum {
 	SVAMMDSP = 0,
@@ -482,39 +469,39 @@ typedef enum {
 	ESRAM4 = 9
 } hw_acc_t;
 
-typedef enum{
+enum reqmb0_header_t {
 	PWRSTTRH    = 0,
 	WKUPCFGH    = 1,
 	WKUPH       = 2,
 	RDWKUPACKH  = 3
-} reqmb0_header_t;
+};
 
-typedef enum{
+enum cs_pwrmgt_t {
 	PWRDNCS0  = 0,
 	WKUPCS0   = 1,
 	PWRDNCS1  = 2,
 	WKUPCS1   = 3
-} cs_pwrmgt_t;
+};
 
-typedef enum {
+enum reqmb2_header_t {
 	DPS_H   = 0,
 	HW_ACCT_AUTO_PWR_H = 1,
-} reqmb2_header_t;
+};
 
 /**
- * Header type for mail box 4
- * MEMSTH =  The ARM can set what are the expected memory states depending on
+ * enum reqmb4_header_t -Header type for mail box 4
+ * @MEMSTH:   The ARM can set what are the expected memory states depending on
  * the AP power states.
- * PARTIALREFRESHH = ARM has to update MR16 & MR17 of SDRAM register, for
+ * @PARTIALREFRESHH: ARM has to update MR16 & MR17 of SDRAM register, for
  * partial-refresh of SDRAM, via this mailbox
- * AUTOREFRESHH = Enable to change cycle count before enabling automatic
+ * @AUTOREFRESHH:  Enable to change cycle count before enabling automatic
  * DDR self-refresh
- * CSPWRDNH = Enables to lock/unlock one of SDRAM memory cut in self-refresh
+ * @CSPWRDNH:  Enables to lock/unlock one of SDRAM memory cut in self-refresh
  * In V2,this service will enable to put CS in pwrdn
- * SYSCLKH = Enables to switch SYSCLK ON/OFF on the AP side
- * USBWKUPH = Used to enable USB wakeup event of PRCMU
+ * @SYSCLKH:  Enables to switch SYSCLK ON/OFF on the AP side
+ * @USBWKUPH:  Used to enable USB wakeup event of PRCMU
  */
-typedef enum {
+enum reqmb4_header_t {
 	MEM_ST_H = 0,
 	PARTIAL_S_REFRESH_H = 1,
 	AUTO_REFRESH_H = 2,
@@ -522,20 +509,20 @@ typedef enum {
 	SYSCLK_H = 5,
 	AUTO_PWR_H = 6,
 	USB_WKUP_H = 7
-}reqmb4_header_t;
+};
 
-typedef enum {
+enum ack_mb4_status_t {
 	ACKMB4_INIT  = 0,
 	SYSCLKON_OK = 1,
 	DDRON_OK    = 2
-}ack_mb4_status_t;
+};
 
-typedef enum {
+enum I2C_op_t {
 	I2CWRITE = 0,
 	I2CREAD  = 1
-}I2C_op_t;
+};
 
-typedef enum {
+enum ack_mb5_status_t {
 	ACKMB5_INIT  = 0x00,
 	I2C_WR_OK   = 0x01,
 	I2C_RD_OK   = 0x02,
@@ -550,13 +537,13 @@ typedef enum {
 	I2CRD_NACK_ADDR_INIT_ER		= 0x0F,
 	I2CRD_NACK_REG_ADDR_INIT_ER	= 0x13,
 	I2CRD_NACK_ADDR_ER		= 0x17
-} ack_mb5_status_t;
+};
 
-typedef enum {
+enum ack_mb7_status_t {
 	MOD_SW_RESET_REQ = 0x03,
 	CA_SLEEP_REQ    = 0x02,
 	HOST_PORT_ACK   = 0x01,
 	ACKMB7_INIT    = 0x00
-} ack_mb7_status_t;
+};
 
 #endif /* __MACH_PRCMU_FW_DEFS_V1_H */
