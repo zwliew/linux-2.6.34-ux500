@@ -536,7 +536,7 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 			hw_usg_state.b2r2 = 0;
 		}
 		if (hw_usg_state.mcde == 1)
-		return 0;
+			return -EINVAL;
 		hw_acc_device = B2R2MCDE;
 		break;
 	case HW_ACC_MCDE:
@@ -546,7 +546,7 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 			hw_usg_state.mcde = 0;
 		}
 		if (hw_usg_state.b2r2 == 1)
-		return 0;
+			return -EINVAL;
 		hw_acc_device = B2R2MCDE;
 		break;
 	case HW_ACC_ESRAM1:
@@ -556,7 +556,7 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 			hw_usg_state.esram1 = 0;
 		}
 		if (hw_usg_state.esram2 == 1)
-			return 0;
+			return -EINVAL;
 		hw_acc_device = ESRAM1;
 		break;
 	case HW_ACC_ESRAM2:
@@ -566,7 +566,7 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 			hw_usg_state.esram2 = 0;
 		}
 		if (hw_usg_state.esram1 == 1)
-			return 0;
+			return -EINVAL;
 		hw_acc_device = ESRAM2;
 		break;
 	case HW_ACC_ESRAM3:
@@ -576,7 +576,7 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 			hw_usg_state.esram3 = 0;
 		}
 		if (hw_usg_state.esram4 == 1)
-		return 0;
+			return -EINVAL;
 		hw_acc_device = ESRAM3;
 		break;
 	case HW_ACC_ESRAM4:
@@ -586,11 +586,11 @@ int prcmu_set_hwacc(enum hw_acc_dev hw_acc, hw_accst_t hw_accst)
 			hw_usg_state.esram4 = 0;
 		}
 		if (hw_usg_state.esram3 == 1)
-			return 0;
+			return -EINVAL;
 		hw_acc_device = ESRAM4;
 		break;
 	default:
-		break;
+		return -EINVAL;
 	};
 	return prcmu_set_hwacc_st(hw_acc_device, hw_accst);
 }
