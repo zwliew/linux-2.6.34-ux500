@@ -19,6 +19,7 @@
 #include <mach/shrm.h>
 #include "shrm_driver.h"
 #include "shrm_private.h"
+#include <mach/prcmu-fw-api.h>
 
 static u8 boot_state = BOOT_INIT;
 static unsigned char recieve_common_msg[8*1024];
@@ -35,6 +36,9 @@ DECLARE_TASKLET(shm_ca_wake_tasklet, shm_ca_wake_req_tasklet, 0);
 
 spinlock_t ca_common_lock ;
 spinlock_t ca_audio_lock ;
+
+
+static void shrm_cawake_req_callback(u8);
 
 void shm_ca_wake_req_tasklet(unsigned long tasklet_data)
 {
@@ -223,7 +227,35 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 	p_audio_rx_handler = audio_rx_handler;
 	spin_lock_init(&ca_common_lock);
 	spin_lock_init(&ca_audio_lock);
+
+	/* register callback with PRCMU for ca_wake_req */
+	prcmu_set_callback_cawakereq(&shrm_cawake_req_callback);
+
+	/* check if there is any initial pending ca_wake_req */
+	if (prcmu_is_ca_wake_req_pending())
+		shrm_cawake_req_callback(1);
+
 }
+
+void shrm_cawake_req_callback(u8 ca_wake_state)
+{
+	if (ca_wake_state) {
+		if (pshm_dev) {
+			/*initialize the FIFO Variables*/
+			if (boot_state == BOOT_INIT)
+				shm_fifo_init();
+		} else {
+			printk(KERN_ALERT "error condition ca_wake_irq_handler pshm_dev is Null\n");
+			BUG_ON(1);
+		}
+
+		/*send ca_wake_ack_interrupt to CMU*/
+		writel((1<<GOP_CA_WAKE_ACK_BIT), \
+				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+	}
+
+}
+
 
 /** This function is called when Cawake req occurs*/
 
