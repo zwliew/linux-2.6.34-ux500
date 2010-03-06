@@ -54,9 +54,11 @@ DECLARE_WAIT_QUEUE_HEAD(ack_mb0_queue);
 DECLARE_WAIT_QUEUE_HEAD(ack_mb5_queue);
 DECLARE_WAIT_QUEUE_HEAD(ack_mb7_queue);
 
+/* Global var to determine if ca_wake_req is pending or not */
+static int ca_wake_req_pending;
 
 /* function pointer for shrm callback sequence for modem waking up arm */
-static void (*prcmu_modem_wakes_arm_shrm)(void);
+static void (*prcmu_ca_wake_req_shrm_callback)(u8);
 
 /* function pointer for shrm callback sequence for modem requesting reset */
 static void (*prcmu_modem_reset_shrm)(void);
@@ -1296,14 +1298,14 @@ EXPORT_SYMBOL(prcmu_i2c_get_val);
 
 
 /**
- * prcmu_wakeup_modem - should be called whenever ARM wants to wakeup Modem
+ * prcmu_ac_wake_req - should be called whenever ARM wants to wakeup Modem
  *
  * Mailbox used : AckMb7
  * ACK          : HostPortAck
  */
-int prcmu_arm_wakeup_modem()
+int prcmu_ac_wake_req()
 {
-	uint32_t prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
+	u32 prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
 	prcm_hostaccess = prcm_hostaccess | ARM_WAKEUP_MODEM;
 
 	/* 1. write to the PRCMU host_port_req register */
@@ -1317,7 +1319,7 @@ int prcmu_arm_wakeup_modem()
 	if (prcmu_read_ack_mb7() == HOST_PORT_ACK)
 		return 0;
 	else {
-		printk(KERN_INFO "\nprcmu_arm_wakeup_modem: ack_mb7 \
+		dbg_printk(KERN_INFO "\nprcmu_ac_wake_req: ack_mb7 \
 				status = %x", prcmu_read_ack_mb7());
 		return -EINVAL;
 	}
@@ -1325,26 +1327,25 @@ int prcmu_arm_wakeup_modem()
 
 
 }
-EXPORT_SYMBOL(prcmu_arm_wakeup_modem);
+EXPORT_SYMBOL(prcmu_ac_wake_req);
 
 /**
- * prcmu_arm_free_modem - called when ARM no longer needs to talk to modem
+ * prcmu_ac_sleep_req - called when ARM no longer needs to talk to modem
  *
  * Mailbox used - None
  * ACK          - None
  */
-int prcmu_arm_free_modem()
+int prcmu_ac_sleep_req()
 {
 	/* clear the PRCMU host_port_req register */
-	uint32_t orig_val = readl(PRCM_HOSTACCESS_REQ);
+	u32 orig_val = readl(PRCM_HOSTACCESS_REQ);
 	orig_val = orig_val & 0xFFFFFFFE;
 
-	/* TODO - write the correct mask value here !! */
 	writel(orig_val, PRCM_HOSTACCESS_REQ);
 
 	return 0;
 }
-EXPORT_SYMBOL(prcmu_arm_free_modem);
+EXPORT_SYMBOL(prcmu_ac_sleep_req);
 
 
 
@@ -1444,17 +1445,35 @@ EXPORT_SYMBOL(prcmu_ack_wakeup_reason);
 
 
 /**
- * prcmu_set_callback_modem_wakes_arm - Set the callback function to call
- * 			when modem requests for Arm wakeup
+ * prcmu_is_ca_wake_req_pending - determine if ca_wake_req is pending
  *
  * Mailbox used - None
  * Ack - None
+ *
+ * To be used by shrm driver to check if any ca_wake_req is pending
+ * initially and service the request accordingly.
  */
-void prcmu_set_callback_modem_wakes_arm(void (*func)(void))
+int prcmu_is_ca_wake_req_pending(void)
 {
-	prcmu_modem_wakes_arm_shrm = func;
+	int retval = ca_wake_req_pending;
+	if (ca_wake_req_pending)
+		ca_wake_req_pending--;
+
+	return retval;
 }
-EXPORT_SYMBOL(prcmu_set_callback_modem_wakes_arm);
+EXPORT_SYMBOL(prcmu_is_ca_wake_req_pending);
+
+/**
+ * prcmu_set_callback_cawakereq - callback of shrm for ca_wake_req
+ * @*func:	Function pointer of shrm
+ *
+ * To call the registered shrm callback whenever ca_wake_req is got
+ */
+void prcmu_set_callback_cawakereq(void (*func)(u8))
+{
+	prcmu_ca_wake_req_shrm_callback = func;
+}
+EXPORT_SYMBOL(prcmu_set_callback_cawakereq);
 
 
 /**
@@ -1529,15 +1548,13 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 
 	/* ca_wake_req signal  - modem wakes up ARM */
 	if (event_8500 & (1 << 5)) {
-		/* call shrm driver sequence */
-		if (prcmu_modem_wakes_arm_shrm != NULL) {
-			(*prcmu_modem_wakes_arm_shrm)();
-
-		} else {
+		/* call shrm driver callback */
+		if (prcmu_ca_wake_req_shrm_callback != NULL)
+			(*prcmu_ca_wake_req_shrm_callback)(1);
+		else {
 			printk(KERN_INFO "\n prcmu: SHRM callback for \
 					ca_wake_req not registered!!\n");
 		}
-
 	}
 
 	/* USB wakeup signal */
@@ -1569,7 +1586,7 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
 {
 	/* read the ack mb7 value and carry out actions accordingly */
-	uint8_t ack_mb7 = readb(PRCM_ACK_MB7);
+	u8 ack_mb7 = readb(PRCM_ACK_MB7);
 
 	switch (ack_mb7) {
 	case MOD_SW_RESET_REQ:
@@ -1578,6 +1595,12 @@ void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
 	case CA_SLEEP_REQ:
 		/* modem no longer requires to communicate
 		 * with ARM so ARM can go to sleep */
+		if (prcmu_ca_wake_req_shrm_callback != NULL)
+			(*prcmu_ca_wake_req_shrm_callback)(0);
+		else {
+			printk(KERN_INFO "\n prcmu: SHRM callback for \
+					ca_wake_req not registered!!\n");
+		}
 		break;
 	case HOST_PORT_ACK:
 		/* modem up.ARM can communicate to modem */
@@ -1711,8 +1734,17 @@ static int prcmu_fw_init(void)
 			goto err_return;
 		}
 
-		/* check for any existing wakeup events and ack*/
+		/* check for any existing wakeup events */
 		if (readb(PRCM_MBOX_HEADER_ACK_MB0) == WKUPH) {
+			/* check here for the wakeup source for cawakereq
+			   debugging on-going with fw for ping-pong.
+			   Currently, its not possible to read source of
+			   wakeup event correctly from fw mailbox */
+
+			/* increment pending flag for the shrm driver
+			   to check */
+			ca_wake_req_pending++;
+
 			/* acknowledge reading the wakeup reason to fw */
 			prcmu_ack_wakeup_reason();
 		}

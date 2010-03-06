@@ -54,13 +54,13 @@ int prcmu_i2c_get_bank(void);
 int prcmu_i2c_get_reg(void);
 int prcmu_i2c_get_val(void);
 
-int prcmu_arm_wakeup_modem(void);
-int prcmu_arm_free_modem(void);
+int prcmu_ac_wake_req(void);
+int prcmu_ac_sleep_req(void);
 int prcmu_configure_wakeup_events(u32, u32);
 int prcmu_get_wakeup_reason(u32 *, u8 *);
 int prcmu_ack_wakeup_reason(void);
-int prcmu_modem_wakup_ape(void);
-int prcmu_modem_freed_ape(void);
+void prcmu_set_callback_cawakereq(void (*func)(u8));
+int prcmu_is_ca_wake_req_pending(void);
 int prcmu_read_ack_mb7(void);
 irqreturn_t prcmu_ack_mbox_irq_handler(int, void *);
 
