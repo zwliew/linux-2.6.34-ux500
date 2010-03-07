@@ -1519,6 +1519,11 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 
 	prcmu_get_wakeup_reason(&event_8500, event_4500);
 
+	dbg_printk("\n Inside prcmu_ack_mb0_wkuph_status_tasklet \n");
+	dbg_printk("\n\nAcknowledging by RDWKUPACKH\n\n");
+	prcmu_ack_wakeup_reason();
+
+
 	/* ca_wake_req signal  - modem wakes up ARM */
 	if (event_8500 & (1 << 5)) {
 		/* call shrm driver callback */
