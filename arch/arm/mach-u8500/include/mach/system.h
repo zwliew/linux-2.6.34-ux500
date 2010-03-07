@@ -8,6 +8,8 @@
 #ifndef __ASM_ARCH_SYSTEM_H
 #define __ASM_ARCH_SYSTEM_H
 
+#include <mach/prcmu-fw-api.h>
+
 static inline void arch_idle(void)
 {
 	/*
@@ -19,7 +21,7 @@ static inline void arch_idle(void)
 
 static inline void arch_reset(char mode)
 {
-    writel(1, IO_ADDRESS(U8500_PRCMU_BASE) + 0x228);
+	prcmu_system_reset();
 }
 
 #endif

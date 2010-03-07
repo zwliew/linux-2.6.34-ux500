@@ -60,6 +60,7 @@ int prcmu_configure_wakeup_events(u32, u32);
 int prcmu_get_wakeup_reason(u32 *, u8 *);
 int prcmu_ack_wakeup_reason(void);
 void prcmu_set_callback_cawakereq(void (*func)(u8));
+void prcmu_system_reset(void);
 int prcmu_is_ca_wake_req_pending(void);
 int prcmu_read_ack_mb7(void);
 irqreturn_t prcmu_ack_mbox_irq_handler(int, void *);

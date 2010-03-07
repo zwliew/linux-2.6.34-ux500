@@ -1487,7 +1487,16 @@ void prcmu_set_callback_modem_reset_request(void (*func)(void))
 }
 EXPORT_SYMBOL(prcmu_set_callback_modem_reset_request);
 
-
+/**
+ * prcmu_system_reset - System reset
+ *
+ * Sets the APE_SOFRST register which fires interrupt to fw
+ */
+void prcmu_system_reset(void)
+{
+	writel(1, PRCM_APE_SOFTRST);
+}
+EXPORT_SYMBOL(prcmu_system_reset);
 
 /**
  * prcmu_read_ack_mb7 - Read the AckMb7 Status message

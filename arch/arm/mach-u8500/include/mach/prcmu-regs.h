@@ -63,6 +63,8 @@
 #define PRCM_ITCLEAR5		(_PRCMU_BASE + 0x488)
 #define PRCM_ARMIT_MASKXP70_IT	(_PRCMU_BASE + 0x1018)
 
+/* System reset register */
+#define PRCM_APE_SOFTRST	(_PRCMU_BASE + 0x228)
 
 /* Clock management */
 #define PRCM_YYCLKEN0_MGT_SET	(_PRCMU_BASE + 0x510)
