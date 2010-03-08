@@ -301,6 +301,14 @@ enum b2r2_s3ty {
 #define B2R2_SZ_WIDTH_SHIFT 0
 #define B2R2_SZ_HEIGHT_SHIFT 16
 
+/* Clip window offset (top left coordinates) */
+#define B2R2_CWO_X_SHIFT 0
+#define B2R2_CWO_Y_SHIFT 16
+
+/* Clip window stop (bottom right coordinates) */
+#define B2R2_CWS_X_SHIFT 0
+#define B2R2_CWS_Y_SHIFT 16
+
 /* Filter control (2D resize control) */
 enum b2r2_fctl {
 	/* Horizontal 2D filter mode */

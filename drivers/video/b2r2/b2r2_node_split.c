@@ -245,6 +245,14 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 	color_fill = (this->flags & (B2R2_BLT_FLAG_SOURCE_FILL |
 				B2R2_BLT_FLAG_SOURCE_FILL_RAW)) != 0;
 
+	/* Configure the source and destination buffers */
+	set_buf(&this->src, req->src_resolved.physical_address,
+		&req->user_req.src_img, &req->user_req.src_rect, color_fill,
+		req->user_req.src_color);
+	set_buf(&this->dst, req->dst_resolved.physical_address,
+		&req->user_req.dst_img, &req->user_req.dst_rect, false, 0);
+
+
 	/* Check for blending */
 	this->blend = ((this->flags &
 				(B2R2_BLT_FLAG_PER_PIXEL_ALPHA_BLEND |
@@ -253,16 +261,38 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 	/* Check for clipping */
 	this->clip = (this->flags &
 				B2R2_BLT_FLAG_DESTINATION_CLIP) != 0;
-	if (this->clip)
-		memcpy(&this->clip_rect, &req->user_req.dst_clip_rect,
-				sizeof(this->clip_rect));
+	if (this->clip) {
+		s32 l = req->user_req.dst_clip_rect.x;
+		s32 r = l + req->user_req.dst_clip_rect.width;
+		s32 t = req->user_req.dst_clip_rect.y;
+		s32 b = t + req->user_req.dst_clip_rect.height;
 
-	/* Configure the source and destination buffers */
-	set_buf(&this->src, req->src_resolved.physical_address,
-		&req->user_req.src_img, &req->user_req.src_rect, color_fill,
-		req->user_req.src_color);
-	set_buf(&this->dst, req->dst_resolved.physical_address,
-		&req->user_req.dst_img, &req->user_req.dst_rect, false, 0);
+		/* Intersect the clip and buffer rects */
+		if (l < 0)
+			l = 0;
+		if (r > req->user_req.dst_img.width)
+			r = req->user_req.dst_img.width;
+		if (t < 0)
+			t = 0;
+		if (b > req->user_req.dst_img.height)
+			b = req->user_req.dst_img.height;
+
+		this->clip_rect.x = l;
+		this->clip_rect.y = t;
+		this->clip_rect.width = r - l;
+		this->clip_rect.height = b - t;
+	} else {
+		/* Set the clip rectangle to the buffer bounds */
+		this->clip_rect.x = 0;
+		this->clip_rect.y = 0;
+		this->clip_rect.width = req->user_req.dst_img.width;
+		this->clip_rect.height = req->user_req.dst_img.height;
+	}
+
+	/* The clip rectangle is "inclusive" so we have to subtract one
+	   from the width and height */
+	this->clip_rect.width -= 1;
+	this->clip_rect.height -= 1;
 
 	/* Do the analysis depending on the type of operation */
 	if (color_fill) {
@@ -343,6 +373,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 			this->dst.rect.x, this->dst.rect.y,
 			this->dst.rect.width,
 			this->dst.rect.height);
+
 	pdebug(KERN_INFO "%s: d_src=(%d, %d) d_dst=(%d, %d)\n",
 		__func__, this->src.dx, this->src.dy, this->dst.dx,
 		this->dst.dy);
@@ -628,9 +659,9 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 
 			/* We need a rectangle and a window for the source */
 			memcpy(&this->src.rect, &this->dst.rect,
-			       sizeof(this->src.rect));
+					sizeof(this->src.rect));
 			memcpy(&this->src.window, &this->dst.window,
-			       sizeof(this->src.window));
+					sizeof(this->src.window));
 		}
 
 		/* We will need to swap the FG and the BG since color fill from
@@ -642,7 +673,7 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 		if (((this->flags & B2R2_BLT_FLAG_PER_PIXEL_ALPHA_BLEND)
 					!= 0) &&
 				((this->flags & B2R2_BLT_FLAG_SOURCE_FILL_RAW)
-				 == 0) && fmt_has_alpha(this->src.fmt)) {
+					== 0) && fmt_has_alpha(this->src.fmt)) {
 			u8 pixel_alpha = get_alpha(this->src.fmt,
 							this->dst.color);
 			u32 new_global = pixel_alpha * this->global_alpha / 255;
@@ -1331,7 +1362,7 @@ static int configure_tile(struct b2r2_node_split_job *this,
 		break;
 	}
 
-	/* Scale and rotate will configure its own blending */
+	/* Scale and rotate will configure its own blending and clipping */
 	if (this->type != B2R2_SCALE_AND_ROTATE) {
 
 		/* Configure blending and clipping */
@@ -1343,8 +1374,7 @@ static int configure_tile(struct b2r2_node_split_job *this,
 						this->global_alpha,
 						this->swap_fg_bg);
 
-			if (this->clip)
-				configure_clip(node, &this->clip_rect);
+			configure_clip(node, &this->clip_rect);
 
 			node = node->next;
 
@@ -1465,8 +1495,8 @@ static void configure_rot_scale(struct b2r2_node_split_job *this,
 		if (this->blend)
 			configure_blend(node, this->flags,
 					this->global_alpha, false);
-		if (this->clip)
-			configure_clip(node, &this->clip_rect);
+
+		configure_clip(node, &this->clip_rect);
 
 		node = node->next;
 	} while (node != last);
@@ -1917,12 +1947,17 @@ static void configure_blend(struct b2r2_node *node, u32 flags, u32 global_alpha,
 
 
 	/* Check if global alpha blend should be enabled */
-	if ((flags & B2R2_BLT_FLAG_GLOBAL_ALPHA_BLEND) != 0)
+	if ((flags & B2R2_BLT_FLAG_GLOBAL_ALPHA_BLEND) != 0) {
+
+		/* B2R2 expects the global alpha to be in 0...127 range */
+		global_alpha /= 2;
+
 		node->node.GROUP0.B2R2_ACK |=
-			global_alpha <<	(B2R2_ACK_GALPHA_ROPID_SHIFT - 1);
-	else
+			global_alpha <<	B2R2_ACK_GALPHA_ROPID_SHIFT;
+	} else {
 		node->node.GROUP0.B2R2_ACK |=
 			(128 << B2R2_ACK_GALPHA_ROPID_SHIFT);
+	}
 
 	/* Copy the destination config to the appropriate source and clear any
 	   clashing flags */
@@ -1970,11 +2005,14 @@ static void configure_clip(struct b2r2_node *node,
 	node->node.GROUP0.B2R2_INS |= B2R2_INS_RECT_CLIP_ENABLED;
 
 	/* Clip window setup */
-	node->node.GROUP6.B2R2_CWO = ((clip_rect->y & 0x7FFF) << 16) |
-			(clip_rect->x & 0x7FFF);
+	node->node.GROUP6.B2R2_CWO =
+			((clip_rect->y & 0x7FFF) << B2R2_CWO_Y_SHIFT) |
+			((clip_rect->x & 0x7FFF) << B2R2_CWO_X_SHIFT);
 	node->node.GROUP6.B2R2_CWS =
-			(((clip_rect->y + clip_rect->height) & 0x7FFF) << 16) |
-			((clip_rect->x + clip_rect->width) & 0x7FFF);
+		(((clip_rect->y + clip_rect->height) & 0x7FFF)
+							<< B2R2_CWO_Y_SHIFT) |
+		(((clip_rect->x + clip_rect->width) & 0x7FFF)
+							<< B2R2_CWO_X_SHIFT);
 }
 
 /**
