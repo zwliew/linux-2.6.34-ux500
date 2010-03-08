@@ -947,22 +947,12 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (smp_processor_id()) {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
-				printk(KERN_WARNING
-				"Other CPU(CPU%d) is not in WFI!(0x%x)\
-				 Aborting attempt\n",
-					!smp_processor_id(),
-					readl(PRCM_ARM_WFI_STANDBY));
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
-				printk(KERN_WARNING
-				"Other CPU(CPU%d) is not in WFI!(0x%x)\
-				 Aborting attempt\n",
-					!smp_processor_id(),
-					readl(PRCM_ARM_WFI_STANDBY));
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
 				return 0;
@@ -1070,22 +1060,12 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (smp_processor_id()) {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
-				printk(KERN_WARNING
-					"Other CPU(CPU%d) is not in WFI!(0x%x)\
-					 Aborting attempt\n",
-					!smp_processor_id(),
-					readl(PRCM_ARM_WFI_STANDBY));
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
-				printk(KERN_WARNING
-					"Other CPU(CPU%d) is not in WFI!(0x%x)\
-					Aborting attempt\n",
-					!smp_processor_id(),
-					readl(PRCM_ARM_WFI_STANDBY));
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
 				return 0;
