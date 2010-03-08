@@ -1299,7 +1299,7 @@ static struct mcde_channel_data mcde1_channel_data = {
 	.bpp16_type = CONFIG_FB_U8500_MCDE_CHANNELB_INPUT_16BPP_TYPE,
 	.bgrinput = CONFIG_FB_U8500_MCDE_CHANNELB_INPUT_BGR,
 #else
-	.restype = "SDTV",
+	.restype = "PAL",
 	.inbpp = 16,
 	.outbpp = 0x2,
 	.bpp16_type = 1,

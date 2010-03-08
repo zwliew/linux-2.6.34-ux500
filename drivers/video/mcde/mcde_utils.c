@@ -109,6 +109,22 @@ void mcdefb_enable(struct fb_info *info)
 
 	/* Turn on POWEREN for this channel */
 	mcdesetchnlXpowermode(currentpar->chid, MCDE_POWER_ENABLE);
+
+	switch (currentpar->chid) {
+	case MCDE_CH_C0:
+		/* turn on C1EN or C2EN */
+		mcdesetchnlCmode(currentpar->chid, MCDE_PANEL_C0, MCDE_CHANNEL_C_ENABLE);
+		break;
+
+	case MCDE_CH_C1:
+		/* turn on C1EN or C2EN */
+		mcdesetchnlCmode(currentpar->chid, MCDE_PANEL_C1, MCDE_CHANNEL_C_ENABLE);
+		break;
+
+	default:
+		/* do nothing */
+		break;
+	}
 }
 
 /** channel specific disable */
@@ -116,12 +132,27 @@ void mcdefb_disable(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 
+	switch (currentpar->chid) {
+	case MCDE_CH_C0:
+		/* turn off C1EN or C2EN */
+		mcdesetchnlCmode(currentpar->chid, MCDE_PANEL_C0, MCDE_CHANNEL_C_DISABLE);
+		break;
+
+	case MCDE_CH_C1:
+		/* turn off C1EN or C2EN */
+		mcdesetchnlCmode(currentpar->chid, MCDE_PANEL_C1, MCDE_CHANNEL_C_DISABLE);
+		break;
+
+	default:
+		/* do nothing */
+		break;
+	}
+
 	/* Turn off POWEREN for this channel */
 	mcdesetchnlXpowermode(currentpar->chid, MCDE_POWER_DISABLE);
 
 	/* Turn off FLOWEN for this channel */
 	mcdesetchnlXflowmode(currentpar->chid, MCDE_FLOW_DISABLE);
-
 }
 
 int mcde_enable(struct fb_info *info)
@@ -129,10 +160,15 @@ int mcde_enable(struct fb_info *info)
 	struct mcdefb_info *currentpar = info->par;
 	u32 retVal=0;
 
-	/* Enable MCDE */
-	mcdesetstate(currentpar->chid, MCDE_ENABLE);
-	gpar[currentpar->chid]->regbase->mcde_cr |= MCDE_CR_MCDEEN;
-	mcdefb_enable(info);
+	if (mcdegetchannelstate(currentpar->chid) == MCDE_DISABLE) {
+		/* Enable MCDE */
+		gpar[currentpar->chid]->regbase->mcde_cr &= ~MCDE_CR_MCDEEN;
+
+		mcdesetstate(currentpar->chid, MCDE_ENABLE);
+		mcdefb_enable(info);
+
+		gpar[currentpar->chid]->regbase->mcde_cr |= MCDE_CR_MCDEEN;
+	}
 	return retVal;
 }
 
@@ -141,9 +177,15 @@ int mcde_disable(struct fb_info *info)
 	struct mcdefb_info *currentpar = info->par;
 	u32 retVal=0;
 
-	/* Disable MCDE */
-	mcdesetstate(currentpar->chid, MCDE_DISABLE);
-	mcdefb_disable(info);
+	if (mcdegetchannelstate(currentpar->chid) == MCDE_ENABLE) {
+		/* Disable MCDE */
+		gpar[currentpar->chid]->regbase->mcde_cr &= ~MCDE_CR_MCDEEN;
+
+		mcdesetstate(currentpar->chid, MCDE_DISABLE);
+		mcdefb_disable(info);
+
+		gpar[currentpar->chid]->regbase->mcde_cr |= MCDE_CR_MCDEEN;
+	}
 	return retVal;
 }
 

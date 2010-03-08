@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------*/
-/* © copyright STEricsson,2009. All rights reserved. For   */
+/* ï¿½ copyright STEricsson,2009. All rights reserved. For   */
 /* information, STEricsson reserves the right to license    */
 /* this software concurrently under separate license conditions.             */
 /*                                                                           */
@@ -19,6 +19,23 @@
 
 #ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
 /* HW V1 */
+
+
+#define PRNK_COL_BLACK	30
+#define PRNK_COL_RED	31
+#define PRNK_COL_GREEN	32
+#define PRNK_COL_YELLOW	33
+#define PRNK_COL_BLUE	34
+#define PRNK_COL_MAGENTA	35
+#define PRNK_COL_CYAN	36
+#define PRNK_COL_WHITE	37
+
+//#define CONFIG_MCDE_COLOURED_PRINTS
+#ifdef CONFIG_MCDE_COLOURED_PRINTS
+#define PRNK_COL(_col)	printk(KERN_ERR "%c[0;%d;40m\n", 0x1b, _col)
+#else /* CONFIG_MCDE_COLOURED_PRINTS */
+#define PRNK_COL(_col)
+#endif /* CONFIG_MCDE_COLOURED_PRINTS */
 
 #ifdef _cplusplus
 extern "C" {
@@ -57,10 +74,10 @@ void mcde_fb_lock(struct fb_info *info, const char *caller)
 {
 	struct mcdefb_info *currentpar = info->par;
 
-	if (mcde_test_enable_lock_prints)
-		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
 	if (!mcde_test_enable_lock)
 		return;
+	if (mcde_test_enable_lock_prints)
+		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
 	down(&currentpar->fb_sem);
 
 	/* Wait for imsc to be zero */
@@ -84,10 +101,10 @@ void mcde_fb_lock(struct fb_info *info, const char *caller)
 void mcde_fb_unlock(struct fb_info *info, const char *caller)
 {
 	struct mcdefb_info *currentpar = info->par;
-	if (mcde_test_enable_lock_prints)
-		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
 	if (!mcde_test_enable_lock)
 		return;
+	if (mcde_test_enable_lock_prints)
+		printk(KERN_INFO "%s(%p) from %s\n", __func__, info, caller);
 	up(&currentpar->fb_sem);
 }
 
@@ -152,7 +169,7 @@ struct fb_videomode mcde_modedb[] = {
                 FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         },{
                 /** 712x568 @ 72Hz  ~ VMODE_712_568_60_P */
-                "SDTV", 72, 712, 568, KHZ2PICOS(31500),
+                "NULL", 72, 712, 568, KHZ2PICOS(31500),
                 140, 2, 2, 2, 2, 24,
                 0, FB_VMODE_INTERLACED
         }, {
@@ -314,7 +331,7 @@ struct fb_videomode mcde_modedb[] = {
         },
         {
                 /** 720x480 @ 60Hz VMODE_720_480_60_I */
-                NULL, 60, 720, 480, KHZ2PICOS(297000),
+                "NTSC", 60, 720, 480, KHZ2PICOS(297000),
                 352, 144, 56, 1, 224, 3,
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
@@ -326,7 +343,7 @@ struct fb_videomode mcde_modedb[] = {
         },
         {
                 /** 720x576 @ 50Hz VMODE_720_576_50_I */
-                NULL, 50, 720, 576, KHZ2PICOS(297000),
+                "PAL", 50, 720, 576, KHZ2PICOS(297000),
                 352, 144, 56, 1, 224, 3,
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
@@ -374,7 +391,7 @@ struct fb_videomode mcde_modedb[] = {
 };
 
 /**  TODO check these default values for QVGA display */
-static struct fb_var_screeninfo mcde_default_var __initdata = {
+static struct fb_var_screeninfo mcde_default_var = {
 	/** 240x320, 16bpp @ 60 Hz */
 	.xres				= 240,
 	.yres				= 320,
@@ -407,6 +424,41 @@ static struct fb_fix_screeninfo mcde_fix __initdata = {
 /** global data */
 u8 registerInterruptHandler = 0;
 
+struct mcde_ch_ids {
+	int ext_src_id;
+	int ovl_id;
+	int dsi_lnk_id;
+	int dsi_ch_id;
+};
+
+static struct mcde_ch_ids mcde_ch_map[] = {
+	{
+		/* Index = MCDE_CH_A, */
+		.ext_src_id	= MCDE_EXT_SRC_0,
+		.ovl_id		= MCDE_OVERLAY_0,
+		.dsi_lnk_id	= DSI_LINK2,
+		.dsi_ch_id	= MCDE_DSI_CH_CMD2,
+	}, {
+		/* Index = MCDE_CH_B, */
+		.ext_src_id	= MCDE_EXT_SRC_2,
+		.ovl_id		= MCDE_OVERLAY_2,
+		/* DSI not used for TVout */
+		.dsi_lnk_id	= DSI_LINK0,
+		.dsi_ch_id	= MCDE_DSI_CH_CMD0,
+	}, {
+		/* Index = MCDE_CH_C0, */
+		.ext_src_id	= MCDE_EXT_SRC_0,
+		.ovl_id		= MCDE_OVERLAY_0,
+		.dsi_lnk_id	= DSI_LINK0,
+		.dsi_ch_id	= MCDE_DSI_CH_CMD0,
+	}, {
+		/* Index = MCDE_CH_C1, */
+		.ext_src_id	= MCDE_EXT_SRC_1,
+		.ovl_id		= MCDE_OVERLAY_1,
+		.dsi_lnk_id	= DSI_LINK1,
+		.dsi_ch_id	= MCDE_DSI_CH_CMD1,
+	}
+};
 
 /** To be removed I2C */
 u8 i2c_init_done=0;
@@ -421,6 +473,30 @@ struct mcdefb_info *gpar[NUM_MCDE_FLOWS];
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("MCDE-DSI driver for Nomadik 8500 Platform");
 
+#ifdef CONFIG_DEBUG_FS
+struct dentry *debugfs_mcde_dir[NUM_MCDE_FLOWS] = {NULL};
+struct dentry *debugfs_mcde_regs_file		= NULL;
+struct dentry *debugfs_mcde_reg_offs_file	= NULL;
+struct dentry *debugfs_mcde_regval_file		= NULL;
+struct dentry *debugfs_AB8500_reg_offs_file	= NULL;
+struct dentry *debugfs_AB8500_regval_file	= NULL;
+static u32 dbgfs_reg_offs[NUM_MCDE_FLOWS]	= {0};
+static u32 AB8500_debugfs_reg_nr		= 0;
+#define MCDE_READ_BUFFER_SIZE PAGE_SIZE
+#endif /* CONFIG_DEBUG_FS */
+
+#define MCDE_DEFAULT_TV_MODE VMODE_720_576_50_I
+inline static void switch_TV_mode(
+                       struct fb_info *info, const mcde_video_mode mode);
+static void mcde_TV_mode_settings(
+                       struct fb_info *info, const mcde_video_mode mode);
+inline static void AB8500_set_reg_fld(
+                       u32 bank, u32 reg, u32 field_mask, u32 val);
+#ifdef CONFIG_DENC_SET_VOLTAGES
+static void AB8500_set_voltages(void);
+#endif /* CONFIG_DENC_SET_VOLTAGES */
+static void AB8500_TV_mode_settings(const mcde_video_mode mode,
+                                               const bool do_soft_reset);
 static void mcde_conf_video_mode(struct fb_info *);
 static int __init mcde_probe(struct platform_device *);
 static int mcde_remove(struct platform_device *);
@@ -448,6 +524,75 @@ DECLARE_TASKLET(mcde_tasklet_3, u8500_mcde_tasklet_3, 0);
 int interrupt_counter=0;
 int csm_running_counter=0;
 
+/* TEMP SOLUTION: using my old macros, use macros from mcde_a0.h later */
+
+/*
+ * The macro will take the masked and shifted value for updating the specifi
+ * part of the register with the specified value.
+ *
+ * field_mask: the mask that obtains the field to be updated.
+ * field_shift: the bit shift. E.g. the right shift that is needed to shift a
+ *              pure value to the correct position in the register.
+ * value: the (unshifted) value that will be written.
+ */
+#define MCDE_DEF_REG_PART_VAL(field_mask, field_shift, value) (        \
+                               ((value) & (field_mask)) << (field_shift))
+
+/*
+ * The macro will take the masked and shifted value for updating the specifi
+ * part of the register with the specified value.
+ *
+ * field_name: the const name for the register field name to which _SHIFT and
+ *             _MASK will be added.
+ * value: the (unshifted) value that will be written.
+ */
+#define MCDE_DEF_REG_FLD_VAL(field_name, value) MCDE_DEF_REG_PART_VAL( \
+                                               field_name ## _MASK,    \
+                                               field_name ## _SHIFT, value)
+
+/*
+ * Holds the updated value after updating the specified part of the register
+ * variable reg with the specified value.
+ *
+ * reg: the register variable that holds the current value. The register will
+ *      not be rewritten.
+ * field_mask: the mask that obtains the field to be updated.
+ * field_shift: the bit shift. E.g. the right shift that is needed to shift a
+ *              pure value to the correct position in the register.
+ * value: the (unshifted) value that will be written.
+ */
+/* TODO use: readl*/
+#define MCDE_SET_REG_PART_RET(reg, field_mask, field_shift, value) (   \
+                       (~(field_mask << field_shift) & reg) |          \
+                       MCDE_DEF_REG_PART_VAL(field_mask, field_shift, value))
+
+/*
+ * Holds the register value after updating the specified field of the regist
+ * variable reg with the specified value.
+ *
+ * reg: the register variable that holds the current value. The register will
+ *      not be rewritten.
+ * field_name: the const name for the register field name to which _SHIFT and
+ *             _MASK will be added.
+ * value: the (unshifted) value that will be written.
+ */
+#define MCDE_SET_REG_FIELD_RET(reg, field_name, value) (               \
+                       MCDE_SET_REG_PART_RET(reg,                      \
+                                               field_name ## _MASK,    \
+                                               field_name ## _SHIFT, value))
+
+/*
+ * Write a new value in the specified field of the register variable reg.
+ *
+ * reg: the register variable that holds the current value and will be rewrit
+ * field_name: the const name for the register field name to which _SHIFT and
+ *             _MASK will be added.
+ * value: the (unshifted) value that will be written.
+ */
+/* TODO use: writel*/
+#define MCDE_SET_REG_FIELD(reg, field_name, value)                     \
+               reg = MCDE_SET_REG_FIELD_RET(reg, field_name, value)
+
 unsigned int av8100_started=0;
 
 void u8500_mcde_tasklet_4(unsigned long tasklet_data)
@@ -471,17 +616,27 @@ EXPORT_SYMBOL(u8500_mcde_tasklet_4);
 
 void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 {
-	/* Temporary fix for FIFO overflow; avoid handling of the very first interrupt */
-	static int ignore_first = 0;
 	mcde_ch_id pixel_pipeline = gpar[MCDE_CH_C0]->pixel_pipeline;
-
-#ifndef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
-	ignore_first = 1;
+#ifndef CONFIG_FB_MCDE_MULTIBUFFER
+	/* Temporary fix for FIFO overflow; avoid handling of the very first
+	 * interrupt: TODO: fix real problem */
+	static int ignore_first = 1;
 #endif
 
 	/* Channel C0 interrupt */
 
 #ifndef CONFIG_FB_MCDE_MULTIBUFFER
+
+	/** clear status flag */
+	gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_sts_clr=0xffffffff;
+	if (ignore_first == 1) {
+		ignore_first = 0;
+		return;
+	}
+	else {
+		gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+	}
+
 	while(gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts & 0x20);
 
 	gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_send=0x1;
@@ -493,15 +648,6 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 		{
 			break;
 		}
-	}
-
-	/** clear status flag */
-	gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_sts_clr=0xffffffff;
-	if (ignore_first == 1) {
-		ignore_first = 0;
-	}
-	else {
-		gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 	}
 #else
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
@@ -594,16 +740,13 @@ void u8500_mcde_tasklet_2(unsigned long tasklet_data)
 
 void u8500_mcde_tasklet_3(unsigned long tasklet_data)
 {
-#ifdef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 #ifdef CONFIG_FB_MCDE_MULTIBUFFER
-           gpar[1]->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 = gpar[1]->clcd_event.base;
-	   //Mask the interrupt
-  gpar[1]->regbase->mcde_imscpp = 0; //gpar[1]->regbase->mcde_imsc = 0x0;
-	   gpar[1]->clcd_event.event=1;
-	   wake_up(&gpar[1]->clcd_event.wait);
-#endif
-#else
-       /** do nothing */
+	gpar[MCDE_CH_B]->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 =
+					gpar[MCDE_CH_B]->clcd_event.base;
+	/* Mask the interrupt */
+	gpar[MCDE_CH_B]->regbase->mcde_imscpp &= ~MCDE_IMSCPP_VCMPBIM;
+	gpar[MCDE_CH_B]->clcd_event.event=1;
+	wake_up(&gpar[MCDE_CH_B]->clcd_event.wait);
 #endif
 }
 
@@ -696,10 +839,10 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 	/** check for null */
 	if(gpar[1]!=0) {
 		/* Channel B */
-		if (gpar[1]->regbase->mcde_mispp & MCDE_MISPP_VCMPBMIS) //gpar[1]->regbase->mcde_mis & 0x8)
+		if (gpar[1]->regbase->mcde_mispp & MCDE_MISPP_VCMPBMIS)
 		{
-			/** vcomp */
-			gpar[1]->regbase->mcde_rispp &= MCDE_RISPP_VCMPBRIS; //gpar[1]->regbase->mcde_ris &= 0x8;
+			/** clear interrupt */
+			gpar[1]->regbase->mcde_rispp &= MCDE_RISPP_VCMPBRIS;
 
 			/** tasklet  */
 			//tasklet_schedule(&mcde_tasklet_3);
@@ -739,6 +882,7 @@ static int mcde_ioctl(struct fb_info *info,
 
 	mcde_fb_lock(info, __func__);
 	memset (&blend_ctrl, 0, sizeof(struct mcde_blend_control));
+	printk(KERN_DEBUG "MCDE ioctl for ch id %d\n", currentpar->chid);
 	switch (cmd)
 	{
 		/*
@@ -1059,6 +1203,10 @@ static int mcde_ioctl(struct fb_info *info,
 			/** SPINLOCK in use :  */
 			//flags = claim_mcde_lock(currentpar->chid);
 			isVideoModeChanged = 1;
+			/* Dealloc source buffer, while MCDE is using it leads
+			 * to problems: TMP fix: disable MCDE, while doing this,
+			 * doesn't fix all problems */
+			mcde_disable(info);
 			if (mcde_dealloc_source_buffer(info, currentpar->mcde_cur_ovl_bmp, FALSE) != MCDE_OK)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to set video mode\n");
@@ -1068,7 +1216,13 @@ static int mcde_ioctl(struct fb_info *info,
 		        currentpar->isHwInitalized = 0;
 			find_restype_from_video_mode(info, videoMode);
 			mcde_set_video_mode(info, videoMode);
+                       /*
+                        * TODO: check if code can be shared between
+                        * mcde_change_video_mode
+                        * mcde_set_video_mode -> .. -> mcde_conf_video_mode
+                        */
 			mcde_change_video_mode(info);
+			mcde_enable(info);
 			//release_mcde_lock(currentpar->chid, flags);
 			break;
 		/*
@@ -1183,63 +1337,38 @@ static int mcde_ioctl(struct fb_info *info,
 		case MCDE_IOCTL_TV_CHANGE_MODE:
 			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
 				mcde_fb_unlock(info, __func__);
+				printk(KERN_ERR
+					"IOCTL data error switching TV mode\n");
 				return -EFAULT;
 			}
-
-
-
-#ifndef CONFIG_U8500_SIM8500
-
-        if(rem_key==VMODE_720_480_60_P)
-        {
-             ab8500_write(0x6,0x600,0x8A);
-             scanMode=MCDE_SCAN_PROGRESSIVE_MODE;
-	}
-        else if(rem_key==VMODE_720_480_60_I)
-        {
-	         ab8500_write(0x6,0x600,0x8A);
-             scanMode=MCDE_SCAN_INTERLACED_MODE;
-	    }
-
-        else if(rem_key==VMODE_720_576_50_P)
-        {
-	         ab8500_write(0x6,0x600,0xA);
-             scanMode=MCDE_SCAN_PROGRESSIVE_MODE;
-	    }
-
-        else if(rem_key==VMODE_720_576_50_I)
-        {
-	         ab8500_write(0x6,0x600,0xA);
-             scanMode=MCDE_SCAN_INTERLACED_MODE;
-	    }
-
-
-         mcde_conf_scan_mode(scanMode,info);
-#endif
-
-            break;
+			switch_TV_mode(info, rem_key);
+			break;
 
 	    /*
 	     *  MCDE_IOCTL_TV_GET_MODE: This ioctl is used to get TV mode
 	     */
 		case MCDE_IOCTL_TV_GET_MODE:
+               /* TODO: I don't agree with the interface:
+                *  1. From _GET and _SET one would expect the same paramter
+                *  values.
+                */
 
             /** get the PAL and NTSC mode */
 #ifndef CONFIG_U8500_SIM8500
-            rem_key=ab8500_read(0x6,0x600);
+			rem_key=ab8500_read(0x6,0x600);
 #endif
 
-            if(rem_key&0x40) rem_key=1;
-            else rem_key=0;
+			if(rem_key&0x80) rem_key=1;
+			else rem_key=0;
 
-            if (copy_to_user(argp, &rem_key, sizeof(u32))) {
-              mcde_fb_unlock(info, __func__);
-				      return -EFAULT;
-            }
+			if (copy_to_user(argp, &rem_key, sizeof(u32))) {
+				mcde_fb_unlock(info, __func__);
+				return -EFAULT;
+			}
 			break;
 
 		default:
-            mcde_fb_unlock(info, __func__);
+			mcde_fb_unlock(info, __func__);
 			return -EINVAL;
 
 	}
@@ -1248,34 +1377,28 @@ static int mcde_ioctl(struct fb_info *info,
 	return 0;
 }
 
-
-void tv_detect_handler(void)
-{
-        printk(KERN_INFO "TV plugin detected\n");
-        mcde_4500_plugstatus=1;
-        return;
-}
-
-
-void tv_removed_handler(void)
-{
-        printk(KERN_INFO "TV plugin removed \n");
-        mcde_4500_plugstatus=0;
-        return;
-}
-
 void mcde_change_video_mode(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = (struct mcdefb_info *)info->par;
 
 	if(currentpar->chid==MCDE_CH_B)
 	{
-       currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
-       currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf = (info->var.yres << MCDE_OVLCONF_LPF_SHIFT) |
-                                                                (MCDE_EXT_SRC_2 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
-                                                                (info->var.xres);
-       currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_ljinc=(info->var.xres)*(currentpar->chnl_info->inbpp/8);
-    }
+               currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 =
+                       currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
+               currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf =
+                       ((MCDE_OVLCONF_LPF_MASK & info->var.yres)
+                                               << MCDE_OVLCONF_LPF_SHIFT)
+                       |
+                       ((MCDE_OVLCONF_EXTSRC_ID_MASK & MCDE_EXT_SRC_2)
+                                               << MCDE_OVLCONF_EXTSRC_ID_SHIFT)
+                       |
+                       ((MCDE_OVLCONF_PPL_MASK & info->var.xres)
+                                               << MCDE_OVLCONF_PPL_SHIFT);
+               currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_ljinc =
+                               (info->var.xres) *
+                               (currentpar->chnl_info->inbpp/8);
+       }
+
 
 	if(currentpar->chid==MCDE_CH_C0)
 	{
@@ -1304,7 +1427,7 @@ void mcde_change_video_mode(struct fb_info *info)
  * This function initializez and power up HDMI/CVBS device.
  *
  */
-void mcde_hdmi_display_init_command_mode()
+void mcde_hdmi_display_init_command_mode(void)
 {
 #define GPIO1B_AFSLA_REG_OFFSET	0x20
 #define GPIO1B_AFSLB_REG_OFFSET	0x24
@@ -1699,12 +1822,12 @@ EXPORT_SYMBOL(mcde_hdmi_display_init_command_mode);
 
 
 /**
- * mcde_hdmi_display_init_command_mode() - To initialize and powerup the HDMI device in command mode.
+ * mcde_hdmi_display_init_video_mode() - To initialize and powerup the HDMI device in command mode.
  *
  * This function initializez and power up HDMI/CVBS device.
  *
  */
-void mcde_hdmi_display_init_video_mode()
+void mcde_hdmi_display_init_video_mode(void)
 {
 	int timeout;
 	struct mcdefb_info *currentpar = gpar[MCDE_CH_C0];
@@ -2170,6 +2293,7 @@ void mcde_send_hdmi_cmd(char* buf,int length, int dsicommand)
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts_clr = 0x2;
 }
 EXPORT_SYMBOL(mcde_send_hdmi_cmd);
+
 /* mcde_conf_video_mode() - To configure MCDE & DSI hardware registers.
  * @info: frame buffer information.
  *
@@ -2190,113 +2314,126 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		  /** configure mcde external registers */
 		  currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 = currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
 
-      switch(currentpar->chnl_info->inbpp)
-      {
-      case 16:
+		switch(currentpar->chnl_info->inbpp)
+		{
+		case 16:
 		default:
-        currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf = (0x7 << MCDE_EXTSRCCONF_BPP_SHIFT) | /* RGB565 */
-                                                                       (1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT); /* 0x704; */
-        break;
+			/*RGB565*/
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf =
+				(0x7 << MCDE_EXTSRCCONF_BPP_SHIFT);
+			break;
 
-      case 32:
-        currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf = (0xA << MCDE_EXTSRCCONF_BPP_SHIFT) | /* ARGB8888 */
-                                                                        (1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT); /* 0xA04; */
-        break;
+		case 32:
+			/*ARGB8888*/
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf =
+				(0xA << MCDE_EXTSRCCONF_BPP_SHIFT);
+		break;
 
-      case 24:
-        currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf = (0x8 << MCDE_EXTSRCCONF_BPP_SHIFT) | /* RGB 24 */
-                                                                        (1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT); /*0x804; */
-        break;
-      }
+		case 24:
+			/* RGB888 */
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf =
+				(0x8 << MCDE_EXTSRCCONF_BPP_SHIFT);
+		break;
+		}
+		currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf |=
+					(1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT);
 
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_cr= MCDE_BUFFER_SOFTWARE_SELECT;
 
-    /** configure mcde overlay registers */
-    currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_cr = MCDE_OVLCR_OVLEN | (1 << MCDE_OVLCR_COLCCTRL_SHIFT) |
-                                                           (0xB << MCDE_OVLCR_BURSTSIZE_SHIFT) |
-                                                           (0x2 << MCDE_OVLCR_MAXOUTSTANDING_SHIFT) |
-                                                           (0x2 << MCDE_OVLCR_ROTBURSTSIZE_SHIFT); /* 0x22b00003; 20*/
+		/** configure mcde overlay registers */
+		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_cr =
+				MCDE_OVLCR_OVLEN |
+				(1 << MCDE_OVLCR_COLCCTRL_SHIFT) |
+				(0xB << MCDE_OVLCR_BURSTSIZE_SHIFT) |
+				(0x2 << MCDE_OVLCR_MAXOUTSTANDING_SHIFT) |
+				(0x2 << MCDE_OVLCR_ROTBURSTSIZE_SHIFT);
 
-		/** 720 X 576 */
-    currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf=(568 << MCDE_OVLCONF_LPF_SHIFT)|(MCDE_EXT_SRC_2<<MCDE_OVLCONF_EXTSRC_ID_SHIFT)|(0x2cc);
-
+		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf =
+			((MCDE_OVLCONF_LPF_MASK & info->var.yres)
+						<< MCDE_OVLCONF_LPF_SHIFT)
+			|
+			((MCDE_OVLCONF_EXTSRC_ID_MASK & MCDE_EXT_SRC_2)
+						<< MCDE_OVLCONF_EXTSRC_ID_SHIFT)
+			|
+			((MCDE_OVLCONF_PPL_MASK & info->var.xres)
+						<< MCDE_OVLCONF_PPL_SHIFT);
 		/** rgb888 24 bit format packed data 3 bytes limited to 480 X 682 */
-		if (currentpar->chnl_info->inbpp==24)
+               /* Why change LPF and PPL for another BPP ??
+                * TODO: test and check if correct
+                *       and use info->var.xres and info->var.yres		if (currentpar->chnl_info->inbpp==24)
 		  currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_2<<11)|(0x2AA);
+		*/
 
-    /** Tv out requires less watermark ,if other displays are enabled ~ 80 will do */
+		/* TV out requires less watermark ,if other displays are
+		 * enabled ~ 80 will do */
 		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf2=0x500000;
-		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_ljinc=(0x2cc)*(currentpar->chnl_info->inbpp/8);
-		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_comp=(16<<16)|(MCDE_CH_B<<11)|16;
+		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_ljinc =
+				(info->var.xres) *
+				(currentpar->chnl_info->inbpp/8);
+		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_comp =
+				MCDE_CH_B << MCDE_OVLCOMP_CH_ID_SHIFT;
 
 		/** configure mcde channel config registers */
-		currentpar->ch_regbase1[MCDE_CH_B]->mcde_chnl_conf = 0x023702Cb;
 		currentpar->ch_regbase1[MCDE_CH_B]->mcde_chnl_synchmod = 0x0;
 		currentpar->ch_regbase1[MCDE_CH_B]->mcde_chnl_bckgndcol = 0x00FF0000;
 
-       /** Configure Channel B registers for TVOUT */
-    currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr0=0x0;
+		/** Configure Channel B registers for TVOUT */
+		currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr0=0x0;
 
-		if (currentpar->chnl_info->outbpp == MCDE_BPP_1_TO_8)
-		  currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1=0x20001000|4<<MCDE_OUTBPP_SHIFT;
-		else if(currentpar->chnl_info->outbpp == MCDE_BPP_12)
-		  currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1=0x20001000|5<<MCDE_OUTBPP_SHIFT;
-		else if(currentpar->chnl_info->outbpp == MCDE_BPP_16)
-		  currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1=0x20001000|7<<MCDE_OUTBPP_SHIFT;
+		currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1=0x20001000;
+		switch (currentpar->chnl_info->outbpp)
+		{
+		case MCDE_BPP_1_TO_8:
+			currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1 |=
+						4 << MCDE_CR1_OUTBPP_SHIFT;
+			break;
+		case MCDE_BPP_12:
+			currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1 |=
+						5 << MCDE_CR1_OUTBPP_SHIFT;
+			break;
+		case MCDE_BPP_16:
+			currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1 |=
+						7 << MCDE_CR1_OUTBPP_SHIFT;
+			break;
+		case MCDE_BPP_18:
+			currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1 |=
+						8 << MCDE_CR1_OUTBPP_SHIFT;
+			break;
+		case MCDE_BPP_24:
+			currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr1 |=
+						9 << MCDE_CR1_OUTBPP_SHIFT;
+			break;
+		}
 
-    currentpar->ch_regbase2[MCDE_CH_B]->mcde_colkey=0x0;
+		currentpar->ch_regbase2[MCDE_CH_B]->mcde_colkey=0x0;
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_fcolkey=0x0;
 
-    /**
-     This are video settings and will fail in case of MIRE testing
-     So go for GFX settings
-
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_rgbconv1=0x004C0096;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_rgbconv2=0x001D0083;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_rgbconv3=0x039203EB;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_rgbconv4=0x03D403A9;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_rgbconv5=0x00830080;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_rgbconv6=0x00000080;
-		*/
-
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv1=0x00420081;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv2=0x00190070;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv3=0x03A203EE;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv4=0x03DA03B6;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv5=0x00700080;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv6=0x00100080;
-
-    currentpar->ch_regbase2[MCDE_CH_B]->mcde_ffcoef0=0x0;
+		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ffcoef0=0x0;
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ffcoef1=0x0;
-    currentpar->ch_regbase2[MCDE_CH_B]->mcde_ffcoef2=0x0;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvcr=0x00000007;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvbl1=0x00020018;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvisl=0x00170016;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvdvo=0x00020002;
-		// TODO: Find replacement!
-    //currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvswh=0x011C0030;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvtim1=0x0000008C;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvlbalw=0x00020002;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvbl2=0x00020019;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_tvblu=0x002C9C83;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_lcdtim0=0x00000000;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_lcdtim1=0x00200000;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ditctrl=0x00000000;
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ditoff=0x00000000;
+		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ffcoef2=0x0;
+		mcde_TV_mode_settings(info, MCDE_DEFAULT_TV_MODE);
 
-		currentpar->ch_regbase2[MCDE_CH_B]->mcde_synchconf=0x000B0007;
-
-    /** configure mcde base registers */
-		currentpar->regbase->mcde_imscpp |=0x0;
-		currentpar->regbase->mcde_conf0 |=0x00185000;
+		/** configure mcde base registers */
+		MCDE_SET_REG_FIELD(currentpar->regbase->mcde_conf0,
+					MCDE_CONF0_IFIFOCTRLWTRMRKLVL, 5);
+		/* 0x3: Channel B LSB */
+		MCDE_SET_REG_FIELD(currentpar->regbase->mcde_conf0,
+						MCDE_CONF0_OUTMUX1, 0x3);
 		currentpar->regbase->mcde_cr |=0x80000100;
 		mdelay(100);
 
 		/** enable channel flow now */
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr0=0x1;
+		/* enable power en flow enable */
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_cr0=0x3;
 
 		mdelay(100);
+		if (currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_cr
+							& MCDE_OVLCR_OVLB) {
+			PRNK_COL(PRNK_COL_RED);
+			printk(KERN_ERR "** MCDE OVLxCR OVERLAY BLOCKED! **\n");
+			PRNK_COL(PRNK_COL_WHITE);
+		}
 	}
 #else /** CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA */
     /** use channel B for tvout & do nothing if it already enabled */
@@ -2457,7 +2594,6 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr0 = (0xB << 25) | (1 << 24) | (1 << 1) | 1;
 		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr1 = (1 << 29) | (0x9 << 25) | (0x5 << 10);
     currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rot_conf = (0x1 << 8) | (1 << 3) | (0x7);
-		currentpar->regbase->mcde_conf0 = 0x22487001;
 
 #else
 
@@ -2475,7 +2611,6 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr1 = (1 << 29) | (0x7 << 25) | (0x5 << 10);
 
 		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x22b00001;
-		currentpar->regbase->mcde_conf0 = 0x22487001;
 
 #endif
 
@@ -2491,9 +2626,9 @@ static void mcde_conf_video_mode(struct fb_info *info)
     currentpar->ch_c_reg->mcde_ctrlc[0] = 0xA0;
 
 		/** configure mcde base registers */
-/*		currentpar->regbase->mcde_conf0 |= MCDE_CONF0_SYNCMUX0 | (0x5 << MCDE_CONF0_IFIFOCTRLWTRMRKLVL_SHIFT) |
-			(0x4 << MCDE_CONF0_OUTMUX0_SHIFT) | (0x2 << MCDE_CONF0_OUTMUX1_SHIFT) |
-			(0x7 << MCDE_CONF0_OUTMUX3_SHIFT) | (0x5 << MCDE_CONF0_OUTMUX4_SHIFT); // 0x5E145001;
+		currentpar->regbase->mcde_conf0 |= MCDE_CONF0_SYNCMUX0 |
+					(0x5 << MCDE_CONF0_OUTMUX3_SHIFT);
+/*
 		currentpar->regbase->mcde_cr |= MCDE_CR_MCDEEN | MCDE_CR_DSICMD0_EN; //0x80000004;
 */
 		currentpar->regbase->mcde_cr |= MCDE_CR_MCDEEN | currentpar->dsi_formatter;
@@ -2817,6 +2952,8 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
    else
 	   info->var.vmode &= ~FB_VMODE_YWRAP;
 
+	printk(KERN_DEBUG "MCDE pan_display: channel id = %d\n",
+						currentpar->chid);
 #ifdef CONFIG_FB_MCDE_MULTIBUFFER
 	currentpar->clcd_event.base = info->fix.smem_start + (var->yoffset * info->fix.line_length);
 
@@ -2824,6 +2961,7 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		if(av8100_started==1) {
 			gpar[MCDE_CH_A]->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_a0 = currentpar->clcd_event.base;
 		}
+		mcde_fb_unlock(info, __func__);
 	}
 
 	if(currentpar->chid == MCDE_CH_C0)
@@ -2855,11 +2993,13 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		/** For Dual display CHA HDMI + CH C0 local CLCD **/
 		if(gpar[MCDE_CH_B]!=0)
 		{
-			gpar[MCDE_CH_B]->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 = currentpar->clcd_event.base;
+			gpar[MCDE_CH_B]->extsrc_regbase[
+				mcde_ch_map[MCDE_CH_B].ext_src_id
+			]->mcde_extsrc_a0 = currentpar->clcd_event.base;
 			gpar[MCDE_CH_B]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPBIM;
 			mcde_fb_unlock(info, __func__);
 			wait_event(gpar[MCDE_CH_B]->clcd_event.wait, gpar[MCDE_CH_B]->clcd_event.event==1);
-			gpar[MCDE_CH_B]->clcd_event.event=0;
+			gpar[MCDE_CH_B]->clcd_event.event = 0;
 		}
 	}
 #else
@@ -3097,8 +3237,8 @@ void find_video_mode(struct fb_info *info)
 	struct mcdefb_info *currentpar=NULL;
 	currentpar = (struct mcdefb_info *) info->par;
 
-	if (strcmp(currentpar->chnl_info->restype,"SDTV")==0)
-		currentpar->video_mode = VMODE_712_568_60_P;
+	if (strcmp(currentpar->chnl_info->restype,"PAL")==0)
+		currentpar->video_mode = VMODE_720_576_50_I;
 	else if (strcmp(currentpar->chnl_info->restype,"VGA")==0)
 		currentpar->video_mode = VMODE_640_480_60_P;
 	else if (strcmp(currentpar->chnl_info->restype,"WVGA_Portrait")==0)
@@ -3115,6 +3255,8 @@ void find_video_mode(struct fb_info *info)
 		currentpar->video_mode = VMODE_800_600_56_P;
 	else if (strcmp(currentpar->chnl_info->restype,"HDMI C0")==0)
 		currentpar->video_mode = VMODE_1920_1080_30_P;
+	else if (strcmp(currentpar->chnl_info->restype,"NTSC")==0)
+		currentpar->video_mode = VMODE_720_480_60_I;
 	else
 		printk(KERN_ERR "find_video_mode: Unsupported video mode: %s\n", currentpar->chnl_info->restype);
 }
@@ -3130,27 +3272,44 @@ void find_restype_from_video_mode(struct fb_info *info, mcde_video_mode videoMod
 {
 	struct mcdefb_info *currentpar=NULL;
 	currentpar = (struct mcdefb_info *) info->par;
-	if(videoMode == VMODE_712_568_60_P)
-		currentpar->chnl_info->restype = "SDTV";
-	else if(videoMode == VMODE_640_480_60_P)
+	switch (videoMode) {
+	case VMODE_720_576_50_I:
+		currentpar->chnl_info->restype = "PAL";
+		break;
+	case VMODE_720_480_60_I:
+		currentpar->chnl_info->restype = "NTSC";
+		break;
+	case VMODE_640_480_60_P:
 		currentpar->chnl_info->restype = "VGA";
-	else if(videoMode == VMODE_480_864_60_P)
+		break;
+	case VMODE_480_864_60_P:
 		currentpar->chnl_info->restype = "WVGA_Portrait";
-	else if(videoMode == VMODE_864_480_60_P)
+		break;
+	case VMODE_864_480_60_P:
 		currentpar->chnl_info->restype = "WVGA";
-	else if(videoMode == VMODE_1920_1080_50_I)
+		break;
+	case VMODE_1920_1080_50_I:
 		currentpar->chnl_info->restype = "HDTV";
-	else if(videoMode == VMODE_240_320_60_P)
+		break;
+	case VMODE_240_320_60_P:
 		currentpar->chnl_info->restype = "QVGA_Portrait";
-	else if(videoMode == VMODE_320_240_60_P)
+		break;
+	case VMODE_320_240_60_P:
 		currentpar->chnl_info->restype = "QVGA_Landscape";
-	else if(videoMode == VMODE_800_600_56_P)
+		break;
+	case VMODE_800_600_56_P:
 		currentpar->chnl_info->restype = "VUIB WVGA";
-	else if(videoMode == VMODE_1920_1080_30_P)
+		break;
+	case VMODE_1920_1080_30_P:
 		currentpar->chnl_info->restype = "HDMI C0";
-	else {
+		break;
+	default:
 		currentpar->chnl_info->restype = NULL;
-		printk(KERN_ERR "find_restype_from_video_mode: Unsupported mode\n");
+		printk(KERN_ERR
+			"find_restype_from_video_mode: Unsupported mode %d\n",
+			videoMode
+		);
+		break;
 	}
 }
 
@@ -3187,7 +3346,9 @@ static int mcde_set_video_mode(struct fb_info *info, mcde_video_mode videoMode)
    info->var.yres_virtual	= info->var.yres*2;
 #endif
 
-   printk(KERN_INFO "\nxres:%d yres:%d bpp:%d\n", info->var.xres, info->var.yres, info->var.bits_per_pixel);
+	printk(KERN_INFO "MCDE Channel: %d xres:%d yres:%d bpp:%d\n",
+		currentpar->chid,
+		info->var.xres, info->var.yres, info->var.bits_per_pixel);
 
    /** current monitor spec */
    info->monspecs.hfmin = 0;              /**hor freq min*/
@@ -3440,7 +3601,539 @@ static int mcde_dsi_set_params(struct fb_info *info)
     }
     return retval;
 }
-#ifdef TESTING
+
+#ifdef CONFIG_DEBUG_FS
+static int debugfs_mcde_open_file(struct inode *inode, struct file *file) {
+	file->private_data = gpar[
+		file->f_path.dentry->d_parent->d_name.name[
+			file->f_path.dentry->d_parent->d_name.len - 1
+		] - '0'
+	];
+	return 0;
+}
+
+static int debugfs_mcde_read_reg_offs(struct file *file, char __user *buf,
+						size_t count, loff_t *f_pos)
+{
+	int    ret = 0;
+	struct mcdefb_info *cpar = file->private_data;
+	size_t data_size = 0;
+	char   mcde_read_buffer[MCDE_READ_BUFFER_SIZE];
+
+	if (cpar == NULL) {
+		printk(KERN_ERR "error obtaining correct MCDE driver\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	data_size = sprintf(mcde_read_buffer, "0x%08x\n",
+						dbgfs_reg_offs[cpar->chid]);
+
+	if (data_size > MCDE_READ_BUFFER_SIZE) {
+		printk(KERN_EMERG "MCDE: Buffer overrun, increase MCDE_READ_BUFFER_SIZE\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* check if read done */
+	if (*f_pos > data_size)
+		goto out;
+
+	if (*f_pos + count > data_size)
+		count = data_size - *f_pos;
+
+	if (copy_to_user(buf, mcde_read_buffer + *f_pos, count))
+		ret = -EINVAL;
+	*f_pos += count;
+	ret = count;
+
+out:
+	return ret;
+}
+
+static int debugfs_mcde_write_reg_offs(struct file *file,
+						const char __user *ubuf,
+						size_t count, loff_t *ppos)
+{
+	int    buf_size;
+	u32    i;
+	char   buf[16] = {0};
+	struct mcdefb_info *cpar = file->private_data;
+
+	buf_size = min(count, (sizeof(buf)-1));
+	if (copy_from_user(buf, ubuf, buf_size))
+		goto error;
+
+	if (sscanf(buf, "0x%x", &i) <= 0)
+		goto error;
+
+	if (cpar == NULL)
+		goto error;
+
+	dbgfs_reg_offs[cpar->chid] = i;
+
+	return count;
+error:
+	return -EINVAL;
+}
+
+static u32 * get_reg_address(struct mcdefb_info *cpar, u32 reg_offset) {
+	u32 offset = 0;
+	void *regbase = 0;
+
+	int ext_src_ovl_id;
+	int dsi_ch_id;
+	int dsi_lnk_id;
+
+	if (cpar->chid <= MCDE_CH_C1) {
+		ext_src_ovl_id = mcde_ch_map[cpar->chid].ext_src_id;
+		dsi_ch_id      = mcde_ch_map[cpar->chid].dsi_ch_id;
+		dsi_lnk_id     = mcde_ch_map[cpar->chid].dsi_lnk_id;
+	} else {
+		printk(KERN_ERR "MCDE: error unknown channel id\n");
+		ext_src_ovl_id = mcde_ch_map[MCDE_CH_C0].ext_src_id;
+		dsi_ch_id      = mcde_ch_map[MCDE_CH_C0].dsi_ch_id;
+		dsi_lnk_id     = mcde_ch_map[MCDE_CH_C0].dsi_lnk_id;
+	}
+
+	if (reg_offset >= 0x1000) {
+		regbase = cpar->dsi_lnk_registers[dsi_lnk_id];
+		offset = reg_offset - 0x1000;
+	} else if (reg_offset == 0xEF0) {
+		regbase = (void *) cpar->mcde_clkdsi;
+		offset = reg_offset - 0xEF0;
+	} else if (reg_offset >= 0xE00) {
+		regbase = cpar->mcde_dsi_channel_reg[dsi_ch_id];
+		offset = reg_offset - 0xE00;
+	} else if (reg_offset >= 0xC00) {
+		regbase = cpar->ch_c_reg;
+		if (cpar->chid > MCDE_CH_B) {
+			offset = reg_offset - 0xC00;
+		} else {
+			printk(KERN_ERR
+				"MCDE: no channel c register for this channel\n"
+			);
+		}
+	} else if (reg_offset >= 0x800) {
+		regbase = cpar->ch_regbase2[cpar->chid];
+		offset = reg_offset - 0x800;
+	} else if (reg_offset >= 0x600) {
+		regbase = cpar->ch_regbase1[cpar->chid];
+		offset = reg_offset - 0x600;
+	} else if (reg_offset >= 0x400) {
+		regbase = cpar->ovl_regbase[ext_src_ovl_id];
+		offset = reg_offset - 0x400;
+	} else if (reg_offset >= 0x200) {
+		regbase = cpar->extsrc_regbase[ext_src_ovl_id];
+		offset = reg_offset - 0x200;
+	} else {
+		regbase = cpar->regbase;
+		offset = reg_offset;
+	}
+
+	return (u32 *) (((void *) regbase) + offset);
+}
+
+static int debugfs_mcde_read_regval(struct file *file, char __user *buf,
+						size_t count, loff_t *f_pos)
+{
+	int    ret = 0;
+	struct mcdefb_info *cpar = file->private_data;
+	size_t data_size = 0;
+	char   mcde_read_buffer[MCDE_READ_BUFFER_SIZE];
+	u32*   reg = NULL;
+
+	if (cpar == NULL) {
+		printk(KERN_ERR "error obtaining correct MCDE driver\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	reg = get_reg_address(cpar, dbgfs_reg_offs[cpar->chid]);
+
+	data_size = sprintf(mcde_read_buffer, "0x%08x\n", *reg);
+
+	if (data_size > MCDE_READ_BUFFER_SIZE) {
+		printk(KERN_EMERG "MCDE: Buffer overrun, increase MCDE_READ_BUFFER_SIZE\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* check if read done */
+	if (*f_pos > data_size)
+		goto out;
+
+	if (*f_pos + count > data_size)
+		count = data_size - *f_pos;
+
+	if (copy_to_user(buf, mcde_read_buffer + *f_pos, count))
+		ret = -EINVAL;
+	*f_pos += count;
+	ret = count;
+
+out:
+	return ret;
+}
+
+static ssize_t debugfs_mcde_write_regval(struct file *file,
+						const char __user *ubuf,
+						size_t count, loff_t *ppos)
+{
+	int    buf_size;
+	char   buf[16] = {0};
+	struct mcdefb_info *cpar = file->private_data;
+	u32    r = 0x0;
+	u32*   reg = NULL;
+
+	buf_size = min(count, (sizeof(buf)-1));
+	if (copy_from_user(buf, ubuf, buf_size))
+		goto error;
+
+	if (sscanf(buf, "0x%x", &r) <= 0)
+		goto error;
+
+	if (cpar == NULL)
+		goto error;
+
+	reg = get_reg_address(cpar, dbgfs_reg_offs[cpar->chid]);
+
+	printk(KERN_DEBUG "MCDE: write to address: 0x%08x", (u32) reg);
+	printk(KERN_DEBUG "; old value 0x%08x\n", *reg);
+
+	cpar->regbase->mcde_cr=(cpar->regbase->mcde_cr & ~MCDE_ENABLE);
+	*reg = r;
+	cpar->regbase->mcde_cr=(cpar->regbase->mcde_cr | MCDE_ENABLE);
+
+	printk(KERN_DEBUG "MCDE: write reg: new value 0x%08x\n", *reg);
+
+	return count;
+error:
+	return -EINVAL;
+}
+
+static int debugfs_mcde_read_file(struct file *file, char __user *buf,
+					size_t count, loff_t *f_pos)
+{
+	int ret = 0;
+	size_t data_size = 0;
+	struct mcdefb_info *cpar = file->private_data;
+	char   mcde_read_buffer[MCDE_READ_BUFFER_SIZE];
+
+	if (cpar != NULL ) {
+		data_size += sprintf(mcde_read_buffer + data_size,
+			"MCDE register status for channel %d\n"
+			"CR   : %08x\n"
+			"CONF0: %08x\n"
+			"PID  : %08x\n"
+
+			"\nEXT_SRC:\n"
+			"XA0 : %08x\n"
+			"XA1 : %08x\n"
+			"CONF: %08x\n"
+			"XCR : %08x\n"
+
+			"\nOVL:\n"
+			"XCR   : %08x\n"
+			"CONF  : %08x\n"
+			"CONF2 : %08x\n"
+			"XLJINC: %08x\n"
+			"XCROP : %08x\n"
+			"XCOMP : %08x\n"
+
+			"\nCHNLX:\n"
+			"CONF     : %08x\n"
+			"STAT     : %08x\n"
+			"SYNCHMOD : %08x\n"
+			"SYNCHSW  : %08x\n"
+			"BCKGNDCOL: %08x\n"
+			"PRIO     : %08x\n"
+			,
+			cpar->chid,
+			/* readl crashes, why? Can this have to do we not calling
+			* request_memory region in probe? And that several drivers
+			* ioremap the registers?
+			*/
+			*get_reg_address(cpar, 0x0000),
+			*get_reg_address(cpar, 0x0004),
+			*get_reg_address(cpar, 0x01fc),
+
+			*get_reg_address(cpar, 0x0200),
+			*get_reg_address(cpar, 0x0204),
+			*get_reg_address(cpar, 0x020c),
+			*get_reg_address(cpar, 0x0210),
+
+			*get_reg_address(cpar, 0x0400),
+			*get_reg_address(cpar, 0x0404),
+			*get_reg_address(cpar, 0x0408),
+			*get_reg_address(cpar, 0x040c),
+			*get_reg_address(cpar, 0x0410),
+			*get_reg_address(cpar, 0x0414),
+
+			*get_reg_address(cpar, 0x0600),
+			*get_reg_address(cpar, 0x0604),
+			*get_reg_address(cpar, 0x0608),
+			*get_reg_address(cpar, 0x060c),
+			*get_reg_address(cpar, 0x0610),
+			*get_reg_address(cpar, 0x0614)
+		);
+#if 1
+		if (cpar->chid == CHANNEL_A || cpar->chid == CHANNEL_B) {
+			data_size += sprintf(
+				mcde_read_buffer + data_size,
+				"\nCH A/B:\n"
+				"CRX0: %08x\n"
+				"CRX1: %08x\n"
+				"RGBCONV1: %08x\n"
+				"RGBCONV2: %08x\n"
+				"RGBCONV3: %08x\n"
+				"RGBCONV4: %08x\n"
+				"RGBCONV5: %08x\n"
+				"RGBCONV6: %08x\n"
+				"FFCOEF1 : %08x\n"
+				"FFCOEF2 : %08x\n"
+				"FFCOEF3 : %08x\n"
+
+				"\nTV/LCD:\n"
+				"CR  : %08x\n"
+				"BL1 : %08x\n"
+				"ISL : %08x\n"
+				"DVO : %08x\n"
+				"TIM1: %08x\n"
+				"BALW: %08x\n"
+				"BL2 : %08x\n"
+				"BLU : %08x\n"
+				"LCDTIM0: %08x\n"
+				"LCDTIM1: %08x\n"
+
+				"\nSYNCH:\n"
+				"CONFX: %08x\n"
+				,
+				*get_reg_address(cpar, 0x0800),
+				*get_reg_address(cpar, 0x0804),
+				*get_reg_address(cpar, 0x0810),
+				*get_reg_address(cpar, 0x0814),
+				*get_reg_address(cpar, 0x0818),
+				*get_reg_address(cpar, 0x081c),
+				*get_reg_address(cpar, 0x0820),
+				*get_reg_address(cpar, 0x0824),
+				*get_reg_address(cpar, 0x0828),
+				*get_reg_address(cpar, 0x082c),
+				*get_reg_address(cpar, 0x0830),
+
+				*get_reg_address(cpar, 0x0838),
+				*get_reg_address(cpar, 0x083c),
+				*get_reg_address(cpar, 0x0840),
+				*get_reg_address(cpar, 0x0844),
+				*get_reg_address(cpar, 0x084c),
+				*get_reg_address(cpar, 0x0850),
+				*get_reg_address(cpar, 0x0854),
+				*get_reg_address(cpar, 0x0858),
+				*get_reg_address(cpar, 0x085c),
+				*get_reg_address(cpar, 0x0860),
+
+				*get_reg_address(cpar, 0x0880)
+			);
+		}
+#endif
+	}
+
+	printk(KERN_DEBUG "MCDE: data_size: %d <= %lu?\n", data_size, MCDE_READ_BUFFER_SIZE);
+	if (data_size > MCDE_READ_BUFFER_SIZE) {
+		printk(KERN_EMERG "MCDE: Buffer overrun, increase MCDE_READ_BUFFER_SIZE\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (cpar == NULL) {
+	/* if (i >= NUM_MCDE_FLOWS || gpar[i] == NULL) { */
+		printk(KERN_ERR "error obtaining correct major number of MCDE device\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* check if read done */
+	if (*f_pos > data_size)
+		goto out;
+
+	if (*f_pos + count > data_size)
+		count = data_size - *f_pos;
+
+	if (copy_to_user(buf, mcde_read_buffer + *f_pos, count))
+		ret = -EINVAL;
+	*f_pos += count;
+	ret = count;
+
+out:
+	return ret;
+
+}
+
+static ssize_t debugfs_mcde_write_file_dummy(struct file *file, const char __user *buf,
+						size_t count, loff_t *ppos)
+{
+	return count;
+}
+
+static int debugfs_AB8500_read_reg_offs(struct file *file, char __user *buf,
+						size_t count, loff_t *f_pos)
+{
+	int    ret = 0;
+	size_t data_size = 0;
+	char   buffer[MCDE_READ_BUFFER_SIZE];
+
+	data_size = sprintf(buffer, "0x%08x\n", AB8500_debugfs_reg_nr);
+
+	if (data_size > MCDE_READ_BUFFER_SIZE) {
+		printk(KERN_EMERG "MCDE: Buffer overrun, increase MCDE_READ_BUFFER_SIZE\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* check if read done */
+	if (*f_pos > data_size)
+		goto out;
+
+	if (*f_pos + count > data_size)
+		count = data_size - *f_pos;
+
+	if (copy_to_user(buf, buffer + *f_pos, count))
+		ret = -EINVAL;
+	*f_pos += count;
+	ret = count;
+
+out:
+	return ret;
+}
+
+static int debugfs_AB8500_write_reg_offs(struct file *file,
+						const char __user *ubuf,
+						size_t count, loff_t *ppos)
+{
+	int    buf_size;
+	u32    i;
+	char   buf[16] = {0};
+
+	buf_size = min(count, (sizeof(buf)-1));
+	if (copy_from_user(buf, ubuf, buf_size))
+		goto error;
+
+	if (sscanf(buf, "0x%x", &i) <= 0)
+		goto error;
+
+	AB8500_debugfs_reg_nr = i;
+
+	return count;
+error:
+	return -EINVAL;
+}
+
+static int debugfs_AB8500_read_regval(struct file *file, char __user *buf,
+						size_t count, loff_t *f_pos)
+{
+	int    ret = 0;
+	size_t data_size = 0;
+	char   buffer[MCDE_READ_BUFFER_SIZE];
+	u8     bank = 0;
+
+	bank = 0xF & (AB8500_debugfs_reg_nr >> 8);
+	data_size = sprintf(buffer, "0x%02x\n",
+				ab8500_read(bank, AB8500_debugfs_reg_nr));
+
+	if (data_size > MCDE_READ_BUFFER_SIZE) {
+		printk(KERN_EMERG "AB8500: Buffer overrun, increase MCDE_READ_BUFFER_SIZE\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* check if read done */
+	if (*f_pos > data_size)
+		goto out;
+
+	if (*f_pos + count > data_size)
+		count = data_size - *f_pos;
+
+	if (copy_to_user(buf, buffer + *f_pos, count))
+		ret = -EINVAL;
+	*f_pos += count;
+	ret = count;
+
+out:
+	return ret;
+}
+
+static ssize_t debugfs_AB8500_write_regval(struct file *file,
+						const char __user *ubuf,
+						size_t count, loff_t *ppos)
+{
+	int    buf_size;
+	char   buf[16] = {0};
+	u8     r = 0x0;
+	u8     bank = 0;
+
+	buf_size = min(count, (sizeof(buf)-1));
+	if (copy_from_user(buf, ubuf, buf_size))
+		goto error;
+
+	if (sscanf(buf, "0x%hhx", &r) <= 0)
+		goto error;
+
+	bank = 0xF & (AB8500_debugfs_reg_nr >> 8);
+
+	printk(KERN_DEBUG
+		"AB8500: write to bank 0x%02x, address: 0x%08x: 0x%02x\n",
+		bank,
+		AB8500_debugfs_reg_nr,
+		r);
+	printk(KERN_DEBUG "; old value 0x%02x\n",
+				ab8500_read(bank, AB8500_debugfs_reg_nr));
+
+	ab8500_write(bank, AB8500_debugfs_reg_nr, r);
+
+	printk(KERN_DEBUG "AB8500: write reg: new value 0x%02x\n",
+				ab8500_read(bank, AB8500_debugfs_reg_nr));
+
+	return count;
+error:
+	return -EINVAL;
+}
+
+static const struct file_operations debugfs_mcde_reg_offs_fops = {
+	.owner = THIS_MODULE,
+	.open  = debugfs_mcde_open_file,
+	.read  = debugfs_mcde_read_reg_offs,
+	.write  = debugfs_mcde_write_reg_offs
+};
+
+static const struct file_operations debugfs_mcde_regval_fops = {
+	.owner = THIS_MODULE,
+	.open  = debugfs_mcde_open_file,
+	.read  = debugfs_mcde_read_regval,
+	.write  = debugfs_mcde_write_regval
+};
+
+static const struct file_operations debugfs_mcde_regs_fops = {
+	.owner = THIS_MODULE,
+	.open  = debugfs_mcde_open_file,
+	.read  = debugfs_mcde_read_file,
+	.write  = debugfs_mcde_write_file_dummy
+};
+
+static const struct file_operations debugfs_AB8500_reg_offs_fops = {
+	.owner = THIS_MODULE,
+	.open  = debugfs_mcde_open_file,
+	.read  = debugfs_AB8500_read_reg_offs,
+	.write  = debugfs_AB8500_write_reg_offs
+};
+
+static const struct file_operations debugfs_AB8500_regval_fops = {
+	.owner = THIS_MODULE,
+	.open  = debugfs_mcde_open_file,
+	.read  = debugfs_AB8500_read_regval,
+	.write  = debugfs_AB8500_write_regval
+};
+#endif /* CONFIG_DEBUG_FS */
+
+#ifdef TESTING_TO_BE_REMOVED
 /**
  * mcde_open() - This routine opens the device.
  * @info: frame buffer information.
@@ -3507,6 +4200,321 @@ static struct fb_ops mcde_ops = {
 	.fb_imageblit = cfb_imageblit,
 };
 
+inline static void switch_TV_mode(
+			struct fb_info *info, const mcde_video_mode mode)
+{
+	int data;
+	struct mcdefb_info *cpar = (struct mcdefb_info *) info->par;
+
+#define MAP_MODE(_m) \
+	printk(KERN_DEBUG "MCDE Switching TV mode to " #_m " = %d\n", _m);
+	switch (mode) {
+	case VMODE_720_480_60_I:
+		MAP_MODE(VMODE_720_480_60_I);
+		break;
+	case VMODE_720_480_60_P:
+		MAP_MODE(VMODE_720_480_60_P);
+		break;
+	case VMODE_720_576_50_I:
+		MAP_MODE(VMODE_720_576_50_I);
+		break;
+	case VMODE_720_576_50_P:
+		MAP_MODE(VMODE_720_480_60_P);
+		break;
+	default:
+		printk(KERN_ERR "MCDE switch TV unkown mode: %d\n", mode);
+		break;
+	}
+	mcde_TV_mode_settings(info, mode);
+
+	data = cpar->ch_regbase2[cpar->chid]->mcde_cr0;
+	data &= ~MCDE_CR0_FLOEN; /* disable flow */
+	data |=  MCDE_CR0_POWEREN;
+	cpar->ch_regbase2[cpar->chid]->mcde_cr0 = data;
+	AB8500_TV_mode_settings(mode, FALSE);
+	cpar->ch_regbase2[cpar->chid]->mcde_cr0 |=
+						MCDE_CR0_FLOEN;/* enable flow */
+}
+
+static void mcde_TV_mode_settings(
+			struct fb_info *info, const mcde_video_mode mode)
+{
+	mcde_scan_mode scan_mode = MCDE_SCAN_INTERLACED_MODE;
+	struct mcdefb_info *cpar = (struct mcdefb_info *) info->par;
+
+	/* fix for MCDE: a border of at least 2 is needed */
+#define TV_H_BORDER    2
+#define TV_V_BORDER    0
+
+	u32 fld_lines = 0;                             /* nr of active lines */
+	/* field 1 (vertical) blanking: */
+	u32 vbl1_pre  = 0;
+	u32 vbl1_post = 0;
+	/* field 2 (vertical) blanking: */
+	u32 vbl2_pre  = 0;
+	u32 vbl2_post = 0;
+
+	u32 hbl_wid   = 0;               /* line (horizontal) blanking width */
+	u32 pix_p_lin = info->var.xres;  /* pixels per line */
+	u32 lin_p_frm = 0;                         /* active lines per frame */
+
+	/* testing to play with these values */
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv1 =
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV1_YR_RED,    66) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV1_YR_GREEN, 129);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv2 =
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV2_YR_BLUE, 25) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV2_CR_RED, 112);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv3 =
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV3_CR_GREEN, -94) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV3_CR_BLUE,  -18);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv4 =
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV4_CB_RED,   -38) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV4_CB_GREEN, -74);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv5 =
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV5_CB_BLUE, 112) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV5_OFF_RED, 128);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_rgbconv6 =
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV6_OFF_GREEN, 16) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_RGBCONV6_OFF_BLUE, 128);
+
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvdvo =
+			MCDE_DEF_REG_FLD_VAL(MCDE_TVDVO_DVO1, TV_V_BORDER) |
+			MCDE_DEF_REG_FLD_VAL(MCDE_TVDVO_DVO2, TV_V_BORDER);
+
+	if (mode == VMODE_720_576_50_P || mode == VMODE_720_576_50_I) {
+		/* PAL mode */
+		fld_lines = 288;
+		vbl1_pre  = 22;
+		vbl1_post = 2;
+		vbl2_pre  = 23;
+		vbl2_post = 2;
+		hbl_wid   = 140;
+		/* ecsmmtu: TODO: find out what these settings really are
+		 * supposed to be and used either already existing variables or
+		 * new ons and set the register below.
+                 */
+		cpar->ch_regbase2[MCDE_CH_B]->mcde_tvisl=0x00150014;
+		if(mode == VMODE_720_480_60_P)
+		{
+			scan_mode = MCDE_SCAN_PROGRESSIVE_MODE;
+		}
+	} else if (mode == VMODE_720_480_60_P || mode == VMODE_720_480_60_I) {
+		/* NTSC mode */
+		fld_lines = 240;
+		vbl1_pre  = 19;
+		vbl1_post = 3;
+		vbl2_pre  = 20;
+		vbl2_post = 3;
+		hbl_wid   = 134;
+		/* ecsmmtu: TODO: find out what these settings really are
+		 * supposed to be and used either already existing variables or
+		 * new ons and set the register below.
+		 */
+		cpar->ch_regbase2[MCDE_CH_B]->mcde_tvisl=0x00120011;
+		if(mode == VMODE_720_576_50_P)
+		{
+			scan_mode = MCDE_SCAN_PROGRESSIVE_MODE;
+		}
+	} else {
+		printk(KERN_WARNING "MCDE: unsupported TV out mode\n");
+	}
+	fld_lines -= TV_V_BORDER;
+	pix_p_lin -= 2 * TV_H_BORDER;
+	lin_p_frm = 2 * fld_lines;
+	cpar->ch_regbase1[MCDE_CH_B]->mcde_chnl_conf =
+		MCDE_DEF_REG_FLD_VAL(MCDE_CHNLCONF_LPF, lin_p_frm - 1) |
+		MCDE_DEF_REG_FLD_VAL(MCDE_CHNLCONF_PPL, pix_p_lin - 1);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvbl1 =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVBL1_BSL1, vbl1_post) |
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVBL1_BEL1, vbl1_pre);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvbl2 =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVBL2_BSL2, vbl2_post) |
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVBL2_BEL2, vbl2_pre);
+#ifdef CONFIG_U8500_MCDE_DHO_LBW_SWAPPED
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvtim1 =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVTIM1_DHO, hbl_wid);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvlbalw =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVLBALW_ALW, TV_H_BORDER) |
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVLBALW_LBW, TV_H_BORDER);
+#else /* CONFIG_U8500_MCDE_DHO_LBW_SWAPPED */
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvtim1 =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVTIM1_DHO, TV_H_BORDER);
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvlbalw =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVLBALW_ALW, TV_H_BORDER) |
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVLBALW_LBW, hbl_wid);
+#endif /* CONFIG_U8500_MCDE_DHO_LBW_SWAPPED */
+
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvcr =
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVCR_SEL_MOD, MCDE_TVCR_SEL_MOD_TV)
+		|
+		MCDE_TVCR_INTEREN
+		|
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVCR_IFIELD, MCDE_TVCR_IFIELD_ACT_LOW)
+		|
+#ifdef CONFIG_U8500_TVOUT_DDR_MODE
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVCR_TVMODE,
+					MCDE_TVCR_TVMODE_SDTV_DDR_MS_1ST)
+#else /* CONFIG_U8500_TVOUT_DDR_MODE */
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVCR_TVMODE, MCDE_TVCR_TVMODE_SDTV)
+#endif /* CONFIG_U8500_TVOUT_DDR_MODE */
+		|
+		MCDE_DEF_REG_FLD_VAL(MCDE_TVCR_SDTVMODE, MCDE_TVCR_SDTVMODE_YC);
+
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_tvblu     = 0x002C9C83;
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_lcdtim0   = 0x00000000;
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_lcdtim1   = 0x00000000;
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_ditctrl   = 0x00000000;
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_ditoff    = 0x00000000;
+	cpar->ch_regbase2[MCDE_CH_B]->mcde_synchconf = 0x000B0007;
+#undef TV_H_BORDER
+#undef TV_V_BORDER
+	mcde_conf_scan_mode(scan_mode, info);
+}
+
+inline static void AB8500_set_reg_fld(
+			u32 bank, u32 reg, u32 field_mask, u32 val)
+{
+	ab8500_write(bank, reg, (~field_mask & ab8500_read(bank, reg)) |
+							(field_mask & val));
+}
+
+/*
+ * Set the field in the specified register.
+ * bank: the bank nr where the regster is located
+ * reg: the macro identifier for the register (without the _REG postfix)
+ *      I.e. the register mask is defined by reg ## _REG
+ * field: that part of the field identifier that only identifies the field
+ *        within a register. I.e. without the part of the reg parameter.
+ *        I.e. the field mask is defined by reg ## _ ## field ## _MASK
+ * val: the string macro enum part specifiying the value only. I.e. without the
+ *      part of the reg and the field parameter.
+ *      I.e. the enum value is defined by reg ## _ ## field ## _ ## val
+ */
+#define AB8500_SET_REG_FLD_SHIFT(bank, reg, field, val) \
+	AB8500_set_reg_fld(bank, reg ## _REG,\
+		reg ## _ ## field ## _MASK,\
+		(reg ## _ ## field ## _ ## val << reg ## _ ## field ## _SHIFT));
+
+#ifdef CONFIG_DENC_SET_VOLTAGES
+/* TODO: try if this function can be moved into AB8500_TV_mode_settings */
+static void AB8500_set_voltages(void)
+{
+	AB8500_SET_REG_FLD_SHIFT(
+		AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU, VAUX1, FORCE_HP);
+	ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX1_SEL_REG,
+						AB8500_REGU_VAUX1_SEL_2_5V);
+	mdelay(1);/** let the voltage settle */
+}
+#endif /* CONFIG_DENC_SET_VOLTAGES */
+
+static void AB8500_TV_mode_print_settings(void)
+{
+	printk(KERN_DEBUG "AB8500 TV mode settings *************\n"
+		"AB8500_CTRL3_REG         : 0x%04x = 0x%02x\n"
+		"AB8500_SYSULPCLK_CONF_REG: 0x%04x = 0x%02x\n"
+		"AB8500_SYSCLK_CTRL_REG   : 0x%04x = 0x%02x\n"
+		"AB8500_REGU_MISC1_REG    : 0x%04x = 0x%02x\n"
+		"AB8500_DENC_CONF0_REG    : 0x%04x = 0x%02x\n"
+		"AB8500_DENC_CONF1_REG    : 0x%04x = 0x%02x\n"
+		"AB8500_DENC_CONF6_REG    : 0x%04x = 0x%02x\n"
+		"AB8500_DENC_CONF8_REG    : 0x%04x = 0x%02x\n"
+		"AB8500_TVOUT_CTRL_REG    : 0x%04x = 0x%02x\n"
+		"AB8500_TVOUT_CTRL2_REG   : 0x%04x = 0x%02x\n"
+		"AB8500_IT_MASK1_REG      : 0x%04x = 0x%02x\n"
+		,
+		AB8500_CTRL3_REG,
+		ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_CTRL3_REG),
+		AB8500_SYSULPCLK_CONF_REG,
+		ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_SYSULPCLK_CONF_REG),
+		AB8500_SYSCLK_CTRL_REG,
+		ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_SYSCLK_CTRL_REG),
+		AB8500_REGU_MISC1_REG,
+		ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG),
+		AB8500_DENC_CONF0_REG,
+		ab8500_read(AB8500_TVOUT, AB8500_DENC_CONF0_REG),
+		AB8500_DENC_CONF1_REG,
+		ab8500_read(AB8500_TVOUT, AB8500_DENC_CONF1_REG),
+		AB8500_DENC_CONF6_REG,
+		ab8500_read(AB8500_TVOUT, AB8500_DENC_CONF6_REG),
+		AB8500_DENC_CONF8_REG,
+		ab8500_read(AB8500_TVOUT, AB8500_DENC_CONF8_REG),
+		AB8500_TVOUT_CTRL_REG,
+		ab8500_read(AB8500_TVOUT, AB8500_TVOUT_CTRL_REG),
+		AB8500_TVOUT_CTRL2_REG,
+		ab8500_read(AB8500_TVOUT, AB8500_TVOUT_CTRL2_REG),
+		AB8500_IT_MASK1_REG,
+		ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK1_REG)
+	);
+}
+
+static void AB8500_TV_mode_settings(const mcde_video_mode mode,
+						const bool do_soft_reset)
+{
+	int data;
+
+	/* Enable output buffer */
+	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_SYSULPCLK_CONF_REG,
+		ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_SYSULPCLK_CONF_REG)
+								| 0x44);
+
+	/* Enable TV out clock */
+	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_SYSCLK_CTRL_REG,
+		ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_SYSCLK_CTRL_REG)
+								| 0x3);
+
+	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG,
+		ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG)
+								| 0x6);
+
+	/* reset DENC and Audio */
+	data = ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_CTRL3_REG);
+	ab8500_write(
+		AB8500_SYS_CTRL2_BLOCK, AB8500_CTRL3_REG,
+		data & ~(AB8500_CTRL3_RST_AUD_MASK | AB8500_CTRL3_RST_DENC_MASK)
+	);
+	/* done reset DENC and audio */
+	ab8500_write(
+		AB8500_SYS_CTRL2_BLOCK, AB8500_CTRL3_REG,
+		data | AB8500_CTRL3_RST_AUD_MASK | AB8500_CTRL3_RST_DENC_MASK
+	);
+
+	if (do_soft_reset) {
+		mdelay(10);
+		AB8500_SET_REG_FLD_SHIFT(
+				AB8500_TVOUT, AB8500_DENC_CONF6, SOFT_RST, ON);
+		mdelay(10);
+	}
+
+#ifndef CONFIG_TVOUT_TEST_PATTERN
+	if (mode == VMODE_720_480_60_P || mode == VMODE_720_480_60_I)
+	{
+		ab8500_write(AB8500_TVOUT, AB8500_DENC_CONF0_REG, 0x8A);
+	} else if(mode == VMODE_720_576_50_P || mode == VMODE_720_576_50_I) {
+		ab8500_write(AB8500_TVOUT, AB8500_DENC_CONF0_REG, 0xA);
+	}
+#else /* CONFIG_TVOUT_TEST_PATTERN */
+	ab8500_write(AB8500_TVOUT, AB8500_DENC_CONF0_REG, 0x38);
+#endif /* CONFIG_TVOUT_TEST_PATTERN */
+
+	ab8500_write(AB8500_TVOUT, AB8500_DENC_CONF1_REG, 0x40);
+	ab8500_write(AB8500_TVOUT, AB8500_DENC_CONF8_REG, 0x10);
+	ab8500_write(AB8500_TVOUT, AB8500_TVOUT_CTRL_REG, 0x1D);
+
+	/** enable TV pluguin detect */
+	ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK1_REG, 0xF9);
+	if (ab8500_read(AB8500_MISC, AB8500_REV_REG) >= 0x1) {
+#ifdef CONFIG_U8500_TVOUT_DDR_MODE
+		ab8500_write(AB8500_TVOUT, AB8500_TVOUT_CTRL2_REG, 0x1);
+#else /* CONFIG_U8500_TVOUT_DDR_MODE */
+		ab8500_write(AB8500_TVOUT, AB8500_TVOUT_CTRL2_REG, 0x0);
+#endif /* CONFIG_U8500_TVOUT_DDR_MODE */
+	}
+
+	mdelay(100);
+	AB8500_TV_mode_print_settings();
+}
+
 static int __init mcde_probe(struct platform_device *pdev)
 {
 	struct fb_info *info;
@@ -3560,9 +4568,12 @@ static int __init mcde_probe(struct platform_device *pdev)
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, 0xFF);
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, 0x03);
 
-	printk(KERN_ERR "Init i2c\n");
+	PRNK_COL(PRNK_COL_GREEN);
+	printk(KERN_INFO "MCDE probe: channel id = %d\n",
+		channel_info->channelid);
 
 	/** To be removed I2C */
+	printk(KERN_ERR "Init i2c\n");
 	if(!i2c_init_done)
 	{
 		/** Make display reset to low */
@@ -3587,18 +4598,8 @@ static int __init mcde_probe(struct platform_device *pdev)
 
 		mdelay(1); /** let the low value settle  */
 
-#ifndef CONFIG_U8500_SIM8500
-#if 0
-		data_4500=ab8500_read(0x4,0x409);
-		data_4500|=0x1;
-		ab8500_write(0x4,0x409,data_4500);
-
-		data_4500=ab8500_read(0x4,0x41F);
-		data_4500|=0x8;
-		ab8500_write(0x4,0x41F,data_4500);
-
-		mdelay(1);/** let the voltage settle */
-#endif
+#ifdef CONFIG_DENC_SET_VOLTAGES
+		AB8500_set_voltages();
 #endif
 		/** Make display reset to high */
 		if(platform_id==0)
@@ -3630,7 +4631,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 		prcmu_init_done = 1;
 	}
 
-	printk(KERN_ERR "Allocing framebuffer\n");
+	printk(KERN_DEBUG "Allocing framebuffer\n");
 
 	/** allocate fb_info + your device specific structure */
 	info = framebuffer_alloc(sizeof(struct mcdefb_info), dev);
@@ -3814,12 +4815,13 @@ static int __init mcde_probe(struct platform_device *pdev)
 	if (currentpar->prcm_tv_clk == NULL)
 		goto out_unmap11;
 
-	if (strcmp(channel_info->restype,"SDTV")==0)
+	/* TODO: I don't think this is used */
+	if (strcmp(channel_info->restype,"PAL")==0)
 		currentpar->tvout=1;
 	else
 		currentpar->tvout=0;
 
-	printk(KERN_ERR "Registering interrupt handler\n");
+	printk(KERN_DEBUG "Registering interrupt handler\n");
 
   if (!registerInterruptHandler)
 	{
@@ -3856,10 +4858,11 @@ static int __init mcde_probe(struct platform_device *pdev)
 #endif
 	info->fix.ywrapstep  = channel_info->nowrap ? 0:1;
 
-	if (currentpar->chid == CHANNEL_B )
+	if (currentpar->chid == CHANNEL_B)
 	{
-	*(currentpar->prcm_mcde_clk) = 0x125; /** MCDE CLK = 160MHZ */
-    *(currentpar->prcm_tv_clk) = 0x14E;     /** HDMI CLK = 76.8MHZ */
+		u32 data;
+		*(currentpar->prcm_mcde_clk) = 0x125; /** MCDE CLK = 160MHZ */
+		*(currentpar->prcm_tv_clk) = 0x14E;   /** HDMI CLK = 76.8MHZ */
 
 #ifdef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 	/**  clcd_clk */
@@ -3868,9 +4871,9 @@ static int __init mcde_probe(struct platform_device *pdev)
 	iounmap(clcd_clk);
 #endif
 
-  printk(KERN_ERR "Enable the channel specific GPIO\n");
+		printk(KERN_DEBUG "Enable the channel specific GPIO\n");
 
-	    //** enable the channel specific GPIO alternate functions */
+		//** enable the channel specific GPIO alternate functions */
 		retVal = stm_gpio_altfuncenable(channel_info->gpio_alt_func);
 		if (retVal)
 		{
@@ -3881,63 +4884,38 @@ static int __init mcde_probe(struct platform_device *pdev)
 		}
 
 
-#ifndef CONFIG_U8500_SIM8500
-    printk(KERN_ERR "4500 writings\n");
+		printk(KERN_DEBUG "MCDE: initialising TV settings\n");
 
-        data_4500=ab8500_read(0x2,0x200);
-        data_4500|=0x4;
-        ab8500_write(0x2,0x200,data_4500);
-
-        data_4500=ab8500_read(0x2,0x200);
-        data_4500|=0x2;
-		ab8500_write(0x2,0x200,data_4500);
-
-		data_4500=ab8500_read(0x2,0x200);
-		data_4500|=0x4;
-		ab8500_write(0x2,0x200,data_4500);
-
-		data_4500=ab8500_read(0x2,0x20A);
-		data_4500|=0x44;
-		ab8500_write(0x2,0x20A,data_4500);
-
-		data_4500=ab8500_read(0x2,0x20C);
-		data_4500|=0x3;
-		ab8500_write(0x2,0x20C,data_4500);
-
-		data_4500=ab8500_read(0x3,0x380);
-		data_4500|=0x6;
-		ab8500_write(0x3,0x380,data_4500);
-
-		ab8500_write(0x6,0x606,0x80);
-
-		ab8500_write(0x6,0x600,0xA);
-		ab8500_write(0x6,0x601,0x40);
-		ab8500_write(0x6,0x608,0x10);
-		ab8500_write(0x6,0x680,0x1);
-		ab8500_write(0x6,0x681,0x0);
-
-        /** enable TV pluguin detect */
-		ab8500_write(AB8500_INTERRUPT,AB8500_IT_MASK1_REG,0xF9);
-#if defined(CONFIG_4500_ED)
-        ab8500_set_callback_handler(AB8500_TV_PLUG_DET,tv_detect_handler,NULL);
-        ab8500_set_callback_handler(AB8500_TV_UNPLUG_DET,tv_removed_handler,NULL);
-#endif
-	ab8500_write(0x6,0x680,0x1D);
-
-        mdelay(1000);
-#endif
+		/* disable MCDE TV out channel before updating the analog TV out
+		 * chip.
+		 */
+		/* TODO use: readl and writel*/
+		data = currentpar->ch_regbase2[currentpar->chid]->mcde_cr0;
+		data &= ~MCDE_CR0_FLOEN; /* disable flow */
+		data |=  MCDE_CR0_POWEREN;
+		currentpar->ch_regbase2[currentpar->chid]->mcde_cr0 = data;
+		AB8500_TV_mode_settings(MCDE_DEFAULT_TV_MODE, TRUE);
+		currentpar->ch_regbase2[currentpar->chid]->mcde_cr0 |=
+						MCDE_CR0_FLOEN;/* enable flow */
 	}
+	/* TODO move up to before registering interrupt handler (or move the
+	 * latter) since the interrupt handler depends of the correct setting of
+	 * gpar
+	 */
 	gpar[currentpar->chid] = currentpar;
 
 	/** To update the per flow params */
 
   if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  currentpar->chid == CHANNEL_B || currentpar->chid == CHANNEL_A)
   {
+	  /*
 	  u32 errors_on_dsi;
 	  u32 self_diagnostic_result;
-	  bool retry;
-	  int n_retry = 3;
-	  u32 id1,id2,id3;
+	  */
+	  bool retry = 1;
+#define MCDE_MAX_PINK_TRIES	3
+	  int n_retry = MCDE_MAX_PINK_TRIES;
+	  /* u32 id1,id2,id3; */
 
 	if (currentpar->chid == CHANNEL_C0)
 		printk(KERN_INFO "%s: Initializing DSI and display for C0\n",
@@ -3955,7 +4933,7 @@ static int __init mcde_probe(struct platform_device *pdev)
     mcde_dsi_set_params(info);
 	  mcde_dsi_start(info);
 
-	  printk(KERN_ERR "DSI started\n");
+	  printk(KERN_DEBUG "DSI started\n");
 
 #ifndef PEPS_PLATFORM
 	/** Make the screen up first */
@@ -3980,10 +4958,12 @@ static int __init mcde_probe(struct platform_device *pdev)
 			/*printk(KERN_INFO "%s: id1=%X, id2=%X, id3=%X\n",
 			       __func__, id1, id2, id3);*/
 
+			/*
 			retry = errors_on_dsi != 0 ||
 				(self_diagnostic_result != 0xC0 &&
 				 self_diagnostic_result != 0x80 &&
 				 self_diagnostic_result != 0x40);
+				 */
 			n_retry--;
 			if (retry) {
 				/* Oops! Pink display? */
@@ -4003,21 +4983,26 @@ static int __init mcde_probe(struct platform_device *pdev)
 				}
 			}
 			else
-				printk(KERN_WARNING "%s: Display initialized OK, "
+				printk(KERN_INFO
+					"%s: Display initialized OK after %dx,"
+				       /*
 				       " errors_on_dsi=%X, "
-				       " self_diagnostic_result=%X\n",
+				       " self_diagnostic_result=%X"
+				       */
+				       "\n",
 				       __func__,
-				       errors_on_dsi, self_diagnostic_result);
+				       MCDE_MAX_PINK_TRIES + 1 - n_retry /*,
+				       errors_on_dsi, self_diagnostic_result*/);
 		} while (n_retry && retry);
-	}
 
-	printk(KERN_ERR "Pink display success");
+		printk(KERN_DEBUG "Pink display success\n");
+	}
 #endif
   }
 
       /* variable to find the num of display devices initalized */
   num_of_display_devices++;
-  printk(KERN_ERR "Setting video mode\n");
+	printk(KERN_DEBUG "Setting video mode\n");
        mcde_set_video_mode(info, currentpar->video_mode);
 
 	if (currentpar->chid == CHANNEL_A || currentpar->chid == CHANNEL_B)
@@ -4042,7 +5027,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	info->fix.line_length =  get_line_length(info->var.xres, info->var.bits_per_pixel);
 	info->screen_base = (u8 *)currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].cpuaddr;
 
-  printk(KERN_ERR "Registering framebuffer\n");
+	printk(KERN_DEBUG "Registering framebuffer\n");
 
   if (register_framebuffer(info) < 0)
 		goto out_fbdealloc;
@@ -4051,7 +5036,47 @@ static int __init mcde_probe(struct platform_device *pdev)
 	info->dev->coherent_dma_mask = ~0x0;
 	platform_set_drvdata(pdev, info);
 
-	printk(KERN_ERR "Display initialization done, chid = %d\n", currentpar->chid);
+#ifdef CONFIG_DEBUG_FS
+	if (currentpar->chid < NUM_MCDE_FLOWS && NUM_MCDE_FLOWS < 100) {
+		char * s = "mcde00";
+
+		sprintf(s, "mcde%02i", currentpar->chid);
+		debugfs_mcde_dir[currentpar->chid] = debugfs_create_dir(s, NULL);
+		if (currentpar->chid == CHANNEL_B) {
+			debugfs_AB8500_reg_offs_file = debugfs_create_file(
+					"aregoffset", S_IWUGO | S_IRUGO,
+					debugfs_mcde_dir[currentpar->chid], 0,
+					&debugfs_AB8500_reg_offs_fops
+				);
+			debugfs_AB8500_regval_file = debugfs_create_file(
+					"aregval", S_IWUGO | S_IRUGO,
+					debugfs_mcde_dir[currentpar->chid], 0,
+					&debugfs_AB8500_regval_fops
+				);
+		}
+		if (currentpar->chid == CHANNEL_A ||
+						currentpar->chid == CHANNEL_B) {
+			debugfs_mcde_regs_file = debugfs_create_file(
+					"TVregslist", S_IRUGO,
+					debugfs_mcde_dir[currentpar->chid], 0,
+					&debugfs_mcde_regs_fops
+				);
+		}
+		debugfs_mcde_reg_offs_file = debugfs_create_file(
+				"regoffset", S_IWUGO | S_IRUGO,
+				debugfs_mcde_dir[currentpar->chid], 0,
+				&debugfs_mcde_reg_offs_fops
+			);
+		debugfs_mcde_regval_file = debugfs_create_file(
+				"regval", S_IWUGO | S_IRUGO,
+				debugfs_mcde_dir[currentpar->chid], 0,
+				&debugfs_mcde_regval_fops
+			);
+	}
+#endif /* CONFIG_DEBUG_FS */
+
+	printk(KERN_INFO "MCDE probe done, chid = %d\n", currentpar->chid);
+	PRNK_COL(PRNK_COL_WHITE);
 
 	return 0;
 
@@ -4096,8 +5121,10 @@ out_res:
 
 out_fballoc:
 	framebuffer_release(info);
+	PRNK_COL(PRNK_COL_RED);
+	printk(KERN_ERR "MCDE error in mcde_probe\n");
+	PRNK_COL(PRNK_COL_WHITE);
 	return retVal;
-
 }
 
 void  mcde_test(struct fb_info *info)
@@ -4183,7 +5210,6 @@ void  mcde_test(struct fb_info *info)
 
 	mcde_fb_unlock(info, __func__);
 }
-
 /**
  * mcde_remove() - This routine de-initializes and de-register the FB device.
  * @pdev: platform device.
@@ -4241,6 +5267,21 @@ int mcde_remove(struct platform_device *pdev)
 		iounmap(currentpar->dsi_lnk_registers[0]);
 		iounmap(currentpar->mcde_dsi_channel_reg[0]);
 		framebuffer_release(info);
+#ifdef CONFIG_DEBUG_FS
+		if (currentpar->chid == CHANNEL_B) {
+			debugfs_remove(debugfs_AB8500_reg_offs_file);
+			debugfs_remove(debugfs_AB8500_regval_file);
+		}
+		if (currentpar->chid == CHANNEL_A ||
+						currentpar->chid == CHANNEL_B) {
+			debugfs_remove(debugfs_mcde_regs_file);
+		}
+		if (currentpar->chid < NUM_MCDE_FLOWS) {
+			debugfs_remove(debugfs_mcde_reg_offs_file);
+			debugfs_remove(debugfs_mcde_regval_file);
+			debugfs_remove(debugfs_mcde_dir[currentpar->chid]);
+		}
+#endif /* CONFIG_DEBUG_FS */
 	}
 	/** Release module mutex */
 //	up(&mcde_module_mutex);
@@ -4419,6 +5460,7 @@ extern "C" {
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
+#include <linux/debugfs.h>
 
 #include <asm/dma.h>
 #include <asm/uaccess.h>
@@ -4472,6 +5514,9 @@ void mcde_fb_unlock(struct fb_info *info, const char *caller)
 
 int mcde_debug = MCDE_DEFAULT_LOG_LEVEL;
 
+/* ecsmmtu: I dont't think the variable below is used for anything.
+ * TODO: chk if static and remove.
+ */
 char isVideoModeChanged = 0;
 unsigned int mcde_4500_plugstatus=0;
 
@@ -4482,7 +5527,7 @@ extern u32 mcde_ovl_bmp;
 
 struct fb_info *g_info;
 /** video modes database */
-struct fb_videomode mcde_modedb[] __initdata = {
+struct fb_videomode mcde_modedb[] = {
         {
                 /** 640x350 @ 85Hz ~ VMODE_640_350_85_P*/
                 NULL, 85, 640, 350, KHZ2PICOS(31500),
@@ -4520,7 +5565,7 @@ struct fb_videomode mcde_modedb[] __initdata = {
                 FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         },{
                 /** 712x568 @ 72Hz  ~ VMODE_712_568_60_P */
-                "SDTV", 72, 712, 568, KHZ2PICOS(31500),
+                "PAL", 72, 712, 568, KHZ2PICOS(31500),
                 140, 2, 2, 2, 2, 24,
                 0, FB_VMODE_INTERLACED
         }, {
@@ -4682,7 +5727,7 @@ struct fb_videomode mcde_modedb[] __initdata = {
         },
         {
                 /** 720x480 @ 60Hz VMODE_720_480_60_I */
-                NULL, 60, 720, 480, KHZ2PICOS(297000),
+                "NTSC", 60, 720, 480, KHZ2PICOS(297000),
                 352, 144, 56, 1, 224, 3,
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
@@ -5483,6 +6528,10 @@ static int mcde_ioctl(struct fb_info *info,
 			/** SPINLOCK in use :  */
 			//flags = claim_mcde_lock(currentpar->chid);
 			isVideoModeChanged = 1;
+			/* TODO: fix problem with dealloc, while buffer in use
+			 * tried disable/enable mcde, but this fixes the problem
+			 * partly
+			 */
 			if (mcde_dealloc_source_buffer(info, currentpar->mcde_cur_ovl_bmp, FALSE) != MCDE_OK)
 			{
 				dbgprintk(MCDE_ERROR_INFO, "Failed to set video mode\n");
@@ -7067,7 +8116,7 @@ void find_video_mode(struct fb_info *info)
 {
 	   struct mcdefb_info *currentpar=NULL;
 	   currentpar = (struct mcdefb_info *) info->par;
-	   if (strcmp(currentpar->chnl_info->restype,"SDTV")==0)
+	   if (strcmp(currentpar->chnl_info->restype,"PAL")==0)
 		currentpar->video_mode = VMODE_712_568_60_P;
 	   else if (strcmp(currentpar->chnl_info->restype,"VGA")==0)
 		currentpar->video_mode = VMODE_640_480_60_P;
@@ -7098,7 +8147,7 @@ void find_restype_from_video_mode(struct fb_info *info, mcde_video_mode videoMod
 	   struct mcdefb_info *currentpar=NULL;
 	   currentpar = (struct mcdefb_info *) info->par;
 	   if(videoMode == VMODE_712_568_60_P)
-		currentpar->chnl_info->restype = "SDTV";
+		currentpar->chnl_info->restype = "PAL";
 	   else if(videoMode == VMODE_640_480_60_P)
 		currentpar->chnl_info->restype = "VGA";
 	   else if(videoMode == VMODE_480_864_60_P)
@@ -7354,56 +8403,7 @@ static int mcde_dsi_set_params(struct fb_info *info)
     }
     return retval;
 }
-#ifdef TESTING
-/**
- * mcde_open() - This routine opens the device.
- * @info: frame buffer information.
- * @arg: input arguements
- *
- * This routine opens the requested frame buffer device.
- *
- */
-static int mcde_open(struct fb_info *info, u32 arg)
-{
-   struct mcdefb_info *currentpar=NULL;
-   int retval = MCDE_OK;
 
-   currentpar = (struct mcdefb_info *) info->par;
-   switch(currentpar->chid)
-   {
-	case CHANNEL_A:
-		mcde_set_video_mode(info, VMODE_640_480_60_P);
-		break;
-	case CHANNEL_B:
-		mcde_set_video_mode(info, VMODE_640_480_60_P);
-		break;
-
-	case CHANNEL_C0:
-		mcde_set_video_mode(info, VMODE_640_480_60_P);
-		break;
-
-	case CHANNEL_C1:
-		mcde_set_video_mode(info, VMODE_640_480_60_P);
-		break;
-    }
-
-    return retval;
-}
-/**
- * mcde_open() - This routine closes the device.
- * @info: frame buffer information.
- * @arg: input arguements
- *
- * This routine closes the requested frame buffer device.
- *
- */
-static int mcde_release(struct fb_info *info, u32 arg)
-{
-	dma_free_coherent(info->dev, info->fix.smem_len, info->screen_base, info->fix.smem_start);
-	fb_dealloc_cmap(&info->cmap);
-	return 0;
-}
-#endif
 static struct fb_ops mcde_ops = {
 	.owner = THIS_MODULE,
 	.fb_check_var = mcde_check_var,
@@ -7437,7 +8437,6 @@ static int __init mcde_probe(struct platform_device *pdev)
 	u8 * dsiChanlRegAdd = NULL;
 	u8  *dsilinkAddr = NULL;
 	u32 rotationframesize = 0;
-	int data_4500;
 
 #ifdef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 	volatile u32 __iomem *clcd_clk;
@@ -7652,7 +8651,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	if (currentpar->prcm_tv_clk == NULL)
 		goto out_unmap9;
 
-	if (strcmp(channel_info->restype,"SDTV")==0)
+	if (strcmp(channel_info->restype,"PAL")==0)
 		currentpar->tvout=1;
 	else
 		currentpar->tvout=0;
@@ -7801,7 +8800,7 @@ if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  current
 	mcde_dsi_set_params(info);
 	mcde_dsi_start(info);
 
-	printk(KERN_ERR "DSI started\n");
+	printk(KERN_DEBUG "DSI started\n");
 #ifndef PEPS_PLATFORM
 
 	/** Make the screen up first */
@@ -7858,7 +8857,7 @@ if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  current
 		} while (n_retry && retry);
 	}
 
-	printk(KERN_ERR "Pink display success");
+	printk(KERN_DEBUG "Pink display success");
 
 #endif
 }
@@ -7895,7 +8894,7 @@ if (currentpar->chid == CHANNEL_C0 || currentpar->chid == CHANNEL_C1 ||  current
 	/** register_framebuffer unsets the DMA mask, but we require it set for subsequent buffer allocations */
 	info->dev->coherent_dma_mask = ~0x0;
 	platform_set_drvdata(pdev, info);
-	printk(KERN_ERR "Display initialization done, chid = %d\n", currentpar->chid);
+	printk(KERN_DEBUG "MCDE probe done, chid = %d\n", currentpar->chid);
 
 	return 0;
 

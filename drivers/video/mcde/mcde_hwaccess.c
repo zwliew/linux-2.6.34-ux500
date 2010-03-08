@@ -918,6 +918,7 @@ mcde_error mcdesetcolorconvctrl(mcde_ch_id chid, mcde_overlay_id overlay, mcde_c
 }
 mcde_error mcdesetovrctrl(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_ovr_control ovr_cr)
 {
+#if 0 /* this is old ED func, register has been updated */
     mcde_error    error = MCDE_OK;
     struct mcde_ovl_reg  *ovr_config;
 
@@ -983,8 +984,9 @@ mcde_error mcdesetovrctrl(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_
             (((u32) ovr_cr.clip << MCDE_OVR_CLIPEN_SHIFT) & MCDE_OVR_CLIPEN_MASK)
         );
 
-
     return(error);
+#endif
+    return MCDE_UNSUPPORTED_FEATURE;
 }
 
 mcde_error mcdesetovrlayconf(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_ovr_config ovr_conf)
@@ -1069,6 +1071,7 @@ mcde_error mcdesetovrljinc(mcde_ch_id chid, mcde_overlay_id overlay, u32 ovr_lji
 #ifdef PLATFORM_8500
 mcde_error mcdesettopleftmargincrop(mcde_ch_id chid, mcde_overlay_id overlay, u32 ovr_topmargin, u16 ovr_leftmargin)
 {
+#if 0 /* this is old ED func, register has been updated */
     mcde_error    error = MCDE_OK;
     struct mcde_ovl_reg  *ovr_config;
 
@@ -1090,6 +1093,8 @@ mcde_error mcdesettopleftmargincrop(mcde_ch_id chid, mcde_overlay_id overlay, u3
 
 
     return(error);
+#endif
+    return MCDE_UNSUPPORTED_FEATURE;
 }
 #endif
 mcde_error mcdesetovrcomp(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_ovr_comp ovr_comp)
@@ -2848,6 +2853,38 @@ mcde_error mcdesetrotaddr(mcde_ch_id chid, u32 address, mcde_rotate_num rotnum)
 		ch_x_reg->mcde_rotadd1 = address;
 
     return(error);
+}
+
+/****************************************************************************/
+mcde_state mcdegetchannelstate(mcde_ch_id chid)
+{
+	mcde_state retval = MCDE_DISABLE;
+
+	switch(chid) {
+	case MCDE_CH_A:
+	case MCDE_CH_B:
+		if ((gpar[chid]->ch_regbase2[chid]->mcde_cr0 & (MCDE_CR0_POWEREN | MCDE_CR0_FLOEN)) ==
+				(MCDE_CR0_POWEREN | MCDE_CR0_FLOEN)) {
+			retval = MCDE_ENABLE;
+		}
+		else {
+			retval = MCDE_DISABLE;
+		}
+		break;
+
+	case MCDE_CH_C0:
+	case MCDE_CH_C1:
+		if ((gpar[chid]->ch_c_reg->mcde_crc & (MCDE_CRC_POWEREN | MCDE_CRC_FLOEN)) ==
+				(MCDE_CRC_POWEREN | MCDE_CRC_FLOEN)) {
+			retval = MCDE_ENABLE;
+		}
+		else {
+			retval = MCDE_DISABLE;
+		}
+		break;
+	}
+
+	return retval;
 }
 
 /****************************************************************************/

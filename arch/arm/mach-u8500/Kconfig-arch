@@ -346,7 +346,7 @@ config FB_U8500_MCDE_CHANNELB_DISPLAY_TYPE
 	default "WVGA" if FB_U8500_MCDE_CHANNELB_DISPLAY_WVGA
 	default "VGA" if FB_U8500_MCDE_CHANNELB_DISPLAY_VGA
 	default "CRT" if FB_U8500_MCDE_CHANNELB_DISPLAY_CRT
-	default "SDTV" if FB_U8500_MCDE_CHANNELB_DISPLAY_SDTV
+	default "PAL" if FB_U8500_MCDE_CHANNELB_DISPLAY_SDTV
 	default "QVGA_Portrait" if FB_U8500_MCDE_CHANNELB_DISPLAY_QVGA_PORTRAIT
 	default "QVGA_Landscape" if FB_U8500_MCDE_CHANNELB_DISPLAY_QVGA_LANDSCAPE
 	default "VUIB WVGA" if FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
@@ -364,6 +364,26 @@ config FB_U8500_MCDE_CHANNELB_INPUT_BGR
 	default 0x0 if !FB || !FB_U8500_MCDE_CHANNELB_INPUT_BGRDATA
 	default 0x1 if FB_U8500_MCDE_CHANNELB_INPUT_BGRDATA
 
+config U8500_MCDE_DHO_LBW_SWAPPED
+       bool "SDTV-MCDE: Swap LBW and DHO fields"
+        depends on FB_U8500_MCDE_CHANNELB_DISPLAY_SDTV || FB_U8500_MCDE_CHANNEL
+       default y
+       help
+               In early development the MCDE register fields DHO and LBW are sw
+
+config U8500_TVOUT_DDR_MODE
+       bool "SDTV: use Dual Data Rate"
+        depends on FB_U8500_MCDE_CHANNELB_DISPLAY_SDTV || FB_U8500_MCDE_CHANNEL
+       default y
+       help
+               Set to use dual data rate (using 4 data lines instead of 8)
+
+config TVOUT_TEST_PATTERN
+       bool "SDTV: Generate Test Pattern"
+        depends on FB_U8500_MCDE_CHANNELB_DISPLAY_SDTV || FB_U8500_MCDE_CHANNEL
+       default n
+       help
+               Only generate a test pattern (MCDE is not used)
 
 menuconfig FB_U8500_MCDE_CHANNELC0
 	depends on FB

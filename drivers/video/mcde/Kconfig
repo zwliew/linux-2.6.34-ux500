@@ -10,7 +10,7 @@ config FB_MCDE
 	  overlay support for rendering on various types of display panels.
 
 config FB_MCDE_MULTIBUFFER
-       tristate "MCDE multibuffer support"
+       bool "MCDE multibuffer support"
        depends on FB && FB_MCDE
        default y
        help

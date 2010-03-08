@@ -954,8 +954,8 @@ struct mcde_chx_lcd_timing0
 
   typedef enum
   {
-      MCDE_CHANEL_C_DISABLE = 0x0,
-      MCDE_CHANEL_C_ENABLE = 0x1
+      MCDE_CHANNEL_C_DISABLE = 0x0,
+      MCDE_CHANNEL_C_ENABLE = 0x1
   }mcde_chc_enable;
 
   typedef enum
@@ -1344,6 +1344,7 @@ mcde_error mcdesetovrcomp(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_
 mcde_error mcdesetovrclip(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_ovr_clip ovr_clip);
 mcde_error mcdesetovrstate(mcde_ch_id chid, mcde_overlay_id overlay, mcde_overlay_ctrl state);
 mcde_error mcdesetovrpplandlpf(mcde_ch_id chid, mcde_overlay_id overlay, u16 ppl, u16 lpf);
+mcde_state mcdegetchannelstate(mcde_ch_id chid);
 mcde_error mcdesetstate(mcde_ch_id chid, mcde_state state);
 mcde_error mcdesetchnlXconf(mcde_ch_id chid, u16 channelnum, struct mcde_chconfig config);
 mcde_error mcdesetswsync(mcde_ch_id chid, u16 channelnum, mcde_sw_trigger sw_trig);
@@ -1377,5 +1378,6 @@ mcde_error mcdesetchnlLCDhorizontaltiming(mcde_ch_id chid, struct mcde_chnl_lcd_
 mcde_error mcdesetchnlLCDverticaltiming(mcde_ch_id chid, struct mcde_chnl_lcd_vertical_timing lcd_vertical_timing);
 mcde_error mcdesetditheringctrl(mcde_ch_id chid, mcde_dithering_ctrl dithering_control);
 mcde_error mcdesetscanmode(mcde_ch_id chid, mcde_scan_mode scan_mode);
+mcde_error mcdesetchnlCmode(mcde_ch_id chid, mcde_chc_panel panel_id, mcde_chc_enable state);
 #endif
 
