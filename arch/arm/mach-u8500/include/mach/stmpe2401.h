@@ -86,9 +86,7 @@
 #define GPAFR_L_CSB_REG	0x9f
 #define GPAFR_L_LSB_REG	0xA0
 
-#if defined CONFIG_MACH_U8500_MOP
 #define	MAX_INT		24
-#endif
 
 struct stmpe2401_platform_data {
 	unsigned	gpio_base;
