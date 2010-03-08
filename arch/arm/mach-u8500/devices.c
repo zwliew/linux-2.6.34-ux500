@@ -18,6 +18,7 @@
 #include <linux/hsi-legacy.h>
 #include <linux/gpio.h>
 #include <linux/usb/musb.h>
+#include <linux/delay.h>
 #include <linux/regulator/machine.h>
 
 #include <asm/irq.h>
@@ -2379,17 +2380,24 @@ static struct amba_device sdi0_device = {
 /* sdio specific configurations */
 static int sdio_configure(struct amba_device *dev)
 {
-    int i;
-    for (i = 208; i <= 214; i++) {
-	gpio_set_value(i, GPIO_HIGH);
-	gpio_set_value(i, GPIO_PULLUP_DIS);
-    }
-    stm_gpio_altfuncenable(GPIO_ALT_SDIO);
-    /* enable WLAN_EN by making GPIO215 HIGH */
-    gpio_direction_output(215, GPIO_HIGH);
-    gpio_set_value(215, GPIO_HIGH);
+        int i;
+        gpio_direction_output(215,GPIO_HIGH);
+        gpio_set_value(215,GPIO_LOW);
+        mdelay(10);
+        gpio_set_value(213,GPIO_HIGH);
+        mdelay(10);
+        gpio_set_value(215,GPIO_HIGH);
+        mdelay(10);
+        gpio_set_value(213,GPIO_LOW);
+        mdelay(10);
+        for (i = 208; i <= 214; i++)    {
+                gpio_set_value(i, GPIO_HIGH);
+                gpio_set_value(i, GPIO_PULLUP_DIS);
+        }
+        stm_gpio_altfuncenable(GPIO_ALT_SDIO);
+        /*enable WLAN_EN by making GPIO215 HIGH*/
 
-    return 0;
+        return 0;
 }
 static void sdio_restore_default(struct amba_device *dev)
 {

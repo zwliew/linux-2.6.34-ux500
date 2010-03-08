@@ -1084,6 +1084,9 @@ CONFIG_USB_G_SERIAL=m
 # CONFIG_USB_G_PRINTER is not set
 # CONFIG_USB_ANDROID is not set
 # CONFIG_USB_CDC_COMPOSITE is not set
+# CONFIG_U8500_SDIO_DMA is not set
+CONFIG_U8500_SDIO_POLL=y
+# CONFIG_U8500_SDIO_INTR is not set
 
 #
 # OTG and related infrastructure
