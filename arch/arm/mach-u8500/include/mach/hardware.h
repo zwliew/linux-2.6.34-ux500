@@ -212,12 +212,28 @@ static inline bool cpu_is_u8500(void)
 
 static inline bool cpu_is_u8500ed(void)
 {
+#ifdef CONFIG_MACH_U8500_SIMULATOR
+	/*
+	 * SVP8500v1 unfortunately does not implement the changed MIDR register
+	 * on v1, but instead maintains the old ED revision.
+	 *
+	 * So we hardcode this assuming that only SVP8500v1 is supported.  If
+	 * SVP8500ed is required, another Kconfig option will have to be added.
+	 */
+	return 0;
+#else
 	return cpu_is_u8500() && ((read_cpuid_id() & 15) == 0);
+#endif
 }
 
 static inline bool cpu_is_u8500v1(void)
 {
+#ifdef CONFIG_MACH_U8500_SIMULATOR
+	/* See comment in cpu_is_u8500ed() */
+	return cpu_is_u8500();
+#else
 	return cpu_is_u8500() && ((read_cpuid_id() & 15) == 1);
+#endif
 }
 
 static inline bool cpu_is_u5500(void)
