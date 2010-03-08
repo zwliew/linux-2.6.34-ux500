@@ -11,7 +11,6 @@ obj-$(CONFIG_HOTPLUG_CPU)           += hotplug.o
 obj-$(CONFIG_MACH_U8500_MOP)		+= mop500_devices.o mop500-sdi.o
 obj-$(CONFIG_MACH_U5500_SIMULATOR)	+= mop500_devices.o mop500-sdi.o
 obj-$(CONFIG_MACH_U8500_SIMULATOR)	+= mop500_devices.o mop500-sdi.o
-obj-$(CONFIG_MACH_U8500_SIMULATOR)	+= sim500_devices.o
 obj-$(CONFIG_SMP)			+= platsmp.o headsmp.o localtimer.o
 obj-$(CONFIG_U8500_CPUIDLE) += cpuidle.o
 obj-$(CONFIG_U8500_CPUFREQ) += cpufreq.o
