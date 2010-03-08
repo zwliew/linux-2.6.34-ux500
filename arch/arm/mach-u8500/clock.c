@@ -583,7 +583,8 @@ int __init clk_init(void)
 	else
 		clks_register(u8500_v1_clkregs, ARRAY_SIZE(u8500_v1_clkregs));
 
-	u8500_amba_clk_enable();
+	if (!u8500_is_earlydrop())
+		u8500_amba_clk_enable();
 
 	return 0;
 }
