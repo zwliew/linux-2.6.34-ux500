@@ -95,11 +95,9 @@
 /*Level translator direction register */
 #define GPLT_DIR_Index   STMPE1601_GPIO_REG_OFFSET(0x17) /* 0x99 */
 
-#if defined(CONFIG_MACH_U8500_MOP)
 #define	STMPE1601_GPIO_INT		15
 #define KEYPAD_INT			(STMPE1601_GPIO_INT+1)
 #define STMPE1601_MAX_INT		KEYPAD_INT
-#endif
 
 /*gpio_cfg related define*/
 #define MAX_STMPE1601_GPIO		16
