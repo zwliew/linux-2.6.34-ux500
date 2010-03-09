@@ -255,7 +255,7 @@ static inline u32 get_i2c_cntlr_reg_cfg(struct i2c_driver_data *priv)
 	cr |= GEN_MASK(0, I2C_CR_DMA_SLE, I2C_CR_DMA_SLE_POS);
 	cr |= GEN_MASK(0, I2C_CR_FON, I2C_CR_FON_POS);
 	cr |= GEN_MASK(1, I2C_CR_PE, I2C_CR_PE_POS);
-	if (!u8500_is_earlydrop())
+	if (!cpu_is_u8500ed())
 		cr |= GEN_MASK(0, I2C_CR_FS, I2C_CR_FS_POS);
 	/* modified for touch screen client */
 	if (priv->adap.nr == 3)
