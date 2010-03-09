@@ -30,7 +30,7 @@ static unsigned int __init get_core_count(void)
 {
 	unsigned int ncores;
 
-	ncores = __raw_readl(IO_ADDRESS(U8500_SCU_BASE) + SCU_CONFIG);
+	ncores = __raw_readl(IO_ADDRESS(UX500_SCU_BASE) + SCU_CONFIG);
 
 	return (ncores & 0x03) + 1;
 }
@@ -42,9 +42,9 @@ static void scu_enable(void)
 {
 	u32 scu_ctrl;
 
-	scu_ctrl = __raw_readl(IO_ADDRESS(U8500_SCU_BASE) + SCU_CTRL);
+	scu_ctrl = __raw_readl(IO_ADDRESS(UX500_SCU_BASE) + SCU_CTRL);
 	scu_ctrl |= 1;
-	__raw_writel(scu_ctrl, IO_ADDRESS(U8500_SCU_BASE) + SCU_CTRL);
+	__raw_writel(scu_ctrl, IO_ADDRESS(UX500_SCU_BASE) + SCU_CTRL);
 }
 
 static DEFINE_SPINLOCK(boot_lock);
@@ -64,7 +64,7 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	 * core (e.g. timer irq), then they will not have been enabled
 	 * for us: do so
 	 */
-	gic_cpu_init(0, (void __iomem *)IO_ADDRESS(U8500_GIC_CPU_BASE));
+	gic_cpu_init(0, (void __iomem *)IO_ADDRESS(UX500_GIC_CPU_BASE));
 
 	/*
 	 * let the primary processor know we're out of the
@@ -147,11 +147,11 @@ static void __init wakeup_secondary(void)
      */
 #define U8500_CPU1_JUMPADDR_OFFSET 0x1FF4
 	__raw_writel(virt_to_phys(u8500_secondary_startup),
-		(void __iomem *)IO_ADDRESS(U8500_BACKUPRAM0_BASE) +
+		(void __iomem *)IO_ADDRESS(UX500_BACKUPRAM0_BASE) +
 		U8500_CPU1_JUMPADDR_OFFSET);
 #define U8500_CPU1_WAKEMAGIC_OFFSET 0x1FF0
 	__raw_writel(0xA1FEED01,
-		(void __iomem *)IO_ADDRESS(U8500_BACKUPRAM0_BASE) +
+		(void __iomem *)IO_ADDRESS(UX500_BACKUPRAM0_BASE) +
 		U8500_CPU1_WAKEMAGIC_OFFSET);
 	mb();
 }

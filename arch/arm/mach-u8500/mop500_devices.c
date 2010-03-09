@@ -857,30 +857,26 @@ static struct platform_device *u8500_platform_devices[] __initdata = {
 };
 
 static struct amba_device *amba_board_devs[] __initdata = {
-	&u8500_uart0_device,
-	&u8500_uart1_device,
-	&u8500_uart2_device,
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
+	&ux500_uart0_device,
+	&ux500_uart1_device,
+	&ux500_uart2_device,
 	&u8500_ssp0_device,
 	&u8500_ssp1_device,
-	&u8500_spi0_device,
+	&ux500_spi0_device,
 	&u8500_msp2_spi_device,
-	&u8500_rtc_device,
-#endif
 };
 
 static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_msp0_device,
 	&u8500_msp1_device,
 	&u8500_msp2_device,
-#if !defined(CONFIG_MACH_U8500_SIMULATOR)
 	&u8500_hsit_device,
 	&u8500_hsir_device,
 	&u8500_shrm_device,
 	&u8500_ab8500_device,
 	&ab8500_gpadc_device,
 	&ab8500_bm_device,
-	&u8500_musb_device,
+	&ux500_musb_device,
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
 	&u8500_mcde2_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELC0 */
@@ -893,11 +889,10 @@ static struct platform_device *platform_board_devs[] __initdata = {
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	&u8500_mcde0_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
-	&u8500_b2r2_device,
+	&ux500_b2r2_device,
 	&u8500_pmem_device,
 	&u8500_pmem_mio_device,
 	&u8500_pmem_hwb_device,
-#endif
 };
 
 static void __init mop500_platdata_init(void)
@@ -908,18 +903,17 @@ static void __init mop500_platdata_init(void)
 static void __init mop500_i2c_init(void)
 {
 	u8500_register_device(&u8500_i2c0_device, &u8500_i2c0_data);
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	u8500_register_device(&u8500_i2c1_device, &u8500_i2c1_data);
-	u8500_register_device(&u8500_i2c2_device, &u8500_i2c2_data);
-	u8500_register_device(&u8500_i2c3_device, &u8500_i2c3_data);
+	u8500_register_device(&ux500_i2c1_device, &u8500_i2c1_data);
+	u8500_register_device(&ux500_i2c2_device, &u8500_i2c2_data);
+	u8500_register_device(&ux500_i2c3_device, &u8500_i2c3_data);
 
 	if (!u8500_is_earlydrop())
 		u8500_register_device(&u8500_i2c4_device, &u8500_i2c4_data);
-#endif
 }
 
 static void __init mop500_init_machine(void)
 {
+	u8500_init_regulators();
 	u8500_init_devices();
 
 	mop500_platdata_init();
@@ -930,13 +924,11 @@ static void __init mop500_init_machine(void)
 	mop500_i2c_init();
 
 	/* enable RTC as a wakeup capable */
-	device_init_wakeup(&u8500_rtc_device.dev, true);
+	device_init_wakeup(&ux500_rtc_device.dev, true);
 
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
 	stm_gpio_altfuncenable(GPIO_ALT_UART_0_NO_MODEM);
 	stm_gpio_altfuncenable(GPIO_ALT_UART_1);
 	stm_gpio_altfuncenable(GPIO_ALT_UART_2);
-#endif
 
 	if (MOP500_PLATFORM_ID == platform_id)
 		i2c_register_board_info(0, nmdk_i2c0_egpio_devices,
@@ -963,13 +955,8 @@ static void __init mop500_init_machine(void)
 
 MACHINE_START(NOMADIK, "ST-Ericsson U8500 Platform")
 	/* Maintainer: ST-Ericsson */
-#if defined(CONFIG_MACH_U5500_SIMULATOR)
-	.phys_io	= U8500_UART0_BASE,
-	.io_pg_offst	= (IO_ADDRESS(U8500_UART0_BASE) >> 18) & 0xfffc,
-#else
-	.phys_io	= U8500_UART2_BASE,
-	.io_pg_offst	= (IO_ADDRESS(U8500_UART2_BASE) >> 18) & 0xfffc,
-#endif
+	.phys_io	= UX500_UART2_BASE,
+	.io_pg_offst	= (IO_ADDRESS(UX500_UART2_BASE) >> 18) & 0xfffc,
 	.boot_params	= 0x00000100,
 	.map_io		= u8500_map_io,
 	.init_irq	= u8500_init_irq,

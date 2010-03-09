@@ -567,7 +567,11 @@ static struct mcde_channel_data mcde1_channel_data = {
 	.bpp16_type = 1,
 	.bgrinput = 0x0,
 #endif
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
 	.gpio_alt_func =  GPIO_ALT_LCD_PANELB
+#else
+	.gpio_alt_func =  GPIO_ALT_LCD_PANELB_ED
+#endif
 };
 
 struct platform_device u8500_mcde1_device = {

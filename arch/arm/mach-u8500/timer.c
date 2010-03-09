@@ -151,7 +151,7 @@ static void __init u8500_timer_init(void)
 	int bits;
 
 #ifdef CONFIG_LOCAL_TIMERS
-	twd_base = (void *)IO_ADDRESS(U8500_TWD_BASE);
+	twd_base = (void *)IO_ADDRESS(UX500_TWD_BASE);
 #endif
 	clk0 = clk_get_sys("mtu0", NULL);
 	BUG_ON(IS_ERR(clk0));
@@ -166,12 +166,12 @@ static void __init u8500_timer_init(void)
 	u8500_cycle = (rate + HZ/2) / HZ;
 
 	/* Save global pointer to mtu, used by functions above */
-	if (u8500_is_earlydrop()) {
+	if (cpu_is_u8500ed()) {
 		mtu0_base = (void *)IO_ADDRESS(U8500_MTU0_BASE_ED);
 		mtu1_base = (void *)IO_ADDRESS(U8500_MTU1_BASE_ED);
 	} else {
-		mtu0_base = (void *)IO_ADDRESS(U8500_MTU0_BASE_V1);
-		mtu1_base = (void *)IO_ADDRESS(U8500_MTU1_BASE_V1);
+		mtu0_base = (void *)IO_ADDRESS(UX500_MTU0_BASE);
+		mtu1_base = (void *)IO_ADDRESS(UX500_MTU1_BASE);
 	}
 
 	/* Init the timer and register clocksource */

@@ -566,7 +566,7 @@ int __init clk_init(void)
 	if (cpu_is_u8500ed()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
-	} else {
+	} else if (cpu_is_u8500v1()) {
 		void __iomem *sdmmclkmgt = (void __iomem *) PRCM_SDMMCCLK_MGT;
 		unsigned int val;
 
@@ -574,6 +574,11 @@ int __init clk_init(void)
 		val = readl(sdmmclkmgt);
 		val = (val & ~0x1f) | 16;
 		writel(val, sdmmclkmgt);
+	} else if (cpu_is_u5500()) {
+		clk_prcmu_ops.enable = NULL;
+		clk_prcmu_ops.disable = NULL;
+		clk_prcc_ops.enable = NULL;
+		clk_prcc_ops.disable = NULL;
 	}
 
 	clks_register(u8500_common_clkregs, ARRAY_SIZE(u8500_common_clkregs));
@@ -583,7 +588,7 @@ int __init clk_init(void)
 	else
 		clks_register(u8500_v1_clkregs, ARRAY_SIZE(u8500_v1_clkregs));
 
-	if (!u8500_is_earlydrop())
+	if (cpu_is_u8500() && !cpu_is_u8500ed())
 		u8500_amba_clk_enable();
 
 	return 0;

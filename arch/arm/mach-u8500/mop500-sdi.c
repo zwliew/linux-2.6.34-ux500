@@ -260,12 +260,12 @@ static struct mmc_board emmc_data = {
 static int __init mop500_sdi_init(void)
 {
 	if (!cpu_is_u8500ed())
-		u8500_register_amba_device(&u8500_sdi2_device, &sdi2_data);
+		u8500_register_amba_device(&ux500_sdi2_device, &sdi2_data);
 
-	u8500_register_amba_device(&u8500_sdi4_device, &emmc_data);
-	u8500_register_amba_device(&u8500_sdi0_device, &mmc_data);
+	u8500_register_amba_device(&ux500_sdi4_device, &emmc_data);
+	u8500_register_amba_device(&ux500_sdi0_device, &mmc_data);
 #ifdef CONFIG_U8500_SDIO
-	u8500_register_amba_device(&u8500_sdi1_device, &sdi1_data);
+	u8500_register_amba_device(&ux500_sdi1_device, &sdi1_data);
 #endif
 
 	return 0;

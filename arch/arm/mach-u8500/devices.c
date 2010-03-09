@@ -18,6 +18,7 @@
 #include <linux/usb/musb.h>
 #include <linux/delay.h>
 #include <linux/regulator/machine.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/irq.h>
 
@@ -42,8 +43,7 @@
 #include <mach/stmpe2401.h>
 #include <mach/tc35892.h>
 #include <mach/uart.h>
-
-extern void __init mop500_platform_init(void);
+#include <mach/setup.h>
 
 void __init u8500_register_device(struct platform_device *dev, void *data)
 {
@@ -67,6 +67,7 @@ void __init u8500_register_amba_device(struct amba_device *dev, void *data)
 		dev_err(&dev->dev, "unable to register device: %d\n", ret);
 }
 
+#ifdef CONFIG_UX500_SOC_DB8500
 /* MSP is being used as a platform device because the perif id of all MSPs
  * is same & hence probe would be called for
  * 2 drivers namely: msp-spi & msp-i2s.
@@ -178,6 +179,7 @@ struct platform_device u8500_msp2_device = {
 		.platform_data = &msp2_platform_data,
 	},
 };
+#endif
 
 #define NUM_MSP_CLIENTS 10
 
@@ -209,30 +211,10 @@ struct amba_device u8500_msp2_spi_device = {
 	.periphid = MSP_PER_ID,
 };
 
-static struct resource u8500_i2c0_resources[] = {
+static struct resource ux500_i2c1_resources[] = {
 	[0] = {
-		.start	= U8500_I2C0_BASE,
-		.end	= U8500_I2C0_BASE + SZ_4K - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_I2C0,
-		.end	= IRQ_I2C0,
-		.flags	= IORESOURCE_IRQ,
-	}
-};
-
-struct platform_device u8500_i2c0_device = {
-	.name		= "STM-I2C",
-	.id		= 0,
-	.resource	= u8500_i2c0_resources,
-	.num_resources	= ARRAY_SIZE(u8500_i2c0_resources),
-};
-
-static struct resource u8500_i2c1_resources[] = {
-	[0] = {
-		.start	= U8500_I2C1_BASE,
-		.end	= U8500_I2C1_BASE + SZ_4K - 1,
+		.start	= UX500_I2C1_BASE,
+		.end	= UX500_I2C1_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
@@ -242,17 +224,17 @@ static struct resource u8500_i2c1_resources[] = {
 	}
 };
 
-struct platform_device u8500_i2c1_device = {
+struct platform_device ux500_i2c1_device = {
 	.name		= "STM-I2C",
 	.id		= 1,
-	.resource	= u8500_i2c1_resources,
-	.num_resources	= ARRAY_SIZE(u8500_i2c1_resources),
+	.resource	= ux500_i2c1_resources,
+	.num_resources	= ARRAY_SIZE(ux500_i2c1_resources),
 };
 
-static struct resource u8500_i2c2_resources[] = {
+static struct resource ux500_i2c2_resources[] = {
 	[0] = {
-		.start	= U8500_I2C2_BASE,
-		.end	= U8500_I2C2_BASE + SZ_4K - 1,
+		.start	= UX500_I2C2_BASE,
+		.end	= UX500_I2C2_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
@@ -262,17 +244,17 @@ static struct resource u8500_i2c2_resources[] = {
 	}
 };
 
-struct platform_device u8500_i2c2_device = {
+struct platform_device ux500_i2c2_device = {
 	.name		= "STM-I2C",
 	.id		= 2,
-	.resource	= u8500_i2c2_resources,
-	.num_resources	= ARRAY_SIZE(u8500_i2c2_resources),
+	.resource	= ux500_i2c2_resources,
+	.num_resources	= ARRAY_SIZE(ux500_i2c2_resources),
 };
 
-static struct resource u8500_i2c3_resources[] = {
+static struct resource ux500_i2c3_resources[] = {
 	[0] = {
-		.start	= U8500_I2C3_BASE,
-		.end	= U8500_I2C3_BASE + SZ_4K - 1,
+		.start	= UX500_I2C3_BASE,
+		.end	= UX500_I2C3_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
@@ -282,31 +264,11 @@ static struct resource u8500_i2c3_resources[] = {
 	}
 };
 
-struct platform_device u8500_i2c3_device = {
+struct platform_device ux500_i2c3_device = {
 	.name		= "STM-I2C",
 	.id		= 3,
-	.resource	= u8500_i2c3_resources,
-	.num_resources	= ARRAY_SIZE(u8500_i2c3_resources),
-};
-
-static struct resource u8500_i2c4_resources[] = {
-	[0] = {
-		.start	= U8500_I2C4_BASE,
-		.end	= U8500_I2C4_BASE + SZ_4K - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_I2C4,
-		.end	= IRQ_I2C4,
-		.flags	= IORESOURCE_IRQ,
-	}
-};
-
-struct platform_device u8500_i2c4_device = {
-	.name		= "STM-I2C",
-	.id		= 4,
-	.resource	= u8500_i2c4_resources,
-	.num_resources	= ARRAY_SIZE(u8500_i2c4_resources),
+	.resource	= ux500_i2c3_resources,
+	.num_resources	= ARRAY_SIZE(ux500_i2c3_resources),
 };
 
 static struct shrm_plat_data shrm_platform_data = {
@@ -368,29 +330,28 @@ struct platform_device u8500_shrm_device = {
 
 static struct resource b2r2_resources[] = {
 	[0] = {
-		.start = U8500_B2R2_BASE,
-		.end = U8500_B2R2_BASE + ((4*1024)-1),
-		.name = "b2r2_base",
-		.flags = IORESOURCE_MEM,
+		.start	= UX500_B2R2_BASE,
+		.end	= UX500_B2R2_BASE + ((4*1024)-1),
+		.name	= "b2r2_base",
+		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start = PRCM_B2R2CLK_MGT_REG,
-		.end = PRCM_B2R2CLK_MGT_REG + (sizeof(u32) - 1),
-		.name = "prcm_b2r2_clk",
-		.flags = IORESOURCE_MEM,
+		.start	= PRCM_B2R2CLK_MGT_REG,
+		.end	= PRCM_B2R2CLK_MGT_REG + (sizeof(u32) - 1),
+		.name	= "prcm_b2r2_clk",
+		.flags	= IORESOURCE_MEM,
 	},
 };
 
-struct platform_device u8500_b2r2_device = {
-	.name = "U8500-B2R2",
-	.id = 0,
-	.dev = {
+struct platform_device ux500_b2r2_device = {
+	.name	= "U8500-B2R2",
+	.id	= 0,
+	.dev	= {
 		.bus_id = "b2r2_bus",
 		.coherent_dma_mask = ~0,
 	},
-
-	.num_resources = ARRAY_SIZE(b2r2_resources),
-	.resource = b2r2_resources
+	.num_resources	= ARRAY_SIZE(b2r2_resources),
+	.resource	= b2r2_resources,
 };
 
 static void __init early_pmem_generic_parse(char **p, struct android_pmem_platform_data * data)
@@ -478,224 +439,158 @@ struct platform_device u8500_pmem_hwb_device = {
 	},
 };
 
-struct amba_device u8500_rtc_device = {
-	.dev = {
+struct amba_device ux500_rtc_device = {
+	.dev		= {
 		.bus_id = "mb:15",
 	},
-	.res = {
-		.start = U8500_RTC_BASE,
-		.end = U8500_RTC_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
+	.res		= {
+		.start	= UX500_RTC_BASE,
+		.end	= UX500_RTC_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
 	},
-	.irq = {IRQ_RTC_RTT, NO_IRQ},
-	.periphid = RTC_PER_ID,
+	.irq		= {IRQ_RTC_RTT, NO_IRQ},
+	.periphid	= RTC_PER_ID,
 };
 
 #include "clock.h"
 
-#define __IO_DEV_DESC(x, sz)	{		\
-	.virtual	= IO_ADDRESS(x),	\
-	.pfn		= __phys_to_pfn(x),	\
-	.length		= sz,			\
-	.type		= MT_DEVICE,		\
-}
-
-static struct map_desc u8500_common_io_desc[] __initdata = {
+static struct map_desc ux500_io_desc[] __initdata = {
 	__IO_DEV_DESC(U8500_RTC_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_UART0_BASE, SZ_4K),
+
 	__IO_DEV_DESC(U8500_MSP0_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_MSP1_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_MSP2_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_UART1_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_UART2_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_GIC_CPU_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_GIC_DIST_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_L2CC_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_GPIO_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK0_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK1_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK2_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK3_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK4_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK5_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK6_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK7_BASE, SZ_4K),
-	__IO_DEV_DESC(GPIO_BANK8_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_CLKRST1_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_CLKRST2_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_CLKRST3_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_CLKRST5_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_CLKRST6_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_CLKRST7_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_PRCMU_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_PRCMU_TCDM_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_BACKUPRAM0_BASE, SZ_8K),
-	__IO_DEV_DESC(U8500_B2R2_BASE, SZ_4K),
+
+	__IO_DEV_DESC(UX500_UART0_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_UART1_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_UART2_BASE, SZ_4K),
+
+	__IO_DEV_DESC(UX500_GIC_CPU_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_GIC_DIST_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_L2CC_BASE, SZ_4K),
+
+	__IO_DEV_DESC(UX500_CLKRST1_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_CLKRST2_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_CLKRST3_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_CLKRST5_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_CLKRST6_BASE, SZ_4K),
+
+	__IO_DEV_DESC(UX500_MTU0_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_MTU1_BASE, SZ_4K),
+
+	__IO_DEV_DESC(UX500_BACKUPRAM0_BASE, SZ_8K),
 };
 
-static struct map_desc u8500_ed_io_desc[] __initdata = {
-	__IO_DEV_DESC(U8500_MTU0_BASE_ED, SZ_4K),
-	__IO_DEV_DESC(U8500_MTU1_BASE_ED, SZ_4K),
+static struct platform_device *ux500_platform_devs[] __initdata = {
+	&ux500_dma_device,
 };
 
-static struct map_desc u8500_v1_io_desc[] __initdata = {
-	__IO_DEV_DESC(U8500_MTU0_BASE_V1, SZ_4K),
-	__IO_DEV_DESC(U8500_MTU1_BASE_V1, SZ_4K),
+static struct amba_device *ux500_amba_devs[] __initdata = {
+	&ux500_rtc_device,
 };
 
-static struct resource u8500_dma_resources[] = {
+void __init ux500_init_devices(void)
+{
+	platform_add_devices(ux500_platform_devs,
+			     ARRAY_SIZE(ux500_platform_devs));
+	amba_add_devices(ux500_amba_devs, ARRAY_SIZE(ux500_amba_devs));
+}
+
+static struct resource ux500_dma_resources[] = {
 	[0] = {
-		.start = U8500_DMA_BASE_V1,
-		.end = U8500_DMA_BASE_V1 + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
+		.start	= UX500_DMA_BASE,
+		.end	= UX500_DMA_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start = IRQ_DMA,
-		.end = IRQ_DMA,
-		.flags = IORESOURCE_IRQ}
+		.start	= IRQ_DMA,
+		.end	= IRQ_DMA,
+		.flags	= IORESOURCE_IRQ
+	},
 };
 
-struct platform_device u8500_dma_device = {
-	.name = "STM-DMA",
-	.id = 0,
-	.num_resources = 2,
-	.resource = u8500_dma_resources
-};
-
-#define NUM_SSP_CLIENTS 10
-
-static struct nmdk_spi_master_cntlr ssp0_platform_data = {
-	.enable_dma = 1,
-	.id = SSP_0_CONTROLLER,
-	.num_chipselect = NUM_SSP_CLIENTS,
-	.base_addr = U8500_SSP0_BASE,
-	.rx_fifo_addr = U8500_SSP0_BASE + SSP_TX_RX_REG_OFFSET,
-	.rx_fifo_dev_type = DMA_DEV_SSP0_RX,
-	.tx_fifo_addr = U8500_SSP0_BASE + SSP_TX_RX_REG_OFFSET,
-	.tx_fifo_dev_type = DMA_DEV_SSP0_TX,
-	.gpio_alt_func = GPIO_ALT_SSP_0,
-	.device_name = "ssp0",
-};
-
-struct amba_device u8500_ssp0_device = {
-	.dev = {
-		.bus_id = "ssp0",
-		.platform_data = &ssp0_platform_data,
-		},
-	.res = {
-		.start = U8500_SSP0_BASE,
-		.end = U8500_SSP0_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-		},
-	.dma_mask = ~0,
-	.irq = {IRQ_SSP0, NO_IRQ},
-	.periphid = SSP_PER_ID,
-};
-
-static struct nmdk_spi_master_cntlr ssp1_platform_data = {
-	.enable_dma = 1,
-	.id = SSP_1_CONTROLLER,
-	.num_chipselect = NUM_SSP_CLIENTS,
-	.base_addr = U8500_SSP1_BASE,
-	.rx_fifo_addr = U8500_SSP1_BASE + SSP_TX_RX_REG_OFFSET,
-	.rx_fifo_dev_type = DMA_DEV_SSP1_RX,
-	.tx_fifo_addr = U8500_SSP1_BASE + SSP_TX_RX_REG_OFFSET,
-	.tx_fifo_dev_type = DMA_DEV_SSP1_TX,
-	.gpio_alt_func = GPIO_ALT_SSP_1,
-	.device_name = "ssp1",
-};
-
-struct amba_device u8500_ssp1_device = {
-	.dev = {
-		.bus_id = "ssp1",
-		.platform_data = &ssp1_platform_data,
-		},
-	.res = {
-		.start = U8500_SSP1_BASE,
-		.end = U8500_SSP1_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-		},
-	.dma_mask = ~0,
-	.irq = {IRQ_SSP1, NO_IRQ},
-	.periphid = SSP_PER_ID,
+struct platform_device ux500_dma_device = {
+	.name		= "STM-DMA",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(ux500_dma_resources),
+	.resource	= ux500_dma_resources
 };
 
 #define NUM_SPI023_CLIENTS 10
 static struct nmdk_spi_master_cntlr spi0_platform_data = {
-	.enable_dma = 1,
-	.id = SPI023_0_CONTROLLER,
-	.num_chipselect = NUM_SPI023_CLIENTS,
-	.base_addr = U8500_SPI0_BASE,
-	.rx_fifo_addr = U8500_SPI0_BASE + SPI_TX_RX_REG_OFFSET,
-	.rx_fifo_dev_type = DMA_DEV_SPI0_RX,
-	.tx_fifo_addr = U8500_SPI0_BASE + SPI_TX_RX_REG_OFFSET,
-	.tx_fifo_dev_type = DMA_DEV_SPI0_TX,
-	.gpio_alt_func = GPIO_ALT_SSP_0,
-	/*FIXME: using SSP for time being just for compilation */
-	.device_name = "spi0",
+	.enable_dma		= 1,
+	.id			= SPI023_0_CONTROLLER,
+	.num_chipselect 	= NUM_SPI023_CLIENTS,
+	.base_addr		= UX500_SPI0_BASE,
+	.rx_fifo_addr		= UX500_SPI0_BASE + SPI_TX_RX_REG_OFFSET,
+	.rx_fifo_dev_type	= DMA_DEV_SPI0_RX,
+	.tx_fifo_addr		= UX500_SPI0_BASE + SPI_TX_RX_REG_OFFSET,
+	.tx_fifo_dev_type	= DMA_DEV_SPI0_TX,
+	.gpio_alt_func		= GPIO_ALT_SSP_0,
+	.device_name		= "spi0",
 };
 
-struct amba_device u8500_spi0_device = {
-	.dev = {
-		.bus_id = "spi0",
+struct amba_device ux500_spi0_device = {
+	.dev		= {
+		.bus_id	= "spi0",
 		.platform_data = &spi0_platform_data,
-		},
-	.res = {
-		.start = U8500_SPI0_BASE,
-		.end = U8500_SPI0_BASE + SZ_4K - 1,
-		.flags = IORESOURCE_MEM,
-		},
-	.dma_mask = ~0,
-	.irq = {IRQ_SPI0, NO_IRQ},
-	.periphid = SPI_PER_ID,
+	},
+	.res		= {
+		.start	= UX500_SPI0_BASE,
+		.end	= UX500_SPI0_BASE + SZ_4K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	.dma_mask	= DMA_BIT_MASK(32),
+	.irq		= {IRQ_SPI0, NO_IRQ},
+	.periphid	= SPI_PER_ID,
 };
 
-struct amba_device u8500_sdi0_device = {
+struct amba_device ux500_sdi0_device = {
 	.dev		= {
 		.init_name = "sdi0",
 	},
 	.res		= {
-		.start	= U8500_SDI0_BASE,
-		.end	= U8500_SDI0_BASE + SZ_4K - 1,
+		.start	= UX500_SDI0_BASE,
+		.end	= UX500_SDI0_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	.irq		= {IRQ_SDMMC0, NO_IRQ},
 	.periphid	= SDI_PER_ID,
 };
 
-struct amba_device u8500_sdi1_device = {
+struct amba_device ux500_sdi1_device = {
 	.dev		= {
 		.init_name = "sdi1",
 	},
 	.res		= {
-		.start	= U8500_SDI1_BASE,
-		.end	= U8500_SDI1_BASE + SZ_4K - 1,
+		.start	= UX500_SDI1_BASE,
+		.end	= UX500_SDI1_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	.irq		= {IRQ_SDMMC1, NO_IRQ},
 	.periphid	= SDI_PER_ID,
 };
 
-struct amba_device u8500_sdi2_device = {
+struct amba_device ux500_sdi2_device = {
 	.dev		= {
 		.init_name = "sdi2",
 	},
 	.res		= {
-		.start	= U8500_SDI2_BASE,
-		.end	= U8500_SDI2_BASE + SZ_4K - 1,
+		.start	= UX500_SDI2_BASE,
+		.end	= UX500_SDI2_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	.irq		= {IRQ_SDMMC2, NO_IRQ},
 	.periphid	= SDI_PER_ID,
 };
 
-struct amba_device u8500_sdi4_device = {
+struct amba_device ux500_sdi4_device = {
 	.dev 		= {
 		.init_name = "sdi4",
 	},
 	.res 		= {
-		.start	= U8500_SDI4_BASE,
-		.end	= U8500_SDI4_BASE + SZ_4K - 1,
+		.start	= UX500_SDI4_BASE,
+		.end	= UX500_SDI4_BASE + SZ_4K - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	.irq		= {IRQ_SDMMC4, NO_IRQ},
@@ -767,8 +662,8 @@ static struct musb_hdrc_platform_data musb_hdrc_hs_otg_platform_data = {
 static struct resource usb_resources[] = {
 	[0] = {
 		.name	= "usb-mem",
-		.start	=  U8500_USBOTG_BASE,
-		.end	=  (U8500_USBOTG_BASE + SZ_64K - 1),
+		.start	=  UX500_USBOTG_BASE,
+		.end	=  (UX500_USBOTG_BASE + SZ_64K - 1),
 		.flags	=  IORESOURCE_MEM,
 	},
 
@@ -780,7 +675,7 @@ static struct resource usb_resources[] = {
 	},
 };
 
-struct platform_device u8500_musb_device = {
+struct platform_device ux500_musb_device = {
 	.name = "musb_hdrc",
 	.id = 0,
 	.dev = {
@@ -793,20 +688,15 @@ struct platform_device u8500_musb_device = {
 	.resource = usb_resources,
 };
 
-void __init u8500_map_io(void)
+void __init ux500_map_io(void)
 {
-	iotable_init(u8500_common_io_desc, ARRAY_SIZE(u8500_common_io_desc));
-
-	if (u8500_is_earlydrop())
-		iotable_init(u8500_ed_io_desc, ARRAY_SIZE(u8500_ed_io_desc));
-	else
-		iotable_init(u8500_v1_io_desc, ARRAY_SIZE(u8500_v1_io_desc));
+	iotable_init(ux500_io_desc, ARRAY_SIZE(ux500_io_desc));
 }
 
 void __init u8500_init_irq(void)
 {
-	gic_dist_init(0, (void __iomem *)IO_ADDRESS(U8500_GIC_DIST_BASE), 29);
-	gic_cpu_init(0, (void __iomem *)IO_ADDRESS(U8500_GIC_CPU_BASE));
+	gic_dist_init(0, (void __iomem *)IO_ADDRESS(UX500_GIC_DIST_BASE), 29);
+	gic_cpu_init(0, (void __iomem *)IO_ADDRESS(UX500_GIC_CPU_BASE));
 
 	/*
 	 * Init clocks here so that they are available for system timer
@@ -870,85 +760,52 @@ struct uart_amba_plat_data uart2_plat = {
 /* Remap of uart0 and uart2 when using SVP5500
  * remove this when uart2 problem solved in SVP5500
  */
-struct amba_device u8500_uart2_device = {
+struct amba_device ux500_uart2_device = {
 	.dev = {.bus_id = "uart2", .platform_data = &uart0_plat, },
-	__MEM_4K_RESOURCE(U8500_UART0_BASE),
+	__MEM_4K_RESOURCE(UX500_UART0_BASE),
 	.irq = {IRQ_UART0, NO_IRQ},
 };
 
-struct amba_device u8500_uart1_device = {
+struct amba_device ux500_uart1_device = {
 	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
-	__MEM_4K_RESOURCE(U8500_UART1_BASE),
+	__MEM_4K_RESOURCE(UX500_UART1_BASE),
 	.irq = {IRQ_UART1, NO_IRQ},
 };
 
-struct amba_device u8500_uart0_device = {
+struct amba_device ux500_uart0_device = {
 	.dev = {.bus_id = "uart0", .platform_data = &uart2_plat, },
-	__MEM_4K_RESOURCE(U8500_UART2_BASE),
+	__MEM_4K_RESOURCE(UX500_UART2_BASE),
 	.irq = {IRQ_UART2, NO_IRQ},
 };
 #else
-struct amba_device u8500_uart0_device = {
+struct amba_device ux500_uart0_device = {
 	.dev = {.bus_id = "uart0", .platform_data = &uart0_plat, },
-	__MEM_4K_RESOURCE(U8500_UART0_BASE),
+	__MEM_4K_RESOURCE(UX500_UART0_BASE),
 	.irq = {IRQ_UART0, NO_IRQ},
 };
 
-struct amba_device u8500_uart1_device = {
+struct amba_device ux500_uart1_device = {
 	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
-	__MEM_4K_RESOURCE(U8500_UART1_BASE),
+	__MEM_4K_RESOURCE(UX500_UART1_BASE),
 	.irq = {IRQ_UART1, NO_IRQ},
 };
 
-struct amba_device u8500_uart2_device = {
+struct amba_device ux500_uart2_device = {
 	.dev = {.bus_id = "uart2", .platform_data = &uart2_plat, },
-	__MEM_4K_RESOURCE(U8500_UART2_BASE),
+	__MEM_4K_RESOURCE(UX500_UART2_BASE),
 	.irq = {IRQ_UART2, NO_IRQ},
 };
 
 #endif
-
-static struct platform_device *platform_core_devs[] __initdata = {
-	&u8500_dma_device,
-};
-
-static struct amba_device *amba_core_devs[] __initdata = {
-	&u8500_gpio0_device,
-	&u8500_gpio1_device,
-	&u8500_gpio2_device,
-	&u8500_gpio3_device,
-#if defined(CONFIG_MACH_U5500_SIMULATOR)
-	&u8500_gpio4_device,
-#endif
-};
 
 #ifdef CONFIG_CACHE_L2X0
 static int __init u8500_l2x0_init(void)
 {
-	l2x0_init((void *)IO_ADDRESS(U8500_L2CC_BASE), 0x3e060000, 0x3e060000);
+	l2x0_init((void *)IO_ADDRESS(UX500_L2CC_BASE), 0x3e060000, 0x3e060000);
 	return 0;
 }
 early_initcall(u8500_l2x0_init);
 #endif
-
-static void __init u8500_earlydrop_fixup(void)
-{
-	u8500_dma_resources[0].start = U8500_DMA_BASE_ED;
-	u8500_dma_resources[0].end = U8500_DMA_BASE_ED + SZ_4K - 1;
-	u8500_shrm_resources[1].start = IRQ_CA_WAKE_REQ_ED;
-	u8500_shrm_resources[1].end = IRQ_CA_WAKE_REQ_ED;
-	u8500_shrm_resources[2].start = IRQ_AC_READ_NOTIFICATION_0_ED;
-	u8500_shrm_resources[2].end = IRQ_AC_READ_NOTIFICATION_0_ED;
-	u8500_shrm_resources[3].start = IRQ_AC_READ_NOTIFICATION_1_ED;
-	u8500_shrm_resources[3].end = IRQ_AC_READ_NOTIFICATION_1_ED;
-	u8500_shrm_resources[4].start = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
-	u8500_shrm_resources[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
-	u8500_shrm_resources[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
-	u8500_shrm_resources[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
-	mcde1_channel_data.gpio_alt_func = GPIO_ALT_LCD_PANELB_ED;
-#endif
-}
 
 void __init amba_add_devices(struct amba_device *devs[], int num)
 {
@@ -1228,16 +1085,11 @@ static struct platform_device *u8500_regulators[] = {
 
 #endif
 
-void __init u8500_init_devices(void)
+/* FIXME: move this to the appropriate file */
+void __init u8500_init_regulators(void)
 {
 #ifdef CONFIG_REGULATOR
 	/* we want the on-chip regulator before any device registration */
 	platform_add_devices(u8500_regulators, ARRAY_SIZE(u8500_regulators));
 #endif
-
-	if (u8500_is_earlydrop())
-		u8500_earlydrop_fixup();
-
-	amba_add_devices(amba_core_devs, ARRAY_SIZE(amba_core_devs));
-	platform_add_devices(platform_core_devs, ARRAY_SIZE(platform_core_devs));
 }

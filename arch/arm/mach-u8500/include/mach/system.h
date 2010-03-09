@@ -21,7 +21,9 @@ static inline void arch_idle(void)
 
 static inline void arch_reset(char mode)
 {
+#ifdef CONFIG_UX500_SOC_DB8500
 	prcmu_system_reset();
+#endif
 }
 
 #endif
