@@ -221,7 +221,7 @@ static int emmc_configure(struct amba_device *dev)
 	stm_gpio_altfuncenable(GPIO_ALT_EMMC);
 
 #ifndef CONFIG_REGULATOR
-	if (!u8500_is_earlydrop()) {
+	if (!cpu_is_u8500ed()) {
 		int val;
 
 		/* On V1 MOP, regulator to on-board eMMC is off by default */
@@ -259,7 +259,7 @@ static struct mmc_board emmc_data = {
 
 static int __init mop500_sdi_init(void)
 {
-	if (!u8500_is_earlydrop())
+	if (!cpu_is_u8500ed())
 		u8500_register_amba_device(&u8500_sdi2_device, &sdi2_data);
 
 	u8500_register_amba_device(&u8500_sdi4_device, &emmc_data);
