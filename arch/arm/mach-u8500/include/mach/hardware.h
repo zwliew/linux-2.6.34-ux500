@@ -19,10 +19,6 @@
  */
 #define IO_ADDRESS(x)		(((x) & 0x0fffffff) + (((x) >> 4) & 0x0f000000) + IO_BASE)
 
-#ifndef __ASSEMBLER__
-extern int u8500_is_earlydrop(void);
-#endif
-
 /*
  * Base address definitions for U8500 Onchip IPs. All the
  * peripherals are contained in a single 1 Mbyte region, with
@@ -117,10 +113,6 @@ extern int u8500_is_earlydrop(void);
 #define U8500_ESRAM_BASE	0x40000000
 #define U8500_ESRAM_DMA_LCLA_OFFSET	0x80000
 #define U8500_ESRAM_DMA_LCPA_OFFSET	0x84000
-
-/* Last page of Boot ROM */
-#define U8500_BOOTROM_BASE	0x9001f000
-#define U8500_BOOTROM_ASIC_ID_OFFSET	0x0ff4
 
 #define U8500_DMA_LCLA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCLA_OFFSET)
 #define U8500_DMA_LCPA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCPA_OFFSET)
@@ -243,6 +235,12 @@ static inline bool cpu_is_u5500(void)
 #else
 	return 0;
 #endif
+}
+
+/* Deprecated, don't use in new code.  Just call cpu_is_u8500ed() directly. */
+static inline int u8500_is_earlydrop(void)
+{
+	return cpu_is_u8500ed();
 }
 
 #endif

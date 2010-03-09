@@ -49,19 +49,6 @@
 extern void __init mop500_platform_init(void);
 int platform_id = MOP500_PLATFORM_ID;
 
-int u8500_is_earlydrop(void)
-{
-#if !defined(CONFIG_MACH_U5500_SIMULATOR)
-	void __iomem *address = (void *)IO_ADDRESS(U8500_BOOTROM_BASE)
-				+ U8500_BOOTROM_ASIC_ID_OFFSET;
-
-	/* 0x01 for ED, 0xA0 for v1 */
-	return (readl(address) & 0xff) == 0x01;
-#else
-	return 1;
-#endif
-}
-
 void __init u8500_register_device(struct platform_device *dev, void *data)
 {
 	int ret;
@@ -544,12 +531,6 @@ struct amba_device u8500_rtc_device = {
 }
 
 static struct map_desc u8500_common_io_desc[] __initdata = {
-	{
-		IO_ADDRESS(U8500_BOOTROM_BASE),
-		__phys_to_pfn(U8500_BOOTROM_BASE),
-		SZ_4K,
-		MT_DEVICE_CACHED
-	},
 	__IO_DEV_DESC(U8500_RTC_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_UART0_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_MSP0_BASE, SZ_4K),
