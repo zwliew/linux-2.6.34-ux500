@@ -563,7 +563,7 @@ static void u8500_amba_clk_enable(void)
 
 int __init clk_init(void)
 {
-	if (u8500_is_earlydrop()) {
+	if (cpu_is_u8500ed()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
 	} else {
@@ -578,7 +578,7 @@ int __init clk_init(void)
 
 	clks_register(u8500_common_clkregs, ARRAY_SIZE(u8500_common_clkregs));
 
-	if (u8500_is_earlydrop())
+	if (cpu_is_u8500ed())
 		clks_register(u8500_ed_clkregs, ARRAY_SIZE(u8500_ed_clkregs));
 	else
 		clks_register(u8500_v1_clkregs, ARRAY_SIZE(u8500_v1_clkregs));
