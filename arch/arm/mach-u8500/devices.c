@@ -43,11 +43,7 @@
 #include <mach/tc35892.h>
 #include <mach/uart.h>
 
-#define MOP500_PLATFORM_ID	0
-#define HREF_PLATFORM_ID	1
-
 extern void __init mop500_platform_init(void);
-int platform_id = MOP500_PLATFORM_ID;
 
 void __init u8500_register_device(struct platform_device *dev, void *data)
 {
@@ -70,32 +66,6 @@ void __init u8500_register_amba_device(struct amba_device *dev, void *data)
 	if (ret)
 		dev_err(&dev->dev, "unable to register device: %d\n", ret);
 }
-
-/* we have equally similar boards with very minimal
- * changes, so we detect the platform during boot
- */
-static int __init board_id_setup(char *str)
-{
-if (str) {
-	switch (*str) {
-	case '0': {
-		printk(KERN_INFO "\nMOP500 platform \n");
-		platform_id = MOP500_PLATFORM_ID;
-		break;
-		}
-	case '1': {
-		printk(KERN_INFO "\nHREF platform \n");
-		platform_id = HREF_PLATFORM_ID;
-		break;
-		}
-	default:
-		printk(KERN_INFO "\n Unknown board_id=%c\n", *str);
-		break;
-	};
-}
-	return 1;
-}
-__setup("board_id=", board_id_setup);
 
 /* MSP is being used as a platform device because the perif id of all MSPs
  * is same & hence probe would be called for

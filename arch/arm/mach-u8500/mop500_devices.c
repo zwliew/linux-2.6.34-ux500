@@ -34,12 +34,45 @@
 
 #include <mach/u8500_tsc.h>
 
-#define MOP500_PLATFORM_ID 0
-#define HREF_PLATFORM_ID 1
 #define IRQ_KP 1 /*To DO*/
 
 int href_v1_board;
 extern int platform_id;
+
+#define MOP500_PLATFORM_ID	0
+#define HREF_PLATFORM_ID	1
+
+/*
+ * This is only non-static because MCDE accesses it directly.  Make this static
+ * once MCDE is fixed to not depend on these variables.
+ */
+int platform_id = MOP500_PLATFORM_ID;
+
+/* we have equally similar boards with very minimal
+ * changes, so we detect the platform during boot
+ */
+static int __init board_id_setup(char *str)
+{
+	if (!str)
+		return 1;
+
+	switch (*str) {
+	case '0':
+		printk(KERN_INFO "MOP500 platform\n");
+		platform_id = MOP500_PLATFORM_ID;
+		break;
+	case '1':
+		printk(KERN_INFO "HREF platform\n");
+		platform_id = HREF_PLATFORM_ID;
+		break;
+	default:
+		printk(KERN_INFO "Unknown board_id=%c\n", *str);
+		break;
+	};
+
+	return 1;
+}
+__setup("board_id=", board_id_setup);
 
 static struct stmpe2401_platform_data stmpe_data = {
 	.gpio_base = 268,
