@@ -867,16 +867,6 @@ static struct platform_device *platform_board_devs[] __initdata = {
 #endif
 };
 
-static void __init amba_add_devices(struct amba_device *devs[], int num)
-{
-	int i;
-
-	for (i = 0; i < num; i++) {
-		struct amba_device *d = devs[i];
-		amba_device_register(d, &iomem_resource);
-	}
-}
-
 static void __init mop500_platdata_init(void)
 {
 }

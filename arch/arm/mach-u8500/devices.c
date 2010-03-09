@@ -980,7 +980,7 @@ static void __init u8500_earlydrop_fixup(void)
 #endif
 }
 
-static void __init amba_add_devices(struct amba_device *devs[], int num)
+void __init amba_add_devices(struct amba_device *devs[], int num)
 {
 	int i;
 
