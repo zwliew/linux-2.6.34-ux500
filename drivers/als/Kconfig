@@ -1,0 +1,11 @@
+#
+# Ambient Light Sensor sysfs device configuration
+#
+
+menuconfig ALS
+	tristate "Ambient Light Sensor sysfs device"
+	help
+	  This framework provides a generic sysfs I/F for Ambient Light
+	  Sensor devices.
+	  If you want this support, you should say Y or M here.
+
