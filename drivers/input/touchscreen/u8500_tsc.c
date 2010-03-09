@@ -895,12 +895,12 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c)
 		dev_err(&i2c->dev, "FB reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x50);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x70);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FC reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_OFF, 0x40);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_OFF, 0x60);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FD reg i2c smbus write byte failed\n");
 		goto err;
