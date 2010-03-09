@@ -430,10 +430,12 @@ static struct i2c_board_info __initdata u8500_i2c2_devices[] = {
 	 /* ASAHI KASEI AK8974 magnetometer, addr TBD FIXME */
 	 I2C_BOARD_INFO("ak8974", 0x1),
 	},
+#if defined(CONFIG_ALS_BH1780GLI)
 	{
-	 /* Rohm BH1780GLI light sensor addr TBD, FIXME */
-	 I2C_BOARD_INFO("bh1780gli", 0x45),
+		/* Rohm BH1780GLI ambient light sensor */
+		I2C_BOARD_INFO("bh1780gli", 0x29),
 	},
+#endif
 	{
 	 /* RGB LED driver, there are 1st and 2nd, TODO */
 	 I2C_BOARD_INFO("lp5521", 0x33),
