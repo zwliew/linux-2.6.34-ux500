@@ -40,17 +40,21 @@ endmenu
 
 config U8500_CPUIDLE
     tristate "CPUIdle support"
-    depends on CPU_IDLE
+    depends on UX500_SOC_DB8500 && CPU_IDLE
     select GENERIC_CLOCKEVENTS_BROADCAST
     help
         Add support for CPUIdle for U8500
 
 config U8500_CPUFREQ
     tristate "CPUFreq support"
-    depends on CPU_FREQ
+    depends on UX500_SOC_DB8500 && CPU_FREQ
     default y
     help
         Add support for CPU Frequency scaling for U8500
+
+config U8500_PM
+	bool
+	depends on UX500_SOC_DB8500 && PM
 
 config ARCH_HAS_CPU_IDLE_WAIT
     def_bool y
