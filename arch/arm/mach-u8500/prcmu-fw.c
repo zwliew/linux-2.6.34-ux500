@@ -1184,7 +1184,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		writel((1<<17), PRCM_REQ_MB0_WKUP_8500);
 		writel(0x0, PRCM_REQ_MB0_WKUP_4500);
+		_wait_for_req_complete(REQ_MB0);
 
+#if 0
 		/* SIGNAL MAILBOX */
 		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
 		writel(1 << 0, PRCM_MBOX_CPU_SET);
@@ -1197,7 +1199,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			 "Timeout in prcmu_configure_wakeup_events!!\n");
 			return -EBUSY;
 		}
-
+#endif
 		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
 		/* Write PwrStTrH=0 header to request a Power state xsition */
 		writeb(0x0, PRCM_MBOX_HEADER_REQ_MB0);
@@ -1781,10 +1783,11 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 
 	prcmu_get_wakeup_reason(&event_8500, event_4500);
 
+#if 0
 	dbg_printk("\n Inside prcmu_ack_mb0_wkuph_status_tasklet \n");
 	dbg_printk("\n\nAcknowledging by RDWKUPACKH\n\n");
 	prcmu_ack_wakeup_reason();
-
+#endif
 
 	/* ca_wake_req signal  - modem wakes up ARM */
 	if (event_8500 & (1 << 5)) {
