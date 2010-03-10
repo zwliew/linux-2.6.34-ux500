@@ -62,8 +62,6 @@ config ARCH_HAS_CPU_IDLE_WAIT
     def_bool y
 
 source "arch/arm/mach-u8500/Kconfig-arch"
-source "arch/arm/mach-u8500/sim8500_Kconfig"
-source "arch/arm/mach-u8500/mop500_Kconfig"
 
 config FORCE_MAX_ZONEORDER
     int "Maximum zone order"
