@@ -77,6 +77,20 @@
 	__HEAD
 ENTRY(stext)
 #if (defined(CONFIG_MACH_U8500_SIMULATOR) || defined(CONFIG_MACH_U5500_SIMULATOR))
+#ifdef CONFIG_DEBUG_LL
+#ifdef CONFIG_MACH_U5500_SIMULATOR
+/* Enable GPIOs for UART0 */
+	ldr     r5, =0xA002E020		@ Block0 GPIO_AFSA
+	ldr     r6, =0x30000000		@ GPIO 28, 29 AltA
+	str     r6, [r5]
+
+	/* Enable UART0 */
+	ldr     r5, =0xA0023030		@ UART0 CR
+	ldr     r6, =0x00000101		@ TXE, UARTEN
+	str     r6, [r5]
+#endif
+#endif
+
 	mrc p15, 0, r3, c0, c0, 5
 	ands r3, r3, #0xf
 	bne u8500_secondary_startup

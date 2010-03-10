@@ -10,11 +10,17 @@
  */
 #include <mach/hardware.h>
 
+#ifdef CONFIG_MACH_U5500_SIMULATOR
+#define UX500_DEBUG_UART	UX500_UART0_BASE
+#else
+#define UX500_DEBUG_UART	UX500_UART2_BASE
+#endif
+
 	.macro	addruart,rx
 	mrc	p15, 0, \rx, c1, c0
 	tst	\rx, #1			@MMU enabled?
-	ldreq	\rx, =UX500_UART2_BASE			@ no, physical address
-	ldrne	\rx, =IO_ADDRESS(UX500_UART2_BASE)	@ yes, virtual address
+	ldreq	\rx, =UX500_DEBUG_UART			@ no, physical address
+	ldrne	\rx, =IO_ADDRESS(UX500_DEBUG_UART)	@ yes, virtual address
 	.endm
 
 #include <asm/hardware/debug-pl01x.S>
