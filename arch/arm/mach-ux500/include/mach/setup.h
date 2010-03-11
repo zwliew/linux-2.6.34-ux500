@@ -26,7 +26,7 @@ extern void __init u5500_init_devices(void);
 extern void __init u8500_init_devices(void);
 extern void __init u8500_init_regulators(void);
 
-extern void __init u8500_init_irq(void);
+extern void __init ux500_init_irq(void);
 
 extern void __init amba_add_devices(struct amba_device *devs[], int num);
 
