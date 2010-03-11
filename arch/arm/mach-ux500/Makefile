@@ -8,7 +8,7 @@ obj-$(CONFIG_REGULATOR)			+= regulator.o
 obj-$(CONFIG_ARCH_U8500)		+= devices.o
 obj-$(CONFIG_STM_DMA)			+= dma_40.o   #part1 no. of dma is 0x40
 obj-$(CONFIG_HOTPLUG_CPU)           += hotplug.o
-obj-$(CONFIG_MACH_U8500_MOP)		+= mop500_devices.o mop500-sdi.o
+obj-$(CONFIG_MACH_U8500_MOP)		+= board-mop500.o mop500-sdi.o
 obj-$(CONFIG_UX500_SOC_DB5500)		+= db5500-devices.o cpu-db5500.o
 obj-$(CONFIG_UX500_SOC_DB8500)		+= db8500-devices.o hsi.o mcde.o \
 					   cpu-db8500.o prcmu-fw.o
