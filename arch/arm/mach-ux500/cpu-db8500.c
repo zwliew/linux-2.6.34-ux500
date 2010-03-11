@@ -31,7 +31,7 @@ static struct map_desc u8500_io_desc[] __initdata = {
 };
 
 static struct map_desc u8500_ed_io_desc[] __initdata = {
-	__IO_DEV_DESC(U8500_CLKRST7_BASE, SZ_4K),
+	__IO_DEV_DESC(U8500_CLKRST7_BASE_ED, SZ_4K),
 	__IO_DEV_DESC(U8500_MTU0_BASE_ED, SZ_4K),
 	__IO_DEV_DESC(U8500_MTU1_BASE_ED, SZ_4K),
 };

@@ -1,7 +1,6 @@
 /*
- *  linux/arch/arm/mach-u8500/clock.c
- *
- *  Copyright (C) ST Ericsson
+ *  Copyright (C) 2009 ST-Ericsson
+ *  Copyright (C) 2009 STMicroelectronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -13,14 +12,60 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <linux/clk.h>
+#include <linux/io.h>
 #include <linux/mutex.h>
 
 #include <asm/clkdev.h>
-#include <asm/io.h>
 
 #include <mach/hardware.h>
-#include <mach/prcmu-regs.h>
 #include "clock.h"
+
+#define PRCC_PCKEN		0x00
+#define PRCC_PCKDIS		0x04
+#define PRCC_KCKEN		0x08
+#define PRCC_KCKDIS		0x0C
+
+#define PRCM_YYCLKEN0_MGT_SET	0x510
+#define PRCM_YYCLKEN1_MGT_SET	0x514
+#define PRCM_YYCLKEN0_MGT_CLR	0x518
+#define PRCM_YYCLKEN1_MGT_CLR	0x51C
+#define PRCM_YYCLKEN0_MGT_VAL	0x520
+#define PRCM_YYCLKEN1_MGT_VAL	0x524
+
+#define PRCM_SVAMMDSPCLK_MGT	0x008
+#define PRCM_SIAMMDSPCLK_MGT	0x00C
+#define PRCM_SGACLK_MGT		0x014
+#define PRCM_UARTCLK_MGT	0x018
+#define PRCM_MSP02CLK_MGT	0x01C
+#define PRCM_MSP1CLK_MGT	0x288
+#define PRCM_I2CCLK_MGT		0x020
+#define PRCM_SDMMCCLK_MGT	0x024
+#define PRCM_SLIMCLK_MGT	0x028
+#define PRCM_PER1CLK_MGT	0x02C
+#define PRCM_PER2CLK_MGT	0x030
+#define PRCM_PER3CLK_MGT	0x034
+#define PRCM_PER5CLK_MGT	0x038
+#define PRCM_PER6CLK_MGT	0x03C
+#define PRCM_PER7CLK_MGT	0x040
+#define PRCM_LCDCLK_MGT		0x044
+#define PRCM_BMLCLK_MGT		0x04C
+#define PRCM_HSITXCLK_MGT	0x050
+#define PRCM_HSIRXCLK_MGT	0x054
+#define PRCM_HDMICLK_MGT	0x058
+#define PRCM_APEATCLK_MGT	0x05C
+#define PRCM_APETRACECLK_MGT	0x060
+#define PRCM_MCDECLK_MGT	0x064
+#define PRCM_IPI2CCLK_MGT	0x068
+#define PRCM_DSIALTCLK_MGT	0x06C
+#define PRCM_DMACLK_MGT		0x074
+#define PRCM_B2R2CLK_MGT	0x078
+#define PRCM_TVCLK_MGT		0x07C
+#define PRCM_UNIPROCLK_MGT	0x278
+#define PRCM_SSPCLK_MGT		0x280
+#define PRCM_RNGCLK_MGT		0x284
+#define PRCM_UICCCLK_MGT	0x27C
+
+#define PRCM_MGT_ENABLE		(1 << 8)
 
 static DEFINE_SPINLOCK(clocks_lock);
 
@@ -41,9 +86,6 @@ static void __clk_enable(struct clk *clk)
 int clk_enable(struct clk *clk)
 {
 	unsigned long flags;
-
-	if (!clk || IS_ERR(clk))
-		return -EINVAL;
 
 	spin_lock_irqsave(&clocks_lock, flags);
 	__clk_enable(clk);
@@ -70,9 +112,6 @@ static void __clk_disable(struct clk *clk)
 void clk_disable(struct clk *clk)
 {
 	unsigned long flags;
-
-	if (!clk || IS_ERR(clk))
-		return;
 
 	WARN_ON(!clk->enabled);
 
@@ -101,38 +140,51 @@ unsigned long clk_get_rate(struct clk *clk)
 }
 EXPORT_SYMBOL(clk_get_rate);
 
+long clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	/* TODO */
+	return rate;
+}
+EXPORT_SYMBOL(clk_round_rate);
+
+int clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	clk->rate = rate;
+	return 0;
+}
+EXPORT_SYMBOL(clk_set_rate);
+
 static void clk_prcmu_enable(struct clk *clk)
 {
-	void __iomem *cg_set_reg = (void __iomem *)PRCM_YYCLKEN0_MGT_SET
-				   + clk->prcmu_cg_off;
+	void __iomem *cg_set_reg = __io_address(U8500_PRCMU_BASE)
+				   + PRCM_YYCLKEN0_MGT_SET + clk->prcmu_cg_off;
 
 	writel(1 << clk->prcmu_cg_bit, cg_set_reg);
 }
 
 static void clk_prcmu_disable(struct clk *clk)
 {
-	void __iomem *cg_clr_reg = (void __iomem *)PRCM_YYCLKEN0_MGT_CLR
-				    + clk->prcmu_cg_off;
+	void __iomem *cg_clr_reg = __io_address(U8500_PRCMU_BASE)
+				   + PRCM_YYCLKEN0_MGT_CLR + clk->prcmu_cg_off;
 
 	writel(1 << clk->prcmu_cg_bit, cg_clr_reg);
 }
 
 /* ED doesn't have the combined set/clr registers */
-
 static void clk_prcmu_ed_enable(struct clk *clk)
 {
-	unsigned int val = readl(clk->prcmu_cg_mgt);
+	void __iomem *addr = __io_address(U8500_PRCMU_BASE)
+			     + clk->prcmu_cg_mgt;
 
-	val |= 1 << 8;
-	writel(val, clk->prcmu_cg_mgt);
+	writel(readl(addr) | PRCM_MGT_ENABLE, addr);
 }
 
 static void clk_prcmu_ed_disable(struct clk *clk)
 {
-	unsigned int val = readl(clk->prcmu_cg_mgt);
+	void __iomem *addr = __io_address(U8500_PRCMU_BASE)
+			     + clk->prcmu_cg_mgt;
 
-	val &= ~(1 << 8);
-	writel(val, clk->prcmu_cg_mgt);
+	writel(readl(addr) & ~PRCM_MGT_ENABLE, addr);
 }
 
 static struct clkops clk_prcmu_ops = {
@@ -140,22 +192,35 @@ static struct clkops clk_prcmu_ops = {
 	.disable = clk_prcmu_disable,
 };
 
+static unsigned int clkrst_base[] = {
+	[1] = U8500_CLKRST1_BASE,
+	[2] = U8500_CLKRST2_BASE,
+	[3] = U8500_CLKRST3_BASE,
+	[5] = U8500_CLKRST5_BASE,
+	[6] = U8500_CLKRST6_BASE,
+	[7] = U8500_CLKRST7_BASE_ED,
+};
+
 static void clk_prcc_enable(struct clk *clk)
 {
+	void __iomem *addr = __io_address(clkrst_base[clk->cluster]);
+
 	if (clk->prcc_kernel != -1)
-		writel(1 << (clk->prcc_kernel), clk->prcc_base + 0x8);
+		writel(1 << clk->prcc_kernel, addr + PRCC_KCKEN);
 
 	if (clk->prcc_bus != -1)
-		writel(1 << (clk->prcc_bus), clk->prcc_base + 0x0);
+		writel(1 << clk->prcc_bus, addr + PRCC_PCKEN);
 }
 
 static void clk_prcc_disable(struct clk *clk)
 {
+	void __iomem *addr = __io_address(clkrst_base[clk->cluster]);
+
 	if (clk->prcc_bus != -1)
-		writel(1 << (clk->prcc_bus), clk->prcc_base + 0x4);
+		writel(1 << clk->prcc_bus, addr + PRCC_PCKDIS);
 
 	if (clk->prcc_kernel != -1)
-		writel(1 << (clk->prcc_kernel), clk->prcc_base + 0xc);
+		writel(1 << clk->prcc_kernel, addr + PRCC_KCKDIS);
 }
 
 static struct clkops clk_prcc_ops = {
@@ -572,7 +637,8 @@ int __init clk_init(void)
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
 	} else if (cpu_is_u8500v1()) {
-		void __iomem *sdmmclkmgt = (void __iomem *) PRCM_SDMMCCLK_MGT;
+		void __iomem *sdmmclkmgt = __io_address(U8500_PRCMU_BASE)
+					   + PRCM_SDMMCCLK_MGT;
 		unsigned int val;
 
 		/* Switch SDMMCCLK to 52Mhz instead of 104Mhz */
