@@ -78,6 +78,13 @@
 ENTRY(stext)
 #if (defined(CONFIG_MACH_U8500_SIMULATOR) || defined(CONFIG_MACH_U5500_SIMULATOR))
 #ifdef CONFIG_DEBUG_LL
+#ifdef CONFIG_MACH_U8500_SIMULATOR
+	/* Enable UART2 */
+	ldr     r5, =0x80007030		@ UART2 CR
+	ldr     r6, =0x00000101		@ TXE, UARTEN
+	str     r6, [r5]
+#endif
+
 #ifdef CONFIG_MACH_U5500_SIMULATOR
 /* Enable GPIOs for UART0 */
 	ldr     r5, =0xA002E020		@ Block0 GPIO_AFSA
