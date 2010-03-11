@@ -499,10 +499,10 @@ static const char *u8500_boot_clk[] = {
 	"uart0",
 	"uart1",
 	"uart2",
-	"gpio0",
-	"gpio1",
-	"gpio2",
-	"gpio3",
+	"gpioblock0",
+	"gpioblock1",
+	"gpioblock2",
+	"gpioblock3",
 	"mtu0",
 	"mtu1",
 	"ssp0",
@@ -514,12 +514,11 @@ static const char *u8500_boot_clk[] = {
 	"msp0",
 	"msp1",
 	"msp2",
-	"msp3",
-	"i2c0",
-	"i2c1",
-	"i2c2",
-	"i2c3",
-	"i2c4"
+	"STM-I2C.0",
+	"STM-I2C.1",
+	"STM-I2C.2",
+	"STM-I2C.3",
+	"STM-I2C.4",
 };
 
 struct clk *boot_clks[ARRAY_SIZE(u8500_boot_clk)];
