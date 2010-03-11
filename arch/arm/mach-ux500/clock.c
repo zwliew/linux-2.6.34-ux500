@@ -526,13 +526,19 @@ struct clk *boot_clks[ARRAY_SIZE(u8500_boot_clk)];
 /* we disable a majority of peripherals enabled by default
  * but without drivers
  */
-static void __init u8500_boot_clk_disable(void)
+static int __init u8500_boot_clk_disable(void)
 {
 	int i = 0;
+
 	for (i = 0; i < ARRAY_SIZE(u8500_boot_clk); i++) {
+		if (!boot_clks[i])
+			continue;
+
 		clk_disable(boot_clks[i]);
 		clk_put(boot_clks[i]);
 	}
+
+	return 0;
 }
 late_initcall_sync(u8500_boot_clk_disable);
 
