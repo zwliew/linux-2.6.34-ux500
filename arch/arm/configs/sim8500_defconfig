@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.29-gcov
-# Wed Mar 10 11:25:16 2010
+# Thu Mar 11 09:03:29 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -294,7 +294,7 @@ CONFIG_ALIGNMENT_TRAP=y
 #
 CONFIG_ZBOOT_ROM_TEXT=0
 CONFIG_ZBOOT_ROM_BSS=0
-CONFIG_CMDLINE="cachepolicy=writealloc root=/dev/ram0 init=init  rw console=ttyAMA2,115200n8 mem=256M initrd=0x800000,60M"
+CONFIG_CMDLINE="cachepolicy=writealloc root=/dev/ram0 init=init  rw console=ttyAMA2,115200n8 mem=256M initrd=0x800000,60M earlyprintk"
 # CONFIG_XIP_KERNEL is not set
 # CONFIG_KEXEC is not set
 
@@ -1043,7 +1043,10 @@ CONFIG_HAVE_ARCH_KGDB=y
 CONFIG_DEBUG_USER=y
 CONFIG_DEBUG_ERRORS=y
 # CONFIG_DEBUG_STACK_USAGE is not set
-# CONFIG_DEBUG_LL is not set
+CONFIG_DEBUG_LL=y
+CONFIG_EARLY_PRINTK=y
+# CONFIG_PRINTK_LL is not set
+# CONFIG_DEBUG_ICEDCC is not set
 
 #
 # Security options

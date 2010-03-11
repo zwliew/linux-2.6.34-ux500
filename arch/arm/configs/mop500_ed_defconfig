@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.29-gcov
-# Wed Mar 10 11:25:08 2010
+# Thu Mar 11 09:02:40 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1371,7 +1371,10 @@ CONFIG_HAVE_ARCH_KGDB=y
 CONFIG_DEBUG_USER=y
 CONFIG_DEBUG_ERRORS=y
 # CONFIG_DEBUG_STACK_USAGE is not set
-# CONFIG_DEBUG_LL is not set
+CONFIG_DEBUG_LL=y
+CONFIG_EARLY_PRINTK=y
+# CONFIG_PRINTK_LL is not set
+# CONFIG_DEBUG_ICEDCC is not set
 
 #
 # Security options
