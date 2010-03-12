@@ -35,7 +35,6 @@
 #include <mach/mmc.h>
 #include <mach/setup.h>
 #include <mach/i2c.h>
-
 #include <mach/u8500_tsc.h>
 
 #define IRQ_KP 1 /*To DO*/
