@@ -15,6 +15,7 @@
 #include <linux/i2s/i2s.h>
 #include <linux/gpio.h>
 #include <linux/input.h>
+#include <linux/i2c/lp5521.h>
 #include <linux/power_supply.h>
 
 #include <asm/mach/arch.h>
@@ -137,6 +138,14 @@ static struct stmpe1601_platform_data stmpe1601_data = {
 static struct tc35892_platform_data tc35892_data = {
 	.gpio_base = U8500_NR_GPIO,
 	.irq    = GPIO_TO_IRQ(217),
+};
+
+static struct lp5521_platform_data lp5521_data = {
+	.mode           = LP5521_MODE_DIRECT_CONTROL,
+	.label          = "uib-led",
+	.red_present    = true,
+	.green_present  = true,
+	.blue_present   = true,
 };
 
 static struct i2c_board_info __initdata nmdk_i2c0_egpio_devices[] = {
@@ -428,7 +437,8 @@ static struct i2c_board_info __initdata u8500_i2c2_devices[] = {
 	},
 	{
 	 /* RGB LED driver, there are 1st and 2nd, TODO */
-	 I2C_BOARD_INFO("lp5521tmx", 0x33),
+	 I2C_BOARD_INFO("lp5521", 0x33),
+	 .platform_data = &lp5521_data,
 	}
 };
 
