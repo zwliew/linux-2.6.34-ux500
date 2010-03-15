@@ -192,6 +192,9 @@ int ab8500_set_callback_handler(int int_no, void *callback_handler,
 				 void *data)
 {
 	unsigned long flags;
+	struct client_callbacks *client_callback;
+	struct client_callbacks *cur_list_ptr = NULL ;
+	int count = 0;
 
 	/* TODO: Need to remove this once the clients start
 	 * registering to the ab8500 core driver
@@ -203,10 +206,21 @@ int ab8500_set_callback_handler(int int_no, void *callback_handler,
 		printk(KERN_ERR "invalid interrupt id\n");
 		return -1;
 	}
+
+	client_callback = kzalloc(sizeof(struct client_callbacks), GFP_KERNEL);
+	if (!client_callback) {
+		printk(KERN_INFO "\nUnable to allocate client_callbacks\n");
+		kfree(client_callback);
+		return -1;
+	}
+
 	spin_lock_irqsave(&ab8500->ab8500_cfg_lock, flags);
-	(ab8500->c_callback[int_no]).callback = callback_handler;
-	(ab8500->c_callback[int_no]).data = data;
+	client_callback->callback = callback_handler;
+	client_callback->data = data;
+	list_add_tail(&(client_callback->client_list),
+			&(ab8500->c_callback[int_no]).client_list);
 	spin_unlock_irqrestore(&ab8500->ab8500_cfg_lock, flags);
+
 	return 0;
 }
 EXPORT_SYMBOL(ab8500_set_callback_handler);
@@ -218,9 +232,12 @@ EXPORT_SYMBOL(ab8500_set_callback_handler);
  * This funtion removes the client's callback handler in the bit map
  * array. This funtion return 0 on success or -1 on failure
  */
-int ab8500_remove_callback_handler(int int_no)
+int ab8500_remove_callback_handler(int int_no, void *callback_handler)
 {
 	unsigned long flags;
+	struct list_head *cur_list_ptr = NULL;
+	struct list_head *q = NULL;
+	struct client_callbacks *cur_ptr = NULL;
 
 	/* TODO: Need to remove this once the clients start
 	 * registering to the ab8500 core driver
@@ -233,9 +250,16 @@ int ab8500_remove_callback_handler(int int_no)
 		return -1;
 	}
 	spin_lock_irqsave(&ab8500->ab8500_cfg_lock, flags);
-	(ab8500->c_callback[int_no]).callback = NULL;
-	(ab8500->c_callback[int_no]).data = 0;
-	 /*TODO*/
+	list_for_each_safe(cur_list_ptr, q,
+			&(ab8500->c_callback[int_no]).client_list) {
+		cur_ptr = list_entry(cur_list_ptr, \
+				struct client_callbacks, \
+				client_list);
+		if (cur_ptr->callback == callback_handler) {
+			list_del(cur_list_ptr);
+			kfree(cur_ptr);
+		}
+	}
 	spin_unlock_irqrestore(&ab8500->ab8500_cfg_lock, flags);
 	return 0;
 }
@@ -325,6 +349,7 @@ static void ab8500_work(struct work_struct *work)
 {
 	int bit, i, count = 0;
 	unsigned long intl;
+	struct client_callbacks *cur_list_ptr = NULL;
 
 	/* read the latch interrupt registers */
 	for (i = 0; i < ARRAY_SIZE(l_regs); i++) {
@@ -337,11 +362,12 @@ static void ab8500_work(struct work_struct *work)
 		bit = find_first_bit(&intl, 8);
 
 		while (bit < 8) {
-			if ((ab8500->c_callback[bit + count]).
-			    callback)
-				(ab8500->c_callback[bit + count]).
-				    callback((ab8500->
-					      c_callback[bit + count]).data);
+			list_for_each_entry(cur_list_ptr,
+					&(ab8500->c_callback[bit + count]).
+					client_list, client_list)
+				cur_list_ptr->callback(
+						cur_list_ptr->data);
+
 			if ((ab8500->c_signals[bit + count]).signal)
 				kill_pid((ab8500->c_signals[bit + count]).
 					  pid, (ab8500->c_signals[bit + count]).
@@ -641,6 +667,10 @@ static int __init ab8500_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "error in interface init\n");
 		goto err_interface;
 	}
+
+	/* Set up the linked list head for each client callbacks */
+	for (i = 0; i < 184; i++)
+		INIT_LIST_HEAD(&(ab8500->c_callback[i]).client_list);
 
 	/* read the revision register */
 	ab8500->revision = ab8500_read(AB8500_MISC, AB8500_REV_REG);

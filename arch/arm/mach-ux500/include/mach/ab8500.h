@@ -518,6 +518,7 @@ struct ab8500_device	{
  * callback
  */
 struct client_callbacks	{
+	struct list_head	client_list;
 	void	(*callback)(void *data);
 	void	*data;
 };
@@ -578,7 +579,7 @@ int ab8500_get_version(void);
 int ab8500_write(u8 block, u32 adr, u8 data);
 int ab8500_read(u8 block, u32 adr);
 int ab8500_set_callback_handler(int int_no, void *callback_handler, void *data);
-int ab8500_remove_callback_handler(int int_no);
+int ab8500_remove_callback_handler(int int_no, void *callback_handler);
 void ab8500_int_mask(int int_no);
 void ab8500_int_unmask(int int_no);
 int ab8500_set_signal_handler(int int_no, int sig_no);
