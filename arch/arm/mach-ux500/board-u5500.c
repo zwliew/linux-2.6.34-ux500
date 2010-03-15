@@ -27,6 +27,50 @@ int platform_id;
 #endif
 
 /*
+ * GPIO
+ */
+
+static struct gpio_altfun_data gpio_altfun_table[] = {
+	__GPIO_ALT(GPIO_ALT_I2C_4, 4, 5, 0, GPIO_ALTF_B, "i2c4"),
+	__GPIO_ALT(GPIO_ALT_I2C_1, 16, 17, 0, GPIO_ALTF_B, "i2c1"),
+	__GPIO_ALT(GPIO_ALT_I2C_2, 8, 9, 0, GPIO_ALTF_B, "i2c2"),
+	__GPIO_ALT(GPIO_ALT_I2C_0, 147, 148, 0, GPIO_ALTF_A, "i2c0"),
+	__GPIO_ALT(GPIO_ALT_I2C_3, 229, 230, 0, GPIO_ALTF_C, "i2c3"),
+	__GPIO_ALT(GPIO_ALT_UART_2, 177, 180, 0, GPIO_ALTF_A, "uart2"),
+	__GPIO_ALT(GPIO_ALT_SSP_0, 143, 146, 0, GPIO_ALTF_A, "ssp0"),
+	__GPIO_ALT(GPIO_ALT_SSP_1, 139, 142, 0, GPIO_ALTF_A, "ssp1"),
+	__GPIO_ALT(GPIO_ALT_USB_OTG, 256, 267, 0, GPIO_ALTF_A, "usb"),
+	__GPIO_ALT(GPIO_ALT_UART_1, 200, 203, 0, GPIO_ALTF_A, "uart1"),
+	__GPIO_ALT(GPIO_ALT_UART_0_NO_MODEM, 28, 29, 0, GPIO_ALTF_A, "uart0"),
+	__GPIO_ALT(GPIO_ALT_MSP_0, 12, 15, 0, GPIO_ALTF_A, "msp0"),
+	__GPIO_ALT(GPIO_ALT_MSP_1, 33, 36, 0, GPIO_ALTF_A, "msp1"),
+	__GPIO_ALT(GPIO_ALT_MSP_2, 192, 196, 0, GPIO_ALTF_A, "msp2"),
+	__GPIO_ALT(GPIO_ALT_HSIR, 219, 221, 0, GPIO_ALTF_A, "hsir"),
+	__GPIO_ALT(GPIO_ALT_HSIT, 222, 224, 0, GPIO_ALTF_A, "hsit"),
+	__GPIO_ALT(GPIO_ALT_EMMC, 197, 207, 0, GPIO_ALTF_A, "emmc"),
+	__GPIO_ALT(GPIO_ALT_SDMMC, 18, 28, 0, GPIO_ALTF_A, "sdmmc"),
+	__GPIO_ALT(GPIO_ALT_SDIO, 208, 214, 0, GPIO_ALTF_A, "sdio"),
+	__GPIO_ALT(GPIO_ALT_TRACE, 70, 74, 0, GPIO_ALTF_C, "stm"),
+	__GPIO_ALT(GPIO_ALT_SDMMC2, 128, 138, 0, GPIO_ALTF_A, "mmc2"),
+#ifndef CONFIG_FB_NOMADIK_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB_ED, 78, 85, 1, GPIO_ALTF_A, "mcde tvout"),
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB_ED, 150, 150, 0, GPIO_ALTF_B, "mcde tvout"),
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 78, 81, 1, GPIO_ALTF_A, "mcde tvout"),
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 150, 150, 0, GPIO_ALTF_B, "mcde tvout"),
+#else
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 153, 171, 1, GPIO_ALTF_B, "mcde tvout"),
+	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 64, 77, 0, GPIO_ALTF_A, "mcde tvout"),
+#endif
+	__GPIO_ALT(GPIO_ALT_LCD_PANELA, 68, 68, 0, GPIO_ALTF_A, "mcde tvout"),
+	__GPIO_ALT(GPIO_ALT_MMIO_INIT_BOARD, 141, 142, 0, GPIO_ALTF_B, "mmio"),
+	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, GPIO_ALTF_A, "mmio"),
+	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_EXT_CLK, 227, 228, 0, GPIO_ALTF_A, "mmio"),
+#ifdef CONFIG_TOUCHP_EXT_CLK
+	__GPIO_ALT(GPIO_ALT_TP_SET_EXT_CLK, 228, 228, 0, GPIO_ALTF_A, "u8500_tp1"),
+#endif
+};
+
+/*
  * I2C
  */
 
@@ -95,6 +139,9 @@ static struct amba_device *amba_board_devs[] __initdata = {
 
 static void __init u5500_init_machine(void)
 {
+	stm_gpio_set_altfunctable(gpio_altfun_table,
+				  ARRAY_SIZE(gpio_altfun_table));
+
 	u5500_init_devices();
 
 	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));

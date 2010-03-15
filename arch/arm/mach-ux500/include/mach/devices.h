@@ -15,16 +15,8 @@ struct amba_device;
 void __init u8500_register_device(struct platform_device *dev, void *data);
 void __init u8500_register_amba_device(struct amba_device *dev, void *data);
 
-extern struct amba_device u5500_gpio0_device;
-extern struct amba_device u5500_gpio1_device;
-extern struct amba_device u5500_gpio2_device;
-extern struct amba_device u5500_gpio3_device;
-extern struct amba_device u5500_gpio4_device;
-
-extern struct amba_device u8500_gpio0_device;
-extern struct amba_device u8500_gpio1_device;
-extern struct amba_device u8500_gpio2_device;
-extern struct amba_device u8500_gpio3_device;
+extern struct platform_device u8500_gpio_devs[];
+extern struct platform_device u5500_gpio_devs[];
 
 extern struct platform_device u8500_msp0_device;
 extern struct platform_device u8500_msp1_device;

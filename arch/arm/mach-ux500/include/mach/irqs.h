@@ -90,11 +90,13 @@
 #define U8500_SOC_NR_IRQS	161
 
 /* After chip-specific IRQ numbers we have the GPIO ones */
-#define U8500_NR_GPIO		268
+#define U8500_NR_GPIO		288
 #define GPIO_TO_IRQ(gpio)	(gpio + U8500_SOC_NR_IRQS)
 #define IRQ_TO_GPIO(irq)	(irq - U8500_SOC_NR_IRQS)
 
 #define NR_IRQS			GPIO_TO_IRQ(U8500_NR_GPIO)
 
+#define NOMADIK_GPIO_TO_IRQ	GPIO_TO_IRQ
+#define NOMADIK_IRQ_TO_GPIO	IRQ_TO_GPIO
 
 #endif /* ASM_ARCH_IRQS_H */

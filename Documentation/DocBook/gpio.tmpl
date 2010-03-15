@@ -7,8 +7,8 @@
   <title>API Documentation for GPIO controller driver</title>
 
   <copyright>
-   <year>2008-2009</year>
-   <holder>STMicroelectronics Pvt Ltd</holder>
+   <year>2008-2010</year>
+   <holder>ST-Ericsson SA</holder>
   </copyright>
 
   <legalnotice>
@@ -35,21 +35,21 @@
     <para>
 	This Documentation describes the API's provided by the GPIO controller Driver.
     </para>
-  </chapter>
-
-  <chapter id="structures">
-    <title> GPIO structures </title>
     <para>
-	This Section lists the structures provided by the GPIO controller driver.
+	Only the API specific to the Ux500 platform is listed here.  For the generic GPIO
+	API, see <filename>Documentation/gpio.txt</filename> in the kernel source tree.
     </para>
-!Iinclude/asm-generic/gpio.h
   </chapter>
 
-  <chapter id="interface">
+  <chapter id="pubfunctions">
     <title> Public Interface </title>
     <para>
 	This Section lists the API's provided by the GPIO controller driver to client drivers.
     </para>
-!Idrivers/gpio/stm_gpio.c
+    <para>
+	Only the API specific to the Ux500 platform is listed here.  For the generic GPIO
+	API, see <filename>Documentation/gpio.txt</filename> in the kernel source tree.
+    </para>
+!Earch/arm/plat-nomadik/gpio.c
   </chapter>
 </book>

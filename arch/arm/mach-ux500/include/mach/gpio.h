@@ -1,43 +1,29 @@
-/*----------------------------------------------------------------------------------*/
-/*  copyright STMicroelectronics, 2007.                                            */
-/*                                                                                  */
-/* This program is free software; you can redistribute it and/or modify it under    */
-/* the terms of the GNU General Public License as published by the Free	            */
-/* Software Foundation; either version 2.1 of the License, or (at your option)      */
-/* any later version.                                                               */
-/*                                                                                  */
-/* This program is distributed in the hope that it will be useful, but WITHOUT      */
-/* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    */
-/* FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.   */
-/*                                                                                  */
-/* You should have received a copy of the GNU General Public License                */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.             */
-/*----------------------------------------------------------------------------------*/
+/*
+ *  Copyright (C) 2007 ST Microelectronics
+ *  Copyright (C) 2010 ST-Ericsson
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
 #ifndef __MACH_GPIO_H
 #define __MACH_GPIO_H
 
-#ifndef __LINUX_GPIO_H
-#error "Do not include this file directly, include <linux/gpio.h> instead."
-#endif
+/*
+ * 288 (#267 is the highest one actually hooked up) onchip GPIOs, plus enough
+ * room for a couple of GPIO expanders.
+ */
+#define ARCH_NR_GPIOS       350
 
-#define ARCH_NR_GPIOS       309 /* 292+17 for STMPE1601*/
+#include <plat/gpio.h>
 
 /* Used by test applications */
 #define GPIO_TOTAL_PINS		267
 
 #include <mach/hardware.h>
-#include <asm-generic/gpio.h>
 #include <mach/irqs.h>
 
-/*
- * Macro to decorate plain GPIO numbers
- */
-#define GPIO(x)				(x)
-#define stm_get_gpio_base(base, offset) base
-
-/*
- * Standard GPIOLIB APIs (additional APIs in include/asm-generic/gpio.h)
- */
 static inline int gpio_to_irq(unsigned int gpio)
 {
 	if (gpio_is_valid(gpio))
@@ -54,28 +40,9 @@ static inline int irq_to_gpio(unsigned int irq)
 		return -EINVAL;
 }
 
-static inline int gpio_get_value(unsigned int gpio)
-{
-	return __gpio_get_value(gpio);
-}
-
-static inline void gpio_set_value(unsigned int gpio, int value)
-{
-	__gpio_set_value(gpio, value);
-}
-
-/*
- * Special values for gpio_set_value() to enable platform-specific
- * GPIO configurations, in addition to named values for 0 and 1
- */
-#define GPIO_LOW		0
-#define GPIO_HIGH		1
-#define GPIO_PULLUP_DIS 0xA
-#define GPIO_PULLUP_EN  0xB
-#define GPIO_ALTF_A		0xAFA	/* Alternate function A    */
-#define GPIO_ALTF_B		0xAFB	/* Alternate function B    */
-#define GPIO_ALTF_C		0xAFC	/* Alternate function C    */
-#define GPIO_RESET		0xAFD	/* Input with pull-up/down */
+#define GPIO_ALTF_A	NMK_GPIO_ALT_A
+#define GPIO_ALTF_B	NMK_GPIO_ALT_B
+#define GPIO_ALTF_C	NMK_GPIO_ALT_C
 
 /*
  * Alternate Function:
@@ -146,15 +113,7 @@ typedef enum {
 	GPIO_ALT_SDMMC2,
 	GPIO_ALT_TP_SET_EXT_CLK,
 	GPIO_ALT_FUNMAX		/* Add new alt func before this */
-
-
 } gpio_alt_function;
-
-/* GPIO pin data*/
-typedef enum {
-	GPIO_DATA_LOW,		/* GPIO pin status is low. */
-	GPIO_DATA_HIGH		/* GPIO pin status is high. */
-} gpio_data;
 
 struct gpio_altfun_data {
 	gpio_alt_function altfun;
@@ -165,25 +124,55 @@ struct gpio_altfun_data {
 	char dev_name[20];
 };
 
-struct clk;
-struct gpio_platform_data {
-	struct gpio_block_data *gpio_data;
-	int gpio_block_size;
-	struct gpio_altfun_data *altfun_table;
-	int altfun_table_size;
-	struct clk *clk; /* FIXME put this somewhere more appropriate */
-};
-
-struct gpio_block_data {
-	u32 block_base;
-	u32 block_size;
-	u32 base_offset;
-	int blocks_per_irq;
-	int irq;
-};
-
 extern int stm_gpio_set_altfunctable(struct gpio_altfun_data *table, int size);
 extern int stm_gpio_altfuncenable(gpio_alt_function alt_func);
 extern int stm_gpio_altfuncdisable(gpio_alt_function alt_func);
 
-#endif				/* __INC_GPIO_H */
+#define __GPIO_ALT(_fun, _start, _end, _cont, _type, _name) {	\
+	.altfun = _fun,		\
+	.start = _start,	\
+	.end = _end,		\
+	.cont = _cont,		\
+	.type = _type,		\
+	.dev_name = _name }
+
+#define __GPIO_RESOURCE(soc, block)					\
+	{								\
+		.start	= soc##_GPIOBANK##block##_BASE,			\
+		.end	= soc##_GPIOBANK##block##_BASE + 127,		\
+		.flags	= IORESOURCE_MEM,				\
+	},								\
+	{								\
+		.start	= IRQ_GPIO##block,				\
+		.end	= IRQ_GPIO##block,				\
+		.flags	= IORESOURCE_IRQ,				\
+	}
+
+#define __GPIO_DEVICE(soc, block)					\
+	{								\
+		.name 		= "gpio",				\
+		.id		= block,				\
+		.num_resources 	= 2,					\
+		.resource	= &soc##_gpio_resources[block * 2],	\
+		.dev = {						\
+			.platform_data = &soc##_gpio_data[block],	\
+		},							\
+	}
+
+#define GPIO_DATA(_name, first, num)					\
+	{								\
+		.name 		= _name,				\
+		.first_gpio 	= first,				\
+		.first_irq 	= NOMADIK_GPIO_TO_IRQ(first),		\
+		.num_gpio	= num,					\
+	}
+
+#ifdef CONFIG_UX500_SOC_DB8500
+#define GPIO_RESOURCE(block)	__GPIO_RESOURCE(U8500, block)
+#define GPIO_DEVICE(block)	__GPIO_DEVICE(u8500, block)
+#elif defined(CONFIG_UX500_SOC_DB5500)
+#define GPIO_RESOURCE(block)	__GPIO_RESOURCE(U5500, block)
+#define GPIO_DEVICE(block)	__GPIO_DEVICE(u5500, block)
+#endif
+
+#endif	/* __MACH_GPIO_H */

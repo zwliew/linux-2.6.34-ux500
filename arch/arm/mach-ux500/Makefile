@@ -3,7 +3,7 @@
 #
 #
 
-obj-y					:= clock.o timer.o timer-rtt.o
+obj-y					:= clock.o timer.o timer-rtt.o gpio.o
 obj-$(CONFIG_REGULATOR)			+= regulator.o
 obj-$(CONFIG_ARCH_U8500)		+= devices.o cpu.o
 obj-$(CONFIG_STM_DMA)			+= dma_40.o   #part1 no. of dma is 0x40

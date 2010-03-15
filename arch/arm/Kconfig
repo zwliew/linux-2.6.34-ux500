@@ -760,6 +760,7 @@ config ARCH_U8500
 	select HAVE_CLK
 	select ARCH_REQUIRE_GPIOLIB
 	select ARCH_HAS_CPUFREQ
+	select NOMADIK_GPIO
 	help
 	  Support for ST-Ericsson's Ux500 architecture
 

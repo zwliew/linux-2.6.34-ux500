@@ -24,12 +24,15 @@ static struct map_desc u5500_io_desc[] __initdata = {
 	__IO_DEV_DESC(U5500_GPIO4_BASE, SZ_4K),
 };
 
-static struct amba_device *u5500_amba_devs[] __initdata = {
-	&u5500_gpio0_device,
-	&u5500_gpio1_device,
-	&u5500_gpio2_device,
-	&u5500_gpio3_device,
-	&u5500_gpio4_device,
+static struct platform_device *u5500_platform_devs[] __initdata = {
+	&u5500_gpio_devs[0],
+	&u5500_gpio_devs[1],
+	&u5500_gpio_devs[2],
+	&u5500_gpio_devs[3],
+	&u5500_gpio_devs[4],
+	&u5500_gpio_devs[5],
+	&u5500_gpio_devs[6],
+	&u5500_gpio_devs[7],
 };
 
 void __init u5500_map_io(void)
@@ -43,5 +46,6 @@ void __init u5500_init_devices(void)
 {
 	ux500_init_devices();
 
-	amba_add_devices(u5500_amba_devs, ARRAY_SIZE(u5500_amba_devs));
+	platform_add_devices(u5500_platform_devs,
+			     ARRAY_SIZE(u5500_platform_devs));
 }

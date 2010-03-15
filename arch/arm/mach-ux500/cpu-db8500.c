@@ -36,11 +36,16 @@ static struct map_desc u8500_ed_io_desc[] __initdata = {
 	__IO_DEV_DESC(U8500_MTU1_BASE_ED, SZ_4K),
 };
 
-static struct amba_device *u8500_amba_devs[] __initdata = {
-	&u8500_gpio0_device,
-	&u8500_gpio1_device,
-	&u8500_gpio2_device,
-	&u8500_gpio3_device,
+static struct platform_device *u8500_platform_devs[] __initdata = {
+	&u8500_gpio_devs[0],
+	&u8500_gpio_devs[1],
+	&u8500_gpio_devs[2],
+	&u8500_gpio_devs[3],
+	&u8500_gpio_devs[4],
+	&u8500_gpio_devs[5],
+	&u8500_gpio_devs[6],
+	&u8500_gpio_devs[7],
+	&u8500_gpio_devs[8],
 };
 
 void __init u8500_map_io(void)
@@ -75,5 +80,6 @@ void __init u8500_init_devices(void)
 
 	ux500_init_devices();
 
-	amba_add_devices(u8500_amba_devs, ARRAY_SIZE(u8500_amba_devs));
+	platform_add_devices(u8500_platform_devs,
+			     ARRAY_SIZE(u8500_platform_devs));
 }
