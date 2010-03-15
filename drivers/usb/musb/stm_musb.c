@@ -427,7 +427,14 @@ int __init musb_platform_init(struct musb *musb)
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, AB8500_IT_MASK20_MASK);
 			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-			ab8500_set_callback_handler(AB8500_ID_WAKEUP, usb_host_detect_handler, NULL);
+			ret = ab8500_set_callback_handler(AB8500_ID_WAKEUP,
+					usb_host_detect_handler, NULL);
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set callback handler"
+						" for usb host detection\n");
+				return ret;
+			}
+
 		} else {
 		#ifndef CONFIG_USB_SERIAL
 			val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG);
@@ -438,8 +445,21 @@ int __init musb_platform_init(struct musb *musb)
 	#else
 		if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
 			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG, AB8500_IT_MASK2_MASK);
-			ab8500_set_callback_handler(AB8500_VBUS_RISING, usb_device_detect_handler, NULL);
-			ab8500_set_callback_handler(AB8500_VBUS_FALLING, usb_device_remove_handler, NULL);
+			ret = ab8500_set_callback_handler(AB8500_VBUS_RISING,
+					usb_device_detect_handler, NULL);
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set callback handler"
+						" for usb device detection\n");
+				return ret;
+			}
+			ret = ab8500_set_callback_handler(AB8500_VBUS_FALLING,
+					usb_device_remove_handler, NULL);
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set the callback"
+						" handler for usb device"
+						" removal\n");
+				return ret;
+			}
 		}
 	#endif
 

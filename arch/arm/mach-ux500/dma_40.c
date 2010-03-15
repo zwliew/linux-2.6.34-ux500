@@ -3219,6 +3219,9 @@ int stm_dma_residue(int pipe_id)
 			params = ((void *)
 				  (dma_drv_data->lchan_params_base.log_addr)
 				  + (info->src_dev_type * 32));
+		else
+			return remaining;
+
 		remaining =
 		    MEM_READ_BITS(params->dmac_lcsp2, MEM_LCSP2_ECNT_MASK,
 				  MEM_LCSP2_ECNT_POS);

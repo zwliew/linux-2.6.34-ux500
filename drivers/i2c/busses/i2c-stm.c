@@ -671,6 +671,7 @@ init_completion(&priv->xfer_complete);
 	{
 		stm_error("DMA mode not supported...\n");
 		status = -EINVAL;
+		break;
 	}
 	default:
 	{
@@ -764,6 +765,8 @@ static int stm_i2c_xfer(struct i2c_adapter *i2c_adap,
 
 	if (priv->clk)
 		clk_enable(priv->clk);
+	else
+		return -EINVAL;
 
 	if (reset_i2c_controller(priv))
 		return -1;

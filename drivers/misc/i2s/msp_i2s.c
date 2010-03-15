@@ -484,8 +484,7 @@ static int configure_multichannel(struct msp_struct *msp,
 	struct msp_protocol_desc *protocol_desc;
 	t_msp_multichannel_config *mult_config;
 	if (config->default_protocol_desc == 1) {
-		if ((config->protocol < 0)
-		    || (config->protocol >= MSP_INVALID_PROTOCOL)) {
+		if (config->protocol >= MSP_INVALID_PROTOCOL) {
 			printk(KERN_ERR
 			       "invalid protocol in configure_protocol()\n");
 			return -EINVAL;
@@ -1495,7 +1494,7 @@ static int stm_msp_disable(struct msp_struct *msp, int direction, i2s_flag flag)
 		stm_msp_write((stm_msp_read(msp->registers + MSP_GCR) &
 			       (~(FRAME_GEN_ENABLE | SRG_ENABLE))),
 			      msp->registers + MSP_GCR);
-		memset(&msp->xfer_data, sizeof(struct trans_data), 0);
+		memset(&msp->xfer_data, 0, sizeof(struct trans_data));
 		if (msp->plat_exit) {
 			status = msp->plat_exit(msp->gpio_alt_func);
 			if (status)

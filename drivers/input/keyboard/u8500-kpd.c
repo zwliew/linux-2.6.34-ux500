@@ -304,7 +304,9 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 		 KEYPAD_VER_X, KEYPAD_VER_Y, KEYPAD_VER_Z);
 	return 0;
 
+#if 0
 err_req_irq:
+#endif
 err_inp_reg:
 	/* unregistering device */
 	input_unregister_device(kp->inp_dev);

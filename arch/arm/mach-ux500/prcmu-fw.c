@@ -1394,9 +1394,6 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			printk(KERN_INFO "u8500-prcm : Woken from Sleep OK\n");
 
 		break;
-
-		printk(KERN_INFO "TODO: deep sleep \n");
-		break;
 	case APBOOT_TO_APEXECUTE:
 		break;
 	default:

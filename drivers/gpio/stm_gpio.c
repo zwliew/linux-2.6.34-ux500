@@ -429,6 +429,7 @@ static unsigned int gpio_irq_startup(unsigned int irq)
 	const char *owner_name;
 	struct stm_gpio *gpio_s = get_irq_chip_data(irq);
 	int offset = IRQ_TO_GPIO(irq) - gpio_s->chip.base;
+	int status = 0;
 
 	void __iomem *regs;
 	u32 mask = gpio_get_regs_and_mask(IRQ_TO_GPIO(irq), &regs);
@@ -447,7 +448,11 @@ static unsigned int gpio_irq_startup(unsigned int irq)
 	}
 
 	/* allocate GPIO line used for this IRQ */
-	gpio_request(IRQ_TO_GPIO(irq), "IRQ");
+	status = gpio_request(IRQ_TO_GPIO(irq), "IRQ");
+	if (status < 0) {
+		printk(KERN_ERR "failed to get the requested gpio\n");
+		return status;
+	}
 
 	/* pull-up/down off, input, software mode, interrupts masked */
 	writel(readl(regs + GPIO_AFSA) & ~mask, regs + GPIO_AFSA);

@@ -200,7 +200,8 @@ static int i2sdrv_probe(struct i2s_device *i2s)
 
 
 	/* Allocate driver data */
-	try_module_get(i2s->controller->dev.parent->driver->owner);
+	if (!try_module_get(i2s->controller->dev.parent->driver->owner))
+		return -ENOENT;
 	i2sdrv[i2s->chip_select] = kzalloc(sizeof(*i2sdrv[i2s->chip_select]), GFP_KERNEL);
 	if (!i2sdrv[i2s->chip_select])
 		return -ENOMEM;
