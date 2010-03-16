@@ -1,0 +1,24 @@
+########################################################################
+# ST-Ericsson Connectivity Chip Patch Information File
+#
+# All patch information must be stored as follows
+#
+# HCI_revision	LMP_Subversion	File_name (without .org extension)
+#
+########################################################################
+#
+#
+#################
+#
+# Patch file for ST Microelectronics - STLC2690
+#
+0x0603	0x0014	STLC2690_R6_03_A1_E5.fw
+0x0604	0x001D	STLC2690_R6_04_A2.fw
+#
+#################
+#
+# Patch file for ST-Ericsson - CG2900
+#
+0x0700	0x0011	STLC2690_R7_00_A1_E5.fw
+#
+#################

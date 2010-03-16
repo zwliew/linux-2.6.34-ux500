@@ -137,6 +137,10 @@ fw-shipped-$(CONFIG_USB_SERIAL_XIRCOM) += keyspan_pda/xircom_pgs.fw
 fw-shipped-$(CONFIG_USB_VICAM) += vicam/firmware.fw
 fw-shipped-$(CONFIG_VIDEO_CPIA2) += cpia2/stv0672_vp4.bin
 fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
+fw-shipped-$(CONFIG_MFD_STE_CONN) += ste_conn_patch_info.fw ste_conn_settings_info.fw \
+					STLC2600_R6_03_01.fw STLC2690_R6_03_A1_E5.fw \
+					STLC2600_R6_04_02.fw STLC2690_R6_04_A2.fw \
+					STLC2600_R7_00_01.fw STLC2690_R7_00_A1_E5.fw
 
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 
@@ -148,6 +152,9 @@ quiet_cmd_mkdir = MKDIR   $(patsubst $(objtree)/%,%,$@)
 
 quiet_cmd_ihex  = IHEX    $@
       cmd_ihex  = $(OBJCOPY) -Iihex -Obinary $< $@
+
+quiet_cmd_copy  = COPY    $@
+	cmd_copy  = cp $< $@
 
 quiet_cmd_ihex2fw  = IHEX2FW $@
       cmd_ihex2fw  = $(objtree)/$(obj)/ihex2fw $< $@
@@ -211,6 +218,9 @@ $(patsubst %,$(obj)/%.gen.o, $(fw-external-y)): $(obj)/%.gen.o: $(fwdir)/%
 # where binaries are frowned upon. They are directly converted with objcopy.
 $(obj)/%: $(obj)/%.ihex | $(objtree)/$(obj)/$$(dir %)
 	$(call cmd,ihex)
+
+$(obj)/%: $(obj)/%.org | $(objtree)/$(obj)/$$(dir %)
+	$(call cmd,copy)
 
 # Don't depend on ihex2fw if we're installing and it already exists.
 # Putting it after | in the dependencies doesn't seem sufficient when

@@ -22,6 +22,12 @@ obj-$(CONFIG_U8500_CPUIDLE) += cpuidle.o
 obj-$(CONFIG_U8500_CPUFREQ) += cpufreq.o
 obj-$(CONFIG_PM)            += pm.o
 
+ifeq ($(CONFIG_MFD_STE_CONN), m)
+obj-y					+= ste_conn_devices.o
+else
+obj-$(CONFIG_MFD_STE_CONN)		+= ste_conn_devices.o
+endif
+
 PDEV_HEADER = arch/arm/mach-u8500/include/mach/board_devices.h
 
 $(TOPDIR)/$(PDEV_HEADER):
