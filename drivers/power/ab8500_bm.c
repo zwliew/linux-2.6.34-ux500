@@ -601,52 +601,61 @@ static int ab8500_bm_register_handler(int set, void *_di)
 	/* Unregister irq_no and callback handler */
 	else {
 		/* remove callback handlers  - main charger not OK */
-		ret = ab8500_remove_callback_handler(MAIN_EXT_CH_NOT_OK);
+		ret = ab8500_remove_callback_handler(MAIN_EXT_CH_NOT_OK,
+				ab8500_bm_mainextchnotok_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-main charger not ok\n");
 		/* remove callback handlers  - battery overvoltage detected */
-		ret = ab8500_remove_callback_handler(BATT_OVV);
+		ret = ab8500_remove_callback_handler(BATT_OVV,
+				ab8500_bm_battovv_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-battery over voltage detected\n");
 		/* remove callback handlers  - main charge unplug detected */
-		ret = ab8500_remove_callback_handler(MAIN_CH_UNPLUG_DET);
+		ret = ab8500_remove_callback_handler(MAIN_CH_UNPLUG_DET,
+				ab8500_bm_mainchunplugdet_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-main charge unplug detected\n");
 		/* remove callback handlers  - main charge plug detected */
-		ret = ab8500_remove_callback_handler(MAIN_CH_PLUG_DET);
+		ret = ab8500_remove_callback_handler(MAIN_CH_PLUG_DET,
+				ab8500_bm_mainchplugdet_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-main charge plug detected\n");
 #if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - rising edge on vbus detected */
-		ret = ab8500_remove_callback_handler(VBUS_DET_R);
+		ret = ab8500_remove_callback_handler(VBUS_DET_R,
+				ab8500_bm_vbusdetr_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-rising edge on vbus detected\n");
 		/* remove callback handlers  - falling edge on vbus detected */
-		ret = ab8500_remove_callback_handler(VBUS_DET_F);
+		ret = ab8500_remove_callback_handler(VBUS_DET_F,
+				ab8500_bm_vbusdetf_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-falling edge on vbus detected\n");
 #endif
 		/* remove callback handlers  - battery removal detected */
-		ret = ab8500_remove_callback_handler(BAT_CTRL_INDB);
+		ret = ab8500_remove_callback_handler(BAT_CTRL_INDB,
+				ab8500_bm_batctrlindb_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-battery removal detected\n");
 		/* remove callback handlers  - watchdog charger expiration
 		 * detected
 		 */
-		ret = ab8500_remove_callback_handler(CH_WD_EXP);
+		ret = ab8500_remove_callback_handler(CH_WD_EXP,
+				ab8500_bm_chwdexp_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-watchdog expiration detected\n");
 #if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - vbus overvoltage detected */
-		ret = ab8500_remove_callback_handler(VBUS_OVV);
+		ret = ab8500_remove_callback_handler(VBUS_OVV,
+				ab8500_bm_vbusovv_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-vbus overvoltage detected\n");
@@ -654,26 +663,30 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		/* remove callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
-		ret = ab8500_remove_callback_handler(LOW_BAT_F);
+		ret = ab8500_remove_callback_handler(LOW_BAT_F,
+				ab8500_bm_lowbatf_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-bat voltage goes below LowBat detected\n");
 		/* remove callback handlers  - bat voltage goes above LowBat
 		 * detected
 		 */
-		ret = ab8500_remove_callback_handler(LOW_BAT_R);
+		ret = ab8500_remove_callback_handler(LOW_BAT_R,
+				ab8500_bm_lowbatr_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-bat voltage goes above LowBat detected\n");
 		/* remove callback handlers  - battery temp lower than 10c */
-		ret = ab8500_remove_callback_handler(BTEMP_LOW);
+		ret = ab8500_remove_callback_handler(BTEMP_LOW,
+				ab8500_bm_btemplow_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-battery temp below -10 deg\n");
 		/* remove callback handlers  - battery temp higher than
 		 * max temp
 		 */
-		ret = ab8500_remove_callback_handler(BTEMP_HIGH);
+		ret = ab8500_remove_callback_handler(BTEMP_HIGH,
+				ab8500_bm_btemphigh_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-battery temp greater than max temp\n");
@@ -681,12 +694,14 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		/* remove callback handlers  - not allowed usb charger
 		 * detected
 		 */
-		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKR);
+		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKR,
+				ab8500_bm_usbchargernotokr_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-not allowed usb charger detected\n");
 		/* remove callback handlers  - usb charger detected */
-		ret = ab8500_remove_callback_handler(USB_CHG_DET_DONE);
+		ret = ab8500_remove_callback_handler(USB_CHG_DET_DONE,
+				ab8500_bm_usbchgdetdone_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-usb charger detected\n");
@@ -694,20 +709,23 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		/* remove callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
-		ret = ab8500_remove_callback_handler(USB_CH_TH_PROT_R);
+		ret = ab8500_remove_callback_handler(USB_CH_TH_PROT_R,
+				ab8500_bm_usbchthprotr_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-die temp above usb charger thermal protection threshold\n");
 		/* remove callback handlers  - Die temp is above main charger
 		 * thermal protection threshold
 		 */
-		ret = ab8500_remove_callback_handler(MAIN_CH_TH_PROT_R);
+		ret = ab8500_remove_callback_handler(MAIN_CH_TH_PROT_R,
+				ab8500_bm_mainchthprotr_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-dir temp above main charger thermal protection threshold\n");
 #if defined(CONFIG_USB_CHARGER)
 		/* remove callback handlers  - usb charger unplug detected */
-		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKF);
+		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKF,
+				ab8500_bm_usbchargernotokf_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-usb charger unplug detected\n");

@@ -123,7 +123,8 @@ static int __devexit ab8500_gpadc_remove(struct platform_device *pdev)
 	int ret, val;
 
 	/* remove callback handlers  - completion of Sw ADC conversion */
-	ret = ab8500_remove_callback_handler(GP_SW_ADC_CONV_END);
+	ret = ab8500_remove_callback_handler(GP_SW_ADC_CONV_END,
+			ab8500_bm_gpswadcconvend_handler);
 	if (ret < 0)
 		pr_debug
 		    ("failed to remove callback handler-completion of sw ADC conversion\n");
