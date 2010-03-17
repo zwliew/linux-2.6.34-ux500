@@ -460,14 +460,6 @@ static struct timeval time_15s = {
 };
 
 /*
-  * time_1s - 1 second time struct.
-  */
-static struct timeval time_1s = {
-	.tv_sec = 1,
-	.tv_usec = 0
-};
-
-/*
   * time_500ms - 500 millisecond time struct.
   */
 static struct timeval time_500ms = {
@@ -794,8 +786,9 @@ int ste_conn_write(struct ste_conn_device *dev, struct sk_buff *skb)
 		/* Because there are more users of some H4 channels (currently audio application
 		 * for BT cmd and FM channel) we need to have an internal HCI cmd flow control
 		 * in ste_conn driver. */
-		if (cpd_info->h4_channels.bt_cmd_channel == *h4_header ||
-			cpd_info->h4_channels.fm_radio_channel == *h4_header) {
+		if (cpd_info->h4_channels.bt_cmd_channel == *h4_header) {
+			/*Temp workaround for not working flow control for FM*/
+			/*cpd_info->h4_channels.fm_radio_channel == *h4_header) {*/
 			cpd_transmit_skb_to_ccd_with_flow_ctrl(skb, dev, *h4_header);
 		} else {
 			/* Other channels are not affected by the flow control so transmit the sk_buffer to CCD */
@@ -1090,7 +1083,8 @@ static int cpd_check_for_audio_evt(int h4_channel, struct ste_conn_device **dev,
 			}
 		}
 	/* FM evt */
-	} else if (h4_channel == cpd_info->h4_channels.fm_radio_channel) {
+	/*Temp workaround for not working flow control for FM*/
+	} else if (0) {/*h4_channel == cpd_info->h4_channels.fm_radio_channel) {*/
 
 		cpd_update_internal_flow_control_fm(skb);
 
