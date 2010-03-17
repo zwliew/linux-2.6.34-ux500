@@ -504,12 +504,25 @@ int ab8500_write(u8 block, u32 adr, u8 data)
 	if (!ab8500)
 		return -ENODEV;
 
-#if 0
-	/* disabled as prcmu i2c not tested */
+#if defined(CONFIG_AB8500_ACCESS_CONFIG1) || \
+	defined(CONFIG_AB8500_ACCESS_CONFIG2)
 	if (!u8500_is_earlydrop()) {
-		if ( block == AB8500_REGU_CTRL2 )
-			return prcmu_i2c_write(block, adr, data);
+		down(&(ab8500->ab8500_sem));
+		error = prcmu_i2c_write(block, adr, data);
+		up(&(ab8500->ab8500_sem));
+		return error;
 	}
+#else
+#ifdef CONFIG_AB8500_ACCESS_CONFIG5
+	if (!u8500_is_earlydrop()) {
+		if (block == AB8500_REGU_CTRL2) {
+			down(&(ab8500->ab8500_sem));
+			error = prcmu_i2c_write(block, adr, data);
+			up(&(ab8500->ab8500_sem));
+			return error;
+		}
+	}
+#endif
 #endif
 
 	/**
@@ -568,12 +581,26 @@ int ab8500_read(u8 block, u32 adr)
 	 */
 	if (!ab8500)
 		return -ENODEV;
-#if 0
-	/* disabled as prcmu i2c not tested */
+
+#if defined(CONFIG_AB8500_ACCESS_CONFIG1) || \
+	defined(CONFIG_AB8500_ACCESS_CONFIG2)
 	if (!u8500_is_earlydrop()) {
-		if ( block == AB8500_REGU_CTRL2 )
-			return prcmu_i2c_read(block, adr);
+		down(&(ab8500->ab8500_sem));
+		retval = prcmu_i2c_read(block, adr);
+		up(&(ab8500->ab8500_sem));
+		return retval;
 	}
+#else
+#ifdef CONFIG_AB8500_ACCESS_CONFIG5
+	if (!u8500_is_earlydrop()) {
+		if (block == AB8500_REGU_CTRL2) {
+			down(&(ab8500->ab8500_sem));
+			retval = prcmu_i2c_read(block, adr);
+			up(&(ab8500->ab8500_sem));
+			return retval;
+		}
+	}
+#endif
 #endif
 
 	data = 1 << 23 | block << 18 | adr << 10;

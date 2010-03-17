@@ -336,6 +336,47 @@ config AB8500
 	  chip. This connects to U8500 on the SSP/SPI bus and exports
 	  read/write functions for the devices to get access to this chip.
 	  This chip embeds various other multimedia funtionalities as well.
+choice
+	prompt "AB8500 Access Method"
+	depends on AB8500
+	default AB8500_ACCESS_CONFIG3
+
+	config AB8500_ACCESS_CONFIG1
+	depends on AB8500
+	bool "CONFIG_1"
+	help
+	  Select this option to enable AB8500 accesses via PRCMU I2C for
+	  all register banks
+
+	config AB8500_ACCESS_CONFIG2
+	depends on AB8500
+	bool "CONFIG_2"
+	help
+	  Select this option to enable AB8500 accesses via PRCMU I2C for
+	  all register banks except SIM control which happens via Modem I2C
+
+	config AB8500_ACCESS_CONFIG3
+	depends on AB8500
+	bool "CONFIG_3"
+	help
+	  Select this option to enable AB8500 accesses via SPI for
+	  all register banks except SIM control which happens via Modem I2C
+
+	config AB8500_ACCESS_CONFIG4
+	depends on AB8500
+	bool "CONFIG_4"
+	help
+	  Select this option to enable AB8500 accesses via SPI for
+	  all register banks
+
+	config AB8500_ACCESS_CONFIG5
+	depends on AB8500
+	bool "CONFIG_5"
+	help
+	  Select this option to enable AB8500 voltage regulator bank access via
+	  PRCMU I2C, SIM control access via Modem I2C and rest of banks accessed
+	  via SPI
+endchoice
 
 config AB8500_GPADC
 	bool "AB8500 GPADC driver"

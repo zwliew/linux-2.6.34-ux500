@@ -47,16 +47,16 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 	 */
 	if ((regulator_id == AB8500_LDO_VAUX1) ||
 		(regulator_id == AB8500_LDO_VAUX2))
-		prcmu_i2c_write(AB8500_REGU_CTRL2,
+		ab8500_write(AB8500_REGU_CTRL2,
 			AB8500_REGU_VAUX12_REGU_REG, 0x5);
 
 	switch (regulator_id) {
 	case AB8500_LDO_VAUX1:
-		prcmu_i2c_write(AB8500_REGU_CTRL2,
+		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX1_SEL_REG, 0x0F);
 		break;
 	case AB8500_LDO_VAUX2:
-		prcmu_i2c_write(AB8500_REGU_CTRL2,
+		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX2_SEL_REG, 0x0D);
 		break;
 	case AB8500_LDO_VTVOUT:
