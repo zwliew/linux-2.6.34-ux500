@@ -1,38 +1,42 @@
-/*---------------------------------------------------------------------------*/
-/* © copyright STEricsson,2009. All rights reserved. For                     */
-/* information, STEricsson reserves the right to license                     */
-/* this software concurrently under separate license conditions.             */
-/*                                                                           */
-/* This program is free software; you can redistribute it and/or modify it   */
-/* under the terms of the GNU Lesser General Public License as published     */
-/* by the Free Software Foundation; either version 2.1 of the License,       */
-/* or (at your option)any later version.                                     */
-/*                                                                           */
-/* This program is distributed in the hope that it will be useful, but       */
-/* WITHOUT ANY WARRANTY; without even the implied warranty of                */
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See                  */
-/* the GNU Lesser General Public License for more details.                   */
-/*                                                                           */
-/* You should have received a copy of the GNU Lesser General Public License  */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.      */
-/*---------------------------------------------------------------------------*/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #include <mach/av8100.h>
 
 /* defines for av8100_ */
-#define av8100_command_offset 0x10
-#define AV8100_COMMAND_MAX_LENGTH 0x81
+#define AV8100_COMMAND_OFFSET		0x10
+#define AV8100_COMMAND_MAX_LENGTH	0x81
 #define GPIO_AV8100_RSTN 196
 #define GPIO_AV8100_INT 192
 #define AV8100_DRIVER_MINOR_NUMBER 240
 
+/* Standby register */
+#define STANDBY_HPDS_HDMI_PLUGGED		0x04
+#define STANDBY_CVBS_TV_CABLE_PLUGGED	0x08
 
-#define HDMI_HOTPLUG_INTERRUPT 0x1
-#define HDMI_HOTPLUG_INTERRUPT_MASK 0xFE
-#define CVBS_PLUG_INTERRUPT 0x2
-#define CVBS_PLUG_INTERRUPT_MASK 0xFD
-#define TE_INTERRUPT_MASK 0x40
-#define UNDER_OVER_FLOW_INTERRUPT_MASK 0x20
+/* Standby interrupts */
+#define HDMI_HOTPLUG_INTERRUPT 			0x1
+#define HDMI_HOTPLUG_INTERRUPT_MASK		0xFE
+#define CVBS_PLUG_INTERRUPT				0x2
+#define CVBS_PLUG_INTERRUPT_MASK		0xFD
+#define STANDBY_INTERRUPT_MASK_ALL		0xF0
+
+/* General interrupts */
+#define UNDER_OVER_FLOW_INTERRUPT		0x20
+#define UNDER_OVER_FLOW_INTERRUPT_MASK	0xDF
+#define TE_INTERRUPT					0x40
+#define TE_INTERRUPT_MASK				0xCF
+#define GENERAL_INTERRUPT_MASK_ALL		0x00
+
+/* General status */
+#define AV8100_GENERAL_STATUS_UC_READY 0x8
 
 #define REG_16_8_LSB(p)  (unsigned char)(p & 0xFF)
 #define REG_16_8_MSB(p)  (unsigned char)((p & 0xFF00)>>8)
@@ -115,6 +119,7 @@ typedef struct {
     unsigned short                      TE_line_nb;                        /* Tearing effect line number*/
     av8100_te_config           TE_config;
     unsigned long                      master_clock_freq;                  /* Master clock frequency in HZ */
+    unsigned char			ui_x4;
 } av8100_video_input_format_cmd;
 /**
  * struct av8100_video_output_format_cmd - video output format structure

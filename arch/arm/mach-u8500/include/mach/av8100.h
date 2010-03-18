@@ -1,21 +1,12 @@
-/*---------------------------------------------------------------------------*/
-/* © copyright STEricsson,2009. All rights reserved. For   		     */
-/* information, STEricsson reserves the right to license                     */
-/* this software concurrently under separate license conditions.             */
-/*                                                                           */
-/* This program is free software; you can redistribute it and/or modify it   */
-/* under the terms of the GNU Lesser General Public License as published     */
-/* by the Free Software Foundation; either version 2.1 of the License,       */
-/* or (at your option)any later version.                                     */
-/*                                                                           */
-/* This program is distributed in the hope that it will be useful, but       */
-/* WITHOUT ANY WARRANTY; without even the implied warranty of                */
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See                  */
-/* the GNU Lesser General Public License for more details.                   */
-/*                                                                           */
-/* You should have received a copy of the GNU Lesser General Public License  */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.      */
-/*---------------------------------------------------------------------------*/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #ifndef __AV8100_H
 #define __AV8100_H
@@ -75,12 +66,9 @@ typedef enum
 }av8100_operating_mode;
 
 /** AV8100 status */
-typedef enum
-{
-	AV8100_PLUGIN_NONE = 0x0,
-	AV8100_HDMI_PLUGIN,
-	AV8100_CVBS_PLUGIN,
-}av8100_plugin_status;
+#define AV8100_PLUGIN_NONE 0x00
+#define AV8100_HDMI_PLUGIN 0x01
+#define	AV8100_CVBS_PLUGIN 0x02
 
 /** AV8100 Command Type */
 typedef enum
@@ -107,7 +95,7 @@ typedef enum
 {
 	AV8100_COMMAND_VIDEO_INPUT_FORMAT_SIZE  = 0x17,
 	AV8100_COMMAND_AUDIO_INPUT_FORMAT_SIZE  = 0x8,
-	AV8100_COMMAND_VIDEO_OUTPUT_FORMAT_SIZE = 0x19,
+	AV8100_COMMAND_VIDEO_OUTPUT_FORMAT_SIZE = 0x18,
 	AV8100_COMMAND_VIDEO_SCALING_FORMAT_SIZE = 0x9,
 	AV8100_COMMAND_COLORSPACECONVERSION_SIZE = 0x21,
 	AV8100_COMMAND_CEC_MESSAGEWRITE_SIZE = 0x14,
@@ -483,7 +471,8 @@ typedef enum{
 	AV8100_VESA27_1280X800P_59_91HZ,
 	AV8100_VESA28_1280X800P_59_81HZ,
 	AV8100_VESA39_1360X768P_60_02HZ,
-	AV8100_VESA81_1366X768P_59_79HZ
+	AV8100_VESA81_1366X768P_59_79HZ,
+	AV8100_VIDEO_OUTPUT_CEA_VESA_MAX
 } av8100_output_CEA_VESA;
 
 /** AV8100 internal register access structure*/
@@ -496,10 +485,18 @@ struct av8100_register
 /** AV8100 command configuration registers access structure*/
 struct av8100_command_register
 {
-	char cmd_buf[129];
-	char cmd_buf_len;
-	char cmd;
+	unsigned char cmd_id;		/* input */
+	unsigned char buf_len;		/* input, output */
+	unsigned char buf[128];		/* input, output */
+	unsigned char return_status;	/* output */
 };
+
+/* IOCTL return status */
+#define HDMI_COMMAND_RETURN_STATUS_OK			0
+#define HDMI_COMMAND_RETURN_STATUS_FAIL			1
+
+#define HDMI_REQUEST_FOR_REVOCATION_LIST_INPUT	2
+#define HDMI_CEC_MESSAGE_READBACK_MAXSIZE		16
 
 /** AV8100 status structure*/
 struct av8100_status
@@ -514,11 +511,16 @@ struct av8100_status
 
 /** IOCTL Operations for accessing information from AV8100 */
 
-#define IOC_AV8100_READ_REGISTER       		_IOWR(AV8100_IOC_MAGIC,1,struct av8100_register)
-#define IOC_AV8100_WRITE_REGISTER      		_IOWR(AV8100_IOC_MAGIC,2,struct av8100_register)
-#define IOC_AV8100_SEND_CONFIGURATION_COMMAND      	_IOWR(AV8100_IOC_MAGIC,3,struct av8100_command_register)
-//#define IOC_AV8100_READ_CONFIGURATION_COMMAND      	_IOWR(AV8100_IOC_MAGIC,4,struct av8100_command_register)
-#define IOC_AV8100_GET_STATUS		       		_IOWR(AV8100_IOC_MAGIC,4,struct av8100_status)
+#define IOC_AV8100_READ_REGISTER 				_IOWR(AV8100_IOC_MAGIC,1,struct av8100_register)
+#define IOC_AV8100_WRITE_REGISTER				_IOWR(AV8100_IOC_MAGIC,2,struct av8100_register)
+#define IOC_AV8100_SEND_CONFIGURATION_COMMAND	_IOWR(AV8100_IOC_MAGIC,3,struct av8100_command_register)
+//#define IOC_AV8100_READ_CONFIGURATION_COMMAND	_IOWR(AV8100_IOC_MAGIC,4,struct av8100_command_register)
+#define IOC_AV8100_GET_STATUS					_IOWR(AV8100_IOC_MAGIC,4,struct av8100_status)
+#define IOC_AV8100_ENABLE						_IOWR(AV8100_IOC_MAGIC,5,struct av8100_status)
+#define IOC_AV8100_DISABLE						_IOWR(AV8100_IOC_MAGIC,6,struct av8100_status)
+#define IOC_AV8100_SET_VIDEO_FORMAT				_IOWR(AV8100_IOC_MAGIC,7,struct av8100_status)
+#define IOC_AV8100_HDMI_ON						_IOWR(AV8100_IOC_MAGIC,8,struct av8100_status)
+#define IOC_AV8100_HDMI_OFF						_IOWR(AV8100_IOC_MAGIC,9,struct av8100_status)
 
 #define AV8100_IOC_MAXNR (1)
 

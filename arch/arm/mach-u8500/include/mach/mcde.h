@@ -1,19 +1,12 @@
-/*---------------------------------------------------------------------------*/
-/* Copyright (C)  STEricssoni 2009. 					     */
-/*                                                                           */
-/* This program is free software; you can redistribute it and/or modify it   */
-/* under the terms of the GNU Lesser General Public License as published     */
-/* by the Free Software Foundation; either version 2.1 of the License,       */
-/* or (at your option)any later version.                                     */
-/*                                                                           */
-/* This program is distributed in the hope that it will be useful, but       */
-/* WITHOUT ANY WARRANTY; without even the implied warranty of                */
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See                  */
-/* the GNU Lesser General Public License for more details.                   */
-/*                                                                           */
-/* You should have received a copy of the GNU Lesser General Public License  */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.      */
-/*---------------------------------------------------------------------------*/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #ifndef _MCDE_H_
 #define _MCDE_H_
@@ -943,7 +936,7 @@ struct mcde_chx_lcd_timing0
   typedef enum
   {
       MCDE_VERTICAL_SYNCHRO_CAPTURE1 = 0x0,
-      MCDE_VERTICAL_SYNCHRO_CHANELA = 0x1,
+      MCDE_VERTICAL_SYNCHRO_CHANNELA = 0x1,
   }mcde_synchro_select;
 
   typedef enum
@@ -1310,7 +1303,13 @@ int  mcde_set_buffer(struct fb_info *info, u32 buffer_address, mcde_buffer_id bu
 int  mcde_conf_dithering_ctrl(struct mcde_dithering_ctrl_conf dithering_ctrl_conf, struct fb_info *info);
 bool mcde_get_hdmi_flag(void);
 void mcde_configure_hdmi_channel(void);
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+/* HW V1 */
+void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode);
+#else
+/* HW ED */
 void mcde_hdmi_display_init_command_mode(void);
+#endif
 void mcde_hdmi_display_init_video_mode(void);
 void mcde_hdmi_test_directcommand_mode_highspeed(void);
 void mcde_send_hdmi_cmd_data(char* buf,int length, int dsicommand);
@@ -1344,7 +1343,6 @@ mcde_error mcdesetovrcomp(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_
 mcde_error mcdesetovrclip(mcde_ch_id chid, mcde_overlay_id overlay, struct mcde_ovr_clip ovr_clip);
 mcde_error mcdesetovrstate(mcde_ch_id chid, mcde_overlay_id overlay, mcde_overlay_ctrl state);
 mcde_error mcdesetovrpplandlpf(mcde_ch_id chid, mcde_overlay_id overlay, u16 ppl, u16 lpf);
-mcde_state mcdegetchannelstate(mcde_ch_id chid);
 mcde_error mcdesetstate(mcde_ch_id chid, mcde_state state);
 mcde_error mcdesetchnlXconf(mcde_ch_id chid, u16 channelnum, struct mcde_chconfig config);
 mcde_error mcdesetswsync(mcde_ch_id chid, u16 channelnum, mcde_sw_trigger sw_trig);
@@ -1378,6 +1376,12 @@ mcde_error mcdesetchnlLCDhorizontaltiming(mcde_ch_id chid, struct mcde_chnl_lcd_
 mcde_error mcdesetchnlLCDverticaltiming(mcde_ch_id chid, struct mcde_chnl_lcd_vertical_timing lcd_vertical_timing);
 mcde_error mcdesetditheringctrl(mcde_ch_id chid, mcde_dithering_ctrl dithering_control);
 mcde_error mcdesetscanmode(mcde_ch_id chid, mcde_scan_mode scan_mode);
+
+#ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+/* HW V1 */
+mcde_state mcdegetchannelstate(mcde_ch_id chid);
 mcde_error mcdesetchnlCmode(mcde_ch_id chid, mcde_chc_panel panel_id, mcde_chc_enable state);
+#endif /* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
+
 #endif
 

@@ -1,3 +1,13 @@
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
+
 #define WRITE_FIELD(reg, field, value) \
   (reg = (reg & (~((field##_MASK) << (field##_SHIFT)))) | ((value & (field##_MASK)) << (field##_SHIFT)) )
 
@@ -304,11 +314,18 @@
 #define MCDE_CHNLSTAT_CHNLRD          0x00000001
 
 
-#define MCDE_CHNLSYNCHMOD                     (MCDE_BASE + 0x608)
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_SHIFT 2
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_MASK  0x7
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT     0
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_MASK      0x3
+#define MCDE_CHNLSYNCHMOD						(MCDE_BASE + 0x608)
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_SHIFT	2
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_MASK	0x7
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT		0
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_MASK		0x3
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_FROM_SELECTED_FORMATER	0x0
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_FROM_MCDEVSYNC0			0x1
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_FROM_MCDEVSYNC1			0x2
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_OUTPUT						0x0
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_AUTO						0x1
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_SW							0x2
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_EXTERNAL					0x3
 
 
 #define MCDE_CHNLSYNCHSW          (MCDE_BASE + 0x60C)
@@ -861,6 +878,8 @@
 #define MCDE_DSICMDW_CMDW_START_MASK      0xFFFF
 #define MCDE_DSICMDW_CMDW_CONTINUE_SHIFT  0
 #define MCDE_DSICMDW_CMDW_CONTINUE_MASK   0xFFFF
+#define MCDE_DSICMDW_CMD_START_MEMORY_WRITE		0x2C
+#define MCDE_DSICMDW_CMD_CONTINUE_MEMORY_WRITE	0x3C
 
 
 #define MCDE_DSIDELAY0                  (MCDE_BASE + 0xE14)

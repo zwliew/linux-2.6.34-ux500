@@ -1,21 +1,12 @@
-/*---------------------------------------------------------------------------*/
-/* © copyright STEricsson,2009. All rights reserved. For   */
-/* information, STEricsson reserves the right to license    */
-/* this software concurrently under separate license conditions.             */
-/*                                                                           */
-/* This program is free software; you can redistribute it and/or modify it   */
-/* under the terms of the GNU Lesser General Public License as published     */
-/* by the Free Software Foundation; either version 2.1 of the License,       */
-/* or (at your option)any later version.                                     */
-/*                                                                           */
-/* This program is distributed in the hope that it will be useful, but       */
-/* WITHOUT ANY WARRANTY; without even the implied warranty of                */
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See                  */
-/* the GNU Lesser General Public License for more details.                   */
-/*                                                                           */
-/* You should have received a copy of the GNU Lesser General Public License  */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.      */
-/*---------------------------------------------------------------------------*/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
 /* HW V1 */
@@ -2887,18 +2878,70 @@ mcde_state mcdegetchannelstate(mcde_ch_id chid)
 	return retval;
 }
 
-/****************************************************************************/
 mcde_error mcdesetstate(mcde_ch_id chid, mcde_state state)
 {
     mcde_error    error = MCDE_OK;
 
 #ifdef PLATFORM_8500
+	if (state == 0) {
+		switch(chid) {
+		case MCDE_CH_A:
+			break;
+		case MCDE_CH_B:
+			gpar[chid]->regbase->mcde_imscpp &= ~MCDE_IMSCPP_VCMPBIM;
+			break;
+		case MCDE_CH_C0:
+			gpar[chid]->regbase->mcde_imscpp &= ~MCDE_IMSCPP_VCMPC0IM;
+			while(gpar[chid]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts & 0x20);
+			break;
+		case MCDE_CH_C1:
+			gpar[chid]->regbase->mcde_imscpp &= ~MCDE_IMSCPP_VCMPC1IM;
+			while(gpar[chid]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts & 0x20);
+			break;
+		default:
+			break;
+		}
 
-    gpar[chid]->regbase->mcde_cr = state > 0 ?
-            (gpar[chid]->regbase->mcde_cr | MCDE_CR_MCDEEN) :
-            (gpar[chid]->regbase->mcde_cr & ~MCDE_CR_MCDEEN);
+	}
+	else {
+		switch(chid) {
+		case MCDE_CH_A:
+			break;
+
+		case MCDE_CH_B:
+			/* Int */
+			gpar[chid]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPBIM;
+			break;
+
+		case MCDE_CH_C0:
+			gpar[chid]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts_clr = 0x20;
+
+			/* SW synch */
+			gpar[chid]->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+
+			/* Int */
+			gpar[chid]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC0IM;
+			break;
+
+		case MCDE_CH_C1:
+			gpar[chid]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts_clr = 0x20;
+
+			gpar[chid]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC1IM;
+			/* SW synch */
+			gpar[chid]->ch_regbase1[chid]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+
+			/* Int */
+			gpar[chid]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC0IM;
+			break;
+
+		default:
+			break;
+		}
+	}
+
 #endif
 #ifdef PLATFORM_8820
+
 	gpar[chid]->regbase->mcde_cr |= state;
 #endif
 
