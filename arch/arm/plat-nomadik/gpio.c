@@ -33,7 +33,6 @@
  * Symbols in this file are called "nmk_gpio" for "nomadik gpio"
  */
 
-#define NMK_GPIO_PER_CHIP 32
 struct nmk_gpio_chip {
 	struct gpio_chip chip;
 	void __iomem *addr;
@@ -317,7 +316,7 @@ static int nmk_gpio_init_irq(struct nmk_gpio_chip *nmk_chip)
 	int i;
 
 	first_irq = NOMADIK_GPIO_TO_IRQ(nmk_chip->chip.base);
-	for (i = first_irq; i < first_irq + NMK_GPIO_PER_CHIP; i++) {
+	for (i = first_irq; i < first_irq + nmk_chip->chip.ngpio; i++) {
 		set_irq_chip(i, &nmk_gpio_irq_chip);
 		set_irq_handler(i, handle_edge_irq);
 		set_irq_flags(i, IRQF_VALID);
@@ -377,7 +376,6 @@ static struct gpio_chip nmk_gpio_template = {
 	.get			= nmk_gpio_get_input,
 	.direction_output	= nmk_gpio_make_output,
 	.set			= nmk_gpio_set_output,
-	.ngpio			= NMK_GPIO_PER_CHIP,
 	.can_sleep		= 0,
 };
 
@@ -437,6 +435,7 @@ static int __init nmk_gpio_probe(struct platform_device *dev)
 
 	chip = &nmk_chip->chip;
 	chip->base = pdata->first_gpio;
+	chip->ngpio = pdata->num_gpio;
 	chip->label = pdata->name;
 	chip->dev = &dev->dev;
 	chip->owner = THIS_MODULE;

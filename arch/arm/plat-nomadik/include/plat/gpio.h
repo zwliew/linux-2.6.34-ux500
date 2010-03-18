@@ -70,6 +70,7 @@ struct nmk_gpio_platform_data {
 	char *name;
 	int first_gpio;
 	int first_irq;
+	int num_gpio;
 };
 
 #endif /* __ASM_PLAT_GPIO_H */
