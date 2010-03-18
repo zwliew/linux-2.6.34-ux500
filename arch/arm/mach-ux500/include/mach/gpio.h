@@ -40,10 +40,6 @@ static inline int irq_to_gpio(unsigned int irq)
 		return -EINVAL;
 }
 
-#define GPIO_ALTF_A	NMK_GPIO_ALT_A
-#define GPIO_ALTF_B	NMK_GPIO_ALT_B
-#define GPIO_ALTF_C	NMK_GPIO_ALT_C
-
 /*
  * Alternate Function:
  *  refered in altfun_table to pointout particular altfun to be enabled
