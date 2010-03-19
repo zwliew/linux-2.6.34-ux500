@@ -263,6 +263,7 @@ static int init_hw(struct nmk_i2c_dev *dev)
 
 	dev->cli.operation = I2C_NO_OPERATION;
 
+	udelay(500);
 	return 0;
 }
 
