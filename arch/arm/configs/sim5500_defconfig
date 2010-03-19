@@ -642,7 +642,7 @@ CONFIG_I2C_HELPER_AUTO=y
 #
 # I2C Hardware Bus support
 #
-CONFIG_I2C_STM=y
+CONFIG_I2C_NOMADIK=y
 
 #
 # I2C system bus drivers (mostly embedded / system-on-chip)
