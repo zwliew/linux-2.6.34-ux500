@@ -49,7 +49,6 @@
 
 /*
  * TODO:
- * Flush management of other than pmem
  * Implementation of query cap
  * Support for user space virtual pointer to physically consecutive memory
  * Support for user space virtual pointer to physically scattered memory
@@ -120,6 +119,9 @@ static unsigned long stat_n_in_open;
  */
 static unsigned long stat_n_in_release;
 
+/* TODO: Remove when a better way to sense coherent memory has been found. */
+static bool flush_mio_pmem = false;
+
 /* Debug file system support */
 #ifdef CONFIG_DEBUG_FS
 /**
@@ -158,11 +160,76 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 		       struct b2r2_resolved_buf *resolved);
 static void unresolve_buf(struct b2r2_blt_buf *buf,
 			  struct b2r2_resolved_buf *resolved);
-static void flush_buf(struct b2r2_blt_buf *buf,
+static void sync_buf(struct b2r2_blt_buf *buf,
 		      struct b2r2_resolved_buf *resolved,
 		      bool is_dst);
 static bool is_report_list_empty(struct b2r2_blt_instance *instance);
 static bool is_synching(struct b2r2_blt_instance *instance);
+
+/**
+ * struct sync_args - Data for clean/flush
+ *
+ * @start: Virtual start address
+ * @end: Virtual end address
+ */
+struct sync_args {
+	unsigned long start;
+	unsigned long end;
+};
+
+/**
+ * flush_l1_cache_range_curr_cpu() - Cleans and invalidates L1 cache on the current CPU
+ *
+ * @arg: Pointer to sync_args structure
+ */
+static inline void flush_l1_cache_range_curr_cpu(void* arg)
+{
+	struct sync_args *sa = (struct sync_args *)arg;
+
+	dmac_flush_range((void *)sa->start, (void *)sa->end);
+}
+
+#ifdef CONFIG_SMP
+/**
+ * inv_l1_cache_range_all_cpus() - Cleans and invalidates L1 cache on all CPU:s
+ *
+ * @sa: Pointer to sync_args structure
+ */
+static void flush_l1_cache_range_all_cpus(struct sync_args* sa)
+{
+	on_each_cpu(flush_l1_cache_range_curr_cpu, sa, 1);
+}
+#endif
+
+/**
+ * clean_l1_cache_range_curr_cpu() - Cleans L1 cache on current CPU
+ *
+ * Ensures that data is written out from the CPU:s L1 cache,
+ * it will still be in the cache.
+ *
+ * @arg: Pointer to sync_args structure
+ */
+static inline void clean_l1_cache_range_curr_cpu(void *arg)
+{
+	struct sync_args *sa = (struct sync_args *)arg;
+
+	dmac_clean_range((void *)sa->start, (void *)sa->end);
+}
+
+#ifdef CONFIG_SMP
+/**
+ * clean_l1_cache_range_all_cpus() - Cleans L1 cache on all CPU:s
+ *
+ * Ensures that data is written out from all CPU:s L1 cache,
+ * it will still be in the cache.
+ *
+ * @sa: Pointer to sync_args structure
+ */
+static void clean_l1_cache_range_all_cpus(struct sync_args* sa)
+{
+	on_each_cpu(clean_l1_cache_range_curr_cpu, sa, 1);
+}
+#endif
 
 /**
  * b2r2_blt_open - Implements file open on the b2r2_blt device
@@ -543,7 +610,6 @@ static int b2r2_blt(struct b2r2_blt_instance *instance,
 	struct b2r2_node *last_node = request->first_node;
 	int node_count;
 
-
 	dev_dbg(b2r2_blt_device(), "%s\n", __func__);
 
 	inc_stat(&stat_n_in_blt);
@@ -657,7 +723,7 @@ static int b2r2_blt(struct b2r2_blt_instance *instance,
 		 request->dst_resolved.file_len);
 
 	/* Calculate the number of nodes (and resources) needed for this job */
-	ret = b2r2_node_split_analyze(request, 128*128,
+	ret = b2r2_node_split_analyze(request, 30*PAGE_SIZE,
 			&node_count, &request->bufs, &request->buf_count,
 			&request->node_split_job);
 	if (ret < 0) {
@@ -727,22 +793,21 @@ static int b2r2_blt(struct b2r2_blt_instance *instance,
 	request->job.acquire_resources = job_acquire_resources;
 	request->job.release_resources = job_release_resources;
 
-	/* Flush the L1/L2 cache for the buffers*/
+	/* Synchronize memory occupied by the buffers*/
 
 	/* Source buffer */
 	if ((request->user_req.flags & B2R2_BLT_FLAG_SRC_NO_CACHE_FLUSH) == 0)
-		flush_buf(&request->user_req.src_img.buf,
+		sync_buf(&request->user_req.src_img.buf,
 			  &request->src_resolved, false);
 
 	/* Source mask buffer */
-	if ((request->user_req.flags & B2R2_BLT_FLAG_SRC_MASK_NO_CACHE_FLUSH)
-	    == 0)
-		flush_buf(&request->user_req.src_mask.buf,
+	if ((request->user_req.flags & B2R2_BLT_FLAG_SRC_MASK_NO_CACHE_FLUSH) == 0)
+		sync_buf(&request->user_req.src_mask.buf,
 			  &request->src_mask_resolved, false);
 
 	/* Destination buffer */
 	if ((request->user_req.flags & B2R2_BLT_FLAG_DST_NO_CACHE_FLUSH) == 0)
-		flush_buf(&request->user_req.dst_img.buf,
+		sync_buf(&request->user_req.dst_img.buf,
 			  &request->dst_resolved, true);
 
 #ifdef CONFIG_DEBUG_FS
@@ -884,6 +949,7 @@ static int b2r2_blt_synch(struct b2r2_blt_instance *instance,
 
 		dec_stat(&stat_n_in_synch_job);
 	}
+
 	dev_dbg(b2r2_blt_device(),
 		"%s, request_id=%d, returns %d\n", __func__, request_id, ret);
 
@@ -1021,13 +1087,13 @@ static int job_acquire_resources(struct b2r2_core_job *job, bool atomic)
 		u32 actual_size;
 		void *virt;
 
-		printk(KERN_INFO "b2r2::%s: allocating %d bytes\n", __func__,
-				request->bufs[i].size);
+		dev_dbg(b2r2_blt_device(), "b2r2::%s: allocating %d bytes\n",
+				__func__, request->bufs[i].size);
 
 		virt = dma_alloc_coherent(b2r2_blt_device(),
 				request->bufs[i].size,
 				&request->bufs[i].phys_addr,
-				GFP_DMA | GFP_KERNEL);
+				GFP_DMA);
 		if (virt == NULL) {
 			ret = -ENOMEM;
 			goto error;
@@ -1035,9 +1101,9 @@ static int job_acquire_resources(struct b2r2_core_job *job, bool atomic)
 
 		request->bufs[i].virt_addr = virt;
 
-		printk(KERN_INFO "b2r2::%s: phys=%p, virt=%p\n", __func__,
-				request->bufs[i].phys_addr,
-				request->bufs[i].virt_addr);
+		dev_dbg(b2r2_blt_device(), "b2r2::%s: phys=%p, virt=%p\n",
+			__func__, request->bufs[i].phys_addr,
+			request->bufs[i].virt_addr);
 
 		ret = b2r2_node_split_assign_buffers(&request->node_split_job,
 					request->first_node, request->bufs,
@@ -1083,8 +1149,8 @@ static void job_release_resources(struct b2r2_core_job *job, bool atomic)
 		/* Free any temporary buffers */
 		for (i = 0; i < request->buf_count; i++) {
 
-			printk(KERN_INFO "b2r2::%s: freeing %d bytes\n",
-					__func__, request->bufs[i].size);
+			dev_dbg(b2r2_blt_device(), "b2r2::%s: freeing %d bytes\n",
+				__func__, request->bufs[i].size);
 			dma_free_coherent(b2r2_blt_device(),
 				  request->bufs[i].size,
 				  request->bufs[i].virt_addr,
@@ -1095,6 +1161,23 @@ static void job_release_resources(struct b2r2_core_job *job, bool atomic)
 	}
 }
 
+/**
+ * unresolve_buf() - Must be called after resolve_buf
+ *
+ * @buf: The buffer specification as supplied from user space
+ * @resolved: Gathered information about the buffer
+ *
+ * Returns 0 if OK else negative error code
+ */
+static void unresolve_buf(struct b2r2_blt_buf *buf,
+			 struct b2r2_resolved_buf *resolved)
+{
+#ifdef CONFIG_ANDROID_PMEM
+	if (resolved->is_pmem && resolved->filep)
+		put_pmem_file(resolved->filep);
+#endif
+
+}
 
 /**
  * resolve_buf() - Returns the physical & virtual addresses of a B2R2 blt buffer
@@ -1117,6 +1200,8 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 
 		/* FD + OFFSET type */
 	case B2R2_BLT_PTR_FD_OFFSET: {
+		/* TODO: Do we need to check if the process is allowed to read/write
+		(depending on if it's dst or src) to the file? */
 		struct file *file;
 		int put_needed;
 		int i;
@@ -1135,39 +1220,53 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 				(resolved->file_virtual_start +
 				 buf->offset);
 			resolved->is_pmem = true;
-			return 0;
 		}
+		else
 #endif
+		{
 
-		file = fget_light(buf->fd, &put_needed);
-		if (file == NULL)
-			return -EINVAL;
+			file = fget_light(buf->fd, &put_needed);
+			if (file == NULL)
+				return -EINVAL;
 
-		if (MAJOR(file->f_dentry->d_inode->i_rdev) == FB_MAJOR) {
-			/* This is a frame buffer device, find fb_info
-			   (OK to do it like this, no locking???) */
-			for (i = 0; i < num_registered_fb; i++) {
-				struct fb_info *info = registered_fb[i];
+			if (MAJOR(file->f_dentry->d_inode->i_rdev) == FB_MAJOR) {
+				/* This is a frame buffer device, find fb_info
+				   (OK to do it like this, no locking???) */
+				for (i = 0; i < num_registered_fb; i++) {
+					struct fb_info *info = registered_fb[i];
 
-				if (info &&
-				    info->dev && MINOR(info->dev->devt) ==
-				    MINOR(file->f_dentry->d_inode->i_rdev)) {
-					resolved->file_physical_start =
-						info->fix.smem_start;
-					resolved->file_len =
-						info->fix.smem_len;
+					if (info &&
+					    info->dev && MINOR(info->dev->devt) ==
+					    MINOR(file->f_dentry->d_inode->i_rdev)) {
+						resolved->file_physical_start =
+							info->fix.smem_start;
+						resolved->file_virtual_start =
+							(u32)info->screen_base;
+						resolved->file_len =
+							info->fix.smem_len;
 
-					resolved->physical_address =
-						resolved->file_physical_start +
-						buf->offset;
-					break;
+						resolved->physical_address =
+							resolved->file_physical_start +
+							buf->offset;
+						resolved->virtual_address =
+							(void*)(resolved->file_virtual_start +
+							buf->offset);
+
+						break;
+					}
 				}
-			}
-			if (i == num_registered_fb)
+				if (i == num_registered_fb)
+					ret = -EINVAL;
+			} else
 				ret = -EINVAL;
-		} else
-			ret = -EINVAL;
-		fput_light(file, put_needed);
+			fput_light(file, put_needed);
+		}
+
+		/* Check bounds */
+		if (ret >= 0 && buf->offset + buf->len > resolved->file_len) {
+			ret = -ESPIPE;
+			unresolve_buf(buf, resolved);
+		}
 
 		break;
 	}
@@ -1186,192 +1285,95 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 }
 
 /**
- * unresolve_buf() - Must be called after resolve_buf
+ * is_mio_pmem - Checks if a buffer belongs to mio pmem
  *
- * @buf: The buffer specification as supplied from user space
- * @resolved: Gathered information about the buffer
+ * @resolved_buf: Gathered info about the buffer
  *
- * Returns 0 if OK else negative error code
+ * Returns true if the buffer belongs to mio pmem, false otherwise
  */
-static void unresolve_buf(struct b2r2_blt_buf *buf,
-			 struct b2r2_resolved_buf *resolved)
+static bool is_mio_pmem(struct b2r2_resolved_buf *buf)
 {
-#ifdef CONFIG_ANDROID_PMEM
-	if (resolved->is_pmem && resolved->filep)
-		put_pmem_file(resolved->filep);
-#endif
-}
+	struct inode *inode;
 
-#ifdef CONFIG_SMP
+	if (!buf->is_pmem || NULL == buf->filep)
+		return false;
 
-/**
- * struct flush_args - Data for clean/invalidate/flush
- *
- * @fa_start: Virtual start address
- * @fa_end: Virtual end address
- */
-struct flush_args {
-	unsigned long fa_start;
-	unsigned long fa_end;
-};
-
-/**
- * ipi_clean_l1_cache_range() - Cleans L1 cache on one CPU
- *
- * Ensures that data is written out from the CPU:s L1 cache,
- * it will still be in the cache.
- *
- * @arg: Pointer to flush_args structure
- */
-static inline void ipi_clean_l1_cache_range(void *arg)
-{
-	struct flush_args *fa = (struct flush_args *)arg;
-
-	dmac_clean_range((void *) fa->fa_start, (void *) fa->fa_end);
+	inode = buf->filep->f_dentry->d_inode;
+	/* It's a bit risky identifying mio pmem on the minor number given that pmem
+	device's minor numbers depends on the order in which they where created. It
+	seems to work however so no problem at this time. This type of information
+	should be gotten from the pmem driver directly but that is not possible with
+	the current pmem driver. */
+	if (MISC_MAJOR == imajor(inode) && 1 == iminor(inode))
+	{
+		return true;
+	}
+	else
+		return false;
 }
 
 /**
- * clean_l1_cache_range() - Cleans L1 cache on all CPU:s
- *
- * Ensures that data is written out from alls CPU:s L1 cache,
- * it will still be in the cache.
- *
- * @virtual_start: Virtual start address of memory area that should be cleaned
- * @virtual_end: Virtual end address of memory area that should be cleaned
- */
-static void clean_l1_cache_range(unsigned long virtual_start,
-				 unsigned long virtual_end)
-{
-	struct flush_args fa;
-
-	fa.fa_start = virtual_start;
-	fa.fa_end = virtual_end;
-
-	on_each_cpu(ipi_clean_l1_cache_range, &fa, 1);
-}
-
-/**
- * ipi_flush_l1_cache_range() - Cleans & invalidates L1 cache on one CPU
- *
- * Ensures that data is written out from the CPU:s L1 cache,
- * the cache is then emptied.
- *
- * @arg: Pointer to flush_args structure
- */
-static inline void ipi_flush_l1_cache_range(void *arg)
-{
-	struct flush_args *fa = (struct flush_args *)arg;
-
-	dmac_flush_range((void *) fa->fa_start, (void *) fa->fa_end);
-}
-
-/**
- * flush_l1_cache_range() - Cleans & invalidates L1 cache on all CPU:s
- *
- * Ensures that data is written out from alls CPU:s L1 cache,
- * the caches are then emptied.
- *
- * @virtual_start: Virtual start address of memory area that should be flushed
- * @virtual_end: Virtual end address of memory area that should be flushed
- */
-static void flush_l1_cache_range(unsigned long virtual_start,
-				 unsigned long virtual_end)
-{
-	struct flush_args fa;
-
-	fa.fa_start = virtual_start;
-	fa.fa_end = virtual_end;
-
-	on_each_cpu(ipi_flush_l1_cache_range, &fa, 1);
-}
-#endif
-
-/**
- * flush_buf - Cleans or flushes image buffer
+ * sync_buf - Synchronizes the memory occupied by an image buffer.
  *
  * @buf: User buffer specification
  * @resolved_buf: Gathered info (physical address etc.) about buffer
- * @is_dst: if true then clean & invalidate will be performed else clean only
+ * @is_dst: true if the buffer is a destination buffer, false if the buffer is a source buffer.
  */
-static void flush_buf(struct b2r2_blt_buf *buf,
+static void sync_buf(struct b2r2_blt_buf *buf,
 		      struct b2r2_resolved_buf *resolved,
 		      bool is_dst)
 {
-#ifdef CONFIG_ANDROID_PMEM
-	if (resolved->is_pmem) {
-		if (is_dst) {
-#if 0
-#ifdef CONFIG_SMP
-			/* Clean and invalidate L1 cache on all cpus */
-			flush_l1_cache_range(
-				(unsigned long) resolved->virtual_address,
-				(unsigned long) resolved->virtual_address +
-				buf->len);
-#else
-			/* Clean and invalidate L1 cache */
-			flush_pmem_file(resolved->filep, buf->offset, buf->len);
-#endif
-			/* Clean (and invalidate?) L2 cache */
-			outer_flush_range(resolved->physical_address,
-					  resolved->physical_address +
-					  buf->len);
-#endif
-		} else {
-#ifdef CONFIG_SMP
-			/* Clean L1 cache on all cpus */
-			clean_l1_cache_range(
-				(unsigned long) resolved->virtual_address,
-				(unsigned long) resolved->virtual_address +
-				buf->len);
-#else
-			/* Clean L1 cache */
-			flush_pmem_file(resolved->filep, buf->offset, buf->len);
-#endif
-			/* Clean L2 cache */
-			outer_clean_range(resolved->physical_address,
-					  resolved->physical_address +
-					  buf->len);
-		}
-	} else
-#endif
+	struct sync_args sa;
+	u32 start_phys, end_phys;
+
+	if (B2R2_BLT_PTR_NONE == buf->type)
+		return;
+
+	sa.start = (unsigned long)resolved->virtual_address;
+	sa.end = (unsigned long)resolved->virtual_address + buf->len;
+	start_phys = resolved->physical_address;
+	end_phys = resolved->physical_address + buf->len;
+
+	/* TODO: Very ugly. We should find out whether the memory is coherent in some generic way
+	but cache handling will be rewritten soon so there is no use spending time on it. In the
+	new design this will probably not be a problem. */
+	/* Frame buffer and mio pmem memory is coherent, at least now. */
+	if (!resolved->is_pmem || (!flush_mio_pmem && is_mio_pmem(resolved)))
 	{
-#if 0
-		if (is_dst) {
+		/* Drain the write buffers as they are not always part of the coherent concept. */
+		wmb();
+
+		return;
+	}
+
+	/* The virtual address to a pmem buffer is retrieved from ioremap, not sure if it's
+	ok to use such an address as a kernel virtual address. When doing it at a higher
+	level such as dma_map_single it triggers an error but at lower levels such as
+	dmac_clean_range it seems to work, hence the low level stuff. */
+
+	if (is_dst) {
+		/* According to ARM's docs you must clean before invalidating (ie flush) to
+		avoid loosing data. */
+
+		/* Flush L1 cache */
 #ifdef CONFIG_SMP
-			/* Clean and invalidate L1 cache on all cpus */
-			flush_l1_cache_range(
-				(unsigned long) resolved->virtual_address,
-				(unsigned long) resolved->virtual_address +
-				buf->len);
+		flush_l1_cache_range_all_cpus(&sa);
 #else
-			/* Clean and invalidate L1 cache */
-			dmac_flush_range(resolved->virtual_address,
-					 resolved->virtual_address + buf->len);
+		flush_l1_cache_range_curr_cpu(&sa);
 #endif
-			/* Clean (and invalidate?) L2 cache */
-			outer_flush_range(
-				(unsigned long) resolved->virtual_address,
-				(unsigned long) resolved->virtual_address +
-				buf->len);
-		} else {
+
+		/* Flush L2 cache */
+		outer_flush_range(start_phys, end_phys);
+	} else {
+		/* Clean L1 cache */
 #ifdef CONFIG_SMP
-			/* Clean L1 cache on all cpus */
-			clean_l1_cache_range(
-				(unsigned long) resolved->virtual_address,
-				(unsigned long) resolved->virtual_address +
-				buf->len);
+		clean_l1_cache_range_all_cpus(&sa);
 #else
-			/* Clean L1 cache */
-			dmac_clean_range(resolved->virtual_address,
-					 resolved->virtual_address + buf->len);
+		clean_l1_cache_range_curr_cpu(&sa);
 #endif
-			/* Clean L2 cache */
-			outer_clean_range(
-				(unsigned long) resolved->virtual_address,
-				(unsigned long) resolved->virtual_address +
-				buf->len);
-		}
-#endif
+
+		/* Clean L2 cache */
+		outer_clean_range(start_phys, end_phys);
 	}
 }
 
@@ -1969,6 +1971,9 @@ int b2r2_blt_module_init(void)
 				    0666, debugfs_root_dir,
 				    0,
 				    &debugfs_b2r2_blt_stat_fops);
+		debugfs_create_bool("flush_mio_pmem",
+				    0666, debugfs_root_dir,
+				    (u32 *) &flush_mio_pmem);
 	}
 #endif
 	goto out;

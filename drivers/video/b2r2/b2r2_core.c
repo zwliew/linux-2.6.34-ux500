@@ -29,18 +29,6 @@
   uTimeOut, use mdelay instead?
   Measure performance
 
-  synch should be better documented
-  explain clean, invalidate, flush
-
-  The issue with L1 cache, L2 cache, write buffer, SMP, dmb()
-  (data memory barrier), dsb() (data synchronization barrier),
-  strongly ordered memory/device memory/normal memory,
-  ARM v6 weak memory model needs to be looked into.
-  Also does dma_alloc_coherent return non-cached, non-buffered memory?
-  Or should dma_alloc_writecombine be used instead?
-  We _must_ guarantee that the data in the B2R2 node has reached physical
-  memory before B2R2 executes the node.
-
   Exchange our home-cooked ref count with kernel kref? See
      http://lwn.net/Articles/336224/
 
@@ -286,26 +274,6 @@ struct b2r2_core {
 	int ar_read;
 #endif
 };
-
-
-/**
- * use_dsb - true (default) if data synchronization barrier is to be used
- *           Value can be changed via debugfs
- */
-static bool use_dsb = true;
-
-/**
- * synchronize() - Performs a data synchronization barrier
- *                 We must ensure that node data has landed in physical
- *                 memory before B2R2 starts using it.
- *                 This might involve each CPU:s L1 cache,
- *                 each CPU:s write buffer and the L2 cache.
- */
-static void synchronize(void)
-{
-	if (use_dsb)
-		dsb();
-}
 
 /**
  * b2r2_core - Administration data for B2R2 core (singleton)
@@ -1324,32 +1292,28 @@ static void trigger_job(struct b2r2_core_job *job)
 	case B2R2_CORE_QUEUE_AQ1:
 		writel(job->control, &b2r2_core.hw->BLT_AQ1_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ1_IP);
-		/* Data synchronization barrier */
-		synchronize();
+		wmb();
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ1_LNA);
 		break;
 
 	case B2R2_CORE_QUEUE_AQ2:
 		writel(job->control, &b2r2_core.hw->BLT_AQ2_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ2_IP);
-		/* Data synchronization barrier */
-		synchronize();
+		wmb();
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ2_LNA);
 		break;
 
 	case B2R2_CORE_QUEUE_AQ3:
 		writel(job->control, &b2r2_core.hw->BLT_AQ3_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ3_IP);
-		/* Data synchronization barrier */
-		synchronize();
+		wmb();
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ3_LNA);
 		break;
 
 	case B2R2_CORE_QUEUE_AQ4:
 		writel(job->control, &b2r2_core.hw->BLT_AQ4_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ4_IP);
-		/* Data synchronization barrier */
-		synchronize();
+		wmb();
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ4_LNA);
 		break;
 
@@ -2136,9 +2100,6 @@ static int init_hw(struct platform_device *pdev)
 					    0666, b2r2_core.debugfs_root_dir,
 					    (void *) debugfs_regs[i].offset,
 					    &debugfs_b2r2_reg_fops);
-		debugfs_create_bool("use_dsb",
-				    0666, b2r2_core.debugfs_root_dir,
-				    (u32 *) &use_dsb);
 	}
 #endif
 
