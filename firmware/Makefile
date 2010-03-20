@@ -142,6 +142,11 @@ fw-shipped-$(CONFIG_MFD_STE_CONN) += ste_conn_patch_info.fw ste_conn_settings_in
 					STLC2600_R6_04_02.fw STLC2690_R6_04_A2.fw \
 					STLC2600_R7_00_01.fw STLC2690_R7_00_A1_E5.fw
 
+fw-shipped-$(CONFIG_RADIO_CG2900) += ste_fm_bt_src_coeff_info.fw ste_fm_ext_src_coeff_info.fw \
+					ste_fm_fm_coeff_info.fw ste_fm_fm_prog_info.fw \
+					R1e2v10BT_src_coeff_11.fw R1e2v10FM_coeff.fw \
+					R1e2v10FM_prog.fw R1e2v10EXT_src_coeff_11.fw
+
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 
 # Directories which we _might_ need to create, so we have a rule for them.

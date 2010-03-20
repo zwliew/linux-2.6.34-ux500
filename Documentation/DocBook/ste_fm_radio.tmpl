@@ -1,0 +1,847 @@
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+	"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" []>
+
+<book id="STE-CG2900-fm-driver-template">
+ <bookinfo>
+  <title>ST-Ericsson CG2900 FM Driver</title>
+
+  <authorgroup>
+   <author>
+    <firstname>Hemant</firstname>
+    <surname>Gupta</surname>
+    <affiliation>
+     <address>
+      <email>hemant.gupta@stericsson.com</email>
+     </address>
+    </affiliation>
+   </author>
+  </authorgroup>
+
+  <copyright>
+   <year>2010</year>
+   <holder>ST-Ericsson</holder>
+  </copyright>
+
+  <subjectset>
+    <subject>
+      <subjectterm>Connectivity</subjectterm>
+    </subject>
+  </subjectset>
+
+  <legalnotice>
+   <!-- Do NOT remove the legal notice below -->
+
+  <para>
+     This documentation is free software; you can redistribute
+     it and/or modify it under the terms of the GNU General Public
+     License as published by the Free Software Foundation; either
+     version 2 of the License, or (at your option) any later
+     version.
+   </para>
+
+   <para>
+     This program is distributed in the hope that it will be
+     useful, but WITHOUT ANY WARRANTY; without even the implied
+     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+     See the GNU General Public License for more details.
+   </para>
+
+   <para>
+     You should have received a copy of the GNU General Public
+     License along with this program; if not, write to the Free
+     Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+     MA 02111-1307 USA
+   </para>
+
+   <para>
+     For more details see the file COPYING in the source
+     distribution of Linux.
+   </para>
+  </legalnotice>
+ </bookinfo>
+
+ <toc></toc>
+
+ <chapter id="intro">
+  <title>Introduction</title>
+  <!-- Do NOT change the chapter id or title! -->
+  <para>
+    This documentation describes the functions provided by the CG2900 FM Driver.
+  </para>
+ </chapter>
+
+ <chapter id="gettingstarted">
+  <title>Getting Started</title>
+  <!-- Do NOT change the chapter id or title! -->
+  <para>
+     There are no special compilation flags needed to build the CG2900
+     FM Driver.
+  </para>
+  <para>
+    There must be coeffecient and firmware files that match the used chip version inside the firmware folder.
+    The files:
+    <itemizedlist>
+      <listitem><para>ste_fm_bt_src_coeff_info.fw.org</para></listitem>
+      <listitem><para>ste_fm_ext_src_coeff_info.fw.org</para></listitem>
+      <listitem><para>ste_fm_fm_coeff_info.fw.org</para></listitem>
+      <listitem><para>ste_fm_fm_prog_info.fw.org</para></listitem>
+    </itemizedlist>
+    handle the mapping between chip version and correct firmware files (firmware and coeffecient files).
+    The necessary firmware and coeffecient files should be placed with the extension <constant>.fw.org</constant>.
+    Note that there is a limitation in the Kernel firmware system regarding name length of a file.
+  </para>
+  <para>
+      To enable the CG2900 FM Driver using KConfig go to <constant>Device Drivers -> Multimedia devices </constant>
+      and enable the following:
+    <itemizedlist>
+      <listitem><para>Video For Linux</para></listitem>
+      <listitem><para>Enable Video For Linux API 1 compatible Layer</para></listitem>
+      <listitem><para>Radio Adapters</para></listitem>
+      <listitem><para>Radio Adapter -> ST-Ericsson CG2900 FM Radio support</para></listitem>
+    </itemizedlist>
+      Select the driver as built in kernel object.
+  </para>
+
+  <!-- TODO: If the driver needs preparations to be used
+        (special compilation flags, files in the file system,
+        knowledge about a specific domain etc), specify it here.
+        Remove this chapter completely if there is nothing
+        to mention and there is no tutorial needed.
+        Do NOT change the chapter id or title! -->
+  <!-- TODO: This guideline for this chapter may be extended
+        during the user-guide guidelines drop. -->
+
+ </chapter>
+
+ <chapter id="concepts">
+  <title>Concepts</title>
+  <!-- Do NOT change the chapter id or title! -->
+  <para>
+     The CG2900 FM driver acts as an interface between Video4Linux and STE-Protocol Driver. It configures the FM chip in FM Rx or FM Tx mode. It also sends the unformatted RDS data to the application fo decoding while in FM rx mode and sends the formatted RDS data to FM Chip while in Tx mode.
+     <!-- TODO: A brief introduction about the concepts
+           which are introduced by the driver.
+           Remove this chapter completely if there are no
+           special concepts introduced by this driver.
+           Do NOT change the chapter id or title! -->
+     <!-- TODO: This guideline for this chapter may be extended
+           during the user-guide guidelines drop. -->
+  </para>
+   <para>
+     <variablelist>
+       <varlistentry>
+         <term>FM Driver Working</term>
+         <listitem>
+         <para>
+           In order to send and receive data on an H:4 channel, the FM Driver opens the channel by registering with the STE Protocol driver. After this the FM driver encapsulates the user operation into specific HCI comamnds and sends that data to the STE Connectivity Controller and waits till the response for the previous command is received. FM Driver in this way maintains the flow control.
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </para>
+ </chapter>
+
+ <chapter id="Functionalities">
+   <title>FM Radio Functionalities</title>
+   <!-- Do NOT change the chapter id or title! -->
+
+   <section id="Switching-On-FM">
+     <title>Switch On FM</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Switching On FM</term>
+         <listitem>
+         <para>
+           For switching on FM the character device /dev/radio0 should be opened from user space.
+           <programlisting>
+
+		int fd;
+		fd = open("/dev/radio0", O_RDONLY);
+		if(fd &lt; 0) {
+			printf("open:error!!!\n");
+			goto err;
+		}
+
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="Switching-Off-FM">
+     <title>Switch Off FM</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Switching Off FM</term>
+         <listitem>
+         <para>
+           For switching on FM the character device /dev/radio0 should be opened from user space.
+           <programlisting>
+
+		if(fd &gt;= 0)
+			close(fd);
+
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="FM-Standby">
+     <title>Standby</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Making the FM Radio go in Standby Mode</term>
+         <listitem>
+         <para>
+           For making the FM Radio go in Standby mode, the IOCLT VIDIOC_S_CTRL should be used. The id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_CHIP_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_STANDBY.
+           <programlisting>
+
+		struct v4l2_control sctrl;
+		int ret;
+		sctrl.id = V4L2_CID_CG2900_RADIO_CHIP_STATE;
+                sctrl.value = V4L2_CG2900_RADIO_STANDBY;
+                ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_CTRL:error!!\n");
+		}
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="Powerup-from-standby">
+     <title>Powering Up FM From Standby Mode</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Powering Up FM Radio from Standby Mode</term>
+         <listitem>
+         <para>
+           For powering up FM radio again from standby mode, the IOCLT VIDIOC_S_CTRL should be used. The id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_CHIP_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_POWERUP.
+           <programlisting>
+
+		struct v4l2_control sctrl;
+		int ret;
+		sctrl.id = V4L2_CID_CG2900_RADIO_CHIP_STATE;
+                sctrl.value = V4L2_CG2900_RADIO_POWERUP;
+                ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_CTRL:error!!\n");
+		}
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="tune-frequency">
+     <title>Tune Channel</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Tune to a particular station</term>
+         <listitem>
+         <para>
+           for tuning to a particular station, the IOCLT VIDIOC_S_FREQUENCY should be used. The frequency of the v4l2_frequency structure should be converted to V4L2 format.
+           <programlisting>
+		struct v4l2_frequency freq;
+		int ret;
+
+		/* Convert frequency in Hz to V4L2 Format */
+		freq.frequency = (frequency * 2)/ 125;
+                ret = ioctl(fd, VIDIOC_S_FREQUENCY, &amp; freq);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_FREQUENCY:error!!\n");
+		}
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="get-frequency">
+     <title>Get Tuned Channel</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Get the Currently tuned Station Frequncy</term>
+         <listitem>
+         <para>
+           for tuning to a particular station, the IOCLT VIDIOC_G_FREQUENCY should be used. The frequency returened in the v4l2_frequency structure would be in V4L2 format.
+           <programlisting>
+		struct v4l2_frequency freq;
+		int ret;
+
+                ret = ioctl(fd, VIDIOC_G_FREQUENCY, &amp; freq);
+		if (ret &lt; 0) {
+			printf("VIDIOC_G_FREQUENCY:error!!\n");
+			*frequency = 0;
+			return;
+		}
+		/* Convert frequency to Hz from V4L2 Format */
+		*frequency = (freq.frequency * 125)/2;
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="seek-up-down">
+     <title>Seek</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Seek Up/Down</term>
+         <listitem>
+         <para>
+           For searching next available channel in upward or downward direction, IOCTL VIDIOC_S_HW_FREQ_SEEK should be used with parameter seek_upward of v4l2_hw_freq_seek structure be filled with direct of search. For searching upwards use 1 and for searching downwards use 0 as the value respectively. If the IOCTL returns successfully, a thread should be created to start polling to FM driver, to wait till search is complete. When poll is complete, the tuned frequency should be retrived from FM Driver by using the IOCTL VIDIOC_G_FREQUENCY.
+           <programlisting>
+		void search()
+		{
+			struct v4l2_hw_freq_seek seek;
+			int ret;
+
+			if(1 == direction) {
+				seek.seek_upward = 1;
+			}
+			else if(0 == direction) {
+				seek.seek_upward = 0;
+			}
+			else {
+				printf("Invalid direction = %d\n", direction);
+				return;
+			}
+			seek.wrap_around = 0;
+			ret = ioctl(fd, VIDIOC_S_HW_FREQ_SEEK, &amp; seek);
+			if (ret &lt; 0) {
+				printf("VIDIOC_S_HW_FREQ_SEEK:error!!\n");
+				return;
+			}
+		}
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="band-scan">
+     <title>Scan Band</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Band Scan</term>
+         <listitem>
+         <para>
+           For doing a band scan, ie search for all available stations in the entire FM band, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_BANDSCAN and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_BANDSCAN_START. If the IOCTL returns successfully, a thread should be created to start polling to FM driver, to wait till scan is complete. When poll is complete, the found stations along with RSSI should be retrived using the IOCTL VIDIOC_G_EXT_CTRLS should be used with parameters as described in example code.
+           <programlisting>
+		void scan()
+		{
+			struct v4l2_control sctrl
+			int ret;
+
+			sctrl.id = V4L2_CID_CG2900_RADIO_BANDSCAN;
+			sctrl.value = V4L2_CG2900_RADIO_BANDSCAN_START;
+
+			ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+			if (ret &lt; 0) {
+				printf("VIDIOC_S_CTRL:error!!\n");
+			}
+			pthread_create(&amp; fmScanThread, NULL, FmScanThread, NULL);
+		}
+		static void *FmScanThread(void *param)
+		{
+			struct v4l2_ext_controls scanResult;
+			struct pollfd pollFd;
+			long * p = NULL;
+			int index, ret, count = 0;
+			int err;
+
+			pollFd.fd = fd;
+			pollFd.events = POLLRDBAND;
+			ret = poll(&amp; pollFd, 1, 1000);
+
+			if(pollFd.revents &amp;  POLLRDBAND)
+			{
+				/* Get the Number OF Channels */
+				scanResult.count = 0;
+				scanResult.ctrl_class = V4L2_CTRL_CLASS_USER;
+				scanResult.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+				scanResult.controls->id = V4L2_CID_CG2900_RADIO_BANDSCAN_GET_RESULTS;
+				scanResult.controls->size = 0;
+				scanResult.controls->string = NULL;
+				err = ioctl(fd, VIDIOC_G_EXT_CTRLS, &amp; scanResult);
+
+				if (err &lt; 0 &amp; &amp;  errno !=  ENOSPC) {
+					printf("VIDIOC_G_EXT_CTRLS:error!!\n");
+					goto err;
+				}
+				/* Allocate memory to receive the data from driver */
+				if(scanResult.controls->size &gt; 0 )
+				{
+					scanResult.controls->string = (long *)malloc(sizeof(long) * 2 * scanResult.controls->size );
+					p = scanResult.controls->string;
+					printf("\nNumber of Channels Found = %d \n", scanResult.controls->size);
+					/* Retrieve the Data now */
+					ret = ioctl(fd, VIDIOC_G_EXT_CTRLS, &amp; scanResult);
+					if (ret &lt; 0) {
+						printf("VIDIOC_G_EXT_CTRLS:error!!\n");
+						goto err;
+					}
+					for (index = 0, count = 0; index &lt; scanResult.controls->size; index ++, count +=2) {
+						printf("%d   	 %d.%d   	%d\n", index + 1, MEGAHRTZ((*(p +count + 0) * 125) / 2), *(p + count + 1));
+					}
+					err:
+					free(p);
+					free(scanResult.controls);
+				}
+			}
+			else if( pollFd.revents &amp;  POLLHUP)
+			{
+				printf("\nScan Cancelled By User!!\n");
+			}
+			else if( pollFd.revents &amp;  POLLERR){
+				printf("\nError in Scaning, Timeout!!!\n");
+			}
+			return 0;
+		}
+
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="cancel-scan-seek">
+     <title>Cancel Scan</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Cancel Scan/Seek</term>
+         <listitem>
+         <para>
+           For cancelling an ongoing Band Scan or Seek, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_BANDSCAN and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_BANDSCAN_STOP.
+           <programlisting>
+		struct v4l2_control sctrl;
+		int ret;
+
+		sctrl.id = V4L2_CID_CG2900_RADIO_BANDSCAN;
+		sctrl.value = V4L2_CG2900_RADIO_BANDSCAN_STOP;
+
+		ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_CTRL:error!!\n");
+		}
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="rds-receive">
+     <title>RDS Receive</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Receive RDS Data</term>
+         <listitem>
+         <para>
+           By default rds is disabled in FM driver, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_RDS_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_RDS_ON if rds needs to be enabled and V4L2_CG2900_RADIO_RDS_OFF in case rds is to be disabled. A thread should be created and read() should be called to receive RDS data from driver. The RDS data received from FM Driver should be parsed in user space to retrive RDS information.
+           <programlisting>
+		struct v4l2_control sctrl;
+		int ret;
+
+		sctrl.id = V4L2_CID_CG2900_RADIO_RDS_STATE;
+		sctrl.value = V4L2_CG2900_RADIO_RDS_ON; // or V4L2_CG2900_RADIO_RDS_OFF
+
+		ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_CTRL:error!!\n");
+		}
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+ </chapter>
+
+
+ <chapter id="driver-loading">
+   <title>Driver loading parameters</title>
+   <!-- Do NOT change the chapter id or title! -->
+
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>radio_nr</term>
+         <listitem>
+         <para>
+           <variablelist>
+             <varlistentry>
+               <term>Parameter type</term>
+               <listitem><synopsis><type>int</type></synopsis></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Default value</term>
+               <listitem><para>0</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Runtime readable/modifiable</term>
+               <listitem><para>Readable</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Description</term>
+               <listitem>
+               <para>
+                 The parameter radio_nr in radio-CG2900.c can be set to register a particular minor number with Video4Linux. Currently this parameter is set to 0 by default, signifying that the "\dev\radio0" is the character device assigned to CG2900 FM Driver in Video4Linux.
+		 If the Platform has more than 1 radio drivers, the radio_nr parameter should be changed in file radio-CG2900.c.
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Checking the Radio Number</term>
+               <listitem>
+               <para>
+	       cat sys/module/radio_CG2900/parameters/radio_nr.
+               </para>
+               <para>
+		The above command gets the radio number registered with
+		Video4Linux. This is used for opening the FM Radio
+		character device from user space.
+               </para>
+               </listitem>
+             </varlistentry>
+           </variablelist>
+         </para>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term>grid</term>
+         <listitem>
+         <para>
+           <variablelist>
+             <varlistentry>
+               <term>Parameter type</term>
+               <listitem><synopsis><type>int</type></synopsis></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Default value</term>
+               <listitem><para>1</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Runtime readable/modifiable</term>
+               <listitem><para>Modifiable</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Description</term>
+               <listitem>
+               <para>
+                 The parameter grid in radio-CG2900.c defines the spacing to be used in Khz while switching on FM Radio.
+                 <itemizedlist>
+                   <listitem><para>0: 200 kHz (USA)</para></listitem>
+                   <listitem><para>1: 100 kHz (Europe, Japan)</para></listitem>
+                   <listitem><para>2:  50 kHz (China)</para></listitem>
+                </itemizedlist>
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Changing the Grid</term>
+               <listitem>
+               <para>
+		echo 1 &gt; /sys/module/radio_CG2900/parameters/grid.
+               </para>
+               <para>
+		The above command sets the radio band spacing between
+		two adjacent radio channels, in this case sets to 100KHz
+		suitable for Europe. The change is applicable before
+		switching on FM Radio, otherwise the change takes effect
+		from next FM switch on.
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Checking the current Grid Value</term>
+               <listitem>
+               <para>
+		cat sys/module/radio_CG2900/parameters/grid.
+               </para>
+               <para>
+		The above command gets the radio band spacing
+		between two adjacent radio channels currently set.
+               </para>
+               </listitem>
+             </varlistentry>
+            </variablelist>
+         </para>
+         </listitem>
+       </varlistentry>
+
+
+       <varlistentry>
+         <term>band</term>
+         <listitem>
+         <para>
+           <variablelist>
+             <varlistentry>
+               <term>Parameter type</term>
+               <listitem><synopsis><type>int</type></synopsis></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Default value</term>
+               <listitem><para>0</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Runtime readable/modifiable</term>
+               <listitem><para>Modifiable</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Description</term>
+               <listitem>
+               <para>
+                 The parameter band in radio-CG2900.c defines the band to be used while switching on FM Radio.
+                 <itemizedlist>
+                   <listitem><para>0: 87.5 - 108 MHz (USA, Europe)</para></listitem>
+                   <listitem><para>1: 70   - 108 MHz (China wide band)</para></listitem>
+                   <listitem><para>2: 76   -  90 MHz (Japan)</para></listitem>
+                </itemizedlist>
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Changing the Band</term>
+               <listitem>
+               <para>
+		echo 0 &gt; /sys/module/radio_CG2900/parameters/band.
+               </para>
+               <para>
+		The above command sets the FM band to be used.
+		In this case, it sets the FM band 87.5 - 100 MHz.
+		The change is applicable before switching on FM Radio,
+		otherwise the change takes effect from next FM switch on.
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Checking the current Band Value</term>
+               <listitem>
+               <para>
+		cat sys/module/radio_CG2900/parameters/band.
+               </para>
+               <para>
+		The above command gets the current radio band set.
+               </para>
+               </listitem>
+             </varlistentry>
+           </variablelist>
+         </para>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term>ste_fm_debug_level</term>
+         <listitem>
+         <para>
+           <variablelist>
+             <varlistentry>
+               <term>Parameter type</term>
+               <listitem><synopsis><type>int</type></synopsis></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Default value</term>
+               <listitem><para>1</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Runtime readable/modifiable</term>
+               <listitem><para>Modifiable</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Description</term>
+               <listitem>
+               <para>
+                 The parameter ste_fm_debug_level in platformosapi.c defines the debug level that is currently used.
+                 The higher the debug level the more print-outs are received in the terminal window.
+                 The following values are supported:
+                 <itemizedlist>
+                   <listitem><para>1 = Error prints</para></listitem>
+                   <listitem><para>2 = General info, e.g. function entries</para></listitem>
+                   <listitem><para>3 = All Debug prints</para></listitem>
+                   <listitem><para>4 = Data content, i.e. contents of the transferred data</para></listitem>
+                 </itemizedlist>
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Changing the Log Level</term>
+               <listitem>
+               <para>
+		echo 3 &gt; /sys/module/radio_CG2900/parameters/ste_fm_debug_level.
+               </para>
+               <para>
+		The above command sets the Logging level of FM Driver.
+		In this case, it set will print all the debug messages
+		except the HCI commans exchanged with FM Chip.
+               </para>
+               </listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Checking the current Log Level</term>
+               <listitem>
+               <para>
+		cat sys/module/radio_CG2900/parameters/ste_fm_debug_level.
+               </para>
+               <para>
+		The above command gets the current debug log level set.
+               </para>
+               </listitem>
+             </varlistentry>
+           </variablelist>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+     <para>
+       <!-- TODO: This guideline for this section may be extended
+            during the user-guide guidelines drop. -->
+     </para>
+
+ </chapter>
+
+ <chapter id="bugs">
+   <title>Known Bugs And Assumptions</title>
+   <!--  Do NOT change the chapter id or title! -->
+   <para>
+     <variablelist>
+     <varlistentry>
+       <term>Problems in Band Scan &amp; Seek with Wired Headset</term>
+       <listitem>
+         <para>
+           During Band Scan many stations are found, when the Headset Wire is plugged into headset jack of Platform, which are not actual FM Stations but noise. The same issue comes while trying to do search up/down. This issue is under investiigation.
+           <!-- TODO: Briefly describe the limitation, unless all
+              information is already present in the title.
+              Use full english sentences.
+              Repeat the varlistentry for each limitation.
+              If none are known, replace this varlistentry
+              with the one below. -->
+           <!-- TODO: This guideline for this chapter may be extended
+              during the user-guide guidelines drop. -->
+         </para>
+       </listitem>
+     </varlistentry>
+     </variablelist>
+
+   </para>
+ </chapter>
+
+ <chapter id="function-description">
+   <title>Functions Description</title>
+   <para>
+	List of functions used in FM Driver.
+   </para>
+   <!-- Do NOT change the chapter id or title! -->
+   <!-- TODO: Replace with link to appropriate headerfile(s),
+        source file(s), or both. One per row, ensure the
+        exclamation mark is on the first column! If no
+        appropriate header or source file exist describing a public interface,
+        replace the inclusion with a paragraph containing the text
+        "Not Applicable"-->
+  <section id="radio-CG2900.c">
+    <title>radio-CG2900.c</title>
+!Idrivers/media/radio/CG2900/radio-CG2900.c
+  </section>
+  <section id="stefmapi.h">
+    <title>stefmapi.h</title>
+!Idrivers/media/radio/CG2900/stefmapi.h
+  </section>
+  <section id="stefmapi.c">
+    <title>stefmapi.c</title>
+!Idrivers/media/radio/CG2900/stefmapi.c
+  </section>
+  <section id="fmdriver.h">
+    <title>fmdriver.h</title>
+!Idrivers/media/radio/CG2900/fmdriver.h
+  </section>
+  <section id="fmdriver.c">
+    <title>fmdriver.c</title>
+!Idrivers/media/radio/CG2900/fmdriver.c
+  </section>
+  <section id="platformosapi.h">
+    <title>platformosapi.h</title>
+!Idrivers/media/radio/CG2900/platformosapi.h
+  </section>
+  <section id="platformosapi.c">
+    <title>platformosapi.c</title>
+!Idrivers/media/radio/CG2900/platformosapi.c
+  </section>
+ </chapter>
+
+</book>

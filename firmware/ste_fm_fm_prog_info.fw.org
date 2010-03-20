@@ -1,0 +1,13 @@
+#
+# FM Firmware File
+#
+# All firmware information must be stored as follows
+#
+# CHIP_ID 	HCI_revision	 LMP_Subversion
+#
+# ST: <CHIP_ID> is set to 0x00000000 since this is not used by ST.
+#
+# FM Firmware file for ST-Ericsson - CG2900
+#
+0x0700 0x0011 R1e2v10FM_prog.fw
+#
