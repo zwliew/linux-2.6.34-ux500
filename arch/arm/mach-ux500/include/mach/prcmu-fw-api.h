@@ -12,6 +12,24 @@
 #include <linux/interrupt.h>
 #include "prcmu-fw-defs_v1.h"
 
+/**
+ * enum hw_acc_dev - enum for hw accelerators
+ * @HW_ACC_SVAMMDSP: for SVAMMDSP
+ * @HW_ACC_SVAPIPE:  for SVAPIPE
+ * @HW_ACC_SIAMMDSP: for SIAMMDSP
+ * @HW_ACC_SIAPIPE: for SIAPIPE
+ * @HW_ACC_SGA: for SGA
+ * @HW_ACC_B2R2: for B2R2
+ * @HW_ACC_MCDE: for MCDE
+ * @HW_ACC_ESRAM1: for ESRAM1
+ * @HW_ACC_ESRAM2: for ESRAM2
+ * @HW_ACC_ESRAM3: for ESRAM3
+ * @HW_ACC_ESRAM4: for ESRAM4
+ *
+ * Different hw accelerators which can be turned ON/
+ * OFF or put into retention the ESRAMs.
+ * Used with EPOD API.
+ */
 enum hw_acc_dev{
 	HW_ACC_SVAMMDSP = 0,
 	HW_ACC_SVAPIPE = 1,
@@ -63,6 +81,5 @@ void prcmu_set_callback_cawakereq(void (*func)(u8));
 void prcmu_system_reset(void);
 int prcmu_is_ca_wake_req_pending(void);
 int prcmu_read_ack_mb7(void);
-irqreturn_t prcmu_ack_mbox_irq_handler(int, void *);
 
 #endif /* __MACH_PRCMU_FW_API_V1_H */

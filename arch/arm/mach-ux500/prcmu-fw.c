@@ -609,7 +609,7 @@ EXPORT_SYMBOL(prcmu_set_hwacc);
 
 
 /**
- * prcmu_set_ape_opp - set the appropriate h/w accelerator to power mode
+ * prcmu_set_hwacc_st - set the appropriate h/w accelerator to power mode
  * @hw_acc: the hardware accelerator being considered
  * @hw_accst: The new h/w accelerator state(on/off/retention)
  * Returns: 0 on success, non-zero on failure
@@ -967,6 +967,21 @@ void a9ss_restore_scu_config(void)
 	return;
 }
 
+/* FIXME : get these from platform/header files instead */
+/* GIC BAse Address */
+#define GIC_BASE_ADDR           IO_ADDRESS(0xA0411000)
+
+/* ITs enabled for GIC. 104 is due to skipping of the STI and PPI sets.
+ *  * Rfer page 648 of the DB8500V1 spec v2.5
+ *   */
+#define DIST_ENABLE_SET         (GIC_BASE_ADDR + 0x104)
+#define DIST_PENDING_SET        (GIC_BASE_ADDR + 0x200)
+#define DIST_ENABLE_CLEAR       (GIC_BASE_ADDR + 0x180)
+#define DIST_ACTIVE_BIT         (GIC_BASE_ADDR + 0x304)
+
+#define PRCM_DEBUG_NOPWRDOWN_VAL        IO_ADDRESS(0x80157194)
+#define PRCM_POWER_STATE_VAL            IO_ADDRESS(0x8015725C)
+
 /**
  * prcmu_apply_ap_state_transition - PRCMU State Transition function
  * @transition: Transition to be requested to move to new AP power mode
@@ -986,21 +1001,6 @@ void a9ss_restore_scu_config(void)
  * not support it. This also assumes that the non-boot cpu's are in wfi
  * and not wfe.
  */
-/* FIXME : get these from platform/header files instead */
-/* GIC BAse Address */
-#define GIC_BASE_ADDR           IO_ADDRESS(0xA0411000)
-
-/* ITs enabled for GIC. 104 is due to skipping of the STI and PPI sets.
- * Rfer page 648 of the DB8500V1 spec v2.5
- */
-#define DIST_ENABLE_SET         (GIC_BASE_ADDR + 0x104)
-#define DIST_PENDING_SET        (GIC_BASE_ADDR + 0x200)
-#define DIST_ENABLE_CLEAR       (GIC_BASE_ADDR + 0x180)
-#define DIST_ACTIVE_BIT         (GIC_BASE_ADDR + 0x304)
-
-#define PRCM_DEBUG_NOPWRDOWN_VAL        IO_ADDRESS(0x80157194)
-#define PRCM_POWER_STATE_VAL            IO_ADDRESS(0x8015725C)
-
 int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 					enum ddr_pwrst_t ddr_state_req,
 					int _4500_fifo_wakeup)
@@ -1580,8 +1580,9 @@ EXPORT_SYMBOL(prcmu_ac_sleep_req);
 
 
 /**
- * prcmu_configure_wakeup_events - configure 8500 and 4500 hw events on which
- * 			 PRCMU should wakeup AP
+ * prcmu_configure_wakeup_events - configure 8500 and 4500 hw events
+ * @event_8500_mask:	db8500 wakeup events
+ * @event_4500_mask:	Ab8500 wakeup events
  *
  * Mailbox : PRCM_REQ_MB0
  * Header  : WKUPCFGH
@@ -1704,7 +1705,7 @@ EXPORT_SYMBOL(prcmu_is_ca_wake_req_pending);
 
 /**
  * prcmu_set_callback_cawakereq - callback of shrm for ca_wake_req
- * @*func:	Function pointer of shrm
+ * @func:	Function pointer of shrm
  *
  * To call the registered shrm callback whenever ca_wake_req is got
  */
@@ -1716,8 +1717,8 @@ EXPORT_SYMBOL(prcmu_set_callback_cawakereq);
 
 
 /**
- * prcmu_set_callback_modem_reset_request - Set the callback function to call
- * 			when modem requests for Reset
+ * prcmu_set_callback_modem_reset_request - callback of shrm for reset
+ * @func:	Function pointer of shrm
  *
  * Mailbox used - None
  * Ack - None
