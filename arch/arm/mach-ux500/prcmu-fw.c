@@ -1850,7 +1850,7 @@ irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
 	 * filled by PRCMU fw */
 	prcm_arm_it1_val = readb(PRCM_ARM_IT1_VAL);
 
-	dbg_printk(" prcm_arm_it1_val = %d ", prcm_arm_it1_val);
+	dbg_printk(" prcm_arm_it1_val = %x ", prcm_arm_it1_val);
 
 	if (prcm_arm_it1_val & (1 << 0)) {
 		dbg_printk("\n Inside IRQ handler for Ack mb0 ");
@@ -1867,34 +1867,57 @@ irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
 			dbg_printk("\n Inside IRQ handler for Ack mb0  \
 					PWRSTTRH and waking up ");
 
+
 		} else if ((readb(PRCM_MBOX_HEADER_ACK_MB0)) == WKUPH) {
 			dbg_printk("\n IRQ handler for Ack mb0 WKUPH  ");
 			tasklet_schedule(&prcmu_ack_mb0_wkuph_tasklet);
-
 		}
-	} else if (prcm_arm_it1_val & (1<<1))
+
+		/* clear the bit 0 */
+		writeb(0x01, PRCM_ARM_IT1_CLEAR);
+		prcm_arm_it1_val = readb(PRCM_ARM_IT1_VAL);
+		dbg_printk(" prcm_arm_it1_val = %d ", prcm_arm_it1_val);
+	} else if (prcm_arm_it1_val & (1<<1)) {
 		dbg_printk("\n IRQ handler for Ack mb1\n");
-	else if (prcm_arm_it1_val & (1<<2))
+
+		/* clear the bit 1 */
+		writeb(0x02, PRCM_ARM_IT1_CLEAR);
+	} else if (prcm_arm_it1_val & (1<<2)) {
 		dbg_printk("\n IRQ handler for Ack mb2\n");
-	else if (prcm_arm_it1_val & (1<<3))
+
+		/* clear the bit 2 */
+		writeb(0x04, PRCM_ARM_IT1_CLEAR);
+	} else if (prcm_arm_it1_val & (1<<3)) {
 		dbg_printk("\n IRQ handler for Ack mb3\n");
-	else if (prcm_arm_it1_val & (1<<4))
+
+		/* clear the bit 3 */
+		writeb(0x08, PRCM_ARM_IT1_CLEAR);
+	} else if (prcm_arm_it1_val & (1<<4)) {
 		dbg_printk("\n IRQ handler for Ack mb4\n");
-	else if (prcm_arm_it1_val & (1<<5)) {
+
+		/* clear the bit 4 */
+		writeb(0x10, PRCM_ARM_IT1_CLEAR);
+	} else if (prcm_arm_it1_val & (1<<5)) {
 		/* No header reading required */
 		/* call wake_up_event_interruptible for mb5 transaction */
 		dbg_printk("\nInside prcmu IRQ handler for mb5 ");
 		wake_up_interruptible(&ack_mb5_queue);
-	} else if (prcm_arm_it1_val & (1<<6))
+
+		/* clear the bit 5 */
+		writeb(0x20, PRCM_ARM_IT1_CLEAR);
+	} else if (prcm_arm_it1_val & (1<<6)) {
 		dbg_printk("\n IRQ handler for Ack mb6\n");
-	else if (prcm_arm_it1_val & (1<<7)) {
+
+		/* clear the bit 6 */
+		writeb(0x40, PRCM_ARM_IT1_CLEAR);
+	} else if (prcm_arm_it1_val & (1<<7)) {
 		/* No header reading required */
 		dbg_printk("\n IRQ handler for Ack mb7\n");
 		tasklet_schedule(&prcmu_ack_mb7_tasklet);
-	}
 
-	/* clear arm_it1_val bits */
-	writeb(255, PRCM_ARM_IT1_CLEAR);
+		/* clear the bit 7 */
+		writeb(0x80, PRCM_ARM_IT1_CLEAR);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -1909,7 +1932,6 @@ static int prcmu_fw_init(void)
 	/* configure the wake-up events */
 	u32 event_8500 = 0x0;
 	u32 event_4500 = 0x0;
-	int prcm_arm_it1_val = 0;
 
 	if (u8500_is_earlydrop()) {
 		int i;
@@ -1937,40 +1959,16 @@ static int prcmu_fw_init(void)
 	dbg_printk("(WkUpCfgOk=0xEA)PRCM_ACK_MB0_AP_PWRST_STATUS = %x\n",
 			readb(PRCM_ACK_MB0_AP_PWRST_STATUS));
 
-	/* retrieve the current interrupt status from PRCMU FW */
-	prcm_arm_it1_val = readb(PRCM_ARM_IT1_VAL);
-	if (prcm_arm_it1_val && (1 << 0)) {
-		/* clear the arm_it1_val to low the IT#47 */
-		writeb(0xFF, PRCM_ARM_IT1_CLEAR);
-
-		/* init irqs */
-		err = request_irq(IRQ_PRCM_ACK_MBOX,
-			prcmu_ack_mbox_irq_handler, IRQF_TRIGGER_RISING,
-				"prcmu_ack_mbox", NULL);
-		if (err < 0) {
-			printk(KERN_ERR "\nFailed to allocate \
-					IRQ_PRCM_ACK_MBOX!!\n");
-			err = -EBUSY;
-			free_irq(IRQ_PRCM_ACK_MBOX, NULL);
-			goto err_return;
-		}
-
-		/* check for any existing wakeup events */
-		if (readb(PRCM_MBOX_HEADER_ACK_MB0) == WKUPH) {
-			/* check here for the wakeup source for cawakereq
-			   debugging on-going with fw for ping-pong.
-			   Currently, its not possible to read source of
-			   wakeup event correctly from fw mailbox */
-
-			/* increment pending flag for the shrm driver
-			   to check */
-			ca_wake_req_pending++;
-
-			/* acknowledge reading the wakeup reason to fw */
-			prcmu_ack_wakeup_reason();
-		}
+	/* init irqs */
+	err = request_irq(IRQ_PRCM_ACK_MBOX,
+			prcmu_ack_mbox_irq_handler, IRQF_TRIGGER_HIGH,
+			"prcmu_ack_mbox", NULL);
+	if (err < 0) {
+		printk(KERN_ERR "\nFailed to allocate \
+				IRQ_PRCM_ACK_MBOX!!\n");
+		err = -EBUSY;
+		goto err_return;
 	}
-
 
 	if (prcmu_get_xp70_current_state() == AP_BOOT)
 		prcmu_apply_ap_state_transition(APBOOT_TO_APEXECUTE, \
@@ -1982,7 +1980,10 @@ static int prcmu_fw_init(void)
 		return -ENODEV;
 	}
 
+	return 0;
+
 err_return:
+	free_irq(IRQ_PRCM_ACK_MBOX, NULL);
 	return err;
 }
 
