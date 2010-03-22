@@ -105,7 +105,7 @@ static unsigned int fmax = CLK_MAX;
 static unsigned int fmax = CLK_MAX / 8;
 #endif
 
-#if defined CONFIG_U8500_MMC_DMA
+#if !defined CONFIG_U8500_MMC_DMA
 /*
  *  A macro that holds the spin_lock
  */
@@ -213,9 +213,7 @@ static void
 u8500_mmci_request_end(struct u8500_mmci_host *host,
 			 struct mmc_request *mrq)
 {
-#ifndef CONFIG_U8500_MMC_DMA
 	unsigned long flag_lock = 0;
-#endif
 	MMC_LOCK(host->lock, flag_lock);
 	host->mrq = NULL;
 	host->cmd = NULL;
@@ -238,9 +236,7 @@ u8500_mmci_request_end(struct u8500_mmci_host *host,
  */
 static void u8500_mmci_stop_data(struct u8500_mmci_host *host)
 {
-#ifndef CONFIG_U8500_MMC_DMA
 	unsigned long flag_lock = 0;
-#endif
 	u32 temp = 0;
 	MMC_LOCK(host->lock, flag_lock);
 	temp = readl(host->base + MMCIDATACTRL) & ~(MCI_DPSM_ENABLE);
