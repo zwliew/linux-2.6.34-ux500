@@ -54,6 +54,19 @@ DECLARE_WAIT_QUEUE_HEAD(ack_mb0_queue);
 DECLARE_WAIT_QUEUE_HEAD(ack_mb5_queue);
 DECLARE_WAIT_QUEUE_HEAD(ack_mb7_queue);
 
+/* Spinlocks */
+spinlock_t req_mb0_lock;
+spinlock_t req_mb1_lock;
+spinlock_t req_mb2_lock;
+spinlock_t req_mb3_lock;
+spinlock_t req_mb4_lock;
+spinlock_t req_mb5_lock;
+spinlock_t req_mb6_lock;
+spinlock_t req_mb7_lock;
+spinlock_t irq_wake_lock;
+spinlock_t ac_wake_lock;
+spinlock_t ca_wake_lock;
+
 /* Global var to determine if ca_wake_req is pending or not */
 static int ca_wake_req_pending;
 
@@ -348,6 +361,7 @@ int prcmu_set_arm_opp(enum arm_opp_t arm_opp)
 {
 	int timeout = 200;
 	enum arm_opp_t current_arm_opp;
+	unsigned long flags;
 
 	if (u8500_is_earlydrop()) {
 		if (arm_opp < ARM_NO_CHANGE_ED || arm_opp > ARM_EXTCLK_ED)
@@ -396,6 +410,9 @@ int prcmu_set_arm_opp(enum arm_opp_t arm_opp)
 	if (!timeout)
 		return -EBUSY;
 
+	/* protect the writes for concurrent access */
+	spin_lock_irqsave(&req_mb1_lock, flags);
+
 	/* clear the mailbox */
 	writel(0, PRCM_ACK_MB1);
 
@@ -407,6 +424,8 @@ int prcmu_set_arm_opp(enum arm_opp_t arm_opp)
 	writel(APE_NO_CHANGE, PRCM_REQ_MB1_APEOPP);
 
 	_wait_for_req_complete(REQ_MB1);
+
+	spin_unlock_irqrestore(&req_mb1_lock, flags);
 
 	current_arm_opp = readb(PRCM_ACK_MB1_CURR_ARMOPP);
 	if (arm_opp != current_arm_opp) {
@@ -442,6 +461,7 @@ int prcmu_set_ape_opp(enum ape_opp_t ape_opp)
 {
 	int timeout = 200;
 	enum ape_opp_t current_ape_opp;
+	unsigned long flags;
 
 	if (ape_opp < APE_NO_CHANGE || ape_opp > APE_50_OPP)
 		return -EINVAL;
@@ -459,6 +479,9 @@ int prcmu_set_ape_opp(enum ape_opp_t ape_opp)
 	if (!timeout)
 		return -EBUSY;
 
+	/* protect writes for concurrent access */
+	spin_lock_irqsave(&req_mb1_lock, flags);
+
 	/* clear the mailbox */
 	writel(0, PRCM_ACK_MB1);
 
@@ -469,13 +492,9 @@ int prcmu_set_ape_opp(enum ape_opp_t ape_opp)
 	writel(ARM_NO_CHANGE, PRCM_REQ_MB1_ARMOPP);
 	writel(ape_opp, PRCM_REQ_MB1_APEOPP);
 
-	/* trigger the XP70 IT11 to the XP70 */
-	writel(PRCM_XP70_TRIG_IT11, PRCM_MBOX_CPU_SET);
+	_wait_for_req_complete(REQ_MB1);
 
-	timeout = 1000;
-	while ((readl(PRCM_MBOX_CPU_VAL) & PRCM_XP70_TRIG_IT11)
-			&& timeout--)
-		cpu_relax();
+	spin_unlock_irqrestore(&req_mb1_lock, flags);
 
 	current_ape_opp = readb(PRCM_ACK_MB1_CURR_APEOPP);
 	if (ape_opp != current_ape_opp) {
@@ -603,6 +622,8 @@ static int prcmu_set_hwacc_st(enum hw_acc_t hw_acc, enum hw_accst_t hw_accst)
 {
 	union req_mb2_t request;
 	int err = 0;
+	unsigned long flags;
+
 	if (u8500_is_earlydrop()) {
 		if (hw_acc < SVAMMDSP_ED || hw_acc > ESRAM4_ED ||
 				hw_accst < HW_NO_CHANGE_ED || hw_accst \
@@ -614,8 +635,11 @@ static int prcmu_set_hwacc_st(enum hw_acc_t hw_acc, enum hw_accst_t hw_accst)
 	}
 
 	if (hw_acc < SVAMMDSP || hw_acc > ESRAM4 ||
-	    hw_accst < HW_NO_CHANGE || hw_accst > HW_ON)
+			hw_accst < HW_NO_CHANGE || hw_accst > HW_ON)
 		return -EINVAL;
+
+	/* protect writes for concurrent access */
+	spin_lock_irqsave(&req_mb2_lock, flags);
 
 	/* write the header into mailbox 2 */
 	writeb(DPS_H, PRCM_MBOX_HEADER_REQ_MB2);
@@ -625,7 +649,9 @@ static int prcmu_set_hwacc_st(enum hw_acc_t hw_acc, enum hw_accst_t hw_accst)
 	writeb(hw_accst, PRCM_REQ_MB2 + hw_acc);
 	/* request for completion */
 	err = _wait_for_req_complete(REQ_MB2);
-	printk("\n readb(PRCM_ACK_MB2) = %x\n", readb(PRCM_ACK_MB2));\
+
+	spin_unlock_irqrestore(&req_mb2_lock, flags);
+	/*printk("\n readb(PRCM_ACK_MB2) = %x\n", readb(PRCM_ACK_MB2));*/
 	if (readb(PRCM_ACK_MB2) == HWACC_PWRST_OK)
 		err = 0;
 	else
@@ -693,7 +719,9 @@ EXPORT_SYMBOL(prcmu_get_m2a_hwacc_status);
 int prcmu_set_irq_wakeup(uint32_t irq)
 {
 	unsigned long mask_reg;
+	unsigned long flags;
 
+	spin_lock_irqsave(&irq_wake_lock, flags);
 
 	if (irq < 32) {
 		mask_reg = PRCM_ARMITMSK31TO0;
@@ -706,11 +734,14 @@ int prcmu_set_irq_wakeup(uint32_t irq)
 	} else if (irq < 128) {
 		mask_reg = PRCM_ARMITMSK127TO96;
 		irq -= 96;
-	} else
+	} else {
+		spin_unlock_irqrestore(&irq_wake_lock, flags);
 		return -EINVAL;
+	}
 
 	writel(1 << irq | readl((volatile unsigned long *)(mask_reg)),
-	       (volatile unsigned long *)(mask_reg));
+			(volatile unsigned long *)(mask_reg));
+	spin_unlock_irqrestore(&irq_wake_lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL(prcmu_set_irq_wakeup);
@@ -1036,30 +1067,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		while (timeout--)
 			cpu_relax();
 
-		/* PROGRAM WAKEUP EVENTS */
-		/* write CfgWkUpsH in the Header */
-		writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
+		prcmu_configure_wakeup_events((1 << 17), 0x0);
 
-		/* write to the mailbox */
-		/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
-		 * the firmware to set the register prcm_armit_maskxp70_it
-		 * (which is btw secure and thus only accessed by the xp70)
-		 */
-		writel((1<<17), PRCM_REQ_MB0_WKUP_8500);
-		writel(0x0, PRCM_REQ_MB0_WKUP_4500);
-
-		/* SIGNAL MAILBOX */
-		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
-		writel(1 << 0, PRCM_MBOX_CPU_SET);
-
-		/* wait for corresponding MB0X_CPU_VAL bit to be cleared */
-		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << 0)) && timeout--)
-			cpu_relax();
-		if (!timeout) {
-			printk(KERN_INFO
-			 "Timeout in prcmu_configure_wakeup_events!!\n");
-			return -EBUSY;
-		}
+		spin_lock(&req_mb0_lock);
 
 		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
 		/* Write PwrStTrH=0 header to request a Power state xsition */
@@ -1079,12 +1089,14 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
+				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
+				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		}
@@ -1102,6 +1114,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
 			__asm__ __volatile__(
 				"dsb\n\t" "wfi\n\t" : : : "memory");
+			spin_unlock(&req_mb0_lock);
 			return -EBUSY;
 		}
 
@@ -1114,12 +1127,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* clear ACK MB0 */
 		writeb(0x0, PRCM_ACK_MB0);
 
-		/* trigger the XP70 IT10 to the XP70 */
-		writel(1, PRCM_MBOX_CPU_SET);
+		_wait_for_req_complete(REQ_MB0);
 
-		timeout = 200;
-		while (timeout--)
-			cpu_relax();
+		spin_unlock(&req_mb0_lock);
 
 		printk(KERN_INFO "u8500-prcm : To Deep Sleep\n");
 
@@ -1162,19 +1172,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			writel(tmp, PRCM_ARMITMSK31TO0 + (val * 4));
 		}
 
-		/* PROGRAM WAKEUP EVENTS */
-		/* write CfgWkUpsH in the Header */
-		writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
-
-		/* write to the mailbox */
-		/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
-		 * the firmware to set the register prcm_armit_maskxp70_it
-		 * (which is btw secure and thus only accessed by the xp70)
-		 */
-		writel((1<<17), PRCM_REQ_MB0_WKUP_8500);
-		writel(0x0, PRCM_REQ_MB0_WKUP_4500);
-		_wait_for_req_complete(REQ_MB0);
-
+		prcmu_configure_wakeup_events((1 << 17), 0x0);
 #if 0
 		/* SIGNAL MAILBOX */
 		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
@@ -1189,6 +1187,8 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			return -EBUSY;
 		}
 #endif
+		spin_lock(&req_mb0_lock);
+
 		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
 		/* Write PwrStTrH=0 header to request a Power state xsition */
 		writeb(0x0, PRCM_MBOX_HEADER_REQ_MB0);
@@ -1207,12 +1207,14 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
+				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
+				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		}
@@ -1235,7 +1237,8 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		if (readl(PRCM_ITSTATUS0) == 0x80) {
 			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
 			__asm__ __volatile__(
-				"dsb\n\t" "wfi\n\t" : : : "memory");
+					"dsb\n\t" "wfi\n\t" : : : "memory");
+			spin_unlock(&req_mb0_lock);
 			return -EBUSY;
 		}
 
@@ -1248,8 +1251,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* clear ACK MB0 */
 		writeb(0x0, PRCM_ACK_MB0);
 
-		/* trigger the XP70 IT10 to the XP70 */
-		writel(1, PRCM_MBOX_CPU_SET);
+		_wait_for_req_complete(REQ_MB0);
+		spin_unlock(&req_mb0_lock);
+
 
 		/* here comes the wfi */
 		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
@@ -1267,31 +1271,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* we skip the GIC freeze due to the FIQ being
 		 * not handled by the ARM later on
 		 */
+		prcmu_configure_wakeup_events((1 << 17), 0x0);
 
-		/* PROGRAM WAKEUP EVENTS */
-		/* write CfgWkUpsH in the Header */
-		writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
-
-		/* write to the mailbox */
-		/* E8500Wakeup_ARMITMGMT Bit (1<<17). it is interpreted by
-		 * the firmware to set the register prcm_armit_maskxp70_it
-		 * (which is btw secure and thus only accessed by the xp70)
-		 */
-		writel((1<<17), PRCM_REQ_MB0_WKUP_8500);
-		writel(0x0, PRCM_REQ_MB0_WKUP_4500);
-
-		/* SIGNAL MAILBOX */
-		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
-		writel(1 << 0, PRCM_MBOX_CPU_SET);
-
-		/* wait for corresponding MB0X_CPU_VAL bit to be cleared */
-		while ((readl(PRCM_MBOX_CPU_VAL) & (1 << 0)) && timeout--)
-			cpu_relax();
-		if (!timeout) {
-			printk(KERN_INFO
-			 "Timeout in prcmu_configure_wakeup_events!!\n");
-			return -EBUSY;
-		}
+		spin_lock(&req_mb0_lock);
 
 		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
 		/* Write PwrStTrH=0 header to request a Power state xsition */
@@ -1311,12 +1293,14 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
+				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
+				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		}
@@ -1334,6 +1318,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
 			__asm__ __volatile__(
 				"dsb\n\t" "wfi\n\t" : : : "memory");
+			spin_unlock(&req_mb0_lock);
 			return -EBUSY;
 		}
 
@@ -1346,12 +1331,8 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* clear ACK MB0 */
 		writeb(0x0, PRCM_ACK_MB0);
 
-		/* trigger the XP70 IT10 to the XP70 */
-		writel(1, PRCM_MBOX_CPU_SET);
-
-		timeout = 200;
-		while (timeout--)
-			cpu_relax();
+		_wait_for_req_complete(REQ_MB0);
+		spin_unlock(&req_mb0_lock);
 
 		printk(KERN_INFO "u8500-prcm : To Sleep\n");
 
@@ -1394,6 +1375,9 @@ EXPORT_SYMBOL(prcmu_apply_ap_state_transition);
  * @reg: - db8500 register bank to be accessed
  * @slave:  - db8500 register to be accessed
  * Returns: ACK_MB5  value containing the status
+ *
+ * Locking is responsibility of caller.
+ * This API is called from Ab8500 read which has locking in place.
  */
 int prcmu_i2c_read(u8 reg, u8 slave)
 {
@@ -1461,6 +1445,9 @@ EXPORT_SYMBOL(prcmu_i2c_read);
  * @slave:  - db800 register to be written to
  * @reg_data: - the data to write
  * Returns: ACK_MB5 value containing the status
+ *
+ * Locking is responsibility of caller.
+ * This API is called from Ab8500 write which has locking in place
  */
 int prcmu_i2c_write(u8 reg, u8 slave, u8 reg_data)
 {
@@ -1537,26 +1524,32 @@ EXPORT_SYMBOL(prcmu_i2c_get_val);
  */
 int prcmu_ac_wake_req()
 {
-	u32 prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
+	u32 prcm_hostaccess;
+	unsigned long flags;
+	int timeout = 1000;
+
+	spin_lock_irqsave(&ac_wake_lock, flags);
+	prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
 	prcm_hostaccess = prcm_hostaccess | ARM_WAKEUP_MODEM;
 
-	/* 1. write to the PRCMU host_port_req register */
+	/* write to the PRCMU host_port_req register */
 	writel(prcm_hostaccess, PRCM_HOSTACCESS_REQ);
+	spin_unlock_irqrestore(&ac_wake_lock, flags);
 
 	/* 2. wait for HostPortAck message in AckMb7
 	   wait_event_interruptible(ack_mb7_queue, (readl(PRCM_ARM_IT1_VAL)
 				& (1<<7)));
 				*/
+	while ((prcmu_read_ack_mb7() != HOST_PORT_ACK) && timeout--)
+		cpu_relax();
 
-	if (prcmu_read_ack_mb7() == HOST_PORT_ACK)
+	if (timeout)
 		return 0;
 	else {
 		dbg_printk(KERN_INFO "\nprcmu_ac_wake_req: ack_mb7 \
 				status = %x", prcmu_read_ack_mb7());
 		return -EINVAL;
 	}
-
-
 
 }
 EXPORT_SYMBOL(prcmu_ac_wake_req);
@@ -1570,10 +1563,15 @@ EXPORT_SYMBOL(prcmu_ac_wake_req);
 int prcmu_ac_sleep_req()
 {
 	/* clear the PRCMU host_port_req register */
-	u32 orig_val = readl(PRCM_HOSTACCESS_REQ);
+	u32 orig_val;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ac_wake_lock, flags);
+	orig_val = readl(PRCM_HOSTACCESS_REQ);
 	orig_val = orig_val & 0xFFFFFFFE;
 
 	writel(orig_val, PRCM_HOSTACCESS_REQ);
+	spin_unlock_irqrestore(&ac_wake_lock, flags);
 
 	return 0;
 }
@@ -1593,6 +1591,9 @@ int prcmu_configure_wakeup_events(u32 event_8500_mask, \
 		u32 event_4500_mask)
 {
 	int err = 0;
+	unsigned long flags;
+
+	spin_lock_irqsave(&req_mb0_lock, flags);
 
 	/* write CfgWkUpsH in the Header */
 	writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
@@ -1602,6 +1603,7 @@ int prcmu_configure_wakeup_events(u32 event_8500_mask, \
 	writel(event_4500_mask, PRCM_REQ_MB0_WKUP_4500);
 
 	err = _wait_for_req_complete(REQ_MB0);
+	spin_unlock_irqrestore(&req_mb0_lock, flags);
 
 	if (err) {
 		dbg_printk(KERN_INFO "\nTimeout configure_wakeup_events\n");
@@ -1663,10 +1665,13 @@ EXPORT_SYMBOL(prcmu_get_wakeup_reason);
 int prcmu_ack_wakeup_reason()
 {
 	int err = 0;
+	unsigned long flags;
 
+	spin_lock_irqsave(&req_mb0_lock, flags);
 	/* Acknowledge the wakeup events */
 	writeb(RDWKUPACKH, PRCM_MBOX_HEADER_REQ_MB0);
 	err = _wait_for_req_complete(REQ_MB0);
+	spin_unlock_irqrestore(&req_mb0_lock, flags);
 
 	return err;
 }
@@ -1684,9 +1689,14 @@ EXPORT_SYMBOL(prcmu_ack_wakeup_reason);
  */
 int prcmu_is_ca_wake_req_pending(void)
 {
-	int retval = ca_wake_req_pending;
+	int retval;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ca_wake_lock, flags);
+	retval  = ca_wake_req_pending;
 	if (ca_wake_req_pending)
 		ca_wake_req_pending--;
+	spin_unlock_irqrestore(&ca_wake_lock, flags);
 
 	return retval;
 }
@@ -1756,6 +1766,7 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 {
 	uint32_t event_8500 = 0;
 	unsigned char event_4500[20];
+	unsigned long flags;
 
 	prcmu_get_wakeup_reason(&event_8500, event_4500);
 
@@ -1771,7 +1782,9 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 			printk(KERN_INFO "\n prcmu: SHRM callback for \
 					ca_wake_req not registered!!\n");
 			/* SHRM driver not initialized */
+			spin_lock_irqsave(&ca_wake_lock, flags);
 			ca_wake_req_pending++;
+			spin_unlock_irqrestore(&ca_wake_lock, flags);
 		}
 	}
 	prcmu_ack_wakeup_reason();
@@ -1931,6 +1944,19 @@ static int prcmu_fw_init(void)
 
 		return 0;
 	}
+
+	/* init spinlocks */
+	spin_lock_init(&req_mb0_lock);
+	spin_lock_init(&req_mb1_lock);
+	spin_lock_init(&req_mb2_lock);
+	spin_lock_init(&req_mb3_lock);
+	spin_lock_init(&req_mb4_lock);
+	spin_lock_init(&req_mb5_lock);
+	spin_lock_init(&req_mb6_lock);
+	spin_lock_init(&req_mb7_lock);
+	spin_lock_init(&irq_wake_lock);
+	spin_lock_init(&ac_wake_lock);
+	spin_lock_init(&ca_wake_lock);
 
 	/* configure the wakeup events */
 	event_8500 = (1 << 5);
