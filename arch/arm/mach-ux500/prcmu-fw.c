@@ -102,17 +102,6 @@ int _wait_for_req_complete(enum mailbox_t num)
 
 		timeout = 1000;
 
-
-		/* Clear any error/status */
-		if (num == REQ_MB0)
-			writeb(0, PRCM_ACK_MB0_AP_PWRST_STATUS);
-		else if (num == REQ_MB1)
-			writel(0, PRCM_ACK_MB1);
-		else if (num == REQ_MB2)
-			writel(0, PRCM_ACK_MB2);
-
-
-
 		/* Set an interrupt to XP70 */
 		writel(1 << num, PRCM_MBOX_CPU_SET);
 		/* As of now only polling method, need to check if interrupt
@@ -1265,14 +1254,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* here comes the wfi */
 		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
 
-		writeb(RDWKUPACKH, PRCM_MBOX_HEADER_REQ_MB0);
-
-		/* Set an interrupt to XP70 */
-		writel(1 , PRCM_MBOX_CPU_SET);
-		while ((readl(PRCM_MBOX_CPU_VAL) & 1) && timeout--)
-			cpu_relax();
-		if (!timeout)
-			return -EBUSY;
+		prcmu_configure_wakeup_events((1 << 5), 0x0);
 
 		break;
 	case APEXECUTE_TO_APDEEPSLEEP:
@@ -1624,8 +1606,8 @@ int prcmu_configure_wakeup_events(u32 event_8500_mask, \
 	if (err) {
 		dbg_printk(KERN_INFO "\nTimeout configure_wakeup_events\n");
 	} else {
-		dbg_printk(KERN_INFO "\nprcmu_configure_wakeup_events \
-				done successfully!!\n");
+		/*dbg_printk(KERN_INFO "\nprcmu_configure_wakeup_events \
+				done successfully!!\n");*/
 	}
 
 	/* No ack for this service. Directly return */
@@ -1653,9 +1635,6 @@ int prcmu_get_wakeup_reason(u32 *event_8500, u8 *event_4500 /* 20 bytes */)
 
 	/* read the Rdp field */
 	u8 rdp = readb(PRCM_ACK_MB0_PINGPONG_RDP);
-
-	/* right now, some issues present in ping pong from fw side :) */
-	/* read the event fields */
 
 	if (rdp) {
 		*event_8500 = readl(PRCM_ACK_MB0_WK1_EVENT_8500);
@@ -1780,11 +1759,8 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 
 	prcmu_get_wakeup_reason(&event_8500, event_4500);
 
-#if 0
-	dbg_printk("\n Inside prcmu_ack_mb0_wkuph_status_tasklet \n");
-	dbg_printk("\n\nAcknowledging by RDWKUPACKH\n\n");
-	prcmu_ack_wakeup_reason();
-#endif
+	dbg_printk("\nprcmu_ack_mb0_wkuph_status_tasklet:event_8500 = %x\n",
+			event_8500);
 
 	/* ca_wake_req signal  - modem wakes up ARM */
 	if (event_8500 & (1 << 5)) {
@@ -1794,8 +1770,12 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 		else {
 			printk(KERN_INFO "\n prcmu: SHRM callback for \
 					ca_wake_req not registered!!\n");
+			/* SHRM driver not initialized */
+			ca_wake_req_pending++;
 		}
 	}
+	prcmu_ack_wakeup_reason();
+
 }
 
 /**
