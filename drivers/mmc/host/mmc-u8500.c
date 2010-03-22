@@ -59,10 +59,7 @@
 #include "mmc-u8500.h"
 
 
-/**
- * SDIO host controller does not support byte mode, so S/W workaround is
- * required for alignment of transfer size to power of two.
- */
+/* Workaround for SDIO Multibyte mode, not suuported in H/W */
 #ifdef SDIO_MULTIBYTE_WORKAROUND
 #undef SDIO_MULTIBYTE_WORKAROUND
 /* Not fully validated, to be enabled from menuconfig later */
@@ -163,7 +160,6 @@ u8500_mmci_init_sg(struct u8500_mmci_host *host, struct mmc_data *data)
  */
 static inline void u8500_mmc_clearirqsrc(void *base, u32 irqsrc)
 {
-	u32 temp_reg;
 	irqsrc &= ~(MCI_SDIOIT);
 	writel(irqsrc, (base + MMCICLEAR));
 }
@@ -201,8 +197,7 @@ static inline void u8500_mmc_enableirqsrc(void *base, u32 irqsrc)
 }
 
 /**
- *   u8500_mmci_request_end() - Informs the stack regarding the
- *   completion of the request
+ *   u8500_mmci_request_end() - Informs the stack regarding the completion of the request
  *   @host:	pointer to the u8500_mmci_host structure
  *   @mrq:	pointer to the mmc_request structure
  *
@@ -252,6 +247,7 @@ static void u8500_mmci_stop_data(struct u8500_mmci_host *host)
  *   @cmd:	cmd number to be sent
  *   @arg:	arg value need to be paased along with command
  *   @flags:	flags need to be set for the cmd
+ *   @devicemode: devicemode for the data transfer
  *
  *   this function will send the cmd to the card by enabling the
  *   command path state machine and writing the cmd number and arg to the
@@ -358,7 +354,6 @@ static void wait_for_command_end(struct u8500_mmci_host *host)
 
 /**
  *   check_for_data_err() - checks the status register value for the error
- *   generated
  *   @hoststatus:	value of the host status register
  *
  *   this function will read the status register and will return the
@@ -501,7 +496,6 @@ void u8500_mmc_dmaclbk(void *data, enum dma_event event)
 /**
  *   u8500_mmc_set_dma() - initiates the DMA transfer
  *   @host:	pointer to the u8500_mmci_host register
- *   @mmc_id:	mmc_id for selecting sdmmc or emmc
  *
  *   configures the DMA channel and selects the burst size depending on the
  *   data size and enables the dma transfer for the corresponding device
@@ -1096,7 +1090,6 @@ static irqreturn_t u8500_mmci_irq(int irq, void *dev_id)
  * @host:  Pointer to the host structure for MMC
  * @data:  Pointer to the mmc data structure
  * @cmd:  Pointer to the mmc comand structure
- * @mmc_id:  device id to find sdmmc or emmc
  */
 static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 					struct mmc_data *data,
@@ -1364,7 +1357,7 @@ static struct mmc_host_ops u8500_mmci_ops = {
 
 /**
  *  u8500_mmci_check_status() - checks the status of the card on every interval
- *  @void: No arguments
+ *  @data: pointer to the current host
  *
  *  this function will check the status of the card on every interval
  *  of the time configured and inform the status to the mmc stack

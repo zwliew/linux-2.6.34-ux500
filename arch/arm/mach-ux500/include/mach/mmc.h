@@ -237,12 +237,40 @@
  * struct u8500_mmci_host - host device structure
  * @base:	pointer to the device baseaddress
  * @mrq:	pointer to the request structure
+ * @cmd:        pointer to the command structure
  * @data:       pointer to the data structure
  * @mmc:        pointer to the mmc_host structure
- * @clk:        pointer to the clock
+ * @clk:        pointer to the clock structure
  * @data_xfered: variable which updates the data_transfered
  * @lock:      spinlock variable
  * @sg_ptr:    scatter list pointer
+ * @mclk:      master clock
+ * @cclk:      card clock
+ * @card_detect_intr_value: callback for the carddetection
+ * @oldstat: card detection value
+ * @dmach_mmc2mem: dma pipeid card to memory
+ * @dmach_mem2mmc: dma pipeid from memory to card
+ * @dma_fifo_addr: dma fifo address
+ * @dma_fifo_dev_type_rx: rx channel number
+ * @dma_fifo_dev_type_tx: tx channel number
+ * @level_shifter: variable for checking level shifter
+ * @dma: ponter to dma_addr_t structure
+ * @caps: host capabilities
+ * @sg_len: scatter gather length
+ * @sg_off: offset address
+ * @size: data size
+ * @buffer: buffer used in polling mode
+ * @dma_buffer: buffer used in dma mode
+ * @dma_done: variable for dma completion
+ * @devicemode: variable for device mode
+ * @is_sdio: variable for sdio
+ * @board: pointer to the board structure
+ * @regulator: pointer to the regulator structure
+ * @sdio_setirq: set irq status for SDIO
+ * @sdio_irqstatus: current irq status for SDIO
+ * @aligned_blksz: aligned block size value for SDIO
+ * @aligned_size: aligned size value for SDIO
+ * @reg_context: array to store register context
  *
  * host controller Internal device structure
  */
