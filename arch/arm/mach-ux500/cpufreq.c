@@ -132,7 +132,8 @@ static int __cpuinit u8500_cpu_init(struct cpufreq_policy *policy)
 	 */
 	policy->cpuinfo.transition_latency = 200 * 1000; /* in ns */
 
-	/* policy->cpus = cpu_possible_map; TODO will cpufreq.c do this? */
+	/* policy sharing between dual CPUs */
+	cpumask_copy(policy->cpus, &cpu_present_map);
 
 	policy->shared_type = CPUFREQ_SHARED_TYPE_ALL;
 
