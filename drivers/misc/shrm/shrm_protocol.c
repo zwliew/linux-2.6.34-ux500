@@ -19,6 +19,7 @@
 #include <mach/shrm.h>
 #include "shrm_driver.h"
 #include "shrm_private.h"
+#include <linux/hrtimer.h>
 #include <mach/prcmu-fw-api.h>
 
 static u8 boot_state = BOOT_INIT;
@@ -26,6 +27,10 @@ static unsigned char recieve_common_msg[8*1024];
 static unsigned char recieve_audio_msg[8*1024];
 static received_msg_handler p_common_rx_handler;
 static received_msg_handler p_audio_rx_handler;
+static struct hrtimer timer;
+static char is_earlydrop;
+static char shrm_rx_state = SHRM_SLEEP_STATE;
+static char shrm_tx_state = SHRM_SLEEP_STATE;
 
 /** Spin lock and tasklet declaration */
 DECLARE_TASKLET(shm_ca_0_tasklet, shm_ca_msgpending_0_tasklet, 0);
@@ -36,6 +41,18 @@ DECLARE_TASKLET(shm_ca_wake_tasklet, shm_ca_wake_req_tasklet, 0);
 
 spinlock_t ca_common_lock ;
 spinlock_t ca_audio_lock ;
+
+static enum hrtimer_restart callback(struct hrtimer *timer)
+{
+	if ((shrm_rx_state == SHRM_IDLE) && (shrm_tx_state == SHRM_IDLE)) {
+		shrm_rx_state = SHRM_SLEEP_STATE;
+		shrm_tx_state = SHRM_SLEEP_STATE;
+	}
+
+	dbgprintk("hrtimer_restart \n");
+
+	return HRTIMER_NORESTART;
+}
 
 
 static void shrm_cawake_req_callback(u8);
@@ -52,7 +69,7 @@ void shm_ca_wake_req_tasklet(unsigned long tasklet_data)
 		writel((1<<GOP_CA_WAKE_ACK_BIT), \
 			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 	} else {
-		printk(KERN_ALERT "error ca_wake_irq_handler pshm_dev is Null\n");
+		printk(KERN_ALERT "error ca_wake_irq_handler pshm_dev Null\n");
 		BUG_ON(1);
 	}
 	dbgprintk("-- \n");
@@ -78,10 +95,17 @@ void shm_ca_msgpending_0_tasklet(unsigned long tasklet_data)
 		set_ca_msg_0_read_notif_send(0);
 
 		if (boot_state == BOOT_DONE) {
+			shrm_rx_state = SHRM_PTR_FREE;
 			if (reader_local_rptr != shared_rptr)
 				ca_msg_read_notification_0();
 			if (reader_local_rptr != reader_local_wptr)
 				receive_messages_common();
+			else {
+				shrm_rx_state = SHRM_IDLE;
+				hrtimer_start(&timer,
+						ktime_set(0, 2*NSEC_PER_MSEC),
+						HRTIMER_MODE_REL);
+			}
 		} else {
 			unsigned int config = 0, version = 0;
 			/* BOOT phase.only a BOOT_RESP should be in FIFO*/
@@ -95,7 +119,8 @@ void shm_ca_msgpending_0_tasklet(unsigned long tasklet_data)
 					/*send MsgPending notification*/
 					write_boot_info_resp(config, version);
 					boot_state = BOOT_INFO_SYNC;
-					printk(KERN_ALERT "u8500-shrm : BOOT_INFO_SYNC\n");
+					printk(KERN_ALERT "u8500-shrm:" \
+							"BOOT_INFO_SYNC\n");
 					send_ac_msg_pending_notification_0();
 				 } else {
 					 printk(KERN_ALERT "pshm_dev Null\n");
@@ -173,8 +198,15 @@ void shm_ac_read_notif_0_tasklet(unsigned long tasklet_data)
 			boot_state = BOOT_DONE;
 			printk(KERN_ALERT "u8500-shrm : IPC_ISA BOOT_DONE\n");
 		} else if (boot_state == BOOT_DONE) {
-			if (writer_local_rptr != writer_local_wptr)
+			if (writer_local_rptr != writer_local_wptr) {
+				shrm_tx_state = SHRM_PTR_FREE;
 				send_ac_msg_pending_notification_0();
+		} else {
+				shrm_tx_state = SHRM_IDLE;
+				/*hrtimer_start(&timer,
+				  ktime_set(0, 2*NSEC_PER_MSEC),
+				  HRTIMER_MODE_REL);*/
+			}
 		} else {
 			printk(KERN_ALERT "Error Case\n");
 			BUG_ON(1);
@@ -227,7 +259,11 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 	p_audio_rx_handler = audio_rx_handler;
 	spin_lock_init(&ca_common_lock);
 	spin_lock_init(&ca_audio_lock);
-
+	is_earlydrop = u8500_is_earlydrop();
+	if (is_earlydrop != 0x01) {
+		hrtimer_init(&timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		timer.function = callback;
+	}
 	/* register callback with PRCMU for ca_wake_req */
 	prcmu_set_callback_cawakereq(&shrm_cawake_req_callback);
 
@@ -245,13 +281,24 @@ void shrm_cawake_req_callback(u8 ca_wake_state)
 			if (boot_state == BOOT_INIT)
 				shm_fifo_init();
 		} else {
-			printk(KERN_ALERT "error condition ca_wake_irq_handler pshm_dev is Null\n");
+			printk(KERN_ALERT "error condition \
+					ca_wake_irq_handler pshm_dev Null\n");
 			BUG_ON(1);
 		}
+
+		prcmu_ac_wake_req();
 
 		/*send ca_wake_ack_interrupt to CMU*/
 		writel((1<<GOP_CA_WAKE_ACK_BIT), \
 				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+
+		dbgprintk(KERN_ALERT "shrm_cawake_req_callback high\n");
+	} else {
+
+			dbgprintk(KERN_ALERT "shrm_cawake_req_callback slep\n");
+			prcmu_ac_sleep_req();
+			shrm_tx_state = SHRM_SLEEP_STATE;
+
 	}
 
 }
@@ -266,12 +313,25 @@ irqreturn_t ca_wake_irq_handler(int irq, void *ctrlr)
 
 	if (pshm_dev) {
 		/*initialize the FIFO Variables*/
-		if (boot_state == BOOT_INIT)
+		if (boot_state == BOOT_INIT) {
 			shm_fifo_init();
+
+			if (is_earlydrop != 0x01) {
+
+				shrm_rx_state = SHRM_SLEEP_STATE;
+				shrm_tx_state = SHRM_SLEEP_STATE;
+
+				/* call Modem Wake Up */
+				shrm_tx_state = SHRM_PTR_FREE;
+			}
+		}
 	} else {
-		printk(KERN_ALERT "error condition ca_wake_irq_handler pshm_dev is Null\n");
+		printk(KERN_ALERT "error condition ca_wake_irq_handler \
+				pshm_dev Null\n");
 		BUG_ON(1);
 	}
+
+	dbgprintk(KERN_INFO "\n Inside ca_wake_irq_handler !!");
 
 	/*Clear the interrupt*/
 	writel((1<<GOP_CA_WAKE_REQ_BIT), \
@@ -281,14 +341,16 @@ irqreturn_t ca_wake_irq_handler(int irq, void *ctrlr)
 	writel((1<<GOP_CA_WAKE_ACK_BIT), \
 		pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 
+	shrm_rx_state = SHRM_IDLE;
+
 	dbgprintk("-- \n");
 	return IRQ_HANDLED;
 }
 
 
 /** This function is called when AcReadNotification interruption occurs.
-	 It means that pending messages have been read by CMT. It is the acknowledgement
-	 of the previous AcMsgPendingNotification*/
+It means that pending messages have been read by CMT. It is the acknowledgement
+of the previous AcMsgPendingNotification*/
 
 irqreturn_t ac_read_notif_0_irq_handler(int irq, void *ctrlr)
 {
@@ -360,6 +422,20 @@ int shm_write_msg(u8 l2_header, void *addr, u32 length)
 			(l2_header == 3) || (l2_header == 0xC0) || \
 						(l2_header == 0xC1)) {
 			channel = 0;
+
+			dbgprintk("prcmu_ac_wake_req shrm_tx_state=%d \n",
+					shrm_tx_state);
+			if (shrm_tx_state == SHRM_SLEEP_STATE) {
+
+				/* call Modem Wake Up */
+				dbgprintk("prcmu_ac_wake_req1 \n");
+				prcmu_ac_wake_req();
+				dbgprintk("prcmu_ac_wake_req 2 \n");
+
+				shrm_tx_state = SHRM_PTR_FREE;
+			} else if (shrm_tx_state == SHRM_IDLE)
+				shrm_tx_state = SHRM_PTR_FREE;
+
 		} else if ((l2_header == 2) || (l2_header == 0x80) || \
 						(l2_header == 0x81)) {
 			channel = 1;
@@ -397,6 +473,10 @@ void send_ac_msg_pending_notification_0(void)
 	writel((1<<GOP_COMMON_AC_MSG_PENDING_NOTIFICATION_BIT), \
 			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 
+	if (shrm_tx_state == SHRM_PTR_FREE)
+		shrm_tx_state = SHRM_PTR_BUSY;
+
+
 	dbgprintk("-- \n");
 }
 
@@ -425,6 +505,8 @@ void ca_msg_read_notification_0()
 		writel((1<<GOP_COMMON_CA_READ_NOTIFICATION_BIT), \
 			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 		set_ca_msg_0_read_notif_send(1);
+
+		shrm_rx_state = SHRM_PTR_BUSY;
 	}
 
 	dbgprintk("-- \n");

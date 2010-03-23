@@ -39,7 +39,12 @@ the whole IPC area must be defined as NC (at least).
 
 
 /* == APE addresses == */
+#ifdef CONFIG_V1_UPDATES_VERSION
+#define SHM_IPC_BASE_AMCU 0x06F80000
+#else
 #define SHM_IPC_BASE_AMCU 0x06000000
+#endif
+
 /* offset pointers */
 #define SHM_ACFIFO_0_WRITE_AMCU SHM_IPC_BASE_AMCU
 #define SHM_ACFIFO_0_READ_AMCU (SHM_ACFIFO_0_WRITE_AMCU + SHM_PTR_SIZE)

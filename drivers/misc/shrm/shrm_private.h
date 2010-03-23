@@ -45,6 +45,11 @@
 
 #define SHM_DEBUG_ENABLE (0)
 
+#define SHRM_SLEEP_STATE (0)
+#define SHRM_PTR_FREE (1)
+#define SHRM_PTR_BUSY (2)
+#define SHRM_IDLE (3)
+
 #if SHM_DEBUG_ENABLE
 
 #define dbgprintk(format, args...) \
