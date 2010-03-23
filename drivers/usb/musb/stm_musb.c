@@ -9,7 +9,7 @@
  */
 
 /** @file  stm_musb.c
-  * @brief This file contains the USB OTG controller and Phy initialization
+  * @brief This file contains the USB controller and Phy initialization
   * with default as interrupt mode was implemented
  */
 #include <linux/module.h>
@@ -21,82 +21,14 @@
 #include <linux/io.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
-#include <linux/regulator/consumer.h>
 #include "musb_core.h"
 #include "stm_musb.h"
-#include <mach/ab8500.h>
-
-#ifdef CONFIG_REGULATOR
-struct regulator *musb_vape_supply, *musb_vbus_supply;
-#endif
-
-#ifdef CONFIG_USB_MUSB_HOST
-
-/**
- * usb_host_detect_handler() - for enabling the 5V to usb host
- *
- * This function used to set the voltage for USB host mode
- */
-void usb_host_detect_handler(void);
-void usb_host_detect_handler(void)
-{
-	u8 val = 0;
-	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_LATCH20_REG);
-	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
-	if ((val & AB8500_USB_HOST) == AB8500_USB_HOST)
-		DBG(1, "USB host cable is detected \n");
-#ifdef CONFIG_REGULATOR
-	regulator_enable(musb_vbus_supply);
-	regulator_set_optimum_mode(musb_vape_supply, 1);
-#else
-	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
-#endif
-	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
-}
-#else
-void usb_device_detect_handler(void);
-void usb_device_remove_handler(void);
-/**
- * usb_device_detect_handler() - for enabling the 5V to usb device
- *
- * This function used to set the voltage for USB device mode
- */
-void usb_device_detect_handler(void)
-{
-	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x1);
-	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x3);
-	mdelay(10);
-	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x0);
-	mdelay(10);
-#ifdef CONFIG_REGULATOR
-	regulator_enable(musb_vbus_supply);
-	regulator_set_optimum_mode(musb_vape_supply, 1);
-#else
-	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
-#endif
-	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
-}
-/**
- * usb_device_remove_handler() - remove the 5V to usb device
- *
- * This function used to remove the voltage for USB device mode
- */
-void usb_device_remove_handler(void)
-{
-#ifdef CONFIG_REGULATOR
-	regulator_disable(musb_vbus_supply);
-	regulator_set_optimum_mode(musb_vape_supply, 0);
-#else
-	ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0);
-#endif
-	ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0);
-}
-#endif
 
 /* Sys interfaces*/
 struct musb *musb_status;
 static struct kobject *usbstatus_kobj;
-static ssize_t usb_cable_status(struct kobject *kobj, struct attribute *attr, char *buf)
+static ssize_t usb_cable_status
+		(struct kobject *kobj, struct attribute *attr, char *buf)
 {
 	u8 is_active = 0;
 
@@ -107,7 +39,8 @@ static ssize_t usb_cable_status(struct kobject *kobj, struct attribute *attr, ch
 	return strlen(buf);
 }
 
-static struct attribute usb_cable_connect_attribute = {.name = "cable_connect", .mode = S_IRUGO};
+static struct attribute usb_cable_connect_attribute = \
+			{.name = "cable_connect", .mode = S_IRUGO};
 static struct attribute *usb_status[] = {
 	&usb_cable_connect_attribute,
 	NULL
@@ -122,7 +55,6 @@ static struct kobj_type ktype_usbstatus = {
 	.default_attrs = usb_status,
 };
 
-#ifdef CONFIG_USB_MUSB_HOST
 /*
  * A structure was declared as global for timer in USB host mode
  */
@@ -170,7 +102,6 @@ static u8 ulpi_read_register(struct musb *musb, u8 address)
 
 	return musb_readb(mbase, OTG_UREGDATA);
 }
-#endif
 /**
  * musb_stm_hs_otg_init() - Initialize the USB for paltform specific.
  * @musb: struct musb pointer.
@@ -240,37 +171,37 @@ void musb_platform_disable(struct musb *musb)
  */
 void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 {
-#ifdef CONFIG_USB_MUSB_HOST
-	unsigned long default_timeout = jiffies + msecs_to_jiffies(1000);
-	static unsigned long last_timer;
+	if (musb->board_mode != MUSB_PERIPHERAL) {
+		unsigned long default_timeout = jiffies + msecs_to_jiffies(1000);
+		static unsigned long last_timer;
 
-	if (timeout == 0)
-		timeout = default_timeout;
+		if (timeout == 0)
+			timeout = default_timeout;
 
-	/* Never idle if active, or when VBUS timeout is not set as host */
-	if (musb->is_active || ((musb->a_wait_bcon == 0)
+		/* Never idle if active, or when VBUS timeout is not set as host */
+		if (musb->is_active || ((musb->a_wait_bcon == 0)
 			&& (musb->xceiv.state == OTG_STATE_A_WAIT_BCON))) {
-		DBG(4, "%s active, deleting timer\n", otg_state_string(musb));
-		del_timer(&notify_timer);
-		last_timer = jiffies;
-		return;
-	}
-
-	if (time_after(last_timer, timeout)) {
-		if (!timer_pending(&notify_timer))
-			last_timer = timeout;
-		else {
-			DBG(4, "Longer idle timer already pending, ignoring\n");
+			DBG(4, "%s active, deleting timer\n", otg_state_string(musb));
+			del_timer(&notify_timer);
+			last_timer = jiffies;
 			return;
 		}
-	}
-	last_timer = timeout;
 
-	DBG(4, "%s inactive, for idle timer for %lu ms\n",
+		if (time_after(last_timer, timeout)) {
+			if (!timer_pending(&notify_timer))
+			last_timer = timeout;
+			else {
+				DBG(4, "Longer idle timer already pending, ignoring\n");
+				return;
+			}
+		}
+		last_timer = timeout;
+
+		DBG(4, "%s inactive, for idle timer for %lu ms\n",
 		otg_state_string(musb),
 		(unsigned long)jiffies_to_msecs(timeout - jiffies));
-	mod_timer(&notify_timer, timeout);
-#endif
+		mod_timer(&notify_timer, timeout);
+	}
 }
 
 /**
@@ -356,7 +287,6 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 	}
 	return 0;
 }
-#ifdef CONFIG_USB_MUSB_HOST
 /**
  * funct_host_notify_timer() - Initialize the timer for USB host driver.
  * @data: usb host data.
@@ -375,27 +305,22 @@ static void funct_host_notify_timer(unsigned long data)
 		if (temp & 0x08) {
 			devctl = musb_readb(reg_base, MUSB_DEVCTL);
 			DBG(1, "devctl = %x\n", devctl);
-			musb_writeb(reg_base, MUSB_DEVCTL, devctl | MUSB_DEVCTL_SESSION);
+			musb_writeb(reg_base, MUSB_DEVCTL,
+					devctl | MUSB_DEVCTL_SESSION);
 		}
 		mod_timer(&notify_timer, jiffies + msecs_to_jiffies(1000));
 	} else
 		del_timer(&notify_timer);
 }
-
-#endif
 /**
  * musb_platform_init() - Initialize the platform USB driver.
  * @musb: struct musb pointer.
  *
- * This function initialize the USB OTG controller and Phy.
+ * This function initialize the USB controller and Phy.
  */
 int __init musb_platform_init(struct musb *musb)
 {
 	int ret;
-	u8 ab8500_rev;
-#ifdef CONFIG_USB_MUSB_HOST
-	u8 val = 0;
-#endif
 
 	ret = musb_stm_hs_otg_init(musb);
 	if (ret < 0)
@@ -405,63 +330,9 @@ int __init musb_platform_init(struct musb *musb)
 	if (is_peripheral_enabled(musb))
 		musb->xceiv.set_power = set_power;
 
-#ifdef CONFIG_REGULATOR
-	musb_vape_supply = regulator_get(NULL, "v-ape");
-	if (IS_ERR(musb_vape_supply)) {
-		ret = PTR_ERR(musb_vape_supply);
-		printk(KERN_WARNING "stm-musb : failed to get v-ape supply\n");
-		return -1;
-	}
-	regulator_enable(musb_vape_supply);
-	musb_vbus_supply = regulator_get(NULL, "v-bus");
-	if (IS_ERR(musb_vbus_supply)) {
-		ret = PTR_ERR(musb_vbus_supply);
-		printk(KERN_WARNING "stm-musb : failed to get v-bus supply\n");
-		return -1;
-	}
-#endif
-
-	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
-	#ifdef CONFIG_USB_MUSB_HOST
-		if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
-			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK20_REG, AB8500_IT_MASK20_MASK);
-			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK20_REG);
-			ret = ab8500_set_callback_handler(AB8500_ID_WAKEUP,
-					usb_host_detect_handler, NULL);
-			if (ret < 0) {
-				printk(KERN_ERR "failed to set callback handler"
-						" for usb host detection\n");
-				return ret;
-			}
-
-		} else {
-		#ifndef CONFIG_USB_SERIAL
-			val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG);
-			ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_OTGSUPPLY_CTRL_REG,
-							(val | 0x1));
-		#endif
-		}
-	#else
-		if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
-			ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK2_REG, AB8500_IT_MASK2_MASK);
-			ret = ab8500_set_callback_handler(AB8500_VBUS_RISING,
-					usb_device_detect_handler, NULL);
-			if (ret < 0) {
-				printk(KERN_ERR "failed to set callback handler"
-						" for usb device detection\n");
-				return ret;
-			}
-			ret = ab8500_set_callback_handler(AB8500_VBUS_FALLING,
-					usb_device_remove_handler, NULL);
-			if (ret < 0) {
-				printk(KERN_ERR "failed to set the callback"
-						" handler for usb device"
-						" removal\n");
-				return ret;
-			}
-		}
-	#endif
+	ret = musb_phy_en(musb->board_mode);
+	if (ret < 0)
+		return ret;
 
 	/* Registering usb device  for sysfs */
 	musb_status = musb;
@@ -480,13 +351,16 @@ int __init musb_platform_init(struct musb *musb)
 	if (ret)
 		kfree(usbstatus_kobj);
 
-#ifdef CONFIG_USB_MUSB_HOST
-	init_timer(&notify_timer);
-	notify_timer.expires = jiffies + msecs_to_jiffies(1000);
-	notify_timer.function = funct_host_notify_timer;
-	notify_timer.data = (unsigned long)musb;
-	add_timer(&notify_timer);
-#endif
+	if (musb->board_mode != MUSB_PERIPHERAL) {
+		init_timer(&notify_timer);
+		notify_timer.expires = jiffies + msecs_to_jiffies(1000);
+		notify_timer.function = funct_host_notify_timer;
+		notify_timer.data = (unsigned long)musb;
+		add_timer(&notify_timer);
+	}
+	ret = musb_force_detect(musb->board_mode);
+	if (ret < 0)
+		return ret;
 	return 0;
 }
 /**
@@ -504,8 +378,7 @@ int musb_platform_exit(struct musb *musb)
 		DBG(1, "U8500 USB : Problem in disabling alternate function\n");
 		return -EBUSY;
 	}
-#ifdef CONFIG_USB_MUSB_HOST
-	del_timer_sync(&notify_timer);
-#endif
+	if (musb->board_mode != MUSB_PERIPHERAL)
+		del_timer_sync(&notify_timer);
 	return 0;
 }

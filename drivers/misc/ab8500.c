@@ -26,7 +26,6 @@
 #include <linux/device.h>
 #include <linux/spi/stm_ssp.h>
 #include <mach/ab8500.h>
-#include <linux/delay.h>
 
 /*
  * static data definitions
@@ -660,10 +659,6 @@ static int __init ab8500_probe(struct platform_device *pdev)
 {
 	int result = 0, status = 0, i;
 	struct resource *res = NULL;
-	int usb_status = 0;
-#ifdef CONFIG_USB_MUSB_HOST
-	u8 val = 0;
-#endif
 
 	ab8500 =
 	    kzalloc(sizeof(struct ab8500), GFP_KERNEL);
@@ -708,44 +703,6 @@ static int __init ab8500_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "unknown chip: 0x%x\n", ab8500->revision);
 		result = -EINTR;
 		goto err_interface;
-	}
-	/*
-	 * Fix for USB host
-	 */
-	if ((ab8500->revision == 0x10) || (ab8500->revision == 0x11)) {
-#ifdef CONFIG_USB_MUSB_HOST
-		ab8500_write(AB8500_SYS_CTRL2_BLOCK,
-				AB8500_MAIN_WDOG_CTRL_REG, 0x1);
-		ab8500_write(AB8500_SYS_CTRL2_BLOCK,
-				AB8500_MAIN_WDOG_CTRL_REG, 0x3);
-		mdelay(10);
-		ab8500_write(AB8500_SYS_CTRL2_BLOCK,
-				AB8500_MAIN_WDOG_CTRL_REG, 0x0);
-		mdelay(10);
-		usb_status = ab8500_read(AB8500_INTERRUPT, AB8500_IT_SOURCE20_REG);
-		if (usb_status & 0x4) {
-			val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_LATCH20_REG);
-			val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
-			if ((val & 0x68) == 0x68)
-				dev_info(&pdev->dev,
-					"host cable is detected at booting time \n");
-			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x1);
-			ab8500_write(AB8500_USB,
-					AB8500_USB_PHY_CTRL_REG, 0x1);
-		}
-#else
-		usb_status = ab8500_read(AB8500_INTERRUPT, AB8500_IT_SOURCE2_REG);
-		if (usb_status & 0x80) {
-			ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x1);
-			ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x3);
-			mdelay(10);
-			ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG, 0x0);
-			mdelay(10);
-			ab8500_write(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG, 0x1);
-			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
-		}
-#endif
 	}
 	/*
 	 * read the latch registers to clear the any pending interrupts,
