@@ -1829,6 +1829,7 @@ void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
 /**
  * prcmu_ack_mbox_irq_handler - IRQ handler for Ack mailboxes
  * @irq:	the irq number
+ * @ctrlr:	control
  *
  * IRQ Handler for the Ack Mailboxes
  * Find out the arm_it1_val bit and carry out the tasks
