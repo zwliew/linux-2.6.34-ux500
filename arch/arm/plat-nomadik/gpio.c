@@ -91,7 +91,15 @@ int nmk_gpio_set_pull(int gpio, int gpio_pull)
 }
 EXPORT_SYMBOL(nmk_gpio_set_pull);
 
-/* Mode functions */
+/**
+ * nmk_gpio_set_mode() - set the mux mode of a gpio pin
+ * @gpio: pin number
+ * @gpio_mode: one of NMK_GPIO_ALT_GPIO, NMK_GPIO_ALT_A,
+ * 	       NMK_GPIO_ALT_B, and NMK_GPIO_ALT_C
+ *
+ * Sets the mode of the specified pin to one of the alternate functions or
+ * plain GPIO.
+ */
 int nmk_gpio_set_mode(int gpio, int gpio_mode)
 {
 	struct nmk_gpio_chip *nmk_chip;
@@ -119,6 +127,13 @@ int nmk_gpio_set_mode(int gpio, int gpio_mode)
 }
 EXPORT_SYMBOL(nmk_gpio_set_mode);
 
+/**
+ * nmk_gpio_get_mode() - get the mux mode of a gpio pin
+ * @gpio: pin number
+ *
+ * Returns the mode of the specified pin.  One of NMK_GPIO_ALT_GPIO,
+ * NMK_GPIO_ALT_A, NMK_GPIO_ALT_B, and NMK_GPIO_ALT_C.
+ */
 int nmk_gpio_get_mode(int gpio)
 {
 	struct nmk_gpio_chip *nmk_chip;
