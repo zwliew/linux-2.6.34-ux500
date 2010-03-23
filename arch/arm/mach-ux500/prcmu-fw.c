@@ -1062,7 +1062,8 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		while (timeout--)
 			cpu_relax();
 
-		prcmu_configure_wakeup_events((1 << 17), 0x0);
+		prcmu_configure_wakeup_events(0xFFFFFFFF, 0x0,
+				LOW_POWER_WAKEUP);
 
 		spin_lock(&req_mb0_lock);
 
@@ -1167,7 +1168,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			writel(tmp, PRCM_ARMITMSK31TO0 + (val * 4));
 		}
 
-		prcmu_configure_wakeup_events((1 << 17), 0x0);
+		prcmu_configure_wakeup_events((1 << 17), 0x0, EXE_WAKEUP);
 #if 0
 		/* SIGNAL MAILBOX */
 		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
@@ -1253,7 +1254,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* here comes the wfi */
 		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
 
-		prcmu_configure_wakeup_events((1 << 5), 0x0);
+		prcmu_configure_wakeup_events((1 << 5), 0x0, EXE_WAKEUP);
 
 		break;
 	case APEXECUTE_TO_APDEEPSLEEP:
@@ -1266,7 +1267,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* we skip the GIC freeze due to the FIQ being
 		 * not handled by the ARM later on
 		 */
-		prcmu_configure_wakeup_events((1 << 17), 0x0);
+		prcmu_configure_wakeup_events((1 << 17), 0x0, EXE_WAKEUP);
 
 		spin_lock(&req_mb0_lock);
 
@@ -1578,21 +1579,27 @@ EXPORT_SYMBOL(prcmu_ac_sleep_req);
  * prcmu_configure_wakeup_events - configure 8500 and 4500 hw events
  * @event_8500_mask:	db8500 wakeup events
  * @event_4500_mask:	Ab8500 wakeup events
+ * @low_power:		Configure for low power mode
  *
  * Mailbox : PRCM_REQ_MB0
  * Header  : WKUPCFGH
  * ACK     : None
  */
 int prcmu_configure_wakeup_events(u32 event_8500_mask, \
-		u32 event_4500_mask)
+		u32 event_4500_mask, int low_power)
 {
 	int err = 0;
 	unsigned long flags;
 
 	spin_lock_irqsave(&req_mb0_lock, flags);
 
-	/* write CfgWkUpsH in the Header */
-	writeb(WKUPCFGH, PRCM_MBOX_HEADER_REQ_MB0);
+	if (low_power) {
+		/* write CfgWkUpsH in the Header */
+		writeb(WKUPCFG_SLEEPH, PRCM_MBOX_HEADER_REQ_MB0);
+	} else {
+		/* write CfgWkUpsH in the Header */
+		writeb(WKUPCFG_EXEH, PRCM_MBOX_HEADER_REQ_MB0);
+	}
 
 	/* write to the mailbox */
 	writel(event_8500_mask, PRCM_REQ_MB0_WKUP_8500);
@@ -1858,7 +1865,8 @@ irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
 					PWRSTTRH and waking up ");
 
 
-		} else if ((readb(PRCM_MBOX_HEADER_ACK_MB0)) == WKUPH) {
+		} else if ((readb(PRCM_MBOX_HEADER_ACK_MB0)) == WKUP_EXEH || \
+			(readb(PRCM_MBOX_HEADER_ACK_MB0)) == WKUP_SLEEPH) {
 			dbg_printk("\n IRQ handler for Ack mb0 WKUPH  ");
 			tasklet_schedule(&prcmu_ack_mb0_wkuph_tasklet);
 		}
@@ -1958,7 +1966,7 @@ static int prcmu_fw_init(void)
 	/* configure the wakeup events */
 	event_8500 = (1 << 5);
 	event_4500 = 0x0;
-	prcmu_configure_wakeup_events(event_8500, event_4500);
+	prcmu_configure_wakeup_events(event_8500, event_4500, EXE_WAKEUP);
 	dbg_printk("(WkUpCfgOk=0xEA)PRCM_ACK_MB0_AP_PWRST_STATUS = %x\n",
 			readb(PRCM_ACK_MB0_AP_PWRST_STATUS));
 

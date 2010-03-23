@@ -74,7 +74,7 @@ int prcmu_i2c_get_val(void);
 
 int prcmu_ac_wake_req(void);
 int prcmu_ac_sleep_req(void);
-int prcmu_configure_wakeup_events(u32, u32);
+int prcmu_configure_wakeup_events(u32, u32, int);
 int prcmu_get_wakeup_reason(u32 *, u8 *);
 int prcmu_ack_wakeup_reason(void);
 void prcmu_set_callback_cawakereq(void (*func)(u8));

@@ -115,7 +115,8 @@
 #define PRCM_ACK_MB5_REG	(PRCM_ACK_MB5 + 0x2)
 #define PRCM_ACK_MB5_VAL	(PRCM_ACK_MB5 + 0x3)
 
-
+#define LOW_POWER_WAKEUP	1
+#define EXE_WAKEUP		0
 
 /* FIXME : Need to Cleanup Code */
 

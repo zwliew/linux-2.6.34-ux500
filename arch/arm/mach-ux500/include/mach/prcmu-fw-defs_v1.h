@@ -470,10 +470,12 @@ enum hw_acc_t {
 };
 
 enum reqmb0_header_t {
-	PWRSTTRH    = 0,
-	WKUPCFGH    = 1,
-	WKUPH       = 2,
-	RDWKUPACKH  = 3
+	PWRSTTRH	 = 0,
+	WKUPCFG_EXEH	 = 1,
+	WKUP_EXEH	 = 2,
+	RDWKUPACKH	 = 3,
+	WKUPCFG_SLEEPH	 = 4,
+	WKUP_SLEEPH	 = 5,
 };
 
 enum cs_pwrmgt_t {
