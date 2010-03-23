@@ -494,21 +494,6 @@
 #define AB8500_MAX_INT_LATCH	13
 #define AB8500_MAX_INT_MASK	21
 
-/* AB8500 USB macros
- */
-#define AB8500_REV_10 0x10
-#define AB8500_REV_11 0x11
-#define AB8500_USB_HOST 0x68
-#define AB8500_ID_WAKEUP_RISING 90
-#define AB8500_ID_WAKEUP_FALLING 96
-#define AB8500_VBUS_RISING 15
-#define AB8500_VBUS_FALLING 14
-#define AB8500_IT_MASK20_MASK 0xFB
-#define AB8500_IT_MASK21_MASK 0xFE
-#define AB8500_IT_MASK2_MASK 0x3F
-#define AB8500_SRC_INT_USB_DEVICE 0x80
-#define AB8500_SRC_INT_USB_HOST 0x04
-
 /**
  * struct ab8500_device - Stw4500 device structure
  * @cs_en:	pointer chip select enable

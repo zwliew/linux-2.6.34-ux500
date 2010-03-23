@@ -23,6 +23,7 @@
 #include <linux/delay.h>
 #include "musb_core.h"
 #include "stm_musb.h"
+#include <mach/musb_db8500.h>
 
 /* Sys interfaces*/
 struct musb *musb_status;
@@ -172,16 +173,19 @@ void musb_platform_disable(struct musb *musb)
 void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 {
 	if (musb->board_mode != MUSB_PERIPHERAL) {
-		unsigned long default_timeout = jiffies + msecs_to_jiffies(1000);
+		unsigned long default_timeout =
+			jiffies + msecs_to_jiffies(1000);
 		static unsigned long last_timer;
 
 		if (timeout == 0)
 			timeout = default_timeout;
 
-		/* Never idle if active, or when VBUS timeout is not set as host */
+		/* Never idle if active, or when VBUS
+			 timeout is not set as host */
 		if (musb->is_active || ((musb->a_wait_bcon == 0)
 			&& (musb->xceiv.state == OTG_STATE_A_WAIT_BCON))) {
-			DBG(4, "%s active, deleting timer\n", otg_state_string(musb));
+			DBG(4, "%s active, deleting timer\n",
+				otg_state_string(musb));
 			del_timer(&notify_timer);
 			last_timer = jiffies;
 			return;
@@ -189,9 +193,10 @@ void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 
 		if (time_after(last_timer, timeout)) {
 			if (!timer_pending(&notify_timer))
-			last_timer = timeout;
+				last_timer = timeout;
 			else {
-				DBG(4, "Longer idle timer already pending, ignoring\n");
+				DBG(4,
+				"Longer idle timer already pending,ignoring\n");
 				return;
 			}
 		}

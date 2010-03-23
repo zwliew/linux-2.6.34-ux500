@@ -111,12 +111,4 @@ extern int tusb6010_platform_retime(unsigned is_refclk);
 
 #endif	/* OMAP2 */
 
-#ifdef CONFIG_ARCH_U8500
-
-int musb_phy_en(u8 mode);
-
-int musb_force_detect(u8 mode);
-
-#endif /* U8500 */
-
 #endif /* __LINUX_USB_MUSB_H */

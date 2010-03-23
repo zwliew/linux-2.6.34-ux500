@@ -10,6 +10,7 @@
 #include <linux/err.h>
 #include <linux/usb/musb.h>
 #include <mach/ab8500.h>
+#include <mach/musb_db8500.h>
 
 #ifdef CONFIG_REGULATOR
 #include <linux/regulator/consumer.h>
@@ -17,12 +18,6 @@ struct regulator *musb_vape_supply, *musb_vbus_supply;
 #endif
 
 int boot_time_flag;
-void usb_kick_watchdog(void);
-void usb_host_insert_handler(void);
-void usb_host_phy_en(int);
-void usb_device_insert_handler(void);
-void usb_device_remove_handler(void);
-void usb_device_phy_en(int);
 
 /**
  * usb_kick_watchdog() - Kick the watch dog timer
@@ -32,13 +27,13 @@ void usb_device_phy_en(int);
 void usb_kick_watchdog(void)
 {
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK,
-			AB8500_MAIN_WDOG_CTRL_REG, 0x1);
+			AB8500_MAIN_WDOG_CTRL_REG, AB8500_MAIN_WATCHDOG_ENABLE);
+	ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_MAIN_WDOG_CTRL_REG,
+			(AB8500_MAIN_WATCHDOG_ENABLE | AB8500_MAIN_WATCHDOG_KICK));
+	mdelay(WATCHDOG_DELAY);
 	ab8500_write(AB8500_SYS_CTRL2_BLOCK,
-			AB8500_MAIN_WDOG_CTRL_REG, 0x3);
-	mdelay(10);
-	ab8500_write(AB8500_SYS_CTRL2_BLOCK,
-			AB8500_MAIN_WDOG_CTRL_REG, 0x0);
-	mdelay(10);
+			AB8500_MAIN_WDOG_CTRL_REG, AB8500_MAIN_WATCHDOG_DISABLE);
+	mdelay(WATCHDOG_DELAY);
 }
 /**
  * usb_host_phy_en() - for enabling the 5V to usb host
@@ -48,39 +43,40 @@ void usb_kick_watchdog(void)
  */
 void usb_host_phy_en(int enable)
 {
-	if (enable == 1) {
+	if (enable == USB_ENABLE) {
 		if (boot_time_flag) {
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x1);
-			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x1);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_ENABLE);
+			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG,
+					AB8500_USB_HOST_ENABLE);
 		} else {
 		#ifdef CONFIG_REGULATOR
 			regulator_enable(musb_vbus_supply);
 			regulator_set_optimum_mode(musb_vape_supply, 1);
 		#else
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x1);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_ENABLE);
 		#endif
 			ab8500_write(AB8500_USB,
-					AB8500_USB_PHY_CTRL_REG, 0x1);
+					AB8500_USB_PHY_CTRL_REG, AB8500_USB_HOST_ENABLE);
 		}
 	} else {
 		if (boot_time_flag) {
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x0);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_DISABLE);
 			ab8500_write(AB8500_USB,
-					AB8500_USB_PHY_CTRL_REG, 0x0);
-			boot_time_flag = 0;
+					AB8500_USB_PHY_CTRL_REG, AB8500_USB_HOST_DISABLE);
+			boot_time_flag = USB_DISABLE;
 		} else {
 		#ifdef CONFIG_REGULATOR
 			regulator_enable(musb_vbus_supply);
 			regulator_set_optimum_mode(musb_vape_supply, 0);
 		#else
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x0);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_DISABLE);
 		#endif
 			ab8500_write(AB8500_USB,
-					AB8500_USB_PHY_CTRL_REG, 0x0);
+					AB8500_USB_PHY_CTRL_REG, AB8500_USB_HOST_DISABLE);
 		}
 	}
 }
@@ -91,7 +87,7 @@ void usb_host_phy_en(int enable)
  */
 void usb_host_insert_handler(void)
 {
-	usb_host_phy_en(1);
+	usb_host_phy_en(USB_ENABLE);
 }
 /**
  * usb_host_remove_handler() - Removed the USB host cable
@@ -100,7 +96,7 @@ void usb_host_insert_handler(void)
  */
 void usb_host_remove_handler(void)
 {
-	usb_host_phy_en(0);
+	usb_host_phy_en(USB_DISABLE);
 }
 /**
  * usb_device_phy_en() - for enabling the 5V to usb gadget
@@ -110,38 +106,40 @@ void usb_host_remove_handler(void)
  */
 void usb_device_phy_en(int enable)
 {
-	if (enable == 1) {
+	if (enable == USB_ENABLE) {
 		usb_kick_watchdog();
 		if (boot_time_flag) {
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x1);
-			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_ENABLE);
+			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, AB8500_USB_DEVICE_ENABLE);
 		} else {
 		#ifdef CONFIG_REGULATOR
 			regulator_enable(musb_vbus_supply);
 			regulator_set_optimum_mode(musb_vape_supply, 1);
 		#else
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x1);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_ENABLE);
 		#endif
-			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0x2);
+			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG,
+					AB8500_USB_DEVICE_ENABLE);
 		}
 	} else {
 		if (boot_time_flag) {
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0x0);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_DISABLE);
 			ab8500_write(AB8500_USB,
-					AB8500_USB_PHY_CTRL_REG, 0x0);
-			boot_time_flag = 0;
+					AB8500_USB_PHY_CTRL_REG, AB8500_USB_DEVICE_DISABLE);
+			boot_time_flag = USB_DISABLE;
 		} else {
 		#ifdef CONFIG_REGULATOR
 			regulator_disable(musb_vbus_supply);
 			regulator_set_optimum_mode(musb_vape_supply, 0);
 		#else
 			ab8500_write(AB8500_REGU_CTRL1,
-					AB8500_REGU_VUSB_CTRL_REG, 0);
+					AB8500_REGU_VUSB_CTRL_REG, AB8500_VBUS_DISABLE);
 		#endif
-			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG, 0);
+			ab8500_write(AB8500_USB, AB8500_USB_PHY_CTRL_REG,
+					AB8500_USB_DEVICE_DISABLE);
 		}
 	}
 }
@@ -152,7 +150,7 @@ void usb_device_phy_en(int enable)
  */
 void usb_device_insert_handler(void)
 {
-	usb_device_phy_en(1);
+	usb_device_phy_en(USB_ENABLE);
 }
 /**
  * usb_device_remove_handler() - remove the 5V to usb device
@@ -161,7 +159,7 @@ void usb_device_insert_handler(void)
  */
 void usb_device_remove_handler(void)
 {
-	usb_device_phy_en(0);
+	usb_device_phy_en(USB_DISABLE);
 }
 /**
  * musb_phy_en : register USB callback handlers for ab8500
@@ -172,20 +170,20 @@ void usb_device_remove_handler(void)
 int musb_phy_en(u8 mode)
 {
 	u8 ab8500_rev;
-	u8 ret;
+	int ret;
 
 #ifdef CONFIG_REGULATOR
 	musb_vape_supply = regulator_get(NULL, "v-ape");
 	if (IS_ERR(musb_vape_supply)) {
 		ret = PTR_ERR(musb_vape_supply);
-		printk(KERN_WARNING "musb_u8500 : failed to get v-ape supply\n");
+		printk(KERN_WARNING "failed to get v-ape supply\n");
 		return -1;
 	}
 	regulator_enable(musb_vape_supply);
 	musb_vbus_supply = regulator_get(NULL, "v-bus");
 	if (IS_ERR(musb_vbus_supply)) {
 		ret = PTR_ERR(musb_vbus_supply);
-		printk(KERN_WARNING "musb_u8500 : failed to get v-bus supply\n");
+		printk(KERN_WARNING "failed to get v-bus supply\n");
 		return -1;
 	}
 #endif
@@ -257,15 +255,15 @@ int musb_force_detect(u8 mode)
 			usb_status = ab8500_read
 				(AB8500_INTERRUPT, AB8500_IT_SOURCE20_REG);
 			if (usb_status & AB8500_SRC_INT_USB_HOST) {
-				boot_time_flag = 1;
-				usb_host_phy_en(1);
+				boot_time_flag = USB_ENABLE;
+				usb_host_phy_en(USB_ENABLE);
 			}
 		} else if (mode == MUSB_PERIPHERAL) {
 			usb_status = ab8500_read
 				(AB8500_INTERRUPT, AB8500_IT_SOURCE2_REG);
 			if (usb_status & AB8500_SRC_INT_USB_DEVICE) {
-				boot_time_flag = 1;
-				usb_device_phy_en(1);
+				boot_time_flag = USB_ENABLE;
+				usb_device_phy_en(USB_ENABLE);
 			}
 		}
 	}
