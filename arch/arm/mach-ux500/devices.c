@@ -907,7 +907,7 @@ static int ab8500_vaux2_regulator_init(void) { return 0; }
 /* supply for on-board eMMC */
 static struct regulator_consumer_supply ab8500_vaux2_consumers[] = {
 	{
-		.dev    = &u8500_sdi4_device.dev,
+		.dev    = &ux500_sdi4_device.dev,
 		.supply = "v-eMMC",
 	}
 };
