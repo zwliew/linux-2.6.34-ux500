@@ -166,7 +166,9 @@ static struct i2c_board_info __initdata nmdk_i2c0_egpio1_devices[] = {
  */
 int tp_gpio_board_init(void)
 {
+#ifndef CONFIG_REGULATOR
 	int val;
+#endif
 #ifdef CONFIG_TOUCHP_EXT_CLK
 	void __iomem *clk_base;
 	unsigned int clk_value;

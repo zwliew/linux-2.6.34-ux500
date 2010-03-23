@@ -1010,7 +1010,7 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 				if (retval < 0) {
 					dev_err(&pdev_data->client->dev,
 						" irq disable failed \n");
-					goto err_init_irq;
+					goto err;
 				}
 				retval = pdev_data->chip->pirq_en();
 				if (retval < 0) {
