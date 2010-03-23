@@ -193,8 +193,6 @@ int ab8500_set_callback_handler(int int_no, void *callback_handler,
 {
 	unsigned long flags;
 	struct client_callbacks *client_callback;
-	struct client_callbacks *cur_list_ptr = NULL ;
-	int count = 0;
 
 	/* TODO: Need to remove this once the clients start
 	 * registering to the ab8500 core driver
