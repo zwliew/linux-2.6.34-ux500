@@ -4,6 +4,7 @@
  * Copyright 2005 Mentor Graphics Corporation
  * Copyright (C) 2005-2006 by Texas Instruments
  * Copyright (C) 2006-2007 Nokia Corporation
+ * Copyright (C) 2009 ST Ericsson
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License

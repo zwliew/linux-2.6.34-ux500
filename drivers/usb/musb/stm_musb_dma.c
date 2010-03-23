@@ -58,10 +58,10 @@ struct musb_dma_controller {
 };
 
 /**
- * dma_controller_start() - creates the logical channel and registers callbacks
+ * dma_controller_start() - creates the logical channels pool and registers callbacks
  * @c:	pointer to DMA Controller
  *
- * This function requests the logical channel from the DMA driver and creates
+ * This function requests the logical channels from the DMA driver and creates
  * logical channels based on event lines and also registers the callbacks which
  * are invoked after data transfer in the transmit or receive direction.
 */
@@ -560,8 +560,6 @@ void musb_rx_dma_controller_handler(void *private_data, int error)
 #ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh = hw_ep->in_qh;
 	struct urb              *urb;
-#else
-	udelay(DELAY_IN_MICROSECONDS);
 #endif
 	spin_lock_irqsave(&musb->lock, flags);
 #ifndef CONFIG_USB_U8500_DMA
@@ -614,23 +612,9 @@ void musb_tx_dma_controller_handler(void *private_data, int error)
 #ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh = hw_ep->out_qh;
 	struct urb              *urb;
-#else
-	udelay(DELAY_IN_MICROSECONDS);
 #endif
 	spin_lock_irqsave(&musb->lock, flags);
 	musb_ep_select(mbase, hw_ep->epnum);
-	txcsr =  musb_readw(hw_ep->regs, MUSB_TXCSR);
-#ifdef CONFIG_USB_U8500_DMA
-	txcsr &= ~MUSB_TXCSR_P_UNDERRUN;
-	txcsr &= ~MUSB_TXCSR_DMAMODE;
-	musb_writew(hw_ep->regs, MUSB_TXCSR,
-			(txcsr));
-#endif
-	while (txcsr & MUSB_TXCSR_TXPKTRDY)
-	{
-		txcsr =  musb_readw(hw_ep->regs, MUSB_TXCSR);
-	}
-
 	channel->actual_len = musb_channel->cur_len;
 	pio = musb_channel->len - channel->actual_len;
 

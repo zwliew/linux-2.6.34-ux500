@@ -5,6 +5,7 @@
  * Copyright (C) 2005-2006 by Texas Instruments
  * Copyright (C) 2006-2007 Nokia Corporation
  * Copyright (C) 2009 MontaVista Software, Inc. <source@mvista.com>
+ * Copyright (C) 2009 ST Ericsson
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -657,9 +658,6 @@ static void rxstate(struct musb *musb, struct musb_request *req)
                                                         DMA_MODE_0,
                                                         request->dma+request->actual,
                                                         request->length-request->actual);
-
-                                        if (use_dma)
-                                                musb_ep->dma->status == MUSB_DMA_STATUS_BUSY;
 
                                         if (use_dma)
                                                 return;
