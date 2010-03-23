@@ -5,8 +5,6 @@
  * Licensed under GPLv2.
  *
  * Author: Arun R Murthy <arun.murthy@stericsson.com>
- * TODO: Read the type of battery and accordingly set the battery
- * thershold voltage. USB type and set the charger input current.
  */
 
 #include <linux/init.h>
@@ -20,6 +18,7 @@
 #include <linux/completion.h>
 #include <linux/workqueue.h>
 #include <mach/ab8500.h>
+#include <mach/ab8500_bm.h>
 #include <mach/ab8500_gpadc.h>
 
 /* Interrupt */
@@ -48,24 +47,17 @@
 #define AC_PW_CONN	1
 #define USB_PW_CONN	2
 
-/* TODO: For time being since there is not sync between the USB connectivity
- * and the battery driver both cant be used simultaneously. Hence when
- * enabling this flag make sure to disable USB gadget serial driver.
- * #define CONFIG_USB_CHARGER
- */
-
 static DEFINE_MUTEX(ab8500_bm_lock);
 
 /* Structure - Device Information
  * struct ab8500_bm_device_info - device information
  * @dev:				Pointer to the structure device
  * @voltage_uV:				Battery voltage in uV
- * @bk_voltage_uV:			Backup battery voltage
  * @current_uA:				Battery current in uA
  * @temp_C:				Battery temperature
- * @charger_resoc:			Charger resource(AC or USB)
  * @charge_status:			Charger status(charging, discharging)
  * @bk_battery_charge_status:		Backup battery charger status
+ * @usb_ip_cur_lvl:			USB charger i/p current level
  * @bat:		Structure that holds the battery properties
  * @bk_bat:		Structure that holds the backup battery properties
  * @ac:			Structure that holds the ac/mains properties
@@ -83,12 +75,11 @@ static DEFINE_MUTEX(ab8500_bm_lock);
 struct ab8500_bm_device_info {
 	struct device *dev;
 	int voltage_uV;
-	int bk_voltage_uV;
 	int current_uA;
 	int temp_C;
-	int charger_resoc;
 	int charge_status;
 	int bk_battery_charge_status;
+	int usb_ip_cur_lvl;
 	struct power_supply bat;
 	struct power_supply bk_bat;
 	struct power_supply ac;
@@ -104,11 +95,106 @@ struct ab8500_bm_device_info {
 	struct workqueue_struct *ab8500_bm_wd_kick_wq;
 };
 
+/* Battery specific information */
+static struct ab8500_bm_platform_data *pdata;
+
 static int ab8500_bm_ac_en(struct ab8500_bm_device_info *, int);
 static int ab8500_bm_usb_en(struct ab8500_bm_device_info *, int);
 static int ab8500_bm_charger_presence(struct ab8500_bm_device_info *);
 static int ab8500_bm_status(void);
 static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *);
+
+/* TODO: Need to remove this function as this data is
+ * suppose to come from the USB driver.
+ *
+ * Detect the type of USB plugged in and based on the
+ * type set the mac current and voltage
+ */
+static void ab8500_bm_detect_usb_type(struct ab8500_bm_device_info *di)
+{
+	int val;
+
+	/* On getting the VBUS rising edge detect interrupt there
+	 * is a 250ms delay after which the register UsbLineStatus
+	 * if filled with valid data
+	 */
+	msleep(250);
+	/* Until the IT source register is read the UsbLineStatus
+	 * register is not updated, hence doing the same
+	 * Revisit this:
+	 */
+	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_SOURCE21_REG);
+	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
+	/* get the USB type */
+	val = (val >> 3) & 0x0F;
+	/* TODO: verify the i/p current levev for the types of USB */
+	switch (val) {
+	case 0:
+		dev_dbg(di->dev, "USB Type - Not configured\n");
+		break;
+	case 1:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		dev_dbg(di->dev, "USB Type - Standard Host, Not Charging\n");
+		break;
+	case 2:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		dev_dbg(di->dev, "USB Type - Standard Host, charging, not suspended\n");
+		break;
+	case 3:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		dev_dbg(di->dev, "USB Type - Standard Host, charging, suspended\n");
+		break;
+	case 4:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
+		dev_dbg(di->dev, "USB Type - Host charger, noraml mode\n");
+		break;
+	case 5:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
+		dev_dbg(di->dev, "USB Type - Host charger, HS mode\n");
+		break;
+	case 6:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
+		dev_dbg(di->dev, "USB Type - Host charger, HS Chirp mode\n");
+		break;
+	case 7:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		dev_dbg(di->dev, "USB Type - Dedicated UBx Charger\n");
+		break;
+	case 8:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		dev_dbg(di->dev, "USB Type - ACA RID_A configuration\n");
+		break;
+	case 9:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		dev_dbg(di->dev, "USB Type - ACA RiD_B configuration\n");
+		break;
+	case 10:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, normal mode\n");
+		break;
+	case 11:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, HS mode\n");
+		break;
+	case 12:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, HS Chirp mode\n");
+		break;
+	case 13:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		dev_dbg(di->dev, "USB Type - Host Mode(IDGND)\n");
+		break;
+	case 14:
+		dev_dbg(di->dev, "USB Type - Reserved\n");
+		break;
+	case 15:
+		dev_dbg(di->dev, "USB Type - USB link not valid\n");
+		break;
+	default:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		break;
+	};
+}
 
 /* Work queue function for enabling AC charging */
 static void ab8500_bm_ac_en_work(struct work_struct *work)
@@ -245,7 +331,6 @@ static void ab8500_bm_mainchplugdet_handler(void *_di)
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_ac_en_monitor_work);
 }
 
-#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - rising edge on vbus detected */
 static void ab8500_bm_vbusdetr_handler(void *_di)
 {
@@ -263,7 +348,6 @@ static void ab8500_bm_vbusdetf_handler(void *_di)
 	dev_dbg(di->dev, "vbus falling edge detected....!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
-#endif
 
 /* callback handlers  - battery removal detected */
 static void ab8500_bm_batctrlindb_handler(void *_di)
@@ -294,7 +378,6 @@ static void ab8500_bm_chwdexp_handler(void *_di)
 	     "Watchdog charger expiration detected, charging stopped...!\n");
 }
 
-#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - vbus overvoltage detected */
 static void ab8500_bm_vbusovv_handler(void *_di)
 {
@@ -306,7 +389,6 @@ static void ab8500_bm_vbusovv_handler(void *_di)
 	dev_dbg(di->dev, "Disabling USB charging\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
-#endif
 
 /* callback handlers - bat voltage goes below LowBat detected */
 static void ab8500_bm_lowbatf_handler(void *_di)
@@ -362,16 +444,6 @@ static void ab8500_bm_btemphigh_handler(void *_di)
 	}
 }
 
-#if defined(CONFIG_USB_CHARGER)
-/* callback handlers  - not allowed usb charger detected */
-static void ab8500_bm_usbchargernotokr_handler(void *_di)
-{
-	struct ab8500_bm_device_info *di = _di;
-	dev_info
-	    (di->dev,
-	     "Not allowed USB charger detected, charging cannot proceed...!\n");
-}
-
 /* callback handlers  - usb charger detected */
 static void ab8500_bm_usbchgdetdone_handler(void *_di)
 {
@@ -380,7 +452,6 @@ static void ab8500_bm_usbchgdetdone_handler(void *_di)
 	dev_dbg(di->dev, "usb charger detected...!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_en_monitor_work);
 }
-#endif
 
 /*
  * callback handlers  - Die temp is above usb charger
@@ -432,7 +503,6 @@ static void ab8500_bm_mainchthprotr_handler(void *_di)
 	}
 }
 
-#if defined(CONFIG_USB_CHARGER)
 /* callback handlers  - usb charger unplug detected */
 static void ab8500_bm_usbchargernotokf_handler(void *_di)
 {
@@ -441,7 +511,7 @@ static void ab8500_bm_usbchargernotokf_handler(void *_di)
 	dev_dbg(di->dev, "usb charger unplug detected...!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
 }
-#endif
+
 /*
  * Registers/Unregisters irq_no and callback handler functions
  * with the AB8500 core driver
@@ -481,7 +551,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-main charge plug detected\n");
-#if defined(CONFIG_USB_CHARGER)
 		/* set callback handlers  - rising edge on vbus detected */
 		ret = ab8500_set_callback_handler(VBUS_DET_R,
 						  ab8500_bm_vbusdetr_handler,
@@ -496,7 +565,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-falling edge on vbus detected\n");
-#endif
 		/* set callback handlers  - battery removal detected */
 		ret = ab8500_set_callback_handler(BAT_CTRL_INDB,
 						  ab8500_bm_batctrlindb_handler,
@@ -513,7 +581,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-watchdog expiration detected\n");
-#if defined(CONFIG_USB_CHARGER)
 		/* set callback handlers  - vbus overvoltage detected */
 		ret = ab8500_set_callback_handler(VBUS_OVV,
 						  ab8500_bm_vbusovv_handler,
@@ -521,7 +588,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-vbus overvoltage detected\n");
-#endif
 		/* set callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
@@ -554,14 +620,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-battery temp greater than max temp\n");
-#if defined(CONFIG_USB_CHARGER)
-		/* set callback handlers  - not allowed usb charger detected */
-		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKR,
-						  ab8500_bm_usbchargernotokr_handler,
-						  di);
-		if (ret < 0)
-			dev_vdbg(di->dev,
-				 "failed to set callback handler-not allowed usb charger detected\n");
 		/* set callback handlers  - usb charger detected */
 		ret = ab8500_set_callback_handler(USB_CHG_DET_DONE,
 						  ab8500_bm_usbchgdetdone_handler,
@@ -569,7 +627,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-usb charger detected\n");
-#endif
 		/* set callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
@@ -588,7 +645,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-dir temp above main charger thermal protection threshold\n");
-#if defined(CONFIG_USB_CHARGER)
+
 		/* set callback handlers  - usb charger unplug detected */
 		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKF,
 						  ab8500_bm_usbchargernotokf_handler,
@@ -596,7 +653,6 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-usb charger unplug detected\n");
-#endif
 	}
 	/* Unregister irq_no and callback handler */
 	else {
@@ -624,7 +680,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-main charge plug detected\n");
-#if defined(CONFIG_USB_CHARGER)
+
 		/* remove callback handlers  - rising edge on vbus detected */
 		ret = ab8500_remove_callback_handler(VBUS_DET_R,
 				ab8500_bm_vbusdetr_handler);
@@ -637,7 +693,7 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-falling edge on vbus detected\n");
-#endif
+
 		/* remove callback handlers  - battery removal detected */
 		ret = ab8500_remove_callback_handler(BAT_CTRL_INDB,
 				ab8500_bm_batctrlindb_handler);
@@ -652,14 +708,13 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-watchdog expiration detected\n");
-#if defined(CONFIG_USB_CHARGER)
+
 		/* remove callback handlers  - vbus overvoltage detected */
 		ret = ab8500_remove_callback_handler(VBUS_OVV,
 				ab8500_bm_vbusovv_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-vbus overvoltage detected\n");
-#endif
 		/* remove callback handlers  - bat voltage goes below LowBat
 		 * detected
 		 */
@@ -690,22 +745,14 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-battery temp greater than max temp\n");
-#if defined(CONFIG_USB_CHARGER)
-		/* remove callback handlers  - not allowed usb charger
-		 * detected
-		 */
-		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKR,
-				ab8500_bm_usbchargernotokr_handler);
-		if (ret < 0)
-			dev_vdbg(di->dev,
-				 "failed to remove callback handler-not allowed usb charger detected\n");
+
 		/* remove callback handlers  - usb charger detected */
 		ret = ab8500_remove_callback_handler(USB_CHG_DET_DONE,
 				ab8500_bm_usbchgdetdone_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-usb charger detected\n");
-#endif
+
 		/* remove callback handlers  - Die temp is above usb charger
 		 * thermal protection threshold
 		 */
@@ -722,14 +769,13 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-dir temp above main charger thermal protection threshold\n");
-#if defined(CONFIG_USB_CHARGER)
+
 		/* remove callback handlers  - usb charger unplug detected */
 		ret = ab8500_remove_callback_handler(USB_CHARGER_NOT_OKF,
 				ab8500_bm_usbchargernotokf_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to remove callback handler-usb charger unplug detected\n");
-#endif
 	}
 
 	return ret;
@@ -852,7 +898,7 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 	 * current has to be in the range of 50-200mA
 	 */
 	if (di->charge_status == POWER_SUPPLY_STATUS_CHARGING) {
-		if (di->voltage_uV > 4175 && di->voltage_uV < 4200) {
+		if (di->voltage_uV > (pdata->termination_vol - 25) && di->voltage_uV < pdata->termination_vol) {
 			/* Check if charging is in constant voltage */
 			val =
 			    ab8500_read(AB8500_CHARGER, AB8500_CH_STATUS1_REG);
@@ -888,9 +934,8 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 
 static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 {
-	int val = 0;
+	int val = 0, status = 0, ret;
 
-	ab8500_bm_battery_read_status(di);
 	di->charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
 	/* Battery voltage > BattOVV or charging stopped by Btemp indicator */
 	if (power_supply_am_i_supplied(&di->bat)) {
@@ -901,6 +946,25 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 			di->charge_status = POWER_SUPPLY_STATUS_CHARGING;
 	} else
 		di->charge_status = POWER_SUPPLY_STATUS_DISCHARGING;
+	ab8500_bm_battery_read_status(di);
+
+	/* Maintenance charging: On charging the battery fully the charging
+	 * is terminated. If the presence of AC/USB is still present check
+	 * for the battery voltage until it drops to 4.1v and if so enable
+	 * charging here. Termination of charging is taken care by the
+	 * function ab8500_bm_battery_read_status()
+	 */
+	status = ab8500_bm_charger_presence(di);
+	if ((di->voltage_uV < 4100) && status && (di->charge_status
+				!= POWER_SUPPLY_STATUS_CHARGING)) {
+		if ((status == (AC_PW_CONN + USB_PW_CONN))
+				|| (status == AC_PW_CONN))
+			ret = ab8500_bm_ac_en(di, true);
+		else
+			ret = ab8500_bm_usb_en(di, true);
+		if (ret < 0)
+			dev_dbg(di->dev, "Maintenance charging: Enabling chargign failed\n");
+	}
 }
 
 static void ab8500_bm_battery_work(struct work_struct *work)
@@ -1031,7 +1095,13 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			return -ENXIO;
 		}
 		ret = 0;
-		/* BattOVV threshold = 4.75v */
+		/* BattOVV threshold can take values 3.7 or 4.75
+		 * if set to 3.7 charging can be done upto 3.5v
+		 * whereas Li-Ion charges of capacity 3.7v charges
+		 * upto 4.2v hence
+		 * BattOVV threshold = 4.75v
+		 */
+
 		ret = ab8500_write(AB8500_CHARGER, AB8500_BATT_OVV, 0x03);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
@@ -1040,9 +1110,10 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 
 		/* Enable AC charging */
 
-		/* ChVoltLevel = 4.1v */
+		/* ChVoltLevel */
 		ret =
-		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG, 0x18);
+		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG,
+				   pdata->ip_vol_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
@@ -1054,9 +1125,9 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
-		/* ChOutputCurentLevel = 0.9A */
+		/* ChOutputCurentLevel */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CH_OPT_CRNTLVL_REG,
-				   0x08);
+			       pdata->op_cur_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
@@ -1145,6 +1216,7 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 			dev_vdbg(di->dev, "USB charger not connected\n");
 			return -ENXIO;
 		}
+		ab8500_bm_detect_usb_type(di);
 		/* BattOVV threshold = 4.75v */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_BATT_OVV, 0x03);
 		if (ret) {
@@ -1154,23 +1226,24 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 
 		/* Enable USB charging */
 
-		/* ChVoltLevel = 4.1v */
+		/* ChVoltLevel */
 		ret =
-		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG, 0x18);
+		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG,
+				   pdata->ip_vol_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
-		/* USBChInputCurr = 500mA */
+		/* USBChInputCurr */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_USBCH_IPT_CRNTLVL_REG,
-				   0x60);
+				   di->usb_ip_cur_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
 		}
-		/* ChOutputCurentLevel = 0.9A */
+		/* ChOutputCurentLevel */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CH_OPT_CRNTLVL_REG,
-				   0x08);
+				   pdata->op_cur_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
@@ -1380,6 +1453,9 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_TYPE_USB;
 		else
 			val->intval = POWER_SUPPLY_TYPE_BATTERY;
+		break;
+	case POWER_SUPPLY_PROP_TECHNOLOGY:
+		val->intval = pdata->name;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		status = ab8500_read(AB8500_CHARGER, AB8500_BATT_OVV);
@@ -1643,6 +1719,9 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	di = kzalloc(sizeof(*di), GFP_KERNEL);
 	if (!di)
 		return -ENOMEM;
+	/* get the paltform data i.e the battery information */
+	pdata = pdev->dev.platform_data;
+
 	/* Main Battery */
 	di->dev = &pdev->dev;
 	di->bat.name = "ab8500_bm_battery";
@@ -1654,7 +1733,6 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	di->bat.get_property = ab8500_bm_get_battery_property;
 	di->bat.external_power_changed = ab8500_bm_external_power_changed;
 	di->charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
-	di->bk_battery_charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
 
 	/* Backup Battery */
 	di->bk_bat.name = "ab8500_backup_battery";
@@ -1663,6 +1741,7 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	di->bk_bat.num_properties = ARRAY_SIZE(ab8500_bm_bk_battery_props);
 	di->bk_bat.get_property = ab8500_bm_bk_battery_get_property;
 	di->bk_bat.external_power_changed = NULL;
+	di->bk_battery_charge_status = POWER_SUPPLY_STATUS_UNKNOWN;
 
 	/* AC supply */
 	di->ac.name = "ab8500_ac";
@@ -1720,12 +1799,11 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	ret = ab8500_bm_ac_en(di, true);
 	if (ret)
 		dev_err(&pdev->dev, "failed to enable AC charging\n");
-#if defined(CONFIG_USB_CHARGER)
+
 	/* Enable USB charging */
 	ret = ab8500_bm_usb_en(di, true);
 	if (ret)
 		dev_err(&pdev->dev, "failed to enable USB charging\n");
-#endif
 	platform_set_drvdata(pdev, di);
 
 	/* Register callback handlers */

@@ -15,6 +15,7 @@
 #include <linux/i2s/i2s.h>
 #include <linux/gpio.h>
 #include <linux/input.h>
+#include <linux/power_supply.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
@@ -28,6 +29,7 @@
 #include <mach/tc35892.h>
 #include <mach/av8100_p.h>
 #include <mach/ab8500.h>
+#include <mach/ab8500_bm.h>
 #include <mach/mmc.h>
 #include <mach/setup.h>
 #include <mach/i2c-stm.h>
@@ -887,8 +889,18 @@ static struct platform_device ab8500_gpadc_device = {
 	.name = "ab8500_gpadc"
 };
 
+static struct ab8500_bm_platform_data ab8500_bm_plat_data = {
+	.name = POWER_SUPPLY_TECHNOLOGY_LION,
+	.termination_vol = 4200,
+	.op_cur_lvl = CH_OP_CUR_LVL_0P9,
+	.ip_vol_lvl = CH_VOL_LVL_4P1,
+};
+
 static struct platform_device ab8500_bm_device = {
-	.name = "ab8500_bm"
+	.name = "ab8500_bm",
+	.dev = {
+		.platform_data = &ab8500_bm_plat_data,
+	},
 };
 
 static struct platform_device *u8500_platform_devices[] __initdata = {
