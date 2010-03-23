@@ -195,24 +195,48 @@ int musb_phy_en(u8 mode)
 			ab8500_write
 				(AB8500_INTERRUPT,
 					AB8500_IT_MASK20_REG, AB8500_IT_MASK20_MASK);
-			ab8500_set_callback_handler
+			ret = ab8500_set_callback_handler
 				(AB8500_ID_WAKEUP_RISING,
 					usb_host_insert_handler, NULL);
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set the callback"
+						" handler for usb host"
+						" insertion\n");
+				return ret;
+			}
 			ab8500_write
 				(AB8500_INTERRUPT, AB8500_IT_MASK21_REG,
 					AB8500_IT_MASK21_MASK);
-			ab8500_set_callback_handler
+			ret = ab8500_set_callback_handler
 				(AB8500_ID_WAKEUP_FALLING,
 					usb_host_remove_handler, NULL);
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set the callback"
+						" handler for usb host"
+						" removal\n");
+				return ret;
+			}
 			usb_kick_watchdog();
 		} else if (mode == MUSB_PERIPHERAL) {
 			ab8500_write
 				(AB8500_INTERRUPT, AB8500_IT_MASK2_REG,
 						AB8500_IT_MASK2_MASK);
-			ab8500_set_callback_handler
+			ret = ab8500_set_callback_handler
 				(AB8500_VBUS_RISING, usb_device_insert_handler, NULL);
-			ab8500_set_callback_handler
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set the callback"
+						" handler for usb device"
+						" insertion\n");
+				return ret;
+			}
+			ret = ab8500_set_callback_handler
 				(AB8500_VBUS_FALLING, usb_device_remove_handler, NULL);
+			if (ret < 0) {
+				printk(KERN_ERR "failed to set the callback"
+						" handler for usb host"
+						" removal\n");
+				return ret;
+			}
 		}
 	}
 	return 0;
