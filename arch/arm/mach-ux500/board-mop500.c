@@ -79,7 +79,7 @@ __setup("board_id=", board_id_setup);
 static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_I2C_4, 4, 5, 0, NMK_GPIO_ALT_B, "i2c4"),
 	__GPIO_ALT(GPIO_ALT_I2C_1, 16, 17, 0, NMK_GPIO_ALT_B, "i2c1"),
-	__GPIO_ALT(GPIO_ALT_I2C_2, 8, 9, 0, NMK_GPIO_ALT_B, "i2c2"),
+	__GPIO_ALT(GPIO_ALT_I2C_2, 10, 11, 0, NMK_GPIO_ALT_B, "i2c2"),
 	__GPIO_ALT(GPIO_ALT_I2C_0, 147, 148, 0, NMK_GPIO_ALT_A, "i2c0"),
 	__GPIO_ALT(GPIO_ALT_I2C_3, 229, 230, 0, NMK_GPIO_ALT_C, "i2c3"),
 	__GPIO_ALT(GPIO_ALT_UART_2, 29, 32, 0, NMK_GPIO_ALT_C, "uart2"),
