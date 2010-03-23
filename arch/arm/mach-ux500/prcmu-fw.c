@@ -758,7 +758,6 @@ unsigned int PRCC_backup[15];
 #define _PRCC_CLK_RST3_BASE 	IO_ADDRESS(U8500_PER3_BASE + 0xF000)
 #define _PRCC_CLK_RST5_BASE 	IO_ADDRESS(U8500_PER5_BASE + 0x1F000)
 #define _PRCC_CLK_RST6_BASE 	IO_ADDRESS(U8500_PER6_BASE + 0xF000)
-#define _PRCC_CLK_RST7_BASE 	IO_ADDRESS(U8500_PER7_BASE_ED + 0xF000)
 
 void pm_save_config_PRCC(void)
 {
@@ -774,8 +773,6 @@ void pm_save_config_PRCC(void)
 	PRCC_backup[i++] = readl(_PRCC_CLK_RST5_BASE + 0x14);
 	PRCC_backup[i++] = readl(_PRCC_CLK_RST6_BASE + 0x10);
 	PRCC_backup[i++] = readl(_PRCC_CLK_RST6_BASE + 0x14);
-	PRCC_backup[i++] = readl(_PRCC_CLK_RST7_BASE + 0x10);
-	PRCC_backup[i++] = readl(_PRCC_CLK_RST7_BASE + 0x14);
 }
 
 void pm_restore_config_PRCC(void)
@@ -792,8 +789,6 @@ void pm_restore_config_PRCC(void)
 	writel(PRCC_backup[i++], _PRCC_CLK_RST5_BASE + 0x8);
 	writel(PRCC_backup[i++], _PRCC_CLK_RST6_BASE + 0x0);
 	writel(PRCC_backup[i++], _PRCC_CLK_RST6_BASE + 0x8);
-	writel(PRCC_backup[i++], _PRCC_CLK_RST7_BASE + 0x0);
-	writel(PRCC_backup[i++], _PRCC_CLK_RST7_BASE + 0x8);
 }
 
 void __iomem *uart_backup_base, *uart_register_base;
