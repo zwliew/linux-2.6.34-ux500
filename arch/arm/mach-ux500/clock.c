@@ -374,11 +374,11 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(gpio0,	"gpio.1",	NULL),
 	CLK(gpio0,	"gpioblock0",	NULL),
 	CLK(slimbus0,	"slimbus0",	NULL),
-	CLK(i2c2,	"STM-I2C.2",	NULL),
+	CLK(i2c2, "nmk-i2c.2", NULL),
 	CLK(sdi0,	"sdi0",		NULL),
 	CLK(msp0,	"msp0",		NULL),
 	CLK(msp0,	"MSP_I2S.0",	NULL),
-	CLK(i2c1,	"STM-I2C.1",	NULL),
+	CLK(i2c1, "nmk-i2c.1", NULL),
 	CLK(uart1,	"uart1",	NULL),
 	CLK(uart0,	"uart0",	NULL),
 
@@ -392,7 +392,7 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(uart2,	"uart2",	NULL),
 	CLK(ske,	"ske",		NULL),
 	CLK(sdi2,	"sdi2",		NULL),
-	CLK(i2c0,	"STM-I2C.0",	NULL),
+	CLK(i2c0, "nmk-i2c.0", NULL),
 	CLK(fsmc,	"fsmc",		NULL),
 
 	/* Peripheral Cluster #5 */
@@ -477,7 +477,7 @@ static struct clk_lookup u8500_ed_clkregs[] = {
 	CLK(pwl_ed,	"pwl",		NULL),
 	CLK(spi1_ed,	"spi1",		NULL),
 	CLK(spi2_ed,	"spi2",		NULL),
-	CLK(i2c3_ed,	"STM-I2C.3",	NULL),
+	CLK(i2c3_ed, "nmk-i2c.3", NULL),
 
 	/* Peripheral Cluster #3 */
 	CLK(ssp1_ed,	"ssp1",		NULL),
@@ -501,7 +501,7 @@ static struct clk_lookup u8500_ed_clkregs[] = {
 
 static struct clk_lookup u8500_v1_clkregs[] = {
 	/* Peripheral Cluster #1 */
-	CLK(i2c4,	"STM-I2C.4",	NULL),
+	CLK(i2c4, "nmk-i2c.4", NULL),
 	CLK(spi3_v1,	"spi3",		NULL),
 	CLK(msp1_v1,	"msp1",		NULL),
 	CLK(msp1_v1,	"MSP_I2S.1",	NULL),
@@ -521,7 +521,7 @@ static struct clk_lookup u8500_v1_clkregs[] = {
 	CLK(pwl_v1,	"pwl",		NULL),
 	CLK(spi1_v1,	"spi1",		NULL),
 	CLK(spi2_v1,	"spi2",		NULL),
-	CLK(i2c3_v1,	"STM-I2C.3",	NULL),
+	CLK(i2c3_v1, "nmk-i2c.3", NULL),
 
 	/* Peripheral Cluster #3 */
 	CLK(ssp1_v1,	"ssp1",		NULL),
@@ -583,11 +583,11 @@ static const char *u8500_boot_clk[] = {
 	"msp0",
 	"msp1",
 	"msp2",
-	"STM-I2C.0",
-	"STM-I2C.1",
-	"STM-I2C.2",
-	"STM-I2C.3",
-	"STM-I2C.4",
+	"nmk-i2c.0",
+	"nmk-i2c.1",
+	"nmk-i2c.2",
+	"nmk-i2c.3",
+	"nmk-i2c.4",
 };
 
 struct clk *boot_clks[ARRAY_SIZE(u8500_boot_clk)];

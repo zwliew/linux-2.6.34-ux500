@@ -34,7 +34,7 @@
 #include <asm/setup.h>
 #include <linux/android_pmem.h>
 #include <mach/msp.h>
-#include <mach/i2c-stm.h>
+#include <mach/i2c.h>
 #include <mach/shrm.h>
 #include <mach/mmc.h>
 #include <mach/ab8500.h>
@@ -209,65 +209,37 @@ struct amba_device u8500_msp2_spi_device = {
 	.periphid = MSP_PER_ID,
 };
 
-static struct resource ux500_i2c1_resources[] = {
-	[0] = {
-		.start	= UX500_I2C1_BASE,
-		.end	= UX500_I2C1_BASE + SZ_4K - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_I2C1,
-		.end	= IRQ_I2C1,
-		.flags	= IORESOURCE_IRQ
-	}
-};
+#define UX500_I2C_RESOURCES(id, size)		\
+static struct resource ux500_i2c_resources_##id[] = {	\
+	[0] = {					\
+		.start	= U8500_I2C##id##_BASE,	\
+		.end	= U8500_I2C##id##_BASE + size - 1, \
+		.flags	= IORESOURCE_MEM,	\
+	},					\
+	[1] = {					\
+		.start	= IRQ_I2C##id,		\
+		.end	= IRQ_I2C##id,		\
+		.flags	= IORESOURCE_IRQ	\
+	}					\
+}
 
-struct platform_device ux500_i2c1_device = {
-	.name		= "STM-I2C",
-	.id		= 1,
-	.resource	= ux500_i2c1_resources,
-	.num_resources	= ARRAY_SIZE(ux500_i2c1_resources),
-};
 
-static struct resource ux500_i2c2_resources[] = {
-	[0] = {
-		.start	= UX500_I2C2_BASE,
-		.end	= UX500_I2C2_BASE + SZ_4K - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_I2C2,
-		.end	= IRQ_I2C2,
-		.flags	= IORESOURCE_IRQ,
-	}
-};
+UX500_I2C_RESOURCES(1, SZ_4K);
+UX500_I2C_RESOURCES(2, SZ_4K);
+UX500_I2C_RESOURCES(3, SZ_4K);
 
-struct platform_device ux500_i2c2_device = {
-	.name		= "STM-I2C",
-	.id		= 2,
-	.resource	= ux500_i2c2_resources,
-	.num_resources	= ARRAY_SIZE(ux500_i2c2_resources),
-};
+#define UX500_I2C_PDEVICE(cid)		\
+ struct platform_device ux500_i2c_controller##cid = { \
+	.name = "nmk-i2c",		\
+	.id	 = cid,			\
+	.num_resources = 2,		\
+	.resource = ux500_i2c_resources_##cid	\
+}
 
-static struct resource ux500_i2c3_resources[] = {
-	[0] = {
-		.start	= UX500_I2C3_BASE,
-		.end	= UX500_I2C3_BASE + SZ_4K - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_I2C3,
-		.end	= IRQ_I2C3,
-		.flags	= IORESOURCE_IRQ,
-	}
-};
+UX500_I2C_PDEVICE(1);
+UX500_I2C_PDEVICE(2);
+UX500_I2C_PDEVICE(3);
 
-struct platform_device ux500_i2c3_device = {
-	.name		= "STM-I2C",
-	.id		= 3,
-	.resource	= ux500_i2c3_resources,
-	.num_resources	= ARRAY_SIZE(ux500_i2c3_resources),
-};
 
 static struct shrm_plat_data shrm_platform_data = {
 

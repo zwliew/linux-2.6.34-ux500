@@ -68,7 +68,7 @@ static struct resource u8500_i2c0_resources[] = {
 };
 
 struct platform_device u8500_i2c0_device = {
-	.name		= "STM-I2C",
+	.name		= "nmk-i2c",
 	.id		= 0,
 	.resource	= u8500_i2c0_resources,
 	.num_resources	= ARRAY_SIZE(u8500_i2c0_resources),
@@ -88,7 +88,7 @@ static struct resource u8500_i2c4_resources[] = {
 };
 
 struct platform_device u8500_i2c4_device = {
-	.name		= "STM-I2C",
+	.name		= "nmk-i2c",
 	.id		= 4,
 	.resource	= u8500_i2c4_resources,
 	.num_resources	= ARRAY_SIZE(u8500_i2c4_resources),

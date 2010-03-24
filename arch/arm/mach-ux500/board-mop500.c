@@ -32,7 +32,7 @@
 #include <mach/ab8500_bm.h>
 #include <mach/mmc.h>
 #include <mach/setup.h>
-#include <mach/i2c-stm.h>
+#include <mach/i2c.h>
 
 #include <mach/u8500_tsc.h>
 
@@ -773,100 +773,35 @@ static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 
 };
 
-static struct i2c_platform_data u8500_i2c0_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_0,
-	.name			= "i2c0",
-	.own_addr		= I2C0_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control = I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control = I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code = 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
+#define U8500_I2C_CONTROLLER(id, _slsu, _tft, _rft, clk, _sm) \
+static struct nmk_i2c_controller u8500_i2c_##id = { \
+	/*				\
+	 * slave data setup time, which is	\
+	 * 250 ns,100ns,10ns which is 14,6,2	\
+	 * respectively for a 48 Mhz	\
+	 * i2c clock			\
+	 */				\
+	.slsu		= _slsu,	\
+	/* Tx FIFO threshold */		\
+	.tft		= _tft,		\
+	/* Rx FIFO threshold */		\
+	.rft		= _rft,		\
+	/* std. mode operation */	\
+	.clk_freq	= clk,		\
+	.sm		= _sm,		\
+}
 
-static struct i2c_platform_data u8500_i2c1_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_1,
-	.name			= "i2c1",
-	.own_addr		= I2C1_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
-
-static struct i2c_platform_data u8500_i2c2_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_2,
-	.name			= "i2c2",
-	.own_addr		= I2C2_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
-
-static struct i2c_platform_data u8500_i2c3_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_3,
-	.name			= "i2c3",
-	.own_addr		= I2C3_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
-
-static struct i2c_platform_data u8500_i2c4_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_4,
-	.name			= "i2c4",
-	.own_addr		= I2C4_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
+/*
+ * The board uses 4 i2c controllers, initialize all of
+ * them with slave data setup time of 250 ns,
+ * Tx & Rx FIFO threshold values as 1 and standard
+ * mode of operation
+ */
+U8500_I2C_CONTROLLER(0, 0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
+U8500_I2C_CONTROLLER(1, 0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
+U8500_I2C_CONTROLLER(2,	0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
+U8500_I2C_CONTROLLER(3,	0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
+U8500_I2C_CONTROLLER(4,	0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
 
 static struct hsi_board_info __initdata stm_hsi_devices[] = {
 	{.type = "HSI_LOOPBACK", .flags = 0, .controller_id = 0,
@@ -959,13 +894,13 @@ static void __init mop500_platdata_init(void)
 
 static void __init mop500_i2c_init(void)
 {
-	u8500_register_device(&u8500_i2c0_device, &u8500_i2c0_data);
-	u8500_register_device(&ux500_i2c1_device, &u8500_i2c1_data);
-	u8500_register_device(&ux500_i2c2_device, &u8500_i2c2_data);
-	u8500_register_device(&ux500_i2c3_device, &u8500_i2c3_data);
+	u8500_register_device(&u8500_i2c0_device, &u8500_i2c_0);
+	u8500_register_device(&ux500_i2c_controller1, &u8500_i2c_1);
+	u8500_register_device(&ux500_i2c_controller2, &u8500_i2c_2);
+	u8500_register_device(&ux500_i2c_controller3, &u8500_i2c_3);
 
 	if (!u8500_is_earlydrop())
-		u8500_register_device(&u8500_i2c4_device, &u8500_i2c4_data);
+		u8500_register_device(&u8500_i2c4_device, &u8500_i2c_4);
 }
 
 static void __init mop500_init_machine(void)
@@ -1013,6 +948,15 @@ static void __init mop500_init_machine(void)
 			     ARRAY_SIZE(u8500_platform_devices));
 }
 
+static int __init u8500_i2call_init(void)
+{
+	stm_gpio_altfuncenable(GPIO_ALT_I2C_0);
+	stm_gpio_altfuncenable(GPIO_ALT_I2C_1);
+	stm_gpio_altfuncenable(GPIO_ALT_I2C_2);
+	stm_gpio_altfuncenable(GPIO_ALT_I2C_3);
+	return 0;
+}
+subsys_initcall(u8500_i2call_init);
 MACHINE_START(NOMADIK, "ST-Ericsson U8500 Platform")
 	/* Maintainer: ST-Ericsson */
 	.phys_io	= UX500_UART2_BASE,

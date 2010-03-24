@@ -14,7 +14,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
 
-#include <mach/i2c-stm.h>
+#include <mach/i2c.h>
 #include <mach/devices.h>
 #include <mach/setup.h>
 
@@ -74,62 +74,34 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
  * I2C
  */
 
-static struct i2c_platform_data u8500_i2c1_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_1,
-	.name			= "i2c1",
-	.own_addr		= I2C1_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
+#define U8500_I2C_CONTROLLER(id, _slsu, _tft, _rft, clk, _sm) \
+static struct nmk_i2c_controller u8500_i2c_##id = { \
+	/*				\
+	 * slave data setup time, which is	\
+	 * 250 ns,100ns,10ns which is 14,6,2	\
+	 * respectively for a 48 Mhz	\
+	 * i2c clock			\
+	 */				\
+	.slsu		= _slsu,	\
+	/* Tx FIFO threshold */		\
+	.tft		= _tft,		\
+	/* Rx FIFO threshold */		\
+	.rft		= _rft,		\
+	/* std. mode operation */	\
+	.clk_freq	= clk,		\
+	.sm		= _sm,		\
+}
 
-static struct i2c_platform_data u8500_i2c2_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_2,
-	.name			= "i2c2",
-	.own_addr		= I2C2_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
+/*
+ * The board uses 3 i2c controllers, initialize all of
+ * them with slave data setup time of 250 ns,
+ * Tx & Rx FIFO threshold values as 1 and standard
+ * mode of operation
+ */
 
-static struct i2c_platform_data u8500_i2c3_data = {
-	.gpio_alt_func		= GPIO_ALT_I2C_3,
-	.name			= "i2c3",
-	.own_addr		= I2C3_LP_OWNADDR,
-	.mode			= I2C_FREQ_MODE_STANDARD,
-	.clk_freq		= 100000,
-	.slave_addressing_mode	= I2C_7_BIT_ADDRESS,
-	.digital_filter_control	= I2C_DIGITAL_FILTERS_OFF,
-	.dma_sync_logic_control	= I2C_DISABLED,
-	.start_byte_procedure	= I2C_DISABLED,
-	.slave_data_setup_time	= 0xE,
-	.bus_control_mode	= I2C_BUS_MASTER_MODE,
-	.i2c_loopback_mode	= I2C_DISABLED,
-	.xfer_mode		= I2C_TRANSFER_MODE_INTERRUPT,
-	.high_speed_master_code	= 0,
-	.i2c_tx_int_threshold	= 1,
-	.i2c_rx_int_threshold	= 1
-};
+U8500_I2C_CONTROLLER(1, 0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
+U8500_I2C_CONTROLLER(2,	0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
+U8500_I2C_CONTROLLER(3,	0xe, 1, 1, 400000, I2C_FREQ_MODE_FAST);
 
 static struct amba_device *amba_board_devs[] __initdata = {
 	&ux500_uart0_device,
@@ -146,9 +118,9 @@ static void __init u5500_init_machine(void)
 
 	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
 
-	u8500_register_device(&ux500_i2c1_device, &u8500_i2c1_data);
-	u8500_register_device(&ux500_i2c2_device, &u8500_i2c2_data);
-	u8500_register_device(&ux500_i2c3_device, &u8500_i2c3_data);
+	u8500_register_device(&ux500_i2c_controller1, &u8500_i2c_1);
+	u8500_register_device(&ux500_i2c_controller2, &u8500_i2c_2);
+	u8500_register_device(&ux500_i2c_controller3, &u8500_i2c_3);
 }
 
 MACHINE_START(NOMADIK, "ST-Ericsson U5500 Platform")
