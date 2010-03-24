@@ -235,7 +235,7 @@ config GPIO_ADP5588
 
 config GPIO_STMPE2401
 	tristate "STMPE2401 I2C GPIO exapander"
-	depends on I2C_STM
+	depends on I2C_NOMADIK
 	default y
 	help
 	  If you say yes here you get the support for stmpe2401 port expander chip
@@ -243,7 +243,7 @@ config GPIO_STMPE2401
 
 config GPIO_TC35892
 	tristate "TC35892 I2C GPIO exapander"
-	depends on I2C_STM
+	depends on I2C_NOMADIK
 	default y
 	help
 	  If you say yes here you get the support for Thoshiba port expander chip
@@ -251,7 +251,7 @@ config GPIO_TC35892
 
 config GPIO_STMPE1601
 	tristate "STMPE1601 I2C GPIO exapander"
-	depends on I2C_STM
+	depends on I2C_NOMADIK
 	default y
 	help
 	  If you say yes here you get the support for stmpe1601 port expander chip

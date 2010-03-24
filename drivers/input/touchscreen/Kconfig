@@ -597,7 +597,7 @@ config TOUCHSCREEN_PCAP
 
 config U8500_TSC
 	tristate "BU21013 based capcitive based sensors for U8500 platform"
-	depends on ARCH_U8500 && STM_SPI && I2C_STM
+	depends on ARCH_U8500 && I2C_NOMADIK
 	default m
 	help
 	  Say Y here if you have a touchscreen interface using the
