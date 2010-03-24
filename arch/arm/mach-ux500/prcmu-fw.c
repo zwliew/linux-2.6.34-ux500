@@ -1083,16 +1083,16 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (smp_processor_id()) {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
+				spin_unlock(&req_mb0_lock);
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
+				spin_unlock(&req_mb0_lock);
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		}
@@ -1108,9 +1108,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (readl(PRCM_ITSTATUS0) == 0x80) {
 			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
+			spin_unlock(&req_mb0_lock);
 			__asm__ __volatile__(
 				"dsb\n\t" "wfi\n\t" : : : "memory");
-			spin_unlock(&req_mb0_lock);
 			return -EBUSY;
 		}
 
@@ -1201,16 +1201,16 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (smp_processor_id()) {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
+				spin_unlock(&req_mb0_lock);
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
+				spin_unlock(&req_mb0_lock);
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		}
@@ -1232,9 +1232,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (readl(PRCM_ITSTATUS0) == 0x80) {
 			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
+			spin_unlock(&req_mb0_lock);
 			__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-			spin_unlock(&req_mb0_lock);
 			return -EBUSY;
 		}
 
@@ -1287,16 +1287,16 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (smp_processor_id()) {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x8)) {
+				spin_unlock(&req_mb0_lock);
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		} else /* running on CPU0, check for CPU1 WFI standby */ {
 			if (!(readl(PRCM_ARM_WFI_STANDBY) & 0x10)) {
+				spin_unlock(&req_mb0_lock);
 				__asm__ __volatile__(
 					"dsb\n\t" "wfi\n\t" : : : "memory");
-				spin_unlock(&req_mb0_lock);
 				return 0;
 			}
 		}
@@ -1312,9 +1312,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		 */
 		if (readl(PRCM_ITSTATUS0) == 0x80) {
 			printk(KERN_WARNING "PRCM_ITSTATUS0 Not cleared\n");
+			spin_unlock(&req_mb0_lock);
 			__asm__ __volatile__(
 				"dsb\n\t" "wfi\n\t" : : : "memory");
-			spin_unlock(&req_mb0_lock);
 			return -EBUSY;
 		}
 
