@@ -789,7 +789,7 @@ static int isa_close(struct inode *inode, struct file *filp)
 	if (atomic_dec_and_test(&p_isa_context_hsi->isOpen[m])) {
 		atomic_inc(&p_isa_context_hsi->isOpen[m]);
 		printk(KERN_ALERT NAME ":Device not opened yet\n");
-		mutex_lock(&isa_lock);
+		mutex_unlock(&isa_lock);
 		return -ENODEV;
 	}
 	atomic_set(&p_isa_context_hsi->isOpen[m], 1);
