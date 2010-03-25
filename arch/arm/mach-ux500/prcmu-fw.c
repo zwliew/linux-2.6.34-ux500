@@ -1168,7 +1168,8 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			writel(tmp, PRCM_ARMITMSK31TO0 + (val * 4));
 		}
 
-		prcmu_configure_wakeup_events((1 << 17), 0x0, EXE_WAKEUP);
+		prcmu_configure_wakeup_events(((1 << 17) | (1 << 5)),
+						0x0, EXE_WAKEUP);
 #if 0
 		/* SIGNAL MAILBOX */
 		/* set the MBOX_CPU_SET bit to set an IT to xP70 */
@@ -1267,7 +1268,8 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* we skip the GIC freeze due to the FIQ being
 		 * not handled by the ARM later on
 		 */
-		prcmu_configure_wakeup_events((1 << 17), 0x0, EXE_WAKEUP);
+		prcmu_configure_wakeup_events(((1 << 17) | (1 << 5)),
+						0x0, LOW_POWER_WAKEUP);
 
 		spin_lock(&req_mb0_lock);
 
