@@ -30,6 +30,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 
+#include <linux/regulator/consumer.h>
 #include <mach/hardware.h>
 #include <asm/io.h>
 #include <asm/delay.h>
@@ -42,6 +43,10 @@
 #include <linux/i2s/i2s.h>
 #include <mach/msp.h>
 #include <linux/dma-mapping.h>
+
+#ifdef CONFIG_REGULATOR
+struct regulator *msp_vape_supply;
+#endif
 
 #define STM_MSP_NAME		"STM_MSP"
 #define MSP_NAME                "msp"
@@ -406,6 +411,7 @@ static int configure_clock(struct msp_struct *msp,
 	u32 sck_div = 0;
 	u32 frame_width = 0;
 	u32 temp_reg = 0;
+	u32 bit_clock = 0;
 	struct msp_protocol_desc *protocol_desc = NULL;
 	stm_msp_write((stm_msp_read(msp->registers + MSP_GCR) &
 		       (~(SRG_ENABLE))), msp->registers + MSP_GCR);
@@ -451,6 +457,19 @@ static int configure_clock(struct msp_struct *msp,
 	temp_reg |= frame_width_bits(frame_width);
 	temp_reg |= frame_period_bits(frame_per);
 	stm_msp_write(temp_reg, msp->registers + MSP_SRG);
+
+#ifdef CONFIG_REGULATOR
+	/* Input clock frequency value configured is in MHz/1000 */
+	bit_clock = (config->input_clock_freq * 1000)/(sck_div + 1);
+
+	/* If the bit clock is higher than 19.2MHz, Vape should be run in 100% OPP */
+	if (bit_clock > 19200000) {
+		regulator_set_optimum_mode(msp_vape_supply, 1);
+		msp->vape_opp_constraint = 1;
+	} else {
+		regulator_set_optimum_mode(msp_vape_supply, 0);
+	}
+#endif
 
 /* Wait a bit */
 	dummy =
@@ -1548,6 +1567,13 @@ static int stm_msp_close(struct i2s_controller *i2s_cont, i2s_flag flag)
 		msp->users--;
 	if(msp->users == 0)
 		clk_disable(msp->clk);
+
+#ifdef CONFIG_REGULATOR
+	if (msp->vape_opp_constraint == 1) {
+		msp->vape_opp_constraint = 0;
+		regulator_set_optimum_mode(msp_vape_supply, 0);
+	}
+#endif
 	memset(msp->registers,0,0x80);
 	return 0;
 
@@ -1623,6 +1649,14 @@ int msp_probe(struct platform_device *pdev)
 		goto iounmap;
 #endif
 
+#ifdef CONFIG_REGULATOR
+	msp_vape_supply = regulator_get(NULL, "v-ape");
+	if (IS_ERR(msp_vape_supply)) {
+		status = PTR_ERR(msp_vape_supply);
+		printk(KERN_WARNING "msp i2s : failed to get v-ape supply\n");
+		goto free_irq;
+	}
+#endif
 	msp->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(msp->clk)) {
 		status = PTR_ERR(msp->clk);
@@ -1706,6 +1740,9 @@ static int msp_remove(struct platform_device *pdev)
 	del_timer_sync(&msp->notify_timer);
 	clk_put(msp->clk);
 	iounmap(msp->registers);
+#ifdef CONFIG_REGULATOR
+	regulator_put(msp_vape_supply);
+#endif
 	kfree(msp);
 	return status;
 }

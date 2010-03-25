@@ -899,6 +899,7 @@ typedef enum {
  * @polling_flag: Flag used in error handling while polling.
  * @def_elem_len: Flag indicates whether default elem len to be used in
  * protocol_desc or not.
+ * @vape_opp_constraint: 1 if constraint is applied to have vape at 100OPP; 0 otherwise
  *
  * Main Msp private data structure to be used to store various info of a
  * particular MSP.Longer description
@@ -935,6 +936,7 @@ struct msp_struct {
 	int users;
 	int loopback_enable;
 	u32 backup_regs[MAX_MSP_BACKUP_REGS];
+	int vape_opp_constraint;
 };
 
 /**
