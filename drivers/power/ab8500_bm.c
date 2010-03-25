@@ -22,6 +22,8 @@
 #include <mach/ab8500_bm.h>
 #include <mach/ab8500_gpadc.h>
 
+
+
 /* Interrupt */
 #define MAIN_EXT_CH_NOT_OK	0
 #define BATT_OVV		8
@@ -32,6 +34,7 @@
 #define BAT_CTRL_INDB		20
 #define CH_WD_EXP		21
 #define VBUS_OVV		22
+#define NCONV_ACCU  		24
 #define LOW_BAT_F		28
 #define LOW_BAT_R		29
 #define GP_SW_ADC_CONV_END	39
@@ -58,6 +61,7 @@
 		struct ab8500_bm_device_info, bat);
 
 static DEFINE_MUTEX(ab8500_bm_lock);
+static DEFINE_MUTEX(ab8500_cc_lock);
 
 /* Structure - Device Information
  * struct ab8500_bm_device_info - device information
@@ -88,6 +92,9 @@ struct ab8500_bm_device_info {
 	int voltage_uV;
 	int current_uA;
 	int temp_C;
+	int inst_current;
+	int avg_current;
+	int capacity;
 	int charge_status;
 	int bk_battery_charge_status;
 	int usb_ip_cur_lvl;
@@ -101,6 +108,7 @@ struct ab8500_bm_device_info {
 	struct work_struct ab8500_bm_ac_dis_monitor_work;
 	struct work_struct ab8500_bm_usb_en_monitor_work;
 	struct work_struct ab8500_bm_usb_dis_monitor_work;
+	struct work_struct ab8500_avg_current_monitor_work;
 	struct workqueue_struct *ab8500_bm_wq;
 	struct workqueue_struct *ab8500_bm_irq;
 	struct workqueue_struct *ab8500_bm_wd_kick_wq;
@@ -140,6 +148,10 @@ static enum power_supply_property ab8500_bm_usb_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
+
+extern void gauge_sys_init(void);
+extern void get_gas_gauge_capacity(int *value);
+extern void get_gas_gauge_samples(int *value);
 
 /* Battery specific information */
 static struct ab8500_bm_platform_data *pdata;
@@ -328,6 +340,148 @@ static void ab8500_bm_detect_usb_type(struct ab8500_bm_device_info *di)
 	};
 }
 
+
+/* Enable/disable Gas Gauge, returns negative if  failed */
+
+int ab8500_cc_enable(struct ab8500_bm_device_info *di, int flag)
+{
+	int ret = 0;
+	if (flag) {
+		/* Enable CC */
+		ret = ab8500_write(AB8500_RTC, AB8500_RTC_CC_CONF_REG, 0x03);
+		if (ret)
+			goto cc_err;
+		ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU,
+								 0x14);
+		if (ret)
+			goto cc_err;
+	} else {
+		ret = ab8500_write(AB8500_RTC, AB8500_RTC_CC_CONF_REG, 0x01);
+		if (ret)
+			goto cc_err;
+	}
+	return ret;
+cc_err:
+	dev_vdbg(di->dev, "CC ENABLED failed\n");
+	return -1;
+
+}
+
+/* Gas Gauge - current consumption during one acquisition.
+ * Returns postive value on success otherwise negative.
+ */
+
+int ab8500_bm_inst_current(struct ab8500_bm_device_info *di)
+{
+	int ret = 0;
+	s8 low, high;
+	static int val;
+
+	mutex_lock(&ab8500_cc_lock);
+	/* Reset counter and Read request */
+	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_CTRL_REG, 0x03);
+	if (ret) {
+		dev_vdbg(di->dev, "ab8500_bm_inst_current:: write failed\n");
+		mutex_unlock(&ab8500_cc_lock);
+		return ret;
+	}
+
+	/* Since there is no interrupt for this, just wait for 250ms
+	 * 250ms is one sample convertion time with 32.768 Khz RTC clock
+	 */
+	msleep (250);
+	/* Read CC Sample conversion value Low and high */
+	low = ab8500_read(AB8500_GAS_GAUGE, AB8500_GASG_CC_SMPL_CNVL_REG);
+	high = ab8500_read(AB8500_GAS_GAUGE, AB8500_GASG_CC_SMPL_CNVH_REG);
+
+	dev_vdbg(di->dev, "instantaneous LSB %0x\n", low);
+	dev_vdbg(di->dev, "instantaneous MSB %0x\n", high);
+
+	/*  negative value for Discharging
+	 *  convert 2's compliment into decimal */
+	if (high & 0x10) {
+		val = (low | high << 8);
+		val ^= 0x1;
+		val = ~val;
+		/* Extract 12 bits */
+		val &= 0xfff;
+	} else
+		val = (low | (high << 8));
+
+	/* Convert to unit value in mA
+	 * Full scale input voltage is
+	 * 66.660mV => LSB = 66.660mV/(4096*10) = 1.627mA
+	 * resister value is 10 ohms
+	 */
+
+	val = ((val * 6666)  / 4096);
+
+	dev_vdbg(di->dev, "inst current = %d\n", val);
+
+	mutex_unlock(&ab8500_cc_lock);
+	return val;
+}
+
+static void read_avg_values_work(struct work_struct *work)
+{
+
+	int val, ret, num_samples;
+	s8 low, med, high;
+	static int old_average;
+
+	struct ab8500_bm_device_info *di = container_of(work,
+							struct
+							ab8500_bm_device_info,
+							ab8500_avg_current_monitor_work);
+
+	mutex_lock(&ab8500_cc_lock);
+	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_CTRL, 0x01);
+	if (ret) {
+		mutex_unlock(&ab8500_cc_lock);
+		goto exit;
+	}
+
+	low = ab8500_read(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_LOW);
+	med = ab8500_read(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_MED);
+	high = ab8500_read(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_HIGH);
+
+	/* Check for sign bit in case of negative value, 2's compliment */
+	if (high & 0x10) {
+		val = (low | (med << 8) | (high << 16));
+		val ^= 0x1;
+		val = ~val;
+		/* Extract 20 bits */
+		val &= 0xfffff;
+	} else {
+		val = (low | (med << 8) | (high << 16));
+	}
+
+	/* Get the number of samples from sysfs */
+	get_gas_gauge_samples(&num_samples);
+	/* Average Current in mA = (intgrated value * 1627uA) /Number Of samples * 1000)
+	 */
+
+	val = ((val * 1627) / (num_samples * 1000));
+
+	/* Filter out zero averge current, single zero may be because of read error */
+	if (val == 0) {
+		val = old_average;
+		old_average = 0;
+	} else {
+		old_average = val;
+	}
+
+	mutex_unlock(&ab8500_cc_lock);
+
+	di->avg_current = val;
+
+exit:
+	dev_vdbg(di->dev, "Failed to write Read request to gas gauge controller\n");
+	/* If  i2c write fails,
+	 *  update it with previous average value  */
+	di->avg_current = old_average;
+}
+
 /**
  * ab8500_bm_ac_en_work() - work to enable ac charging
  * @work:	pointer to the work_struct structure
@@ -435,9 +589,18 @@ static void ab8500_bm_usb_dis_work(struct work_struct *work)
 	ab8500_bm_battery_update_status(di);
 }
 
+/* callback handler for average current conversion end */
+static void ab8500_cc_ConvEnd_handler (void *_di)
+{
+
+	struct ab8500_bm_device_info *di = _di;
+	queue_work(di->ab8500_bm_wq, &di->ab8500_avg_current_monitor_work);
+
+}
+
 /**
  * ab8500_bm_mainextchnotok_handler()
- * @_di:	void pointer that has to address of ab8500_bm_device_info
+ * @_di:        void pointer that has to address of ab8500_bm_device_info
  *
  * callback handlers  - main charger not OK
  **/
@@ -888,9 +1051,14 @@ static int ab8500_bm_register_handler(int set, void *_di)
 		ret = ab8500_set_callback_handler(USB_CHARGER_NOT_OKF,
 						  ab8500_bm_usbchargernotokf_handler,
 						  di);
+
 		if (ret < 0)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-usb charger unplug detected\n");
+
+		ret = ab8500_set_callback_handler (NCONV_ACCU, ab8500_cc_ConvEnd_handler, di);
+		if (ret < 0)
+			 dev_vdbg(di->dev, "failed to set Gas gauge conversion end handler\n");
 	}
 	/* Unregister irq_no and callback handler */
 	else {
@@ -1013,7 +1181,11 @@ static int ab8500_bm_register_handler(int set, void *_di)
 				ab8500_bm_usbchargernotokf_handler);
 		if (ret < 0)
 			dev_vdbg(di->dev,
-				 "failed to remove callback handler-usb charger unplug detected\n");
+				"failed to remove callback handler-usb charger unplug detected\n");
+
+		ret = ab8500_remove_callback_handler(NCONV_ACCU, ab8500_cc_ConvEnd_handler);
+		if (ret < 0)
+			dev_vdbg(di->dev, "failed to remove Gas gauge conversion handler\n");
 	}
 
 	return ret;
@@ -1189,6 +1361,9 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 	di->temp_C = ab8500_bm_temperature(di);
 	di->voltage_uV = ab8500_bm_voltage(di);
 	di->current_uA = ab8500_bm_current(di);
+
+	get_gas_gauge_capacity(&di->capacity);
+	di->inst_current = ab8500_bm_inst_current(di);
 
 	/* Li-ion batteries gets charged upto 4.2v, hence 4.2v should be one of
 	 * the criteria for termination charging. Another factor to terminate the
@@ -1874,12 +2049,10 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = (di->voltage_uV * 1000);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		/* TODO: Update this from gas guage driver */
-		val->intval = di->current_uA;
+		val->intval =  di->inst_current;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		/* TODO: Need to update this from gauguage driver */
-		val->intval = 10000;
+		val->intval = di->avg_current;
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		/* TODO: Need to calculate the present energu and update
@@ -1888,10 +2061,11 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = 10000;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		/* TODO:
-		 * need to get the correct percentage value per the
-		 * battery characteristics. Approx values for now.
-		 */
+		/* This capacity is getting from user space
+		 * if gas gauge algorithm is available */
+		get_gas_gauge_capacity(&di->capacity);
+		if (0 == di->capacity) {
+
 		if (di->voltage_uV < 2894)
 			val->intval = 5;
 		else if (di->voltage_uV < 3451 && di->voltage_uV > 2894)
@@ -1904,6 +2078,9 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 			val->intval = 75;
 		else if (di->voltage_uV > 3949)
 			val->intval = 90;
+		} else {
+		val->intval = di->capacity;
+		}
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = di->temp_C;
@@ -2207,6 +2384,8 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	di->usb.get_property = ab8500_bm_usb_get_property;
 	di->usb.external_power_changed = NULL;
 
+
+
 	/* Create a work queue for monitoring the battery */
 	di->ab8500_bm_wq = create_singlethread_workqueue("ab8500_bm_wq");
 	if (di->ab8500_bm_wq == NULL) {
@@ -2242,7 +2421,10 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	INIT_WORK(&di->ab8500_bm_ac_dis_monitor_work, ab8500_bm_ac_dis_work);
 	INIT_WORK(&di->ab8500_bm_usb_en_monitor_work, ab8500_bm_usb_en_work);
 	INIT_WORK(&di->ab8500_bm_usb_dis_monitor_work, ab8500_bm_usb_dis_work);
-
+	INIT_WORK(&di->ab8500_avg_current_monitor_work, read_avg_values_work);
+	ret = ab8500_cc_enable(di, 1);
+	if (ret)
+		dev_err(&pdev->dev, "failed to enable Gas Gauge\n");
 	/* Enable AC charging */
 	ret = ab8500_bm_ac_en(di, true);
 	if (ret)
@@ -2283,7 +2465,8 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register backup battery\n");
 		goto usb_fail;
 	}
-
+	/* Initialize Gas gauge sysfs interface */
+	gauge_sys_init();
 	/*
 	 * Hardware level detection
 	 * Battery/AC/USB presence detection
