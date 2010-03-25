@@ -723,9 +723,6 @@ void __init amba_add_devices(struct amba_device *devs[], int num)
 #define U8500_VAPE_REGULATOR_MIN_VOLTAGE       (1800000)
 #define U8500_VAPE_REGULATOR_MAX_VOLTAGE       (2000000)
 
-static int db8500_vape_regulator_init(void)
-{ return 0; }
-
 /* tying VAPE regulator to symbolic consumer devices */
 static struct regulator_consumer_supply db8500_vape_consumers[] = {
 	{
@@ -746,7 +743,6 @@ static struct regulator_init_data db8500_vape_init = {
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(db8500_vape_consumers),
-	.regulator_init = db8500_vape_regulator_init,
 	.consumer_supplies = db8500_vape_consumers,
 };
 
@@ -761,8 +757,6 @@ static struct platform_device db8500_vape_regulator_dev = {
 /* VANA Supply, for analogue part of displays */
 #define U8500_VANA_REGULATOR_MIN_VOLTAGE	(0)
 #define U8500_VANA_REGULATOR_MAX_VOLTAGE	(1200000)
-
-static int db8500_vana_regulator_init(void) { return 0; }
 
 static struct regulator_consumer_supply db8500_vana_consumers[] = {
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
@@ -803,7 +797,6 @@ static struct regulator_init_data db8500_vana_init = {
 				REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(db8500_vana_consumers),
-	.regulator_init = db8500_vana_regulator_init,
 	.consumer_supplies = db8500_vana_consumers,
 };
 
@@ -818,8 +811,6 @@ static struct platform_device db8500_vana_regulator_dev = {
 /* VAUX1 supply */
 #define AB8500_VAUXN_LDO_MIN_VOLTAGE    (1100000)
 #define AB8500_VAUXN_LDO_MAX_VOLTAGE    (3300000)
-
-static int ab8500_vaux1_regulator_init(void) { return 0; }
 
 static struct regulator_consumer_supply ab8500_vaux1_consumers[] = {
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA
@@ -859,7 +850,6 @@ static struct regulator_init_data ab8500_vaux1_init = {
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaux1_consumers),
-	.regulator_init = ab8500_vaux1_regulator_init,
 	.consumer_supplies = ab8500_vaux1_consumers,
 };
 
@@ -874,8 +864,6 @@ static struct platform_device ab8500_vaux1_regulator_dev = {
 };
 
 /* VAUX2 supply */
-static int ab8500_vaux2_regulator_init(void) { return 0; }
-
 /* supply for on-board eMMC */
 static struct regulator_consumer_supply ab8500_vaux2_consumers[] = {
 	{
@@ -895,7 +883,6 @@ static struct regulator_init_data ab8500_vaux2_init = {
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaux2_consumers),
-	.regulator_init = ab8500_vaux2_regulator_init,
 	.consumer_supplies = ab8500_vaux2_consumers,
 };
 
@@ -911,9 +898,10 @@ static struct platform_device ab8500_vaux2_regulator_dev = {
 #define AB8500_VTVOUT_LDO_MIN_VOLTAGE        (0)
 #define AB8500_VTVOUT_LDO_MAX_VOLTAGE        (2000000)
 
-static int ab8500_vtvout_regulator_init(void) { return 0; }
-
 static struct regulator_consumer_supply ab8500_vtvout_consumers[] = {
+	{
+		.supply = "v-tvout",
+	}
 };
 
 static struct regulator_init_data ab8500_vtvout_init = {
@@ -927,7 +915,6 @@ static struct regulator_init_data ab8500_vtvout_init = {
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vtvout_consumers),
-	.regulator_init = ab8500_vtvout_regulator_init,
 	.consumer_supplies = ab8500_vtvout_consumers,
 };
 
@@ -942,8 +929,6 @@ static struct platform_device ab8500_vtvout_regulator_dev = {
 /* supply for usb, VBUS LDO */
 #define AB8500_VBUS_REGULATOR_MIN_VOLTAGE        (0)
 #define AB8500_VBUS_REGULATOR_MAX_VOLTAGE        (5000000)
-
-static int ab8500_vbus_regulator_init(void) { return 0; }
 
 static struct regulator_consumer_supply ab8500_vbus_consumers[] = {
 	{
@@ -962,7 +947,6 @@ static struct regulator_init_data ab8500_vbus_init = {
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vbus_consumers),
-	.regulator_init = ab8500_vbus_regulator_init,
 	.consumer_supplies = ab8500_vbus_consumers,
 };
 
@@ -974,6 +958,162 @@ static struct platform_device ab8500_vbus_regulator_dev = {
 	},
 };
 
+/* supply for ab8500-vaudio, VAUDIO LDO */
+#define AB8500_VAUDIO_REGULATOR_MIN_VOLTAGE        (1925000)
+#define AB8500_VAUDIO_REGULATOR_MAX_VOLTAGE        (2075000)
+
+static struct regulator_consumer_supply ab8500_vaudio_consumers[] = {
+	{
+		.supply = "v-audio",
+	}
+};
+
+static struct regulator_init_data ab8500_vaudio_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "AB8500-VAUDIO",
+		.min_uV = AB8500_VAUDIO_REGULATOR_MIN_VOLTAGE,
+		.max_uV = AB8500_VAUDIO_REGULATOR_MAX_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaudio_consumers),
+	.consumer_supplies = ab8500_vaudio_consumers,
+};
+
+static struct platform_device ab8500_vaudio_regulator_dev = {
+	.name = "ab8500-regulator",
+	.id   = 4,
+	.dev  = {
+		.platform_data = &ab8500_vaudio_init,
+	},
+};
+
+/* supply for v-anamic1 VAMic1-LDO */
+#define AB8500_VAMIC1_REGULATOR_MIN_VOLTAGE        (2000000)
+#define AB8500_VAMIC1_REGULATOR_MAX_VOLTAGE        (2100000)
+
+static struct regulator_consumer_supply ab8500_vamic1_consumers[] = {
+	{
+		.supply = "v-amic1",
+	}
+};
+
+static struct regulator_init_data ab8500_vamic1_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "AB8500-VAMIC1",
+		.min_uV = AB8500_VAMIC1_REGULATOR_MIN_VOLTAGE,
+		.max_uV = AB8500_VAMIC1_REGULATOR_MAX_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(ab8500_vamic1_consumers),
+	.consumer_supplies = ab8500_vamic1_consumers,
+};
+
+static struct platform_device ab8500_vamic1_regulator_dev = {
+	.name = "ab8500-regulator",
+	.id   = 5,
+	.dev  = {
+		.platform_data = &ab8500_vamic1_init,
+	},
+};
+
+/* supply for v-amic2, VAMIC2 LDO, reuse constants for AMIC1 */
+static struct regulator_consumer_supply ab8500_vamic2_consumers[] = {
+	{
+		.supply = "v-amic2",
+	}
+};
+
+static struct regulator_init_data ab8500_vamic2_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "AB8500-VAMIC2",
+		.min_uV = AB8500_VAMIC1_REGULATOR_MIN_VOLTAGE,
+		.max_uV = AB8500_VAMIC1_REGULATOR_MAX_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(ab8500_vamic2_consumers),
+	.consumer_supplies = ab8500_vamic2_consumers,
+};
+
+static struct platform_device ab8500_vamic2_regulator_dev = {
+	.name = "ab8500-regulator",
+	.id   = 6,
+	.dev  = {
+		.platform_data = &ab8500_vamic2_init,
+	},
+};
+
+/* supply for v-dmic, VDMIC LDO */
+#define AB8500_VDMIC_REGULATOR_MIN_VOLTAGE	(1700000)
+#define AB8500_VDMIC_REGULATOR_MAX_VOLTAGE	(1950000)
+
+static struct regulator_consumer_supply ab8500_vdmic_consumers[] = {
+	{
+		.supply = "v-dmic",
+	}
+};
+
+static struct regulator_init_data ab8500_vdmic_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "AB8500-VDMIC",
+		.min_uV = AB8500_VDMIC_REGULATOR_MIN_VOLTAGE,
+		.max_uV = AB8500_VDMIC_REGULATOR_MAX_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(ab8500_vdmic_consumers),
+	.consumer_supplies = ab8500_vdmic_consumers,
+};
+
+static struct platform_device ab8500_vdmic_regulator_dev = {
+	.name = "ab8500-regulator",
+	.id   = 7,
+	.dev  = {
+		.platform_data = &ab8500_vdmic_init,
+	},
+};
+
+/* supply for v-intcore12, VINTCORE12 LDO */
+#define AB8500_VINTCORE_REGULATOR_MIN_VOLTAGE      (1200000)
+#define AB8500_VINTCORE_REGULATOR_MAX_VOLTAGE      (1350000)
+
+static struct regulator_consumer_supply ab8500_vintcore_consumers[] = {
+	{
+		.supply = "v-intcore",
+	}
+};
+
+static struct regulator_init_data ab8500_vintcore_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "AB8500-VINTCORE",
+		.min_uV = AB8500_VINTCORE_REGULATOR_MIN_VOLTAGE,
+		.max_uV = AB8500_VINTCORE_REGULATOR_MAX_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(ab8500_vintcore_consumers),
+	.consumer_supplies = ab8500_vintcore_consumers,
+};
+
+static struct platform_device ab8500_vintcore_regulator_dev = {
+	.name = "ab8500-regulator",
+	.id   = 8,
+	.dev  = {
+		.platform_data = &ab8500_vintcore_init,
+	},
+};
 static struct platform_device *u8500_regulators[] = {
 	&db8500_vape_regulator_dev,
 	&db8500_vana_regulator_dev,
@@ -981,6 +1121,11 @@ static struct platform_device *u8500_regulators[] = {
 	&ab8500_vaux2_regulator_dev,
 	&ab8500_vtvout_regulator_dev,
 	&ab8500_vbus_regulator_dev,
+	&ab8500_vaudio_regulator_dev,
+	&ab8500_vamic1_regulator_dev,
+	&ab8500_vamic2_regulator_dev,
+	&ab8500_vdmic_regulator_dev,
+	&ab8500_vintcore_regulator_dev,
 };
 
 #endif
