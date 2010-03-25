@@ -1807,7 +1807,13 @@ void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
 
 	switch (ack_mb7) {
 	case MOD_SW_RESET_REQ:
-		/*forward the reset request to ARM */
+		/*forward the reset request to SHRM */
+		if (prcmu_modem_reset_shrm != NULL)
+			(*prcmu_modem_reset_shrm)();
+		else {
+			/* SHRM callback for reset not registered!*/
+			printk(KERN_INFO "\nSHRM callback for reset NULL\n");
+		}
 		break;
 	case CA_SLEEP_REQ:
 		/* modem no longer requires to communicate

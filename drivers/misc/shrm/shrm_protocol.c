@@ -56,6 +56,7 @@ static enum hrtimer_restart callback(struct hrtimer *timer)
 
 
 static void shrm_cawake_req_callback(u8);
+static void shrm_modem_reset_req_callback(void);
 
 void shm_ca_wake_req_tasklet(unsigned long tasklet_data)
 {
@@ -267,10 +268,19 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 	/* register callback with PRCMU for ca_wake_req */
 	prcmu_set_callback_cawakereq(&shrm_cawake_req_callback);
 
+	/* register callback with PRCMU for ca_wake_req */
+	prcmu_set_callback_modem_reset_request(&shrm_modem_reset_req_callback);
+
 	/* check if there is any initial pending ca_wake_req */
 	if (prcmu_is_ca_wake_req_pending())
 		shrm_cawake_req_callback(1);
 
+}
+
+void shrm_modem_reset_req_callback(void)
+{
+	/* Call the PRCMU reset API */
+	prcmu_system_reset();
 }
 
 void shrm_cawake_req_callback(u8 ca_wake_state)

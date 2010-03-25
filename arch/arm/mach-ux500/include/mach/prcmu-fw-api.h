@@ -78,6 +78,7 @@ int prcmu_configure_wakeup_events(u32, u32, int);
 int prcmu_get_wakeup_reason(u32 *, u8 *);
 int prcmu_ack_wakeup_reason(void);
 void prcmu_set_callback_cawakereq(void (*func)(u8));
+void prcmu_set_callback_modem_reset_request(void (*func)(void));
 void prcmu_system_reset(void);
 int prcmu_is_ca_wake_req_pending(void);
 int prcmu_read_ack_mb7(void);
