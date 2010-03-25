@@ -64,7 +64,7 @@ struct ab8500_bm_platform_data {
 #define USB_CH_DIS			0x00
 #define MAIN_WDOG_ENA			0x01
 #define MAIN_WDOG_KICK			0x02
-#define MAIN_WDOG_DIS			0x01
+#define MAIN_WDOG_DIS			0x00
 #define CHARG_WD_KICK			0x01
 #define MAIN_CH_ENA			0x01
 #define MAIN_CH_DIS			0x00

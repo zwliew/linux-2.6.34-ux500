@@ -326,7 +326,7 @@ static void ab8500_bm_usb_en_work(struct work_struct *work)
 		    (di->dev,
 		     "AC charger present, hence not enabling USB charging\n");
 	else {
-		ab8500_bm_usb_en(di, true);
+		ret = ab8500_bm_usb_en(di, true);
 		if (ret < 0)
 			dev_vdbg(di->dev, "failed to enable USB charging\n");
 	}
@@ -345,7 +345,7 @@ static void ab8500_bm_usb_dis_work(struct work_struct *work)
 							ab8500_bm_device_info,
 							ab8500_bm_usb_dis_monitor_work);
 	int ret = 0;
-	ab8500_bm_usb_en(di, false);
+	ret = ab8500_bm_usb_en(di, false);
 	if (ret < 0)
 		dev_vdbg(di->dev, "failed to disable USB charging\n");
 	ab8500_bm_battery_update_status(di);
@@ -1169,7 +1169,7 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 		else
 			ret = ab8500_bm_usb_en(di, true);
 		if (ret < 0)
-			dev_dbg(di->dev, "Maintenance charging: Enabling chargign failed\n");
+			dev_dbg(di->dev, "Maintenance charging: Enabling charging failed\n");
 	}
 }
 
