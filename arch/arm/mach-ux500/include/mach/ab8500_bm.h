@@ -39,6 +39,10 @@ struct ab8500_bm_platform_data {
 #define USB_CH_IP_CUR_LVL_0P45		0x50
 #define USB_CH_IP_CUR_LVL_0P5		0x60
 
+#define LOW_BAT_3P1V			0x20
+#define LOW_BAT_2P3V			0x00
+#define LOW_BAT_RESET			0x01
+
 /* constants */
 #define AB8500_BM_CHARGING		0x01
 #define AB8500_BM_NOT_CHARGING		0x00

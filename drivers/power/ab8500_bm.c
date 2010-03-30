@@ -1568,11 +1568,21 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
  * @enable:	flag to enable/disable interrupts
  *
  * This fucntion enables/disable the various battery interrupts.
+ * Also OTP values are set.
  **/
 static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 				    int enable)
 {
 	int val = 0, ret = 0;
+
+	/* Low Battery Voltage = 3.1v */
+	val = ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_LOW_BAT_REG);
+	ret = ab8500_write(AB8500_SYS_CTRL2_BLOCK, AB8500_LOW_BAT_REG,
+			(enable ? (val | LOW_BAT_3P1V) : (val & LOW_BAT_RESET)));
+	if (ret) {
+		dev_vdbg(di->dev, "ab8500_bm_hw_presence_en(): write failed\n");
+		return ret;
+	}
 
 	/* OTP: Enable Watchdog */
 	val = ab8500_read(AB8500_OTP_EMUL, 0x150E);
