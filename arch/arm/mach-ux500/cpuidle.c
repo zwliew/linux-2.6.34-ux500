@@ -1,8 +1,8 @@
 /*
  * CPU idle module for U8500
  *
- * Copyright 2009 STMicroelectronics.
- * Copyright 2009 ST-Ericsson.
+ * Copyright (C) 2009 STMicroelectronics.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2

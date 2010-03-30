@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2008 STMicroelectronics
  * Copyright (C) 2009 Alessandro Rubini, somewhat based on at91sam926x
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *	added support to u8500 platform, heavily based on 8815
  * 	Author: Srinidhi KASAGAR <srinidhi.kasagar@stericsson.com>
  *

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 ST-Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * U8500 hardware definitions
  *

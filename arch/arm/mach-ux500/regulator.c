@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -297,7 +297,7 @@ static void __exit db8500_regulator_exit(void)
 arch_initcall(db8500_regulator_init);
 module_exit(db8500_regulator_exit);
 
-MODULE_AUTHOR("STMicroelectronics/STEricsson");
+MODULE_AUTHOR("STMicroelectronics/ST-Ericsson");
 MODULE_DESCRIPTION("DB8500 voltage framework");
 MODULE_LICENSE("GPL");
 

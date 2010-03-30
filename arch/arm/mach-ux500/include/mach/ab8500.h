@@ -1,5 +1,5 @@
 /*
- * Copyright ST-Ericsson 2009.
+ * Copyright (C) ST-Ericsson 2009.
  *
  * Author: Srinidhi Kasagar <srinidhi.kasagar@stericsson.com>
  * Licensed under GPLv2.

@@ -1,7 +1,7 @@
 /*
  * ab8500_gpadc.c - AB8500 GPADC Driver
  *
- * Copyright (C) 2010 ST-Ericsson
+ * Copyright (C) 2010 ST-Ericsson SA
  * Licensed under GPLv2.
  *
  * Author: Arun R Murthy <arun.murthy@stericsson.com>
@@ -160,6 +160,6 @@ module_init(ab8500_gpadc_init);
 module_exit(ab8500_gpadc_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("STEricsson, Arun R Murthy");
+MODULE_AUTHOR("ST-Ericsson, Arun R Murthy");
 MODULE_ALIAS("Platform:ab8500-gpadc");
 MODULE_DESCRIPTION("AB8500 GPADC driver");

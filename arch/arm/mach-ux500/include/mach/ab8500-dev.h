@@ -1,7 +1,7 @@
 /*
  * ab8500-dev.c - simple userspace interface to ab8500
  *
- * Copyright (C) 2009 STEricsson
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2

@@ -1,7 +1,7 @@
 /*
  * sitw4500-dev.c - simple userspace interface to ab8500
  *
- * Copyright (C) 2009 STEricsson
+ * Copyright (C) 2009 ST-Ericsson SA
  * Licensed under GPLv2.
  */
 

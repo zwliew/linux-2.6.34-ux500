@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2009 ST Ericsson.
+ *  Copyright (C) 2009 ST-Ericsson SA
  *	This file is based on realview platform
  *  Copyright (C) 2002 ARM Ltd.
  *

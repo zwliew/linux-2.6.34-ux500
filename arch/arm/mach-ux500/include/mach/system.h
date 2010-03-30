@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This file is licensed under  the terms of the GNU General Public
  * License version 2. This program is licensed "as is" without any

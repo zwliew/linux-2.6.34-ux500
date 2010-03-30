@@ -762,7 +762,7 @@ config ARCH_U8500
 	select ARCH_HAS_CPUFREQ
 	select NOMADIK_GPIO
 	help
-	  Support for ST-Ericsson's Ux500 architecture
+	  Include support for ST-Ericsson's Cortex-A9 Platform.
 
 config ARCH_NOMADIK
 	bool "STMicroelectronics Nomadik"

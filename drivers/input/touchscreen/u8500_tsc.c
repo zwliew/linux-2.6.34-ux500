@@ -2,7 +2,7 @@
  * Overview:
  *	Touch panel driver for u8500 platform
  *
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

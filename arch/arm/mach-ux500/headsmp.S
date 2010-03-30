@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) ST Ericsson
+ *  Copyright (c) ST-Ericsson SA
  *	based on ARM realview platform
  *
  * This program is free software; you can redistribute it and/or modify

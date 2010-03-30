@@ -1,4 +1,4 @@
-/* Copyright (C) 2009 ST Ericsson
+/* Copyright (C) 2009 ST-Ericsson SA
  * Copyright (C) 2009 STMicroelectronics
  *
  * This program is free software: you can redistribute it and/or modify

@@ -3,7 +3,7 @@
  *	Keypad driver for u8500 platform
  *
  * Copyright (C) 2009 STMicroelectronics Pvt. Ltd.
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -372,6 +372,6 @@ static void __exit u8500_kp_exit(void)
 module_init(u8500_kp_init);
 module_exit(u8500_kp_exit);
 
-MODULE_AUTHOR("ST Ericsson");
+MODULE_AUTHOR("ST-Ericsson");
 MODULE_DESCRIPTION("u8500 keyboard driver");
 MODULE_LICENSE("GPL");

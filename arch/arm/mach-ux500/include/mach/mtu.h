@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 ST-Ericsson
+ * Copyright (C) 2009 ST-Ericsson SA
  * MultiTimerUnit register definitions, copied from Nomadik 8815
  *
  * This program is free software; you can redistribute it and/or modify

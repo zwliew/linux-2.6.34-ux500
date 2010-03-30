@@ -3,7 +3,7 @@
  *  	Driver for stmpe1601 on U8500 Platforms
  *	heavily based on stmpe2401 driver
  *
- * Copyright (C) 2009 ST Ericsson
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

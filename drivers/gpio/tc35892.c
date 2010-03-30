@@ -2,7 +2,7 @@
  * Overview:
  *  	Driver for tc35892 gpio port expander
  *
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * Author: Hanumath Prasad <hanumath.prasad@stericsson.com>
  *
@@ -761,4 +761,4 @@ module_exit(tc35892_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Hanumath Prasad <hanumath.prasad@stericsson.com");
-MODULE_DESCRIPTION("TC35892 driver for ST Ericsson evaluation Platform");
+MODULE_DESCRIPTION("TC35892 driver for ST-Ericsson evaluation Platform");

@@ -1,7 +1,7 @@
 /*
  * ab8500_bm.c - AB8500 Battery Management Driver
  *
- * Copyright (C) 2010 ST-Ericsson
+ * Copyright (C) 2010 ST-Ericsson SA
  * Licensed under GPLv2.
  *
  * Author: Arun R Murthy <arun.murthy@stericsson.com>
@@ -2255,6 +2255,6 @@ module_init(ab8500_bm_init);
 module_exit(ab8500_bm_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("STEricsson, Arun R Murthy");
+MODULE_AUTHOR("ST-Ericsson, Arun R Murthy");
 MODULE_ALIAS("Platform:ab8500-bm");
 MODULE_DESCRIPTION("AB8500 battery management driver");

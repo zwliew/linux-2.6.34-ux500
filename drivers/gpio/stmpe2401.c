@@ -2,7 +2,7 @@
  * Overview:
  *  	Driver for stmpe2401 gpio port expander
  *
- * Copyright (C) 2009 ST Ericsson.
+ * Copyright (C) 2009 ST-Ericsson SA
  *
  * Author: Srinidhi Kasagar <srinidhi.kasagar@stericsson.com>
  *
@@ -580,4 +580,4 @@ module_exit(stmpe2401_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Srinidhi Kasagar <srinidhi.kasagar@stericsson.com");
-MODULE_DESCRIPTION("STMPE2401 driver for ST Ericsson evaluation Platform");
+MODULE_DESCRIPTION("STMPE2401 driver for ST-Ericsson evaluation Platform");

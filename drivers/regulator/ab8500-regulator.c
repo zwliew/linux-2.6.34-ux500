@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 STMicroelectronics
- * Copyright (C) 2010 ST Ericsson.
+ * Copyright (C) 2010 ST-Ericsson SA
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -472,7 +472,7 @@ static void __exit ab8500_regulator_exit(void)
 arch_initcall(ab8500_regulator_init);
 module_exit(ab8500_regulator_exit);
 
-MODULE_AUTHOR("STMicroelectronics/STEricsson");
+MODULE_AUTHOR("STMicroelectronics/ST-Ericsson");
 MODULE_DESCRIPTION("AB8500 Voltage Framework");
 MODULE_LICENSE("GPL");
 

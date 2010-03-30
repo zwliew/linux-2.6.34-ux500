@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010 ST-Ericsson
+ *  Copyright (C) 2010 ST-Ericsson SA
  *  Copyright (C) 2009 STMicrolectronics
  *
  * This program is free software; you can redistribute it and/or modify
