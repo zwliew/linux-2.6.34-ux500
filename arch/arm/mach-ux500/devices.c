@@ -212,8 +212,8 @@ struct amba_device u8500_msp2_spi_device = {
 #define UX500_I2C_RESOURCES(id, size)		\
 static struct resource ux500_i2c_resources_##id[] = {	\
 	[0] = {					\
-		.start	= U8500_I2C##id##_BASE,	\
-		.end	= U8500_I2C##id##_BASE + size - 1, \
+		.start	= UX500_I2C##id##_BASE,	\
+		.end	= UX500_I2C##id##_BASE + size - 1, \
 		.flags	= IORESOURCE_MEM,	\
 	},					\
 	[1] = {					\
