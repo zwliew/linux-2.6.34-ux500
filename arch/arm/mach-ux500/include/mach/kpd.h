@@ -30,8 +30,7 @@
 
 struct keypad_t;
 /**
- * struct keypad_device -
- * platform data for keypad driver
+ * struct keypad_device - Device data structure for platform specific data
  * @init:		pointer to keypad init function
  * @exit:		pointer to keypad deinitialisation function
  * @autoscan_check:	pointer to read autoscan status function, not used
@@ -52,6 +51,7 @@ struct keypad_t;
  * @irq:		irq no,
  * @int_status:		interrupt status
  * @int_line_behaviour:	dynamis interrupt line behaviour
+ * @enable_wakeup:	specifies if keypad event can wake up system from sleep
  */
 struct keypad_device {
 	int	(*init)(struct keypad_t *kp);

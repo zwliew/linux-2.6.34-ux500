@@ -81,6 +81,7 @@ EXPORT_SYMBOL(u8500_kp_intrhandler);
 /**
  * u8500_kp_wq_kscan - work queue for keypad scanning
  * @work:	pointer to keypad data
+ *
  * Executes at each scan tick, execute the key press/release function,
  * Generates key press/release event message for input subsystem for valid key
  * events, enables keypad interrupts (for int mode)
@@ -124,6 +125,7 @@ static void u8500_kp_wq_kscan(struct work_struct *work)
 /**
  * u8500_kp_init_keypad - keypad parameter initialization
  * @kp:		pointer to keypad data
+ *
  * Initializes Keybits to enable keyevents
  * Initializes Initial keypress status to default
  * Calls the keypad platform specific init function.
@@ -323,6 +325,7 @@ err_kzalloc:
  * u8500_kp_remove - keypad module remove function
  *
  * @pdev:	driver platform data
+ *
  * Disables Keypad interrupt if any, frees allocated keypad interrupt if any,
  * cancels keypad work queues if any, deallocate used GPIO pin, unregisters the
  * module, frees used memory
