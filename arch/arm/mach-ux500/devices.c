@@ -901,6 +901,9 @@ static struct platform_device ab8500_vaux2_regulator_dev = {
 static struct regulator_consumer_supply ab8500_vtvout_consumers[] = {
 	{
 		.supply = "v-tvout",
+	},
+	{
+		.supply = "ab8500-gpadc",
 	}
 };
 

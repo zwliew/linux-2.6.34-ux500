@@ -19,6 +19,8 @@
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
 #include <linux/completion.h>
+#include <linux/regulator/consumer.h>
+#include <linux/err.h>
 #include <mach/ab8500.h>
 #include <mach/ab8500_gpadc.h>
 
@@ -28,20 +30,37 @@
 static struct completion ab8500_gpadc_complete;
 static DEFINE_MUTEX(ab8500_gpadc_lock);
 
+#if defined(CONFIG_REGULATOR)
+static struct regulator *regu;
+#endif
+
 EXPORT_SYMBOL(ab8500_gpadc_conversion);
 
+/**
+ * ab8500_gpadc_conversion()
+ * @input:	analog ip to be converted to digital data
+ *
+ * This function converts the selected analog i/p to digital
+ * data. Thereafter calibration has to be made to obtain the
+ * data in the required quantity measurement.
+ *
+ **/
 int ab8500_gpadc_conversion(int input)
 {
 	int ret, val, low_data, high_data, data;
 
 	mutex_lock(&ab8500_gpadc_lock);
 	/* Enable VTVout LDO this is required for GPADC */
+#if defined(CONFIG_REGULATOR)
+	if (!regulator_is_enabled(regu))
+		regulator_enable(regu);
+#else
 	val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 	ret = ab8500_write(AB8500_REGU_CTRL1,
 			   AB8500_REGU_MISC1_REG, (val | 0x06));
 	if (ret < 0)
 		pr_debug("gpadc_conversion: enable VTVout LDO failed\n");
-
+#endif
 	/* Check if ADC is not busy, lock and proceed */
 	do {
 		val = ab8500_read(AB8500_GPADC, AB8500_GPADC_STAT_REG);
@@ -78,21 +97,40 @@ int ab8500_gpadc_conversion(int input)
 	if (ret < 0)
 		pr_debug("gpadc_conversion: disable gpadc failed\n");
 	/* Disable VTVout LDO this is required for GPADC */
+#if defined(CONFIG_REGULATOR)
+	regulator_disable(regu);
+#else
 	val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 	ret = ab8500_write(AB8500_REGU_CTRL1,
 			   AB8500_REGU_MISC1_REG, (val & 0xF9));
 	if (ret < 0)
 		pr_debug("gpadc_conversion: disable VTVout LDO failed\n");
+#endif
 	mutex_unlock(&ab8500_gpadc_lock);
 	return data;
 }
 
-/* set callback handlers  - completion of Sw ADC conversion */
+/**
+ * ab8500_bm_gpswadcconvend_handler()
+ *
+ * This is the call back handler for end of conversion interrupt.
+ * It notifies saying that the s/w conversion is completed.
+ **/
 static void ab8500_bm_gpswadcconvend_handler(void)
 {
 	complete(&ab8500_gpadc_complete);
 }
 
+/**
+ * ab8500_gpadc_probe() - probe of ab8500 gpadc driver
+ *
+ * @pdev:	pointer to the platform_device structure
+ *
+ * This function is called after the driver is registered to the
+ * platform device framework. It registers the callback handler
+ * for gpadc interrupts and enables gpadc interrupt.
+ *
+ **/
 static int __devinit ab8500_gpadc_probe(struct platform_device *pdev)
 {
 	int ret, val;
@@ -115,9 +153,27 @@ static int __devinit ab8500_gpadc_probe(struct platform_device *pdev)
 		pr_debug("ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
+#if defined(CONFIG_REGULATOR)
+	regu = regulator_get(NULL, "ab8500-gpadc");
+	if (IS_ERR(regu)) {
+		ret = PTR_ERR(regu);
+		pr_err("failed to get vtvout LDO\n");
+		return ret;
+	}
+#endif
 	return 0;
 }
 
+/**
+ * ab8500_gpadc_remove() - remove of ab8500 gpadc driver
+ *
+ * @pdev:	pointer to the platform_device structure
+ *
+ * This function is called when the driver gets registered to the
+ * platform device framework. It unregisters the callback handler
+ * for gpadc interrupts and disables gpadc interrupt.
+ *
+ **/
 static int __devexit ab8500_gpadc_remove(struct platform_device *pdev)
 {
 	int ret, val;
@@ -135,9 +191,19 @@ static int __devexit ab8500_gpadc_remove(struct platform_device *pdev)
 		pr_debug("ab8500_bm_hw_presence_en(): write failed\n");
 		return ret;
 	}
+#if defined(CONFIG_REGULATOR)
+	regulator_put(regu);
+#endif
 	return 0;
 }
 
+/*
+ * struct ab8500_gpadc_driver: AB8500 GPADC platform structure
+ *
+ * @probe:	The probe function to be called
+ * @remove:	The remove fucntion to be called
+ * @driver:	The driver data
+ */
 static struct platform_driver ab8500_gpadc_driver = {
 	.probe = ab8500_gpadc_probe,
 	.remove = __exit_p(ab8500_gpadc_remove),
@@ -146,11 +212,21 @@ static struct platform_driver ab8500_gpadc_driver = {
 		   },
 };
 
+/**
+ * ab8500_gpadc_init() - register the device
+ *
+ * This fucntion registers the ab8500 gpadc driver as a platform device.
+ **/
 static int __init ab8500_gpadc_init(void)
 {
 	return platform_driver_register(&ab8500_gpadc_driver);
 }
 
+/**
+ * ab8500_gpadc_exit() - unregister the device
+ *
+ * This fucntion unregisters the ab8500 gpadc driver as a platform device.
+ **/
 static void __exit ab8500_gpadc_exit(void)
 {
 	platform_driver_unregister(&ab8500_gpadc_driver);
