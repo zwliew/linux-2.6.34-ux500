@@ -207,6 +207,9 @@ struct b2r2_node_split_buf {
 	/* Plane selection (used when writing to a multibuffer format) */
 	enum b2r2_tty plane_selection;
 
+	/* Chroma plane selection (used when writing planar formats) */
+	enum b2r2_tty chroma_selection;
+
 	int tmp_buf_index;
 };
 

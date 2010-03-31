@@ -120,7 +120,7 @@ static unsigned long stat_n_in_open;
 static unsigned long stat_n_in_release;
 
 /* TODO: Remove when a better way to sense coherent memory has been found. */
-static bool flush_mio_pmem = false;
+static bool flush_mio_pmem;
 
 /* Debug file system support */
 #ifdef CONFIG_DEBUG_FS
@@ -182,7 +182,7 @@ struct sync_args {
  *
  * @arg: Pointer to sync_args structure
  */
-static inline void flush_l1_cache_range_curr_cpu(void* arg)
+static inline void flush_l1_cache_range_curr_cpu(void *arg)
 {
 	struct sync_args *sa = (struct sync_args *)arg;
 
@@ -195,7 +195,7 @@ static inline void flush_l1_cache_range_curr_cpu(void* arg)
  *
  * @sa: Pointer to sync_args structure
  */
-static void flush_l1_cache_range_all_cpus(struct sync_args* sa)
+static void flush_l1_cache_range_all_cpus(struct sync_args *sa)
 {
 	on_each_cpu(flush_l1_cache_range_curr_cpu, sa, 1);
 }
@@ -225,7 +225,7 @@ static inline void clean_l1_cache_range_curr_cpu(void *arg)
  *
  * @sa: Pointer to sync_args structure
  */
-static void clean_l1_cache_range_all_cpus(struct sync_args* sa)
+static void clean_l1_cache_range_all_cpus(struct sync_args *sa)
 {
 	on_each_cpu(clean_l1_cache_range_curr_cpu, sa, 1);
 }
@@ -1084,7 +1084,6 @@ static int job_acquire_resources(struct b2r2_core_job *job, bool atomic)
 		return -EAGAIN;
 
 	for (i = 0; i < request->buf_count; i++) {
-		u32 actual_size;
 		void *virt;
 
 		dev_dbg(b2r2_blt_device(), "b2r2::%s: allocating %d bytes\n",
@@ -1102,7 +1101,7 @@ static int job_acquire_resources(struct b2r2_core_job *job, bool atomic)
 		request->bufs[i].virt_addr = virt;
 
 		dev_dbg(b2r2_blt_device(), "b2r2::%s: phys=%p, virt=%p\n",
-			__func__, request->bufs[i].phys_addr,
+			__func__, (void *)request->bufs[i].phys_addr,
 			request->bufs[i].virt_addr);
 
 		ret = b2r2_node_split_assign_buffers(&request->node_split_job,
@@ -1198,6 +1197,11 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 	case B2R2_BLT_PTR_NONE:
 		break;
 
+	case B2R2_BLT_PTR_PHYSICAL:
+		resolved->physical_address = buf->offset;
+		resolved->file_len = buf->len;
+		break;
+
 		/* FD + OFFSET type */
 	case B2R2_BLT_PTR_FD_OFFSET: {
 		/* TODO: Do we need to check if the process is allowed to read/write
@@ -1220,8 +1224,7 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 				(resolved->file_virtual_start +
 				 buf->offset);
 			resolved->is_pmem = true;
-		}
-		else
+		} else
 #endif
 		{
 
@@ -1232,6 +1235,7 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 			if (MAJOR(file->f_dentry->d_inode->i_rdev) == FB_MAJOR) {
 				/* This is a frame buffer device, find fb_info
 				   (OK to do it like this, no locking???) */
+
 				for (i = 0; i < num_registered_fb; i++) {
 					struct fb_info *info = registered_fb[i];
 
@@ -1249,7 +1253,7 @@ static int resolve_buf(struct b2r2_blt_buf *buf,
 							resolved->file_physical_start +
 							buf->offset;
 						resolved->virtual_address =
-							(void*)(resolved->file_virtual_start +
+							(void *)(resolved->file_virtual_start +
 							buf->offset);
 
 						break;
@@ -1305,9 +1309,7 @@ static bool is_mio_pmem(struct b2r2_resolved_buf *buf)
 	should be gotten from the pmem driver directly but that is not possible with
 	the current pmem driver. */
 	if (MISC_MAJOR == imajor(inode) && 1 == iminor(inode))
-	{
 		return true;
-	}
 	else
 		return false;
 }

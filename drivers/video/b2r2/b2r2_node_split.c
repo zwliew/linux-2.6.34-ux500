@@ -43,7 +43,7 @@ static u32 verbose;
 			printk(__VA_ARGS__); \
 	} while (false)
 
-#define PTRACE_ENTRY() pdebug(KERN_INFO LOG_TAG "::%s\n", __func__)
+#define PTRACE_ENTRY() pverbose(KERN_INFO LOG_TAG "::%s\n", __func__)
 
 #define LOG_TAG "b2r2_node_split"
 
@@ -133,11 +133,11 @@ static int analyze_scale_factors(struct b2r2_node_split_job *this);
 
 static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 		const struct b2r2_blt_request *req);
-static int setup_rot_scale_windows(struct b2r2_node_split_job *this);
+static int rot_node_count(s32 width, s32 height);
 
 static void configure_src(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src, const u32 *ivmx);
-static void configure_dst(struct b2r2_node *node,
+static int configure_dst(struct b2r2_node *node,
 		struct b2r2_node_split_buf *dst, const u32 *ivmx,
 		struct b2r2_node **next);
 static void configure_blend(struct b2r2_node *node, u32 flags, u32 global_alpha,
@@ -149,21 +149,21 @@ static int configure_tile(struct b2r2_node_split_job *this,
 		struct b2r2_node *node, struct b2r2_node **next);
 static void configure_direct_fill(struct b2r2_node *node, u32 color,
 		struct b2r2_node_split_buf *dst, struct b2r2_node **next);
-static void configure_fill(struct b2r2_node *node, u32 color,
+static int configure_fill(struct b2r2_node *node, u32 color,
 		enum b2r2_blt_fmt fmt, struct b2r2_node_split_buf *dst,
 		const u32 *ivmx, struct b2r2_node **next);
 static void configure_direct_copy(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, struct b2r2_node **next);
-static void configure_copy(struct b2r2_node *node,
+static int configure_copy(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, const u32 *ivmx,
 		struct b2r2_node **next);
-static void configure_rotate(struct b2r2_node *node,
+static int configure_rotate(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, const u32 *ivmx,
 		struct b2r2_node **next);
-static void configure_scale(struct b2r2_node *node,
+static int configure_scale(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, u16 h_rsf, u16 v_rsf,
 		const u32 *ivmx, struct b2r2_node **next);
@@ -172,6 +172,7 @@ static void configure_tmp_buf(struct b2r2_node_split_buf *this, int index,
 static int configure_rot_scale(struct b2r2_node_split_job *this,
 		struct b2r2_node *node, struct b2r2_node **next);
 
+static int check_rects(const struct b2r2_node_split_job *this, bool color_fill);
 static void set_buf(struct b2r2_node_split_buf *buf, u32 addr,
 		const struct b2r2_blt_img *img,
 		const struct b2r2_blt_rect *rect, bool color_fill, u32 color);
@@ -183,11 +184,13 @@ static int calculate_tile_count(s32 area_width, s32 area_height, s32 tile_width,
 		s32 tile_height);
 
 static inline enum b2r2_ty get_alpha_range(enum b2r2_blt_fmt fmt);
-static inline u8 get_alpha(enum b2r2_blt_fmt fmt, u32 pixel);
+static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u32 alpha, u32 color);
+static inline u8  get_alpha(enum b2r2_blt_fmt fmt, u32 pixel);
 static inline bool fmt_has_alpha(enum b2r2_blt_fmt fmt);
 static inline bool is_rgb_fmt(enum b2r2_blt_fmt fmt);
 static inline bool is_bgr_fmt(enum b2r2_blt_fmt fmt);
 static inline bool is_yuv_fmt(enum b2r2_blt_fmt fmt);
+static inline bool is_yuv420_fmt(enum b2r2_blt_fmt fmt);
 static inline int fmt_byte_pitch(enum b2r2_blt_fmt fmt, u32 width);
 static inline int fmt_bpp(enum b2r2_blt_fmt fmt);
 static inline enum b2r2_native_fmt to_native_fmt(enum b2r2_blt_fmt fmt);
@@ -249,11 +252,24 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 
 	/* Configure the source and destination buffers */
 	set_buf(&this->src, req->src_resolved.physical_address,
-		&req->user_req.src_img, &req->user_req.src_rect, color_fill,
-		req->user_req.src_color);
-	set_buf(&this->dst, req->dst_resolved.physical_address,
-		&req->user_req.dst_img, &req->user_req.dst_rect, false, 0);
+			&req->user_req.src_img, &req->user_req.src_rect,
+			color_fill, req->user_req.src_color);
 
+	set_buf(&this->dst, req->dst_resolved.physical_address,
+			&req->user_req.dst_img, &req->user_req.dst_rect, false,
+			0);
+
+	pdebug(KERN_INFO LOG_TAG "::%s:\n"
+		"\t\tsrc.rect=(%4d, %4d, %4d, %4d)\t"
+		"dst.rect=(%4d, %4d, %4d, %4d)\n", __func__, this->src.rect.x,
+		this->src.rect.y, this->src.rect.width, this->src.rect.height,
+		this->dst.rect.x, this->dst.rect.y, this->dst.rect.width,
+		this->dst.rect.height);
+
+	/* Validate the input */
+	ret = check_rects(this, color_fill);
+	if (ret < 0)
+		goto error;
 
 	/* Check for blending */
 	if (this->flags & B2R2_BLT_FLAG_GLOBAL_ALPHA_BLEND)
@@ -330,31 +346,36 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 	if (this->buf_count > 0)
 		*bufs = &this->work_bufs[0];
 
-	pdebug(KERN_INFO "%s: src.rect=(%d, %d, %d, %d) d_src=(%d, %d), "
-			"dst.rect(%d, %d, %d, %d) d_dst=(%d, %d)\n", __func__,
+	pverbose(KERN_INFO "%s: src=%d dst=%d\n"
+			"\t\tsrc.rect=(%4d, %4d, %4d, %4d)\td_src=(%4d, %4d)\n"
+			"\t\tdst.rect=(%4d, %4d, %4d, %4d)\td_dst=(%4d, %4d)\n",
+			__func__, req->user_req.src_img.buf.fd,
+			req->user_req.dst_img.buf.fd,
 			this->src.rect.x, this->src.rect.y,
 			this->src.rect.width, this->src.rect.height,
 			this->src.dx, this->src.dy,
 			this->dst.rect.x, this->dst.rect.y,
 			this->dst.rect.width, this->dst.rect.height,
 			this->dst.dx, this->dst.dy);
-	pdebug(KERN_INFO "%s:\n\t\t\tsrc.window=(%4d, %4d, %4d, %4d)\t d_src=(%d, %d)\n"
-			"\t\t\tdst.window=(%4d, %4d, %4d, %4d)\t d_dst=(%d, %d)\n", __func__,
-			this->src.window.x, this->src.window.y,
+	pverbose(KERN_INFO "%s:\n"
+			"\t\tsrc.window=(%4d, %4d, %4d, %4d)\td_src=(%d, %d)\n"
+			"\t\tdst.window=(%4d, %4d, %4d, %4d)\td_dst=(%d, %d)\n",
+			__func__, this->src.window.x, this->src.window.y,
 			this->src.window.width, this->src.window.height,
 			this->src.dx, this->src.dy,
 			this->dst.window.x, this->dst.window.y,
 			this->dst.window.width, this->dst.window.height,
 			this->dst.dx, this->dst.dy);
 
-	pdebug(KERN_INFO "\t\t\tnode_count=%d, buf_count=%d, type=%s\n",
+	pverbose(KERN_INFO "\t\t\tnode_count=%d, buf_count=%d, type=%s\n",
 			*node_count, *buf_count, type2str(this->type));
-	pdebug(KERN_INFO "\t\t\tblend=%d, clip=%d, color_fill=%d\n",
+	pverbose(KERN_INFO "\t\t\tblend=%d, clip=%d, color_fill=%d\n",
 			this->blend, this->clip, color_fill);
 
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 }
 
@@ -371,13 +392,11 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 	bool last_row = false;
 	bool last_col = false;
 
-	s32 src_width;
-	s32 dst_width;
-	s32 dst_height;
+	s32 src_win_width;
+	s32 dst_win_width;
+	s32 dst_win_height;
 
-	reset_nodes(node);
-
-	pdebug(KERN_INFO "%s: src_rect=(%d, %d, %d, %d), "
+	pverbose(KERN_INFO "%s: src_rect=(%d, %d, %d, %d), "
 			"dst_rect=(%d, %d, %d, %d)\n", __func__,
 			this->src.rect.x, this->src.rect.y,
 			this->src.rect.width, this->src.rect.height,
@@ -385,22 +404,23 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 			this->dst.rect.width,
 			this->dst.rect.height);
 
-	pdebug(KERN_INFO "%s: d_src=(%d, %d) d_dst=(%d, %d)\n",
+	pverbose(KERN_INFO "%s: d_src=(%d, %d) d_dst=(%d, %d)\n",
 		__func__, this->src.dx, this->src.dy, this->dst.dx,
 		this->dst.dy);
 
-	/* Save these so we can do restore them when moving to a new row */
-	src_width = this->src.window.width;
-	dst_width = this->dst.window.width;
-	dst_height = this->dst.window.height;
-
 	reset_nodes(node);
+
+	/* Save these so we can do restore them when moving to a new row */
+	src_win_width = this->src.window.width;
+	dst_win_width = this->dst.window.width;
+	dst_win_height = this->dst.window.height;
 
 	do {
 		if (node == NULL) {
 			/* DOH! This is an internal error (to few nodes
 			   allocated) */
-			printk(KERN_ERR "%s: Internal error! Out of nodes!\n",
+			printk(KERN_ERR LOG_TAG "%s: "
+				"Internal error! Out of nodes!\n",
 				__func__);
 			ret = -ENOMEM;
 			goto error;
@@ -414,7 +434,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 				this->src.rect.height;
 
 		if (last_col) {
-			pdebug(KERN_INFO "%s: last col\n", __func__);
+			pverbose(KERN_INFO "%s: last col\n", __func__);
 			this->src.window.width = this->src.rect.width -
 				ABS(this->src.rect.x - this->src.window.x);
 			if (this->rotation)
@@ -430,7 +450,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 		}
 
 		if (last_row) {
-			pdebug(KERN_INFO "%s: last row\n", __func__);
+			pverbose(KERN_INFO "%s: last row\n", __func__);
 			this->src.window.height = this->src.rect.height -
 				ABS(this->src.rect.y - this->src.window.y);
 			if (this->rotation)
@@ -445,7 +465,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 						this->dst.window.y);
 		}
 
-		pdebug(KERN_INFO "%s: src=(%d, %d, %d, %d), "
+		pverbose(KERN_INFO "%s: src=(%d, %d, %d, %d), "
 				"dst=(%d, %d, %d, %d)\n", __func__,
 				this->src.window.x, this->src.window.y,
 				this->src.window.width, this->src.window.height,
@@ -466,18 +486,18 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 		if (last_col) {
 			/* Reset the window and slide vertically */
 			this->src.window.x = this->src.rect.x;
-			this->src.window.width = src_width;
+			this->src.window.width = src_win_width;
 
 			this->src.window.y += this->src.dy;
 
 			if (this->rotation) {
 				this->dst.window.y = this->dst.rect.y;
-				this->dst.window.height = dst_height;
+				this->dst.window.height = dst_win_height;
 
 				this->dst.window.x += this->dst.dx;
 			} else {
 				this->dst.window.x = this->dst.rect.x;
-				this->dst.window.width = dst_width;
+				this->dst.window.width = dst_win_width;
 
 				this->dst.window.y += this->dst.dy;
 			}
@@ -489,6 +509,8 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 
 	return 0;
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+
 	{
 		int nbr_nodes = 0;
 		while (first != NULL) {
@@ -498,8 +520,14 @@ error:
 
 		printk(KERN_ERR LOG_TAG "::%s: Asked for %d nodes, got %d\n",
 			__func__, this->node_count, nbr_nodes);
+		printk(KERN_ERR LOG_TAG "::%s: src.rect=(%4d, %4d, %4d, %4d)\t"
+			"dst.rect=(%4d, %4d, %4d, %4d)\n", __func__,
+			this->src.rect.x, this->src.rect.y,
+			this->src.rect.width, this->src.rect.height,
+			this->dst.rect.x, this->dst.rect.y,
+			this->dst.rect.width, this->dst.rect.height);
 	}
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+
 	return ret;
 }
 
@@ -515,18 +543,20 @@ int b2r2_node_split_assign_buffers(struct b2r2_node_split_job *this,
 	while (node != NULL) {
 		/* The indices are offset by one */
 		if (node->dst_tmp_index) {
+			u32 addr = bufs[node->dst_tmp_index - 1].phys_addr;
+
 			BUG_ON(node->dst_tmp_index > buf_count);
 
 			node->node.GROUP1.B2R2_TBA =
 				bufs[node->dst_tmp_index - 1].phys_addr;
-			pdebug(KERN_INFO LOG_TAG "::%s: "
+			pverbose(KERN_INFO LOG_TAG "::%s: "
 				"%p Assigning %p as destination\n", __func__,
-				node, (void *)bufs[node->dst_tmp_index - 1].phys_addr);
+				node, (void *)addr);
 		}
 		if (node->src_tmp_index) {
 			u32 addr = bufs[node->src_tmp_index - 1].phys_addr;
 
-			pdebug(KERN_INFO LOG_TAG "::%s: "
+			pverbose(KERN_INFO LOG_TAG "::%s: "
 				"%p Assigning %p as source", __func__,
 				node, (void *)addr);
 
@@ -534,15 +564,15 @@ int b2r2_node_split_assign_buffers(struct b2r2_node_split_job *this,
 
 			switch (node->src_index) {
 			case 1:
-				pdebug("1\n");
+				pverbose("1\n");
 				node->node.GROUP3.B2R2_SBA = addr;
 				break;
 			case 2:
-				pdebug("2\n");
+				pverbose("2\n");
 				node->node.GROUP4.B2R2_SBA = addr;
 				break;
 			case 3:
-				pdebug("3\n");
+				pverbose("3\n");
 				node->node.GROUP5.B2R2_SBA = addr;
 				break;
 			default:
@@ -551,7 +581,7 @@ int b2r2_node_split_assign_buffers(struct b2r2_node_split_job *this,
 			}
 		}
 
-		pdebug(KERN_INFO LOG_TAG "::%s: tba=%p\tsba=%p\n", __func__,
+		pverbose(KERN_INFO LOG_TAG "::%s: tba=%p\tsba=%p\n", __func__,
 			(void *)node->node.GROUP1.B2R2_TBA,
 			(void *)node->node.GROUP4.B2R2_SBA);
 
@@ -575,7 +605,7 @@ void b2r2_node_split_unassign_buffers(struct b2r2_node_split_job *this,
  */
 void b2r2_node_split_cancel(struct b2r2_node_split_job *this)
 {
-	pdebug("%s: Releasing job\n", __func__);
+	pverbose("%s: Releasing job\n", __func__);
 
 	memset(this, 0, sizeof(*this));
 
@@ -586,13 +616,47 @@ void b2r2_node_split_cancel(struct b2r2_node_split_job *this)
  * Private functions
  **********************/
 
+static int check_rects(const struct b2r2_node_split_job *this, bool color_fill)
+{
+	int ret;
+
+	/* Check source rectangle (if not color fill) */
+	if (!color_fill) {
+		if ((this->src.rect.width <= 0) ||
+				(this->src.rect.height <= 0)) {
+			printk(KERN_ERR LOG_TAG "::%s: "
+				"Illegal src rect (%d, %d, %d, %d)\n",
+				__func__, this->src.rect.x, this->src.rect.y,
+				this->src.rect.width, this->src.rect.height);
+			ret = -EINVAL;
+			goto error;
+		}
+	}
+
+	/* Check dest rectangle */
+	if ((this->dst.rect.width <= 0) ||
+			(this->dst.rect.height <= 0)) {
+		printk(KERN_ERR LOG_TAG "::%s: "
+			"Illegal dst rect (%d, %d, %d, %d)\n",
+			__func__, this->src.rect.x, this->src.rect.y,
+			this->src.rect.width, this->src.rect.height);
+		ret = -EINVAL;
+		goto error;
+	}
+
+	return 0;
+error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	return ret;
+}
+
 /**
  * analyze_fmt_conv() - analyze the format conversions needed for a job
  */
 static int analyze_fmt_conv(struct b2r2_node_split_job *this,
 		const struct b2r2_blt_request *req, u32 *node_count)
 {
-	pdebug(KERN_INFO LOG_TAG "::%s: Analyzing fmt conv...\n", __func__);
+	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing fmt conv...\n", __func__);
 
 	if (is_rgb_fmt(this->src.fmt)) {
 		if (is_yuv_fmt(this->dst.fmt))
@@ -612,13 +676,13 @@ static int analyze_fmt_conv(struct b2r2_node_split_job *this,
 	}
 
 	if (this->dst.type == B2R2_FMT_TYPE_RASTER) {
-		pdebug(KERN_INFO LOG_TAG "::%s: --> RASTER\n", __func__);
+		pverbose(KERN_INFO LOG_TAG "::%s: --> RASTER\n", __func__);
 		*node_count = 1;
 	} else if (this->dst.type == B2R2_FMT_TYPE_SEMI_PLANAR) {
-		pdebug(KERN_INFO LOG_TAG "::%s: --> SEMI PLANAR\n", __func__);
+		pverbose(KERN_INFO LOG_TAG "::%s: --> SEMI PLANAR\n", __func__);
 		*node_count = 2;
 	} else if (this->dst.type == B2R2_FMT_TYPE_PLANAR) {
-		pdebug(KERN_INFO LOG_TAG "::%s: --> PLANAR\n", __func__);
+		pverbose(KERN_INFO LOG_TAG "::%s: --> PLANAR\n", __func__);
 		*node_count = 3;
 	} else {
 		/* That's strange... */
@@ -635,7 +699,7 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 		const struct b2r2_blt_request *req, u32 *node_count)
 {
 	int ret;
-	pdebug(KERN_INFO LOG_TAG "::%s: Analyzing color fill...\n", __func__);
+	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing color fill...\n", __func__);
 
 	/* Destination must be raster for raw fill to work */
 	if ((this->flags & B2R2_BLT_FLAG_SOURCE_FILL_RAW) &&
@@ -646,11 +710,15 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 		goto error;
 	}
 
+	/* We will try to fill the entire rectangle in one go */
+	memcpy(&this->dst.window, &this->dst.rect, sizeof(this->dst.window));
+
+	/* Check if this is a direct fill */
 	if ((!this->blend) && ((this->flags & B2R2_BLT_FLAG_SOURCE_FILL_RAW) ||
 			(this->dst.fmt == B2R2_BLT_FMT_32_BIT_ARGB8888) ||
 			(this->dst.fmt == B2R2_BLT_FMT_32_BIT_ABGR8888) ||
 			(this->dst.fmt == B2R2_BLT_FMT_32_BIT_AYUV8888))) {
-		pdebug(KERN_INFO LOG_TAG "::%s: Direct fill!\n", __func__);
+		pverbose(KERN_INFO LOG_TAG "::%s: Direct fill!\n", __func__);
 		this->type = B2R2_DIRECT_FILL;
 
 		/* The color format will be the same as the dst fmt */
@@ -661,7 +729,7 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 			sizeof(this->dst.window));
 		*node_count = 1;
 	} else {
-		pdebug(KERN_INFO LOG_TAG "::%s: Normal fill!\n", __func__);
+		pverbose(KERN_INFO LOG_TAG "::%s: Normal fill!\n", __func__);
 		this->type = B2R2_FILL;
 
 		/* Determine the fill color format */
@@ -702,21 +770,21 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 					sizeof(this->src.window));
 		}
 
-		/* We will need to swap the FG and the BG since color fill from
-		   S2 doesn't work */
-		if (this->blend)
-			this->swap_fg_bg = true;
-
 		/* Also, B2R2 seems to ignore the pixel alpha value */
 		if (((this->flags & B2R2_BLT_FLAG_PER_PIXEL_ALPHA_BLEND)
 					!= 0) &&
 				((this->flags & B2R2_BLT_FLAG_SOURCE_FILL_RAW)
 					== 0) && fmt_has_alpha(this->src.fmt)) {
 			u8 pixel_alpha = get_alpha(this->src.fmt,
-							this->dst.color);
+							this->src.color);
 			u32 new_global = pixel_alpha * this->global_alpha / 255;
 
 			this->global_alpha = (u8)new_global;
+
+			/* Set the pixel alpha to full opaque so we don't get
+			   any nasty suprises */
+			this->src.color = set_alpha(this->src.fmt, 0xFF,
+						this->src.color);
 		}
 
 		ret = analyze_fmt_conv(this, req, node_count);
@@ -724,14 +792,13 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 			goto error;
 	}
 
-	memcpy(&this->dst.window, &this->dst.rect, sizeof(this->dst.window));
-
 	this->dst.dx = this->dst.window.width;
 	this->dst.dy = this->dst.window.height;
 
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 
 }
@@ -746,10 +813,12 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 	int ret;
 
 	bool is_scaling;
-	this->rotation = (this->transform & B2R2_BLT_TRANSFORM_CCW_ROT_90)
-				!= 0;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: Analyzing transform...\n", __func__);
+	/* The transform enum is defined so that all rotation transforms are
+	   masked with the rotation flag */
+	this->rotation = (this->transform & B2R2_BLT_TRANSFORM_CCW_ROT_90) != 0;
+
+	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing transform...\n", __func__);
 
 	if (this->rotation) {
 		is_scaling = (this->src.rect.width != this->dst.rect.height) ||
@@ -786,7 +855,9 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 		this->type = B2R2_FLIP;
 	}
 
-	/* Modify the horizontal and vertical scan order if FLIP */
+	/* Modify the horizontal and vertical scan order if FLIP (the enum
+	   values are set up so all flip combination values are masked with a
+	   flip flag) */
 	if (req->user_req.transform & B2R2_BLT_TRANSFORM_FLIP_H) {
 		this->src.hso = B2R2_TY_HSO_RIGHT_TO_LEFT;
 		this->src.rect.x += this->src.rect.width - 1;
@@ -805,7 +876,10 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 	}
 
 	/* Set the dx and dy of the destination as well */
-	this->dst.dx = this->dst.window.width;
+	if (this->dst.hso == B2R2_TY_HSO_RIGHT_TO_LEFT)
+		this->dst.dx = -this->dst.window.width;
+	else
+		this->dst.dx = this->dst.window.width;
 	if (this->dst.vso == B2R2_TY_VSO_BOTTOM_TO_TOP)
 		this->dst.dy = -this->dst.window.height;
 	else
@@ -814,6 +888,7 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 }
 
@@ -826,7 +901,7 @@ static int analyze_copy(struct b2r2_node_split_job *this,
 {
 	int ret;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: Analyzing copy...\n", __func__);
+	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing copy...\n", __func__);
 
 	memcpy(&this->src.window, &this->src.rect, sizeof(this->src.window));
 	memcpy(&this->dst.window, &this->dst.rect, sizeof(this->dst.window));
@@ -888,6 +963,7 @@ static int analyze_copy(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 }
 
@@ -900,6 +976,15 @@ static int analyze_rot_scale(struct b2r2_node_split_job *this,
 {
 	int ret;
 
+	struct b2r2_node_split_buf *tmp;
+
+	s32 tmp_width;
+	s32 tmp_height;
+
+	/* We will always need one tmp buffer */
+	this->buf_count = 1;
+	tmp = &this->tmp_bufs[0];
+
 	ret = analyze_scale_factors(this);
 	if (ret < 0)
 		goto error;
@@ -908,138 +993,69 @@ static int analyze_rot_scale(struct b2r2_node_split_job *this,
 	this->dst.vso = B2R2_TY_VSO_BOTTOM_TO_TOP;
 	this->dst.rect.y += this->dst.rect.height - 1;
 
-	/* We will always need one tmp buffer */
-	this->buf_count = 1;
-	ret = setup_tmp_buf(&this->tmp_bufs[0], this->max_buf_size, this->dst.fmt,
-		rescale(this->src.rect.width, this->horiz_sf),
-		rescale(this->dst.rect.height, this->vert_sf));
+	/* We will try to to the entire rectangle at once */
+	memcpy(&this->src.window, &this->src.rect, sizeof(this->src.window));
+	memcpy(&this->dst.window, &this->dst.rect, sizeof(this->dst.window));
+
+	/* The source width will be limited by the rescale max width */
+	this->src.window.width = MIN(this->src.window.width,
+			B2R2_RESCALE_MAX_WIDTH);
+
+	tmp_width = rescale(this->src.window.width, this->horiz_sf);
+	tmp_height = rescale(this->src.window.height, this->vert_sf);
+
+	/* Setup the tmp buf from the source window */
+	ret = setup_tmp_buf(tmp, this->max_buf_size, this->dst.fmt, tmp_width,
+			tmp_height);
 	if (ret < 0)
 		goto error;
 
-	this->work_bufs[0].size = this->tmp_bufs[0].pitch *
-		this->tmp_bufs[0].height;
-	this->tmp_bufs[0].tmp_buf_index = 1;
+	pdebug(KERN_INFO LOG_TAG "::%s: tmp_width=%d\ttmp_height=%d\n",
+		__func__, tmp_width, tmp_height);
+	pdebug(KERN_INFO LOG_TAG "::%s: "
+		"tmp.rect.width=%d\ttmp.rect.height=%d\n", __func__,
+		tmp->rect.width, tmp->rect.height);
+	pdebug(KERN_INFO LOG_TAG "::%s: hsf=%d\tvsf=%d\n",
+		__func__, this->horiz_sf, this->vert_sf);
 
-	/* Calculate the windows for this operation */
-	ret = setup_rot_scale_windows(this);
-	if (ret < 0)
-		goto error;
+	this->work_bufs[0].size = tmp->pitch * tmp->height;
+	tmp->tmp_buf_index = 1;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: tmp1=(%d, %d, %d, %d)\n", __func__,
-		this->tmp_bufs[1].window.x, this->tmp_bufs[1].window.y,
-		this->tmp_bufs[1].window.width,
-		this->tmp_bufs[1].window.height);
+	/* If the entire source window couldn't fit into the tmp buf we need
+	   to modify it */
+	if (tmp_width != tmp->rect.width)
+		this->src.window.width = inv_rescale(tmp->rect.width,
+			this->horiz_sf);
+	if (tmp_height != tmp->rect.height)
+		this->src.window.height = inv_rescale(tmp->rect.height,
+			this->vert_sf);
+
+	/* The source window will slide normally */
+	this->src.dx = this->src.window.width;
+	this->src.dy = this->src.window.height;
+
+	/* Setup the destination window (also make sure it is never larger
+	   than the rectangle) */
+	this->dst.window.width = MIN(this->dst.rect.width, tmp->rect.height);
+	this->dst.window.height = MIN(this->dst.rect.height, tmp->rect.width);
+
+	/* The destination will slide upwards because of the rotation */
+	this->dst.dx = this->dst.window.width;
+	this->dst.dy = -this->dst.window.height;
 
 	/* Calculate the number of nodes needed */
 	ret = calculate_rot_scale_node_count(this, req);
 	if (ret < 0)
 		goto error;
 
-	/* Setup the parameters for moving the window */
-	this->src.dx = this->src.window.width;
-	this->src.dy = this->src.window.height;
-	this->dst.dx = this->dst.window.width;
-	this->dst.dy = -this->dst.window.height;
-
-	/* The first temporary buffer will never move */
-	this->tmp_bufs[0].dx = 0;
-	this->tmp_bufs[0].dy = 0;
-
-	/* The second will, however */
-	this->tmp_bufs[1].dx = this->tmp_bufs[1].window.width;
-	this->tmp_bufs[1].dy = this->tmp_bufs[1].window.height;
-
 	this->type = B2R2_SCALE_AND_ROTATE;
 
 	pdebug(KERN_INFO LOG_TAG "::%s: Rot scale:\n", __func__);
-	pdebug(KERN_INFO LOG_TAG "::%s: node_count=%d\n", __func__, this->node_count);
+	pdebug(KERN_INFO LOG_TAG "::%s: node_count=%d\n", __func__,
+		this->node_count);
 
 	return 0;
 
-error:
-	return ret;
-}
-
-/**
- * setup_rot_scale_windows() - computes the window sizes for a combined
- *                             rotation and scaling operation
- */
-static int setup_rot_scale_windows(struct b2r2_node_split_job *this)
-{
-	int ret;
-
-	struct b2r2_node_split_buf *tmp = &this->tmp_bufs[0];
-
-	s32 old_width;
-	s32 old_height;
-
-	/* Start out assuming we can fit the entire rectangle in the tmp buf */
-	memcpy(&this->src.window, &this->src.rect, sizeof(this->src.window));
-	memcpy(&this->dst.window, &this->dst.rect, sizeof(this->dst.window));
-
-	/* Limit the width to the maximum for scaling */
-	this->src.window.width = MIN(this->src.window.width,
-					B2R2_RESCALE_MAX_WIDTH);
-
-	/* Set up the tmp buffer window and constrain it */
-	tmp->window.width = rescale(this->src.window.width, this->horiz_sf);
-	tmp->window.height = rescale(this->src.window.height, this->vert_sf);
-
-	old_width = tmp->window.width;
-	old_height = tmp->window.height;
-
-	/* Constrain the window to the tmp buf size */
-	if (tmp->window.width > tmp->rect.width)
-		tmp->window.width = tmp->rect.width;
-	if (tmp->window.height > tmp->rect.height)
-		tmp->window.height = tmp->rect.height;
-
-	/* Update the source window with the constrained dimensions */
-	if (tmp->window.width != old_width)
-		this->src.window.width = inv_rescale(tmp->window.width,
-							this->horiz_sf);
-	if (tmp->window.height != old_height)
-		this->src.window.height = inv_rescale(tmp->window.height,
-							this->vert_sf);
-
-	if ((this->src.window.width == 0) || (this->src.window.height == 0)) {
-		/* Crap, we can't handle this yet... */
-		printk(KERN_ERR LOG_TAG "::%s: too small tmp buf for rescale\n",
-			__func__);
-		printk(KERN_ERR LOG_TAG "\tsrc=(%4d, %4d, %4d, %4d)\t"
-			"tmp=(%4d, %4d, %4d, %4d)\n", this->src.window.x,
-			this->src.window.y, this->src.window.width,
-			this->src.window.height, tmp->window.x,
-			tmp->window.y, tmp->window.width, tmp->window.height);
-		ret = -ENOSYS;
-		goto error;
-	}
-
-	/* Set the destination window */
-	this->dst.window.width = tmp->window.height;
-	this->dst.window.height = tmp->window.width;
-
-	/* We will use the second tmp buf to store information about the
-	   rotation */
-	memcpy(&this->tmp_bufs[1], &this->tmp_bufs[0],
-			sizeof(this->tmp_bufs[1]));
-	tmp = &this->tmp_bufs[1];
-
-	/* This window will be smaller since rotation has a smaller maximum
-	   width than scaling */
-	tmp->window.width = B2R2_ROTATE_MAX_WIDTH;
-#ifdef B2R2_ROTATION_HEIGHT_BUGFIX
-	if (tmp->window.height > 16)
-		tmp->window.height -= tmp->window.height % 16;
-#endif
-
-	/* The tmp rectangles will be the same size as the tmp buffer */
-	memcpy(&this->tmp_bufs[0].rect, &this->tmp_bufs[0].window,
-			sizeof(this->tmp_bufs[0].rect));
-	memcpy(&this->tmp_bufs[1].rect, &this->tmp_bufs[0].window,
-		sizeof(this->tmp_bufs[1].rect));
-
-	return 0;
 error:
 	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
@@ -1056,20 +1072,14 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 
 	u32 copy_count;
 	u32 rot_count;
+	u32 tile_rots;
 	u32 scale_count;
 
 	s32 right_width;
 	s32 bottom_height;
 
-	int rot_per_inner;
-	int rot_per_right;
-	int rot_per_bottom;
-	int rot_per_bottom_right;
-
-	int nbr_inner_rows;
-	int nbr_inner_cols;
-
-	struct b2r2_node_split_buf *tmp = &this->tmp_bufs[1];
+	int nbr_full_rows;
+	int nbr_full_cols;
 
 	/* First check how many nodes we need for a simple copy */
 	ret = analyze_fmt_conv(this, req, &copy_count);
@@ -1079,81 +1089,96 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	/* The number of rotation nodes per tile will vary depending on whether
 	   it is an "inner" tile or an "edge" tile, since they may have
 	   different sizes. */
+	nbr_full_cols = this->src.rect.width / this->src.window.width;
+	nbr_full_rows = this->src.rect.height / this->src.window.height;
 
-	/* Because of the rotation height and width are flipped. */
-	nbr_inner_cols = this->dst.rect.height / this->dst.window.height;
-	nbr_inner_rows = this->dst.rect.width / this->dst.window.width;
+	if (this->src.rect.width % this->src.window.width)
+		right_width = this->dst.rect.height % this->dst.window.height;
+	else
+		right_width = 0;
 
-	right_width = (this->dst.rect.height % this->dst.window.height);
-	bottom_height = (this->dst.rect.width % this->dst.window.width);
+	if (this->src.rect.height % this->src.window.height)
+		bottom_height = this->dst.rect.width % this->dst.window.width;
+	else
+		bottom_height = 0;
 
-	pdebug(KERN_INFO "dst.window=\t(%4d, %4d, %4d, %4d)\n", this->dst.window.x,
-		this->dst.window.y, this->dst.window.width,
+	pdebug(KERN_INFO "dst.window=\t(%4d, %4d, %4d, %4d)\n",
+		this->dst.window.x, this->dst.window.y, this->dst.window.width,
 		this->dst.window.height);
-	pdebug(KERN_INFO "dst.rect=\t(%4d, %4d, %4d, %4d)\n", this->dst.rect.x,
-		this->dst.rect.y, this->dst.rect.width,
-		this->dst.rect.height);
-	pdebug(KERN_INFO "src.window=\t(%4d, %4d, %4d, %4d)\n", this->src.window.x,
-		this->src.window.y, this->src.window.width,
+	pdebug(KERN_INFO "src.window=\t(%4d, %4d, %4d, %4d)\n",
+		this->src.window.x, this->src.window.y, this->src.window.width,
 		this->src.window.height);
-	pdebug(KERN_INFO "src.rect=\t(%4d, %4d, %4d, %4d)\n", this->src.rect.x,
-		this->src.rect.y, this->src.rect.width,
-		this->src.rect.height);
 	pdebug(KERN_INFO "right_width=%d, bottom_height=%d\n", right_width,
 		bottom_height);
 
-	rot_per_inner = calculate_tile_count(this->dst.window.height,
-				this->dst.window.width, tmp->window.width,
-				tmp->window.height);
-	rot_per_right = calculate_tile_count(right_width,
-				this->dst.window.width, tmp->window.width,
-				tmp->window.height);
-	rot_per_bottom = calculate_tile_count(this->dst.window.height,
-				bottom_height, tmp->window.width,
-				tmp->window.height);
-	rot_per_bottom_right = calculate_tile_count(right_width,
-				bottom_height, tmp->window.width,
-				tmp->window.height);
+	/* Update the rot_count and scale_count with all the "inner" tiles */
+	tile_rots = rot_node_count(this->dst.window.height,
+				this->dst.window.width);
+	rot_count = tile_rots * nbr_full_cols * nbr_full_rows;
+	scale_count = nbr_full_cols * nbr_full_rows;
 
-	/* First all the "inner" tile rotations */
-	rot_count = rot_per_inner * nbr_inner_cols * nbr_inner_rows;
+	pdebug(KERN_INFO LOG_TAG "::%s: inner=%d\n", __func__,
+		tile_rots);
 
-	/* Then all the "right edge" tile rotations */
-	rot_count += rot_per_right * nbr_inner_rows;
+	/* Update with "right tile" rotations (one tile per row) */
+	if (right_width) {
+		tile_rots = rot_node_count(right_width, this->dst.window.width);
+		rot_count += tile_rots * nbr_full_rows;
+		scale_count += nbr_full_rows;
 
-	/* Then all the "bottom edge" tile rotations */
-	rot_count += rot_per_bottom * nbr_inner_cols;
+		pdebug(KERN_INFO LOG_TAG "::%s: right=%d\n", __func__,
+			tile_rots);
+	}
 
-	/* Then the "bottom right edge" tile rotations */
-	rot_count += rot_per_bottom_right;
+	/* Update with "bottom tile" rotations (one tile per col) */
+	if (bottom_height) {
+		tile_rots = rot_node_count(this->dst.window.height,
+			bottom_height);
+		rot_count += tile_rots * nbr_full_cols;
+		scale_count += nbr_full_cols;
 
-	/* There will be one scale node per "inner" tile */
-	scale_count = nbr_inner_cols * nbr_inner_rows;
+		pdebug(KERN_INFO LOG_TAG "::%s: bottom=%d\n", __func__,
+			tile_rots);
+	}
 
-	/* Update the scale count with the "edge" tiles */
-	if (right_width)
-		scale_count += nbr_inner_rows;
-	if (bottom_height)
-		scale_count += nbr_inner_cols;
-	if (right_width && bottom_height)
+	/* Update with "bottom right tile" rotations (ever only one tile) */
+	if (right_width && bottom_height) {
+		tile_rots = rot_node_count(right_width, bottom_height);
+		rot_count += tile_rots;
 		scale_count++;
 
+		pdebug(KERN_INFO LOG_TAG "::%s: bottom_right=%d\n", __func__,
+			tile_rots);
+	}
+
+	/* Finally calculate the total node count */
 	this->node_count = (scale_count + rot_count) * copy_count;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: rot_per_inner=%d, rot_per_right=%d, "
-		"rot_per_bottom=%d, rot_per_bottom_right=%d\n", __func__,
-		rot_per_inner, rot_per_right, rot_per_bottom,
-		rot_per_bottom_right);
-
-	pdebug(KERN_INFO LOG_TAG "::%s: nbr_inner_cols=%d, nbr_inner_rows=%d\n",
-		__func__, nbr_inner_cols, nbr_inner_rows);
+	pdebug(KERN_INFO LOG_TAG "::%s: nbr_full_cols=%d, nbr_full_rows=%d\n",
+		__func__, nbr_full_cols, nbr_full_rows);
 
 	pdebug(KERN_INFO LOG_TAG "::%s: node_count=%d\n", __func__,
 		this->node_count);
 
 	return 0;
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
+}
+
+static int rot_node_count(s32 width, s32 height)
+{
+	u32 node_count;
+
+	node_count = width / B2R2_ROTATE_MAX_WIDTH;
+	if (width % B2R2_ROTATE_MAX_WIDTH)
+		node_count++;
+#ifdef B2R2_ROTATION_HEIGHT_BUGFIX
+	if ((height > 16) && (height % 16))
+		node_count *= 2;
+#endif
+
+	return node_count;
 }
 
 /**
@@ -1168,7 +1193,7 @@ static int analyze_scaling(struct b2r2_node_split_job *this,
 	u32 nbr_rows;
 	u32 nbr_cols;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: Analyzing scaling...\n", __func__);
+	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing scaling...\n", __func__);
 
 	ret = analyze_scale_factors(this);
 	if (ret < 0)
@@ -1185,7 +1210,9 @@ static int analyze_scaling(struct b2r2_node_split_job *this,
 
 	this->src.window.width = MIN(this->src.window.width,
 					B2R2_RESCALE_MAX_WIDTH);
+
 	if (this->horiz_rescale)
+		/* TODO: Take care of precision problems */
 		this->dst.window.width = rescale(this->src.window.width,
 						this->horiz_sf);
 	else
@@ -1242,7 +1269,7 @@ static int analyze_scaling(struct b2r2_node_split_job *this,
 	if (this->src.rect.height % this->src.window.height)
 		nbr_rows++;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: Each stripe will require %d nodes\n",
+	pverbose(KERN_INFO LOG_TAG "::%s: Each stripe will require %d nodes\n",
 			__func__, copy_count);
 
 	*node_count = copy_count * nbr_rows * nbr_cols;
@@ -1252,6 +1279,7 @@ static int analyze_scaling(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 
 }
@@ -1269,7 +1297,7 @@ static int analyze_rotation(struct b2r2_node_split_job *this,
 	u32 nbr_rows;
 	u32 nbr_cols;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: Analyzing rotation...\n", __func__);
+	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing rotation...\n", __func__);
 
 	/* Find out how many nodes a simple copy would require */
 	ret = analyze_fmt_conv(this, req, &copy_count);
@@ -1284,10 +1312,10 @@ static int analyze_rotation(struct b2r2_node_split_job *this,
 
 	/* The vertical scan order of the destination must be flipped */
 	if (this->dst.vso == B2R2_TY_VSO_TOP_TO_BOTTOM) {
-		this->dst.rect.y += this->dst.rect.height - 1;
+		this->dst.rect.y += (this->dst.rect.height - 1);
 		this->dst.vso = B2R2_TY_VSO_BOTTOM_TO_TOP;
 	} else {
-		this->dst.rect.y -= this->dst.rect.height - 1;
+		this->dst.rect.y -= (this->dst.rect.height - 1);
 		this->dst.vso = B2R2_TY_VSO_TOP_TO_BOTTOM;
 	}
 
@@ -1348,6 +1376,7 @@ static int analyze_rotation(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 }
 
@@ -1391,6 +1420,7 @@ static int analyze_scale_factors(struct b2r2_node_split_job *this)
 
 	return 0;
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 }
 
@@ -1414,8 +1444,11 @@ static int configure_tile(struct b2r2_node_split_job *this,
 		configure_direct_copy(node, &this->src, dst, &last);
 		break;
 	case B2R2_FILL:
-		configure_fill(node, this->src.color, this->src.fmt,
+		ret = configure_fill(node, this->src.color, this->src.fmt,
 				dst, this->ivmx, &last);
+		if (ret < 0)
+			goto error;
+
 		break;
 	case B2R2_FLIP: /* FLIP is just a copy with different VSO/HSO */
 	case B2R2_COPY:
@@ -1423,8 +1456,10 @@ static int configure_tile(struct b2r2_node_split_job *this,
 			/* First do a copy to the tmp buf */
 			configure_tmp_buf(&this->tmp_bufs[0], 1, &src->window);
 
-			configure_copy(node, src, &this->tmp_bufs[0],
+			ret = configure_copy(node, src, &this->tmp_bufs[0],
 					this->ivmx, &node);
+			if (ret < 0)
+				goto error;
 
 			/* Then set the source as the tmp buf */
 			src = &this->tmp_bufs[0];
@@ -1433,7 +1468,10 @@ static int configure_tile(struct b2r2_node_split_job *this,
 			this->ivmx = NULL;
 		}
 
-		configure_copy(node, src, dst, this->ivmx, &last);
+		ret = configure_copy(node, src, dst, this->ivmx, &last);
+		if (ret < 0)
+			goto error;
+
 		break;
 	case B2R2_ROTATE:
 		if (this->buf_count > 0) {
@@ -1445,14 +1483,22 @@ static int configure_tile(struct b2r2_node_split_job *this,
 			tmp->window.y = tmp->window.height - 1;
 
 			/* Rotate to the temp buf */
-			configure_rotate(node, src, tmp, this->ivmx, &node);
+			ret = configure_rotate(node, src, tmp, this->ivmx, &node);
+			if (ret < 0)
+				goto error;
 
 			/* Then do a copy to the destination */
-			configure_copy(node, tmp, dst, NULL, &last);
+			ret = configure_copy(node, tmp, dst, NULL, &last);
+			if (ret < 0)
+				goto error;
 
 		} else {
 			/* Just do a rotation */
-			configure_rotate(node, src, dst, this->ivmx, &last);
+			ret = configure_rotate(node, src, dst, this->ivmx,
+						&last);
+			if (ret < 0)
+				goto error;
+
 		}
 
 		break;
@@ -1464,15 +1510,19 @@ static int configure_tile(struct b2r2_node_split_job *this,
 			dst = &this->tmp_bufs[0];
 		}
 
-		configure_scale(node, src, dst, this->horiz_sf, this->vert_sf,
+		ret = configure_scale(node, src, dst, this->horiz_sf, this->vert_sf,
 				this->ivmx, &last);
+		if (ret < 0)
+			goto error;
 
 		if (this->buf_count > 0) {
 			/* Then copy the tmp buf to the destination */
 			node = last;
 			src = dst;
 			dst = &this->dst;
-			configure_copy(node, src, dst, NULL, &last);
+			ret = configure_copy(node, src, dst, NULL, &last);
+			if (ret < 0)
+				goto error;
 		}
 		break;
 	case B2R2_SCALE_AND_ROTATE:
@@ -1493,7 +1543,13 @@ static int configure_tile(struct b2r2_node_split_job *this,
 
 		/* Configure blending and clipping */
 		do {
-			BUG_ON(node == NULL);
+			if (node == NULL) {
+				printk(KERN_ERR LOG_TAG "::%s: "
+					"Internal error! Out of nodes!\n",
+					__func__);
+				ret = -ENOMEM;
+				goto error;
+			}
 
 			if (this->blend)
 				configure_blend(node, this->flags,
@@ -1525,16 +1581,14 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 {
 	int ret;
 
+	bool last_row;
+	bool last_col;
+
 	struct b2r2_node *rot_start;
 	struct b2r2_node *last;
 
 	struct b2r2_node_split_buf *tmp = &this->tmp_bufs[0];
 	struct b2r2_blt_rect dst_win;
-
-#ifdef B2R2_ROTATION_HEIGHT_BUGFIX
-	bool has_leftovers = false;
-	bool is_leftover = false;
-#endif
 
 	if (node == NULL) {
 		printk(KERN_ERR LOG_TAG "::%s: Out of nodes!\n",
@@ -1561,16 +1615,10 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 	configure_scale(node, &this->src, tmp, this->horiz_sf,
 			this->vert_sf, this->ivmx, &node);
 
-	tmp->window.x = 0;
-	tmp->window.y = 0;
 	tmp->window.width = MIN(tmp->rect.width, B2R2_ROTATE_MAX_WIDTH);
-	tmp->window.height = tmp->rect.height;
-
 #ifdef B2R2_ROTATION_HEIGHT_BUGFIX
-	if ((tmp->rect.height > 16) && (tmp->rect.height % 16)) {
-		has_leftovers = true;
-		tmp->window.height -= tmp->rect.height % 16;
-	}
+	if ((tmp->window.height > 16) && (tmp->window.height % 16))
+		tmp->window.height -= tmp->window.height % 16;
 #endif
 
 	tmp->dx = tmp->window.width;
@@ -1585,6 +1633,9 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 		tmp->rect.x, tmp->rect.y, tmp->rect.width, tmp->rect.height);
 	do {
 
+		last_col = tmp->window.x + tmp->dx >= tmp->rect.width;
+		last_row = tmp->window.y + tmp->dy >= tmp->rect.height;
+
 		if (node == NULL) {
 			printk(KERN_ERR LOG_TAG "::%s: Out of nodes!\n",
 				__func__);
@@ -1592,10 +1643,14 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 			goto error;
 		}
 
-		if (tmp->window.x + tmp->dx > tmp->rect.width) {
-			pdebug(KERN_INFO LOG_TAG "::%s: last col\n", __func__);
+		if (last_col) {
 			tmp->window.width = tmp->rect.width - tmp->window.x;
 			this->dst.window.height = tmp->window.width;
+		}
+
+		if (last_row) {
+			tmp->window.height = tmp->rect.height - tmp->window.y;
+			this->dst.window.width = tmp->window.height;
 		}
 
 		pdebug(KERN_INFO LOG_TAG "::%s: \ttmp=(%4d, %4d, %4d, %4d) "
@@ -1604,42 +1659,27 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 			this->dst.window.x, this->dst.window.y,
 			this->dst.window.width, this->dst.window.height);
 
-		configure_rotate(node, tmp, &this->dst, NULL, &node);
-
-#ifdef B2R2_ROTATION_HEIGHT_BUGFIX
-		if (has_leftovers) {
-			if (!is_leftover) {
-				is_leftover = true;
-
-				tmp->window.y += tmp->dy;
-				tmp->window.height = tmp->rect.height % 16;
-
-				this->dst.window.x += tmp->dy;
-				this->dst.window.width = tmp->window.height;
-
-				continue;
-			} else {
-				is_leftover = false;
-
-				tmp->window.y -= tmp->dy;
-				tmp->window.height = tmp->rect.height -
-							tmp->window.height;
-
-				this->dst.window.x -= tmp->dy;
-				this->dst.window.width = tmp->window.height;
-			}
-		}
-#endif
+		configure_rotate(node, tmp, &this->dst, NULL, &last);
 
 		tmp->window.x += tmp->dx;
 		this->dst.window.y -= tmp->dx;
 
-	} while (tmp->window.x < tmp->rect.width);
+		/* Slide vertically if we reached the end of the row */
+		if (last_col) {
+			tmp->window.x = 0;
+			tmp->window.y += tmp->dy;
+			this->dst.window.x += tmp->dy;
+			this->dst.window.y = dst_win.y;
+		}
+
+		/* Consume the nodes */
+		node = last;
+
+	} while (!(last_row && last_col));
 
 
 
 	/* Configure blending and clipping for the rotation nodes */
-	last = node;
 	node = rot_start;
 	pdebug(KERN_INFO LOG_TAG "::%s: "
 		"Configuring clipping and blending. rot_start=%p, last=%p\n",
@@ -1748,30 +1788,42 @@ static void configure_direct_copy(struct b2r2_node *node,
  * This operation will consume as many nodes as are required to write to the
  * destination format.
  */
-static void configure_fill(struct b2r2_node *node, u32 color,
+static int configure_fill(struct b2r2_node *node, u32 color,
 		enum b2r2_blt_fmt fmt, struct b2r2_node_split_buf *dst,
 		const u32 *ivmx, struct b2r2_node **next)
 {
+	int ret;
 	struct b2r2_node *last;
 
 	PTRACE_ENTRY();
 
 	/* Configure the destination */
-	configure_dst(node, dst, ivmx, &last);
+	ret = configure_dst(node, dst, ivmx, &last);
+	if (ret < 0)
+		goto error;
 
 	do {
-		BUG_ON(node == NULL);
+		if (node == NULL) {
+			printk(KERN_ERR LOG_TAG "::%s: "
+			"Internal error! Out of nodes!\n", __func__);
+			ret = -ENOMEM;
+			goto error;
+		}
 
-		node->node.GROUP0.B2R2_CIC |= B2R2_CIC_SOURCE_1 |
+		node->node.GROUP0.B2R2_CIC |= B2R2_CIC_SOURCE_2 |
 							B2R2_CIC_COLOR_FILL;
 		node->node.GROUP0.B2R2_INS |=
-				B2R2_INS_SOURCE_1_COLOR_FILL_REGISTER;
+				B2R2_INS_SOURCE_2_COLOR_FILL_REGISTER;
+		node->node.GROUP0.B2R2_ACK |= B2R2_ACK_MODE_BYPASS_S2_S3;
 
 		/* B2R2 has a bug that disables color fill from S2. As a
 		   workaround we use S1 for the color. */
-		node->node.GROUP3.B2R2_STY = to_native_fmt(fmt);
-		node->node.GROUP2.B2R2_S1CF = color;
-		node->node.GROUP2.B2R2_S2CF = 0;
+		node->node.GROUP2.B2R2_S1CF = 0;
+		node->node.GROUP2.B2R2_S2CF = color;
+
+		/* TO BE REMOVED: */
+		set_src_2(node, dst->addr, dst);
+		node->node.GROUP4.B2R2_STY = to_native_fmt(fmt);
 
 		/* Setup the iVMX for color conversion */
 		if (ivmx != NULL)
@@ -1806,6 +1858,11 @@ static void configure_fill(struct b2r2_node *node, u32 color,
 
 	/* Consume the nodes */
 	*next = node;
+
+	return 0;
+error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	return ret;
 }
 
 /**
@@ -1820,27 +1877,36 @@ static void configure_fill(struct b2r2_node *node, u32 color,
  * This operation will consume as many nodes as are required to write to the
  * destination format.
  */
-static void configure_copy(struct b2r2_node *node,
+static int configure_copy(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, const u32 *ivmx,
 		struct b2r2_node **next)
 {
+	int ret;
+
 	struct b2r2_node *last;
 
 	PTRACE_ENTRY();
 
-	pdebug(KERN_INFO LOG_TAG "::%s:\n", __func__);
-	pdebug(KERN_INFO "\tsrc=(%4d, %4d, %4d, %4d)\n"
+	pverbose(KERN_INFO LOG_TAG "::%s:\n", __func__);
+	pverbose(KERN_INFO "\tsrc=(%4d, %4d, %4d, %4d)\n"
 			"\tdst=(%4d, %4d, %4d, %4d)\n", src->window.x,
 			src->window.y, src->window.width, src->window.height,
 			dst->window.x, dst->window.y, dst->window.width,
 			dst->window.height);
 
-	configure_dst(node, dst, ivmx, &last);
+	ret = configure_dst(node, dst, ivmx, &last);
+	if (ret < 0)
+		goto error;
 
 	/* Configure the source for each node */
 	do {
-		BUG_ON(node == NULL);
+		if (node == NULL) {
+			printk(KERN_ERR LOG_TAG "::%s: "
+			" Internal error! Out of nodes!\n", __func__);
+			ret = -ENOMEM;
+			goto error;
+		}
 
 		node->node.GROUP0.B2R2_ACK |= B2R2_ACK_MODE_BYPASS_S2_S3;
 
@@ -1852,6 +1918,11 @@ static void configure_copy(struct b2r2_node *node,
 
 	/* Consume the nodes */
 	*next = node;
+
+	return 0;
+error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	return ret;
 }
 
 /**
@@ -1866,17 +1937,26 @@ static void configure_copy(struct b2r2_node *node,
  * This operation will consume as many nodes are are required by the combination
  * of rotating and writing the destination format.
  */
-static void configure_rotate(struct b2r2_node *node,
+static int configure_rotate(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, const u32 *ivmx,
 		struct b2r2_node **next)
 {
+	int ret;
+
 	struct b2r2_node *last;
 
-	configure_copy(node, src, dst, ivmx, &last);
+	ret = configure_copy(node, src, dst, ivmx, &last);
+	if (ret < 0)
+		goto error;
 
 	do {
-		BUG_ON(node == NULL);
+		if (node == NULL) {
+			printk(KERN_ERR LOG_TAG "::%s: "
+				"Internal error! Out of nodes!\n", __func__);
+			ret = -ENOMEM;
+			goto error;
+		}
 
 		node->node.GROUP0.B2R2_INS |= B2R2_INS_ROTATION_ENABLED;
 
@@ -1886,6 +1966,11 @@ static void configure_rotate(struct b2r2_node *node,
 
 	/* Consume the nodes */
 	*next = node;
+
+	return 0;
+error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	return ret;
 }
 
 /**
@@ -1899,16 +1984,24 @@ static void configure_rotate(struct b2r2_node *node,
  * @ivmx  - the iVMX to use for color conversion
  * @next  - the next empty node in the node list
  */
-static void configure_scale(struct b2r2_node *node,
+static int configure_scale(struct b2r2_node *node,
 		struct b2r2_node_split_buf *src,
 		struct b2r2_node_split_buf *dst, u16 h_rsf, u16 v_rsf,
 		const u32 *ivmx, struct b2r2_node **next)
 {
+	int ret;
+
 	struct b2r2_node *last;
 
 	u32 fctl = 0;
 	u32 rsf = 0;
 	u32 rzi = 0;
+
+	pdebug(KERN_INFO LOG_TAG "::%s:\n"
+		"\t\tsrc=(%4d, %4d, %4d, %4d)\tdst=(%4d, %4d, %4d, %4d)\n",
+		__func__, src->window.x, src->window.y, src->window.width,
+		src->window.height, dst->window.x, dst->window.y,
+		dst->window.width, dst->window.height);
 
 	/* Configure horizontal rescale */
 	fctl |= B2R2_FCTL_HF2D_MODE_ENABLE_RESIZER |
@@ -1924,10 +2017,17 @@ static void configure_scale(struct b2r2_node *node,
 	rsf |= v_rsf << B2R2_RSF_VSRC_INC_SHIFT;
 	rzi |= B2R2_RZI_DEFAULT_VNB_REPEAT;
 
-	configure_copy(node, src, dst, ivmx, &last);
+	ret = configure_copy(node, src, dst, ivmx, &last);
+	if (ret < 0)
+		goto error;
 
 	do {
-		BUG_ON(node == NULL);
+		if (node == NULL) {
+			printk(KERN_ERR LOG_TAG "::%s: "
+				"Internal error! Out of nodes!\n", __func__);
+			ret = -ENOMEM;
+			goto error;
+		}
 
 		node->node.GROUP0.B2R2_CIC |= B2R2_CIC_FILTER_CONTROL |
 						B2R2_CIC_RESIZE_LUMA |
@@ -1941,9 +2041,17 @@ static void configure_scale(struct b2r2_node *node,
 				(src->type == B2R2_FMT_TYPE_PLANAR) ||
 				(dst->type == B2R2_FMT_TYPE_SEMI_PLANAR) ||
 				(dst->type == B2R2_FMT_TYPE_PLANAR)) {
+			u32 chroma_vsf;
+
+			/* YUV420 needs to be vertically upsampled */
+			if (is_yuv420_fmt(src->fmt))
+				chroma_vsf = v_rsf / 2;
+			else
+				chroma_vsf = v_rsf;
+
 			node->node.GROUP9.B2R2_RSF =
 					h_rsf/2 << B2R2_RSF_HSRC_INC_SHIFT |
-					v_rsf/2 << B2R2_RSF_VSRC_INC_SHIFT;
+					chroma_vsf << B2R2_RSF_VSRC_INC_SHIFT;
 
 			/* Set the Luma rescale registers as well */
 			node->node.GROUP10.B2R2_RSF |= rsf;
@@ -1959,6 +2067,11 @@ static void configure_scale(struct b2r2_node *node,
 
 	/* Consume the nodes */
 	*next = node;
+
+	return 0;
+error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	return ret;
 }
 
 /**
@@ -1985,11 +2098,16 @@ static void configure_src(struct b2r2_node *node,
 	case B2R2_FMT_TYPE_SEMI_PLANAR:
 		memcpy(&tmp_buf, src, sizeof(tmp_buf));
 
-		/* Vertical and horizontal resolution is half */
+		/* Horizontal resolution is half */
 		tmp_buf.window.x >>= 1;
-		tmp_buf.window.y >>= 1;
 		tmp_buf.window.width >>= 1;
-		tmp_buf.window.height >>= 1;
+
+		/* If the buffer is in YUV420 format, the vertical resolution
+		   is half as well  */
+		if (is_yuv420_fmt(src->fmt)) {
+			tmp_buf.window.height >>= 1;
+			tmp_buf.window.y >>= 1;
+		}
 
 		set_src_3(node, src->addr, src);
 		set_src_2(node, tmp_buf.chroma_addr, &tmp_buf);
@@ -1999,19 +2117,25 @@ static void configure_src(struct b2r2_node *node,
 
 		node->node.GROUP0.B2R2_INS |= B2R2_INS_RESCALE2D_ENABLED;
 
-		/* Vertical and horizontal resolution is half */
+		/* Each chroma buffer will have half as many values per line as
+		   the luma buffer */
 		tmp_buf.pitch >>= 1;
 
+		/* Horizontal resolution is half */
 		tmp_buf.window.x >>= 1;
-		tmp_buf.window.y >>= 1;
 		tmp_buf.window.width >>= 1;
-		tmp_buf.window.height >>= 1;
 
-		set_src_2(node, tmp_buf.chroma_cr_addr, &tmp_buf);
+		/* If the buffer is in YUV420 format, the vertical resolution
+		   is half as well  */
+		if (is_yuv420_fmt(src->fmt)) {
+			tmp_buf.window.height >>= 1;
+			tmp_buf.window.y >>= 1;
+		}
 
-		set_src_1(node, tmp_buf.chroma_addr, &tmp_buf);
+		set_src_1(node, tmp_buf.chroma_addr, &tmp_buf);    /* U */
+		set_src_2(node, tmp_buf.chroma_cr_addr, &tmp_buf); /* V */
+		set_src_3(node, src->addr, src);                   /* Y */
 
-		set_src_3(node, src->addr, src);
 		break;
 	default:
 		/* Should never, ever happen */
@@ -2034,10 +2158,11 @@ static void configure_src(struct b2r2_node *node,
  * This operation will consume as many nodes as are required to write the
  * destination format.
  */
-static void configure_dst(struct b2r2_node *node,
+static int configure_dst(struct b2r2_node *node,
 		struct b2r2_node_split_buf *dst, const u32 *ivmx,
 		struct b2r2_node **next)
 {
+	int ret;
 	int nbr_planes;
 	int i;
 
@@ -2065,9 +2190,11 @@ static void configure_dst(struct b2r2_node *node,
 
 		dst_planes[1].addr = dst->chroma_addr;
 		dst_planes[1].plane_selection = B2R2_TTY_CHROMA_NOT_LUMA;
+		dst_planes[1].chroma_selection = B2R2_TTY_CB_NOT_CR;
 
 		dst_planes[2].addr = dst->chroma_cr_addr;
 		dst_planes[2].plane_selection = B2R2_TTY_CHROMA_NOT_LUMA;
+
 		break;
 	default:
 		nbr_planes = 1;
@@ -2077,16 +2204,29 @@ static void configure_dst(struct b2r2_node *node,
 	/* Configure one node for each plane */
 	for (i = 0; i < nbr_planes; i++) {
 
+		if (node == NULL) {
+			printk(KERN_ERR LOG_TAG "::%s: "
+				"Internal error! Out of nodes!\n", __func__);
+			ret = -ENOMEM;
+			goto error;
+		}
+
 		set_target(node, dst_planes[i].addr, &dst_planes[i]);
 
 		node = node->next;
 	}
 
-	pdebug(KERN_INFO LOG_TAG "::%s: %d nodes consumed\n", __func__,
+	pverbose(KERN_INFO LOG_TAG "::%s: %d nodes consumed\n", __func__,
 			nbr_planes);
 
-	/* Consume one node */
+	/* Consume the nodes */
 	*next = node;
+
+	return 0;
+error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	return ret;
+
 }
 
 /**
@@ -2122,8 +2262,8 @@ static void configure_blend(struct b2r2_node *node, u32 flags, u32 global_alpha,
 	/* Check if global alpha blend should be enabled */
 	if ((flags & B2R2_BLT_FLAG_GLOBAL_ALPHA_BLEND) != 0) {
 
-		/* B2R2 expects the global alpha to be in 0...127 range */
-		global_alpha /= 2;
+		/* B2R2 expects the global alpha to be in 0...128 range */
+		global_alpha = ((global_alpha + 1) / 2) & 0xFF;
 
 		node->node.GROUP0.B2R2_ACK |=
 			global_alpha <<	B2R2_ACK_GALPHA_ROPID_SHIFT;
@@ -2270,7 +2410,7 @@ static int constrain_window(struct b2r2_blt_rect *window,
 	current_size = pitch * window->height;
 
 	if (current_size > max_size) {
-		window->width = B2R2_RESCALE_MAX_WIDTH;
+		window->width = MIN(window->width, B2R2_RESCALE_MAX_WIDTH);
 		pitch = fmt_byte_pitch(fmt, window->width);
 		window->height = MIN(window->height, max_size / pitch);
 
@@ -2329,7 +2469,7 @@ static int setup_tmp_buf(struct b2r2_node_split_buf *tmp, u32 max_size,
 		/* We need to limit the size, so we choose a different width */
 		width = MIN(width, B2R2_RESCALE_MAX_WIDTH);
 		pitch = fmt_byte_pitch(fmt, width);
-		height = max_size / pitch;
+		height = MIN(height, max_size / pitch);
 		size = pitch * height;
 	}
 
@@ -2415,6 +2555,41 @@ static inline u8 get_alpha(enum b2r2_blt_fmt fmt, u32 pixel)
 }
 
 /**
+ * set_alpha() - returns a color value with the alpha component set
+ */
+static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u32 alpha, u32 color)
+{
+	u32 alpha_mask;
+
+	switch (fmt) {
+	case B2R2_BLT_FMT_32_BIT_ARGB8888:
+	case B2R2_BLT_FMT_32_BIT_ABGR8888:
+	case B2R2_BLT_FMT_32_BIT_AYUV8888:
+		alpha_mask = alpha << 24;
+		break;
+	case B2R2_BLT_FMT_24_BIT_ARGB8565:
+		alpha_mask = alpha << 16;
+		break;
+	case B2R2_BLT_FMT_16_BIT_ARGB4444:
+		alpha_mask = (alpha << 8) & 0xF000;
+		break;
+	case B2R2_BLT_FMT_16_BIT_ARGB1555:
+		alpha_mask = (alpha / 255) << 15 ;
+		break;
+	case B2R2_BLT_FMT_1_BIT_A1:
+		alpha_mask = (alpha / 255);
+		break;
+	case B2R2_BLT_FMT_8_BIT_A8:
+		alpha_mask = alpha;
+		break;
+	default:
+		alpha_mask = alpha;
+	}
+
+	return color | alpha_mask;
+}
+
+/**
  * fmt_has_alpha() - returns whether the given format carries an alpha value
  */
 static inline bool fmt_has_alpha(enum b2r2_blt_fmt fmt)
@@ -2478,6 +2653,22 @@ static inline bool is_yuv_fmt(enum b2r2_blt_fmt fmt)
 	case B2R2_BLT_FMT_YUV422_PACKED_SEMI_PLANAR:
 	case B2R2_BLT_FMT_YUV420_PACKED_SEMIPLANAR_MB_STE:
 	case B2R2_BLT_FMT_YUV422_PACKED_SEMIPLANAR_MB_STE:
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
+ * is_yuv420_fmt() - returns whether the given format is a yuv420 format
+ */
+static inline bool is_yuv420_fmt(enum b2r2_blt_fmt fmt)
+{
+
+	switch (fmt) {
+	case B2R2_BLT_FMT_YUV420_PACKED_PLANAR:
+	case B2R2_BLT_FMT_YUV420_PACKED_SEMI_PLANAR:
+	case B2R2_BLT_FMT_YUV420_PACKED_SEMIPLANAR_MB_STE:
 		return true;
 	default:
 		return false;
@@ -2688,16 +2879,21 @@ static inline bool is_transform(const struct b2r2_blt_request *req)
 static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 {
 	int ret;
-	u32 sf = (from << 10) / to;
+
+	/* Assume normal nearest neighbor scaling:
+	 *
+	 *      sf = (src - min_step) / (dst - 1)
+	 */
+	u32 sf = ((from << 10) - 1) / (to - 1);
 
 	if ((sf & 0xffff0000) != 0) {
 		/* Overflow error */
-		pdebug(KERN_ERR LOG_TAG "::%s: "
+		pverbose(KERN_ERR LOG_TAG "::%s: "
 			"Scale factor too large\n", __func__);
 		ret = -EINVAL;
 		goto error;
 	} else if (sf == 0) {
-		pdebug(KERN_ERR LOG_TAG "::%s: "
+		pverbose(KERN_ERR LOG_TAG "::%s: "
 			"Scale factor too small\n", __func__);
 		ret = -EINVAL;
 		goto error;
@@ -2708,6 +2904,7 @@ static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 	return 0;
 
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return ret;
 }
 
@@ -2720,7 +2917,7 @@ static int calculate_tile_count(s32 area_width, s32 area_height, s32 tile_width,
 	int nbr_cols;
 	int nbr_rows;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: area=(%d, %d) tile=(%d, %d)\n",
+	pverbose(KERN_INFO LOG_TAG "::%s: area=(%d, %d) tile=(%d, %d)\n",
 			__func__, area_width, area_height, tile_width,
 			tile_height);
 
@@ -2745,7 +2942,7 @@ static inline s32 rescale(s32 dim, u16 sf)
 {
 	s32 tmp = dim << 10;
 
-	tmp = tmp / sf;
+	tmp = (tmp - 1) / sf + 1;
 
 	return tmp;
 }
@@ -2755,7 +2952,7 @@ static inline s32 rescale(s32 dim, u16 sf)
  */
 static inline s32 inv_rescale(s32 dim, u16 sf)
 {
-	s32 new_dim = dim * (s32)sf;
+	s32 new_dim = (dim - 1) * (s32)sf + 1;
 
 	if (new_dim & 0x3FF)
 		new_dim += (1 << 10);
@@ -2829,14 +3026,15 @@ static void set_target(struct b2r2_node *node, u32 addr,
 	PTRACE_ENTRY();
 
 	if (buf->tmp_buf_index) {
-		pdebug(KERN_INFO LOG_TAG "::%s: %p target is tmp\n", __func__,
+		pverbose(KERN_INFO LOG_TAG "::%s: %p target is tmp\n", __func__,
 				node);
 		node->dst_tmp_index = buf->tmp_buf_index;
 	}
 
 	node->node.GROUP1.B2R2_TBA = addr;
 	node->node.GROUP1.B2R2_TTY = buf->pitch | to_native_fmt(buf->fmt) |
-			buf->alpha_range | buf->hso | buf->vso;
+			buf->alpha_range | buf->chroma_selection | buf->hso |
+			buf->vso | buf->plane_selection;
 	node->node.GROUP1.B2R2_TSZ =
 			((buf->window.width & 0xfff) << B2R2_SZ_WIDTH_SHIFT) |
 			((buf->window.height & 0xfff) << B2R2_SZ_HEIGHT_SHIFT);
@@ -2846,12 +3044,12 @@ static void set_target(struct b2r2_node *node, u32 addr,
 
 	/* Check if the rectangle is outside the buffer */
 	if (buf->vso == B2R2_TY_VSO_BOTTOM_TO_TOP)
-		t = buf->rect.y - buf->rect.height;
+		t = buf->rect.y - (buf->rect.height - 1);
 	else
 		t = buf->rect.y;
 
 	if (buf->hso == B2R2_TY_HSO_RIGHT_TO_LEFT)
-		l = buf->rect.x - buf->rect.width;
+		l = buf->rect.x - (buf->rect.width - 1);
 	else
 		l = buf->rect.x;
 
@@ -2860,8 +3058,10 @@ static void set_target(struct b2r2_node *node, u32 addr,
 
 	/* Clip to the destination buffer to prevent memory overwrites */
 	if ((l < 0) || (r > buf_width) || (t < 0) || (b > buf->height)) {
-		pdebug(KERN_INFO LOG_TAG "::%s: "
+		pverbose(KERN_INFO LOG_TAG "::%s: "
 			"Rectangle outside buffer. Clipping...\n", __func__);
+
+		/* The clip rectangle is including the borders */
 		l = MAX(l, 0);
 		r = MIN(r, buf_width) - 1;
 		t = MAX(t, 0);
@@ -2877,7 +3077,7 @@ static void set_target(struct b2r2_node *node, u32 addr,
 			((b & 0x7FFF) << B2R2_CWO_Y_SHIFT);
 	}
 
-	pdebug(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
+	pverbose(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
 		"pitch=%d\n", __func__, (void *)addr, buf->window.x,
 		buf->window.y, buf->window.width, buf->window.height,
 		buf->pitch);
@@ -2910,7 +3110,7 @@ static void set_src_1(struct b2r2_node *node, u32 addr,
 	PTRACE_ENTRY();
 
 	if (buf->tmp_buf_index) {
-		pdebug(KERN_INFO LOG_TAG "::%s: %p src1 is tmp\n", __func__,
+		pverbose(KERN_INFO LOG_TAG "::%s: %p src1 is tmp\n", __func__,
 				node);
 		node->src_tmp_index = buf->tmp_buf_index;
 	}
@@ -2920,7 +3120,7 @@ static void set_src_1(struct b2r2_node *node, u32 addr,
 	node->node.GROUP0.B2R2_CIC |= B2R2_CIC_SOURCE_1;
 	node->node.GROUP0.B2R2_INS |= B2R2_INS_SOURCE_1_FETCH_FROM_MEM;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
+	pverbose(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
 		"pitch=%d\n", __func__, (void *)addr, buf->window.x,
 		buf->window.y, buf->window.width, buf->window.height,
 		buf->pitch);
@@ -2944,7 +3144,7 @@ static void set_src_2(struct b2r2_node *node, u32 addr,
 	PTRACE_ENTRY();
 
 	if (buf->tmp_buf_index) {
-		pdebug(KERN_INFO LOG_TAG "::%s: %p src2 is tmp\n", __func__,
+		pverbose(KERN_INFO LOG_TAG "::%s: %p src2 is tmp\n", __func__,
 				node);
 		node->src_tmp_index = buf->tmp_buf_index;
 	}
@@ -2954,7 +3154,7 @@ static void set_src_2(struct b2r2_node *node, u32 addr,
 	node->node.GROUP0.B2R2_CIC |= B2R2_CIC_SOURCE_2;
 	node->node.GROUP0.B2R2_INS |= B2R2_INS_SOURCE_2_FETCH_FROM_MEM;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
+	pverbose(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
 		"pitch=%d\n", __func__, (void *)addr, buf->window.x,
 		buf->window.y, buf->window.width, buf->window.height,
 		buf->pitch);
@@ -2971,7 +3171,7 @@ static void set_src_3(struct b2r2_node *node, u32 addr,
 	PTRACE_ENTRY();
 
 	if (buf->tmp_buf_index) {
-		pdebug(KERN_INFO LOG_TAG "::%s: %p src3 is tmp\n", __func__,
+		pverbose(KERN_INFO LOG_TAG "::%s: %p src3 is tmp\n", __func__,
 				node);
 		node->src_tmp_index = buf->tmp_buf_index;
 	}
@@ -2981,7 +3181,7 @@ static void set_src_3(struct b2r2_node *node, u32 addr,
 	node->node.GROUP0.B2R2_CIC |= B2R2_CIC_SOURCE_3;
 	node->node.GROUP0.B2R2_INS |= B2R2_INS_SOURCE_3_FETCH_FROM_MEM;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
+	pverbose(KERN_INFO LOG_TAG "::%s: addr=%p, rect=(%d, %d, %d, %d), "
 		"pitch=%d\n", __func__, (void *)addr, buf->window.x,
 		buf->window.y, buf->window.width, buf->window.height,
 		buf->pitch);
@@ -2996,7 +3196,7 @@ static void set_ivmx(struct b2r2_node *node, const u32 *vmx_values)
 {
 	PTRACE_ENTRY();
 
-	node->node.GROUP0.B2R2_CIC |= 0xffff;
+	node->node.GROUP0.B2R2_CIC |= B2R2_CIC_IVMX;
 	node->node.GROUP0.B2R2_INS |= B2R2_INS_IVMX_ENABLED;
 
 	node->node.GROUP15.B2R2_VMX0 = vmx_values[0];
@@ -3040,81 +3240,81 @@ static void dump_nodes(struct b2r2_node *first)
 {
 	struct b2r2_node *node = first;
 	while (node != NULL) {
-		pdebug(KERN_INFO "\nNEW NODE:\n=============\n");
-		pdebug(KERN_INFO "B2R2_ACK: \t%#010x\n",
+		pverbose(KERN_INFO "\nNEW NODE:\n=============\n");
+		pverbose(KERN_INFO "B2R2_ACK: \t%#010x\n",
 				node->node.GROUP0.B2R2_ACK);
-		pdebug(KERN_INFO "B2R2_INS: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_INS: \t%#010x\n",
 				node->node.GROUP0.B2R2_INS);
-		pdebug(KERN_INFO "B2R2_CIC: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_CIC: \t%#010x\n",
 				node->node.GROUP0.B2R2_CIC);
-		pdebug(KERN_INFO "B2R2_NIP: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_NIP: \t%#010x\n",
 				node->node.GROUP0.B2R2_NIP);
 
-		pdebug(KERN_INFO "B2R2_TSZ: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_TSZ: \t%#010x\n",
 				node->node.GROUP1.B2R2_TSZ);
-		pdebug(KERN_INFO "B2R2_TXY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_TXY: \t%#010x\n",
 				node->node.GROUP1.B2R2_TXY);
-		pdebug(KERN_INFO "B2R2_TTY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_TTY: \t%#010x\n",
 				node->node.GROUP1.B2R2_TTY);
-		pdebug(KERN_INFO "B2R2_TBA: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_TBA: \t%#010x\n",
 				node->node.GROUP1.B2R2_TBA);
 
-		pdebug(KERN_INFO "B2R2_S2CF: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S2CF: \t%#010x\n",
 				node->node.GROUP2.B2R2_S2CF);
-		pdebug(KERN_INFO "B2R2_S1CF: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S1CF: \t%#010x\n",
 				node->node.GROUP2.B2R2_S1CF);
 
-		pdebug(KERN_INFO "B2R2_S1SZ: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S1SZ: \t%#010x\n",
 				node->node.GROUP3.B2R2_SSZ);
-		pdebug(KERN_INFO "B2R2_S1XY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S1XY: \t%#010x\n",
 				node->node.GROUP3.B2R2_SXY);
-		pdebug(KERN_INFO "B2R2_S1TY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S1TY: \t%#010x\n",
 				node->node.GROUP3.B2R2_STY);
-		pdebug(KERN_INFO "B2R2_S1BA: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S1BA: \t%#010x\n",
 				node->node.GROUP3.B2R2_SBA);
 
-		pdebug(KERN_INFO "B2R2_S2SZ: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S2SZ: \t%#010x\n",
 				node->node.GROUP4.B2R2_SSZ);
-		pdebug(KERN_INFO "B2R2_S2XY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S2XY: \t%#010x\n",
 				node->node.GROUP4.B2R2_SXY);
-		pdebug(KERN_INFO "B2R2_S2TY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S2TY: \t%#010x\n",
 				node->node.GROUP4.B2R2_STY);
-		pdebug(KERN_INFO "B2R2_S2BA: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S2BA: \t%#010x\n",
 				node->node.GROUP4.B2R2_SBA);
 
-		pdebug(KERN_INFO "B2R2_S3SZ: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S3SZ: \t%#010x\n",
 				node->node.GROUP5.B2R2_SSZ);
-		pdebug(KERN_INFO "B2R2_S3XY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S3XY: \t%#010x\n",
 				node->node.GROUP5.B2R2_SXY);
-		pdebug(KERN_INFO "B2R2_S3TY: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S3TY: \t%#010x\n",
 				node->node.GROUP5.B2R2_STY);
-		pdebug(KERN_INFO "B2R2_S3BA: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_S3BA: \t%#010x\n",
 				node->node.GROUP5.B2R2_SBA);
 
-		pdebug(KERN_INFO "B2R2_CWS: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_CWS: \t%#010x\n",
 				node->node.GROUP6.B2R2_CWS);
-		pdebug(KERN_INFO "B2R2_CWO: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_CWO: \t%#010x\n",
 				node->node.GROUP6.B2R2_CWO);
 
-		pdebug(KERN_INFO "B2R2_FCTL: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_FCTL: \t%#010x\n",
 				node->node.GROUP8.B2R2_FCTL);
-		pdebug(KERN_INFO "B2R2_RSF: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_RSF: \t%#010x\n",
 				node->node.GROUP9.B2R2_RSF);
-		pdebug(KERN_INFO "B2R2_RZI: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_RZI: \t%#010x\n",
 				node->node.GROUP9.B2R2_RZI);
-		pdebug(KERN_INFO "B2R2_LUMA_RSF: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_LUMA_RSF: \t%#010x\n",
 				node->node.GROUP10.B2R2_RSF);
-		pdebug(KERN_INFO "B2R2_LUMA_RZI: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_LUMA_RZI: \t%#010x\n",
 				node->node.GROUP10.B2R2_RZI);
 
 
-		pdebug(KERN_INFO "B2R2_IVMX0: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_IVMX0: \t%#010x\n",
 				node->node.GROUP15.B2R2_VMX0);
-		pdebug(KERN_INFO "B2R2_IVMX1: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_IVMX1: \t%#010x\n",
 				node->node.GROUP15.B2R2_VMX1);
-		pdebug(KERN_INFO "B2R2_IVMX2: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_IVMX2: \t%#010x\n",
 				node->node.GROUP15.B2R2_VMX2);
-		pdebug(KERN_INFO "B2R2_IVMX3: \t%#010x\n",
+		pverbose(KERN_INFO "B2R2_IVMX3: \t%#010x\n",
 				node->node.GROUP15.B2R2_VMX3);
 
 		node = node->next;
@@ -3147,6 +3347,7 @@ error_free_debug:
 error_free_dir:
 	debugfs_remove(dir);
 error:
+	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
 	return -1;
 }
 
