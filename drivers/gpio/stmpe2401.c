@@ -137,6 +137,7 @@ static int stmpe2401_gpio_get_value(struct gpio_chip *gc, unsigned off)
  * stmpe2401_gpio_set_value() - Set a GPIO value from the given offset
  * @gc:		pointer to the gpio_chip strcture
  * @off:	The write gpio offset
+ * @val:	value to set for the GPIO
  *
  * This funtion is called from the gpio library to set/unset a GPIO
  * value. This funtion sets the GPSR (Set Register) to set a bit.
@@ -265,6 +266,7 @@ static void stmpe2401_setup_gpio(struct stmpe2401_chip *chip, int gpios)
  * stmpe2401_set_callback() - install a callback handler
  * @irq:	gpio number
  * @handler:	funtion pointer to the callback handler
+ * @data:	data for the callback handler
  *
  * This funtion install the callback handler for the client device
  **/

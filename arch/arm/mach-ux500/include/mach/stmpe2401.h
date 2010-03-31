@@ -88,6 +88,13 @@
 
 #define	MAX_INT		24
 
+/**
+ * struct stmpe2401_platform_data -  stmpe2401 platform dependent  structure
+ * @gpio_base:	starting number of the gpio pin
+ * @irq:	irq number of the port expander
+ *
+ * stmpe2401 platform dependent structure
+ **/
 struct stmpe2401_platform_data {
 	unsigned	gpio_base;
 	int irq;

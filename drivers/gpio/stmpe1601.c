@@ -583,8 +583,9 @@ out_failed:
 }
 
 /**
- * stmpe1601_keypad_init : initialises Keypad matrix row and columns
+ * stmpe1601_keypad_init - initialises Keypad matrix row and columns
  * @kpconfig:    keypad configuration for a platform
+ *
  * This function configures keypad control registers of stmpe1601
  * The keypad driver should call this function to configure keypad matrix
  **/
@@ -667,8 +668,8 @@ int stmpe1601_keypad_init(t_stmpe1601_key_config  kpconfig)
 EXPORT_SYMBOL(stmpe1601_keypad_init);
 
 /**
- * stmpe1601_keypad_scan : start/stop keypad scannig
- * @status :    flag for enable/disable STMPE1601_SCAN_ON or STMPE1601_SCAN_OFF
+ * stmpe1601_keypad_scan - start/stop keypad scannig
+ * @status:    flag for enable/disable STMPE1601_SCAN_ON or STMPE1601_SCAN_OFF
  *
  **/
 int stmpe1601_keypad_scan(unsigned char status)
@@ -704,8 +705,9 @@ int stmpe1601_keypad_scan(unsigned char status)
 EXPORT_SYMBOL(stmpe1601_keypad_scan);
 
 /**
- * stmpe1601_keypressed :  This function read keypad data registers
- * @keys : o/p parameter, returns keys pressed.
+ * stmpe1601_keypressed - This function read keypad data registers
+ * @keys: o/p parameter, returns keys pressed.
+ *
  * This function can be used in both polling or interrupt usage.
  */
 int stmpe1601_keypressed(t_stmpe1601_key_status *keys)
