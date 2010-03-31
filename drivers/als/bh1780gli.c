@@ -33,7 +33,7 @@
 #define BH1780GLI_MANID  0x1
 #define BH1780GLI_PARTID 0x81
 
-#define BH1780GLI_ACC_TIME 150
+#define BH1780GLI_ACC_TIME 250
 
 struct bh1780gli_data {
 	struct device *classdev;
@@ -86,6 +86,7 @@ static ssize_t bh1780gli_show_illuminance(struct device *dev,
 	/* Wait for data accumulation */
 	msleep(BH1780GLI_ACC_TIME);
 
+	/* Read data low */
 	data_low = bh1780gli_read_data(client, BH1780GLI_REG_COMMAND |
 				BH1780GLI_REG_DATALOW);
 	if (data_low < 0) {
@@ -93,6 +94,7 @@ static ssize_t bh1780gli_show_illuminance(struct device *dev,
 		goto exit;
 	}
 
+	/* Read data high */
 	data_high = bh1780gli_read_data(client,	BH1780GLI_REG_COMMAND |
 					BH1780GLI_REG_DATAHIGH);
 	if (data_high < 0) {
@@ -108,7 +110,7 @@ exit:
 	(void) bh1780gli_write_data(client, BH1780GLI_REG_COMMAND,
 				BH1780GLI_CMD_POWER_DOWN);
 error_exit:
-	ret = snprintf(buf, 8, "%u\n", val);
+	ret = snprintf(buf, 8, "%i\n", val);
 	mutex_unlock(&data->lock);
 
 	return ret;
