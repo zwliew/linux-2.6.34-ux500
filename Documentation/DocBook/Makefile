@@ -17,8 +17,7 @@ DOCBOOKS := z8530book.xml mcabook.xml device-drivers.xml \
 	    tracepoint.xml media.xml \
 	    dma.xml gpio.xml i2s.xml i2c.xml ste_conn.xml mmc.xml \
 	    prcmu-fw-api.xml keypad.xml msp.xml stmpe1601.xml stmpe2401.xml \
-            tc35892.xml ste_fm_radio.xml
-		# u8500_usb_dma.xml isa_hsi.xml mcde.xml b2r2.xml shrm.xml
+            tc35892.xml ste_fm_radio.xml u8500_usb.xml
 
 ###
 # The build process is as follows (targets):
@@ -103,7 +102,7 @@ endef
 	$(call if_changed_rule,docproc)
 
 ###
-#Read in all saved dependency files 
+#Read in all saved dependency files
 cmd_files := $(wildcard $(foreach f,$(BOOKS),$(dir $(f)).$(notdir $(f)).cmd))
 
 ifneq ($(cmd_files),)
