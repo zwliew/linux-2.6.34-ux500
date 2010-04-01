@@ -17,6 +17,7 @@
 #include <linux/input.h>
 #include <linux/i2c/lp5521.h>
 #include <linux/power_supply.h>
+#include <linux/lsm303dlh.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
