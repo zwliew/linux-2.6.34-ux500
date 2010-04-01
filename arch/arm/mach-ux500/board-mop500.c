@@ -392,6 +392,17 @@ static struct tp_device tsc_plat_device = {
 };
 #endif
 
+static struct lsm303dlh_platform_data __initdata lsm303dlh_pdata = {
+	.register_irq = NULL,
+	.free_irq = NULL,
+	.axis_map_x = 1, /* Axis map for HREF ED, HREF v1 and mop500 */
+	.axis_map_y = 0,
+	.axis_map_z = 2,
+	.negative_x = 1,
+	.negative_y = 0,
+	.negative_z = 0,
+};
+
 static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
 	{
 		I2C_BOARD_INFO("stmpe1601", 0x40),
@@ -440,7 +451,17 @@ static struct i2c_board_info __initdata u8500_i2c2_devices[] = {
 	 /* RGB LED driver, there are 1st and 2nd, TODO */
 	 I2C_BOARD_INFO("lp5521", 0x33),
 	 .platform_data = &lp5521_data,
-	}
+	},
+	{
+		/* LSM303DLH Accelerometer */
+		I2C_BOARD_INFO("lsm303dlh_a", 0x18),
+		.platform_data = &lsm303dlh_pdata,
+	},
+	{
+		/* LSM303DLH Magnetometer */
+		I2C_BOARD_INFO("lsm303dlh_m", 0x1E),
+		.platform_data = &lsm303dlh_pdata,
+	},
 };
 
 static struct i2c_board_info __initdata u8500_i2c3_devices[] = {
