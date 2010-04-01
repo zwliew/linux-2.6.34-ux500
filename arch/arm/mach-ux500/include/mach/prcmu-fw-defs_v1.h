@@ -15,11 +15,13 @@
  * enum state_t - ON/OFF state definition
  * @OFF: State is ON
  * @ON: State is OFF
+ *
  */
 enum state_t {
-	OFF = 0x00,
-	ON = 0x01
+	OFF = 0x0,
+	ON  = 0x1,
 };
+
 /**
  * enum ret_state_t - general purpose On/Off/Retention states
  *
@@ -489,6 +491,38 @@ enum reqmb2_header_t {
 	DPS_H   = 0,
 	HW_ACCT_AUTO_PWR_H = 1,
 };
+
+
+/* Defs related to autonomous power management */
+
+/**
+ * enum sia_sva_pwr_policy_t - Power policy
+ * @NO_CHGT:	No change
+ * @DSPOFF_HWPOFF:
+ * @DSPOFFRAMRET_HWPOFF:
+ * @DSPCLKOFF_HWPOFF:
+ * @DSPCLKOFF_HWPCLKOFF:
+ *
+ */
+enum sia_sva_pwr_policy_t {
+	NO_CHGT			= 0x0,
+	DSPOFF_HWPOFF		= 0x1,
+	DSPOFFRAMRET_HWPOFF	= 0x2,
+	DSPCLKOFF_HWPOFF	= 0x3,
+	DSPCLKOFF_HWPCLKOFF	= 0x4,
+};
+
+/**
+ * enum auto_enable_t - Auto Power enable
+ * @AUTO_OFF:
+ * @AUTO_ON:
+ *
+ */
+enum auto_enable_t {
+	AUTO_OFF	= 0x0,
+	AUTO_ON		= 0x1,
+};
+
 
 /**
  * enum reqmb4_header_t -Header type for mail box 4

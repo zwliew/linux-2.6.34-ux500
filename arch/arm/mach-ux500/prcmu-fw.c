@@ -1760,6 +1760,55 @@ void prcmu_system_reset(void)
 EXPORT_SYMBOL(prcmu_system_reset);
 
 /**
+ * prcmu_configure_auto_pwr_mgt - Configure Auto Pwr Mgt
+ * @apsleep:	Policy for ApSleep
+ * @apidle:	Policy for ApIdle
+ *
+ * Use this API to configure autonomous power management
+ * and controlling hw semaphores
+ */
+int prcmu_configure_auto_pwr_mgt(
+		struct sia_sva_auto_power_t apsleep,
+		struct sia_sva_auto_power_t apidle)
+{
+
+	int retval;
+
+	spin_lock(&req_mb2_lock);
+
+	/* write the header for reqmb2 */
+	writeb(HW_ACCT_AUTO_PWR_H, PRCM_MBOX_HEADER_REQ_MB2);
+
+	/* fill out the reqmb2 for apsleep*/
+	writeb(apsleep.sia_pwr_policy | apsleep.sva_pwr_policy,
+			PRCM_REQ_MB2_AUTOPWR_APSLEEP);
+	writeb(apsleep.sia_pwron_enable.complete_field,
+			PRCM_REQ_MB2_AUTOPWR_APSLEEP_SIA_PWRON_ENABLE);
+	writeb(apsleep.sva_pwron_enable.complete_field,
+			PRCM_REQ_MB2_AUTOPWR_APSLEEP_SVA_PWRON_ENABLE);
+	writeb(apsleep.auto_pwron_enable,
+			PRCM_REQ_MB2_AUTOPWR_APSLEEP_AUTO_PWRON_ENABLE);
+
+	/* fill out the reqmb2 for apidle*/
+	writeb(apidle.sia_pwr_policy | apidle.sva_pwr_policy,
+			PRCM_REQ_MB2_AUTOPWR_APIDLE);
+	writeb(apidle.sia_pwron_enable.complete_field,
+			PRCM_REQ_MB2_AUTOPWR_APIDLE_SIA_PWRON_ENABLE);
+	writeb(apidle.sva_pwron_enable.complete_field,
+			PRCM_REQ_MB2_AUTOPWR_APIDLE_SVA_PWRON_ENABLE);
+	writeb(apidle.auto_pwron_enable,
+			PRCM_REQ_MB2_AUTOPWR_APIDLE_AUTO_PWRON_ENABLE);
+
+	retval = _wait_for_req_complete(REQ_MB2);
+	spin_unlock(&req_mb2_lock);
+
+	dbg_printk("\n readb(PRCM_ACK_MB2) = %x\n", readb(PRCM_ACK_MB2));
+
+	return retval;
+}
+EXPORT_SYMBOL(prcmu_configure_auto_pwr_mgt);
+
+/**
  * prcmu_read_ack_mb7 - Read the AckMb7 Status message
  *
  *
