@@ -43,12 +43,16 @@
 #define CONFIG_STM_SECURITY
 #endif
 
-#define DRIVER_NAME            "DRIVER DMA"
+#define DRIVER_NAME            "dma40"
 
 /* enables/disables debug msgs */
 #define DRIVER_DEBUG            0
 #define DRIVER_DEBUG_PFX        DRIVER_NAME
 #define DRIVER_DBG              KERN_ERR
+
+#if DRIVER_DEBUG
+struct driver_debug_st DBG_ST = { .dma = 1 };
+#endif
 
 #define MAX_BACKUP_REGS 24
 
