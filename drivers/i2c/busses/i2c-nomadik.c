@@ -436,7 +436,6 @@ static int read_i2c(struct nmk_i2c_dev *dev)
 		(void) init_hw(dev);
 		status = -ETIMEDOUT;
 	}
-
 	return status;
 }
 
