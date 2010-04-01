@@ -7,7 +7,7 @@
  * License terms: GNU General Public License (GPL), version 2
  *
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
@@ -45,6 +45,9 @@
 /* Reserve 1 byte for the HCI H:4 header */
 #define STE_CONN_SKB_RESERVE  1
 
+/*STE_CONN_SYS_CLK_OUT - Enable system clock out on chip.*/
+#define ENABLE_SYS_CLK_OUT
+
 /* Bluetooth Opcode Group Field */
 #define HCI_BT_OGF_LINK_CTRL    0x01
 #define HCI_BT_OGF_LINK_POLICY  0x02
@@ -61,6 +64,11 @@
 #define HCI_BT_OCF_VS_WRITE_FILE_BLOCK		0x002E
 #define HCI_BT_OCF_VS_POWER_SWITCH_OFF		0x0140
 #define HCI_BT_OCF_VS_SYSTEM_RESET			0x0312
+#ifdef ENABLE_SYS_CLK_OUT
+#define HCI_BT_OCF_VS_READ_REGISTER	0x0104
+#define HCI_BT_OCF_VS_WRITE_REGISTER	0x0103
+#endif
+
 
 #define HCI_BT_EVT_CMD_COMPLETE			0x0E
 #define HCI_BT_EVT_CMD_COMPL_NR_OF_PKTS_POS	0x02
@@ -96,7 +104,7 @@
 /* FM interrupt values for do-command related interrupts. */
 #define CPD_FM_IRPT_OPERATION_SUCCEEDED	0x0000
 #define CPD_FM_IRPT_OPERATION_FAILED	0x0001
-//#define CPD_FM_IRPT_FIQ					0x????
+/*#define CPD_FM_IRPT_FIQ					0x????*/
 
 /* BT VS OpCodes */
 #define CPD_BT_VS_BT_ENABLE_OPCODE	0xFF10
@@ -195,6 +203,8 @@ enum cpd_main_state {
   * @BOOT_STATE_GET_FILES_TO_LOAD:              CPD is retreiving file to load.
   * @BOOT_STATE_DOWNLOAD_PATCH:                 CPD is downloading patches.
   * @BOOT_STATE_ACTIVATE_PATCHES_AND_SETTINGS:  CPD is activating patches and settings.
+  * @BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH:	CPD is activating sys clock out.
+  * @BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW:CPD is activating sys clock out.
   * @BOOT_STATE_READY:                          CPD boot is ready.
   * @BOOT_STATE_FAILED:                         CPD boot failed.
   */
@@ -205,6 +215,8 @@ enum cpd_boot_state {
 	BOOT_STATE_GET_FILES_TO_LOAD,
 	BOOT_STATE_DOWNLOAD_PATCH,
 	BOOT_STATE_ACTIVATE_PATCHES_AND_SETTINGS,
+	BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH,
+	BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW,
 	BOOT_STATE_READY,
 	BOOT_STATE_FAILED
 };
@@ -253,8 +265,8 @@ enum cpd_boot_download_state {
   * only when the fm driver is in specific mode and we need to know
   * if we should expect the interrupt.
   * @CPD_FM_RADIO_MODE_IDLE:  Radio mode is Idle (default).
-  * @CPD_FM_RADIO_MODE_TRANSMITTER:   Radio mode is set to FMT.
-  * @CPD_FM_RADIO_MODE_RECEIVER:   Radio mode is set to FMR.
+  * @CPD_FM_RADIO_MODE_FMT:   Radio mode is set to FMT (transmitter).
+  * @CPD_FM_RADIO_MODE_FMR:   Radio mode is set to FMR (receiver).
   */
 enum cpd_fm_radio_mode {
 	CPD_FM_RADIO_MODE_IDLE,
@@ -275,6 +287,7 @@ enum cpd_fm_radio_mode {
   * @us_ctrl: 		User space control channel user.
   * @bt_audio: 		BT audio command channel user.
   * @fm_radio_audio: 	FM audio command channel user.
+  * @core: 	Core command channel user..
   * @nbr_of_users: 	Number of users currently registered (not including the HCI logger).
   */
 struct ste_conn_cpd_users {
@@ -289,6 +302,7 @@ struct ste_conn_cpd_users {
 	struct ste_conn_device *us_ctrl;
 	struct ste_conn_device *bt_audio;
 	struct ste_conn_device *fm_radio_audio;
+	struct ste_conn_device *core;
 	int nbr_of_users;
 };
 
@@ -346,7 +360,7 @@ struct tx_list_item {
   * @tx_bt_mutex:  Mutex used to protect some global structures related to internal BT cmd flow control.
   * @tx_fm_mutex:  Mutex used to protect some global structures related to internal FM cmd flow control.
   * @tx_fm_audio_awaiting_irpt:  Indicates if an FM interrupt evt related to audio driver cmd is expected.
-  * @cpd_fm_radio_mode:  Current FM radio mode.
+  * @fm_radio_mode:  Current FM radio mode.
   * @tx_nr_pkts_allowed_bt:  Number of packets allowed to send on BT HCI CMD H4 channel.
   * @tx_nr_pkts_allowed_fm:  Number of packets allowed to send on BT FM RADIO H4 channel.
   * @tx_nr_outstanding_cmds_bt:  Number of packets sent but not confirmed on BT HCI CMD H4 channel.
@@ -446,6 +460,44 @@ static const uint8_t cpd_msg_vs_system_reset_cmd_req[] = {
 	0x00
 };
 
+#ifdef ENABLE_SYS_CLK_OUT
+/*
+  * cpd_msg_vs_system_reset_cmd_req -
+  * Hardcoded HCI Read_Register 0x40014004
+  */
+static const uint8_t cpd_msg_read_register_0x40014004[] = {
+	0x00, /* Reserved for H4 channel*/
+	CPD_MAKE_FIRST_BYTE_IN_CMD(HCI_BT_OCF_VS_READ_REGISTER),
+	CPD_MAKE_SECOND_BYTE_IN_CMD(HCI_BT_OGF_VS, HCI_BT_OCF_VS_READ_REGISTER),
+	0x05, /* HCI cmd length. */
+	0x01, /* Register type = 32-bit*/
+	0X04, /* Memory adress byte 1*/
+	0X40, /* Memory adress byte 2*/
+	0X01, /* Memory adress byte 3*/
+	0X40, /* Memory adress byte 4*/
+};
+
+/*
+  * cpd_msg_vs_system_reset_cmd_req -
+  * Hardcoded HCI Write_Register 0x40014004
+  */
+static const uint8_t cpd_msg_write_register_0x40014004[] = {
+	0x00, /* Reserved for H4 channel*/
+	CPD_MAKE_FIRST_BYTE_IN_CMD(HCI_BT_OCF_VS_WRITE_REGISTER),
+	CPD_MAKE_SECOND_BYTE_IN_CMD(HCI_BT_OGF_VS, HCI_BT_OCF_VS_WRITE_REGISTER),
+	0x09, /* HCI cmd length. */
+	0x01, /* Register type = 32-bit*/
+	0X04, /* Memory adress byte 1*/
+	0X40, /* Memory adress byte 2*/
+	0X01, /* Memory adress byte 3*/
+	0X40, /* Memory adress byte 4*/
+	0X00, /* Register value byte 1*/
+	0X00, /* Register value byte 2*/
+	0X00, /* Register value byte 3*/
+	0X00 /* Register value byte 4*/
+};
+#endif /*ENABLE_SYS_CLK_OUT*/
+
 /*
   * ste_conn_cpd_wait_queue - Main Wait Queue in CPD.
   */
@@ -505,6 +557,10 @@ static bool cpd_handle_vs_store_in_fs_cmd_complete_evt(uint8_t *data);
 static bool cpd_handle_vs_write_file_block_cmd_complete_evt(uint8_t *data);
 static bool cpd_handle_vs_power_switch_off_cmd_complete_evt(uint8_t *data);
 static bool cpd_handle_vs_system_reset_cmd_complete_evt(uint8_t *data);
+#ifdef ENABLE_SYS_CLK_OUT
+static bool cpd_handle_vs_read_register_cmd_complete_evt(uint8_t *data);
+static bool cpd_handle_vs_write_register_cmd_complete_evt(uint8_t *data);
+#endif
 static void cpd_work_power_off_chip(struct work_struct *work);
 static void cpd_work_reset_after_error(struct work_struct *work);
 static void cpd_work_load_patch_and_settings(struct work_struct *work);
@@ -548,7 +604,7 @@ struct ste_conn_device *ste_conn_register(char  *name,
 	/* Wait for state CPD_STATE_IDLE or CPD_STATE_ACTIVE. */
 	if (wait_event_interruptible_timeout(ste_conn_cpd_wait_queue,
 						((CPD_STATE_IDLE   == cpd_info->main_state) ||
-						( CPD_STATE_ACTIVE == cpd_info->main_state)),
+						(CPD_STATE_ACTIVE == cpd_info->main_state)),
 						timeval_to_jiffies(&time_50ms)) <= 0) {
 		STE_CONN_ERR(
 			"ste_conn_register currently busy (0x%X). Try again.",
@@ -721,6 +777,7 @@ int ste_conn_reset(struct ste_conn_device *dev)
 	cpd_handle_reset_of_user(&(cpd_info->users.bt_evt));
 	cpd_handle_reset_of_user(&(cpd_info->users.fm_radio));
 	cpd_handle_reset_of_user(&(cpd_info->users.gnss));
+	cpd_handle_reset_of_user(&(cpd_info->users.core));
 
 	cpd_info->users.nbr_of_users = 0;
 
@@ -778,6 +835,8 @@ int ste_conn_write(struct ste_conn_device *dev, struct sk_buff *skb)
 		 * A write can only mean a change of configuration.
 		 */
 		err = cpd_enable_hci_logger(skb);
+	} else if (cpd_info->h4_channels.core_channel == dev->h4_channel) {
+		STE_CONN_ERR("Not possble to write data on core channel only supports enable /disable chip");
 	} else if (CPD_STATE_ACTIVE == cpd_info->main_state) {
 		/* Move the data pointer to the H:4 header position and store the H4 header */
 		h4_header = skb_push(skb, STE_CONN_SKB_RESERVE);
@@ -925,23 +984,25 @@ int ste_conn_cpd_init(int char_dev_usage, struct device *dev)
 
 		/* Get the H4 channel ID for all channels */
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_CMD,
-		                                &(cpd_info->h4_channels.bt_cmd_channel));
+						&(cpd_info->h4_channels.bt_cmd_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_ACL,
-		                                &(cpd_info->h4_channels.bt_acl_channel));
+						&(cpd_info->h4_channels.bt_acl_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_EVT,
-		                                &(cpd_info->h4_channels.bt_evt_channel));
+						&(cpd_info->h4_channels.bt_evt_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_GNSS,
-		                                &(cpd_info->h4_channels.gnss_channel));
+						&(cpd_info->h4_channels.gnss_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_FM_RADIO,
-		                                &(cpd_info->h4_channels.fm_radio_channel));
+						&(cpd_info->h4_channels.fm_radio_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_DEBUG,
-		                                &(cpd_info->h4_channels.debug_channel));
+						&(cpd_info->h4_channels.debug_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_STE_TOOLS,
-		                                &(cpd_info->h4_channels.ste_tools_channel));
+						&(cpd_info->h4_channels.ste_tools_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_HCI_LOGGER,
-		                                &(cpd_info->h4_channels.hci_logger_channel));
+						&(cpd_info->h4_channels.hci_logger_channel));
 		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_US_CTRL,
-		                                &(cpd_info->h4_channels.us_ctrl_channel));
+						&(cpd_info->h4_channels.us_ctrl_channel));
+		ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_CORE,
+						&(cpd_info->h4_channels.core_channel));
 
 		cpd_info->wq = create_singlethread_workqueue(STE_CONN_CPD_WQ_NAME);
 		if (!cpd_info->wq) {
@@ -1022,6 +1083,7 @@ void ste_conn_cpd_exit(void)
 	cpd_free_user_dev(&(cpd_info->users.ste_tools));
 	cpd_free_user_dev(&(cpd_info->users.hci_logger));
 	cpd_free_user_dev(&(cpd_info->users.us_ctrl));
+	cpd_free_user_dev(&(cpd_info->users.core));
 
 	/* Free everything allocated in cpd_info */
 	kfree(cpd_info->patch_file_name);
@@ -1227,7 +1289,8 @@ static void cpd_update_internal_flow_control_fm(const struct sk_buff * const skb
  *   true if the command will generate an interrupt.
  *   false if it won't.
  */
-static bool cpd_fm_irpt_expected(uint16_t cmd_id) {
+static bool cpd_fm_irpt_expected(uint16_t cmd_id)
+{
 	bool retval = false;
 
 	switch (cmd_id) {
@@ -1281,7 +1344,7 @@ static bool cpd_fm_irpt_expected(uint16_t cmd_id) {
 
 /**
  * cpd_fm_is_do_cmd_irpt() - check if irpt_val is one of the FM do-command related interrupts.
- * @cmd_id:     interrupt value.
+ * @irpt_val:     interrupt value.
  *
  * The cpd_fm_is_do_cmd_irpt() checks if irpt_val is one of the FM do-command related interrupts.
  *
@@ -1289,7 +1352,8 @@ static bool cpd_fm_irpt_expected(uint16_t cmd_id) {
  *   true if it's do-command related interrupt value.
  *   false if it's not.
  */
-static bool cpd_fm_is_do_cmd_irpt(uint16_t irpt_val) {
+static bool cpd_fm_is_do_cmd_irpt(uint16_t irpt_val)
+{
 	bool retval = false;
 
 	switch (irpt_val) {
@@ -1405,6 +1469,8 @@ static int cpd_find_h4_user(int h4_channel, struct ste_conn_device **dev)
 		*dev = cpd_info->users.hci_logger;
 	} else if (h4_channel == cpd_info->h4_channels.us_ctrl_channel) {
 		*dev = cpd_info->users.us_ctrl;
+	} else if (h4_channel == cpd_info->h4_channels.core_channel) {
+		*dev = cpd_info->users.core;
 	} else {
 		*dev = NULL;
 		STE_CONN_ERR("Bad H:4 channel supplied: 0x%X", h4_channel);
@@ -1518,6 +1584,13 @@ static int cpd_add_h4_user(struct ste_conn_device *dev, const char * const name)
 	} else if (dev->h4_channel == cpd_info->h4_channels.us_ctrl_channel) {
 		if (!cpd_info->users.us_ctrl) {
 			cpd_info->users.us_ctrl = dev;
+		} else {
+			err = -EBUSY;
+		}
+	} else if (dev->h4_channel == cpd_info->h4_channels.core_channel) {
+		if (!cpd_info->users.core) {
+			cpd_info->users.nbr_of_users++;
+			cpd_info->users.core = dev;
 		} else {
 			err = -EBUSY;
 		}
@@ -1660,6 +1733,13 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 		} else {
 			err = -EINVAL;
 		}
+	} else if ((*dev)->h4_channel == cpd_info->h4_channels.core_channel) {
+		if (*dev == cpd_info->users.core) {
+			cpd_info->users.core = NULL;
+			cpd_info->users.nbr_of_users--;
+		} else {
+			err = -EINVAL;
+		}
 	} else {
 		err = -EINVAL;
 		STE_CONN_ERR("Bad H:4 channel supplied: 0x%X", (*dev)->h4_channel);
@@ -1797,7 +1877,14 @@ static bool cpd_handle_internal_rx_data_bt_evt(struct sk_buff *skb)
 			case HCI_BT_OCF_VS_SYSTEM_RESET:
 				pkt_handled = cpd_handle_vs_system_reset_cmd_complete_evt(data);
 				break;
-
+#ifdef ENABLE_SYS_CLK_OUT
+			case HCI_BT_OCF_VS_READ_REGISTER:
+				pkt_handled = cpd_handle_vs_read_register_cmd_complete_evt(data);
+				break;
+			case HCI_BT_OCF_VS_WRITE_REGISTER:
+				pkt_handled = cpd_handle_vs_write_register_cmd_complete_evt(data);
+				break;
+#endif
 			default:
 				break;
 			}; /* switch (hci_ocf) */
@@ -1874,7 +1961,6 @@ static bool cpd_handle_reset_cmd_complete_evt(uint8_t *data)
 		pkt_handled = true;
 	} else if (cpd_info->main_state == CPD_STATE_BOOTING &&
 		cpd_info->boot_state == BOOT_STATE_ACTIVATE_PATCHES_AND_SETTINGS) {
-
 		if (HCI_BT_ERROR_NO_ERROR == status) {
 			/* The boot sequence is now finished successfully.
 			 * Set states and signal to waiting thread.
@@ -1906,6 +1992,138 @@ static bool cpd_handle_reset_cmd_complete_evt(uint8_t *data)
 
 	return pkt_handled;
 }
+
+
+#ifdef ENABLE_SYS_CLK_OUT
+/**
+ * cpd_handle_vs_read_register_cmd_complete_evt() - Handle a received HCI Command Complete event
+ * for a VS ReadRegister command.
+ * @data: Pointer to received HCI data packet.
+ *
+ * Returns:
+ *   True,  if packet was handled internally,
+ *   False, otherwise.
+ */
+static bool cpd_handle_vs_read_register_cmd_complete_evt(uint8_t *data)
+{
+	bool pkt_handled = false;
+
+	if (cpd_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH) {
+		uint8_t status = data[0];
+
+		if (HCI_BT_ERROR_NO_ERROR == status) {
+			/*Received good confirmation. Start work to continue.*/
+			uint8_t data_out[(sizeof(cpd_msg_write_register_0x40014004))];
+			memcpy(&data_out[0], cpd_msg_write_register_0x40014004, sizeof(cpd_msg_write_register_0x40014004));
+
+			STE_CONN_INFO("Read register 0x40014004 value b1 0x%x", data[1]);
+			STE_CONN_INFO("Read register 0x40014004 value b2 0x%x", data[2]);
+			STE_CONN_INFO("Read register 0x40014004 value b3 0x%x", data[3]);
+			STE_CONN_INFO("Read register 0x40014004 value b4 0x%x", data[4]);
+			/*litle endian Set bit 12 to value 1*/
+			data[2] = data[2] | 0x10;
+			STE_CONN_INFO("Write register 0x40014004 value b1 0x%x", data[1]);
+			STE_CONN_INFO("Write register 0x40014004 value b2 0x%x", data[2]);
+			STE_CONN_INFO("Write register 0x40014004 value b3 0x%x", data[3]);
+			STE_CONN_INFO("Write register 0x40014004 value b4 0x%x", data[4]);
+			/*copy value to be written*/
+			memcpy(&data_out[9], &data[1], 4);
+			cpd_create_and_send_bt_cmd(&data_out[0], sizeof(cpd_msg_write_register_0x40014004));
+
+		} else {
+			STE_CONN_ERR("CmdComplete for ReadRegister received with error 0x%X", status);
+			CPD_SET_BOOT_STATE(BOOT_STATE_FAILED);
+			cpd_create_work_item(cpd_work_reset_after_error, NULL, NULL);
+		}
+		/*We have now handled the packet*/
+		pkt_handled = true;
+
+	} else if (cpd_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW) {
+			uint8_t status = data[0];
+
+		if (HCI_BT_ERROR_NO_ERROR == status) {
+			/*Received good confirmation. Start work to continue.*/
+			uint8_t data_out[(sizeof(cpd_msg_write_register_0x40014004))];
+			memcpy(&data_out[0], cpd_msg_write_register_0x40014004, sizeof(cpd_msg_write_register_0x40014004));
+
+			STE_CONN_INFO("Read register 0x40014004 value b1 0x%x", data[1]);
+			STE_CONN_INFO("Read register 0x40014004 value b2 0x%x", data[2]);
+			STE_CONN_INFO("Read register 0x40014004 value b3 0x%x", data[3]);
+			STE_CONN_INFO("Read register 0x40014004 value b4 0x%x", data[4]);
+			/*litle endian Set bit 12 to value 0*/
+			data[2] = data[2] & 0xEF;
+			STE_CONN_INFO("Write register 0x40014004 value b1 0x%x", data[1]);
+			STE_CONN_INFO("Write register 0x40014004 value b2 0x%x", data[2]);
+			STE_CONN_INFO("Write register 0x40014004 value b3 0x%x", data[3]);
+			STE_CONN_INFO("Write register 0x40014004 value b4 0x%x", data[4]);
+			/*copy value to be written*/
+			memcpy(&data_out[9], &data[1], 4);
+			cpd_create_and_send_bt_cmd(&data_out[0], sizeof(cpd_msg_write_register_0x40014004));
+
+		} else {
+			STE_CONN_ERR("CmdComplete for ReadRegister received with error 0x%X", status);
+			CPD_SET_BOOT_STATE(BOOT_STATE_FAILED);
+			cpd_create_work_item(cpd_work_reset_after_error, NULL, NULL);
+		}
+		/*We have now handled the packet*/
+		pkt_handled = true;
+	}
+	return pkt_handled;
+}
+
+/**
+ * cpd_handle_vs_write_register_cmd_complete_evt() - Handle a received HCI Command Complete event
+ * for a VS ReadRegister command.
+ * @data: Pointer to received HCI data packet.
+ *
+ * Returns:
+ *   True,  if packet was handled internally,
+ *   False, otherwise.
+ */
+static bool cpd_handle_vs_write_register_cmd_complete_evt(uint8_t *data)
+{
+	bool pkt_handled = false;
+
+
+	if (cpd_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH) {
+		uint8_t status = data[0];
+		if (HCI_BT_ERROR_NO_ERROR == status) {
+			/* Received good confirmation*/
+			cpd_create_and_send_bt_cmd(cpd_msg_read_register_0x40014004,
+						sizeof(cpd_msg_read_register_0x40014004));
+			CPD_SET_BOOT_STATE(BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW);
+		} else {
+			STE_CONN_ERR("CmdComplete for WriteRegister received with error 0x%X", status);
+			CPD_SET_BOOT_STATE(BOOT_STATE_FAILED);
+			cpd_create_work_item(cpd_work_reset_after_error, NULL, NULL);
+		}
+		/* We have now handled the packet */
+		pkt_handled = true;
+
+
+	} else 	if (cpd_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW) {
+		uint8_t status = data[0];
+		if (HCI_BT_ERROR_NO_ERROR == status) {
+			/* Received good confirmation
+			 * The boot sequence is now finished successfully
+			 * Set states and signal to waiting thread.
+			 */
+			CPD_SET_BOOT_STATE(BOOT_STATE_READY);
+			CPD_SET_MAIN_STATE(CPD_STATE_ACTIVE);
+			wake_up_interruptible(&ste_conn_cpd_wait_queue);
+		} else {
+			STE_CONN_ERR("CmdComplete for WriteRegister received with error 0x%X", status);
+			CPD_SET_BOOT_STATE(BOOT_STATE_FAILED);
+			cpd_create_work_item(cpd_work_reset_after_error, NULL, NULL);
+		}
+		/* We have now handled the packet */
+		pkt_handled = true;
+	}
+
+	return pkt_handled;
+}
+#endif /*ENABLE_SYS_CLK_OUT*/
+
 
 /**
  * cpd_handle_read_local_version_info_cmd_complete_evt() - Handle a received HCI Command Complete event
@@ -2099,7 +2317,15 @@ static bool cpd_handle_vs_system_reset_cmd_complete_evt(uint8_t *data)
 
 	if (cpd_info->main_state == CPD_STATE_BOOTING &&
 		cpd_info->boot_state == BOOT_STATE_ACTIVATE_PATCHES_AND_SETTINGS) {
-
+#ifdef ENABLE_SYS_CLK_OUT
+		STE_CONN_INFO("SYS_CLK_OUT Enabled");
+		if (HCI_BT_ERROR_NO_ERROR == status) {
+			cpd_create_and_send_bt_cmd(cpd_msg_read_register_0x40014004,
+						sizeof(cpd_msg_read_register_0x40014004));
+			CPD_SET_BOOT_STATE(BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH);
+		}
+#else
+		STE_CONN_INFO("SYS_CLK_OUT Disabled");
 		if (HCI_BT_ERROR_NO_ERROR == status) {
 			/* The boot sequence is now finished successfully.
 			 * Set states and signal to waiting thread.
@@ -2107,14 +2333,15 @@ static bool cpd_handle_vs_system_reset_cmd_complete_evt(uint8_t *data)
 			CPD_SET_BOOT_STATE(BOOT_STATE_READY);
 			CPD_SET_MAIN_STATE(CPD_STATE_ACTIVE);
 			wake_up_interruptible(&ste_conn_cpd_wait_queue);
-		} else {
+		}
+#endif
+		else {
 			STE_CONN_ERR("Received Reset complete event with status 0x%X", status);
 			CPD_SET_BOOT_STATE(BOOT_STATE_FAILED);
 			ste_conn_reset(NULL);
 		}
 		pkt_handled = true;
 	}
-
 	return pkt_handled;
 }
 
@@ -2564,10 +2791,13 @@ static void cpd_create_and_send_bt_cmd(const uint8_t *data, int length)
 		memcpy(skb_put(skb, length), data, length);
 		skb->data[0] = (uint8_t)cpd_info->h4_channels.bt_cmd_channel;
 
-		STE_CONN_DBG_DATA_CONTENT("Sent %d bytes: 0x %02X %02X %02X %02X %02X %02X %02X %02X",
+		STE_CONN_INFO("Sent %d bytes: 0x %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
 						skb->len, skb->data[0], skb->data[1],
 						skb->data[2], skb->data[3], skb->data[4],
-						skb->data[5], skb->data[6], skb->data[7]);
+						skb->data[5], skb->data[6], skb->data[7],
+						skb->data[8], skb->data[9],
+						skb->data[10], skb->data[11], skb->data[12],
+						skb->data[13], skb->data[14], skb->data[15]);
 
 		cpd_transmit_skb_to_ccd(skb, cpd_info->hci_logger_config.bt_cmd_enable);
 	} else {
@@ -2576,8 +2806,7 @@ static void cpd_create_and_send_bt_cmd(const uint8_t *data, int length)
 }
 
 /**
- * cpd_send_bd_address() - Send HCI VS cmd with BD addres to the chip.
- * @work: Reference to work data.
+ * cpd_send_bd_address() - Send HCI VS cmd with BD address to the chip.
  */
 static void cpd_send_bd_address(void)
 {
@@ -2615,7 +2844,7 @@ static void cpd_transmit_skb_to_ccd(struct sk_buff *skb, bool use_logger)
 	 */
 	if (use_logger && cpd_info->users.hci_logger) {
 		/* Alloc a new sk_buffer and copy the data into it. Then send it to the HCI logger. */
-		struct sk_buff *skb_log = alloc_skb(skb->len +1, GFP_KERNEL);
+		struct sk_buff *skb_log = alloc_skb(skb->len + 1, GFP_KERNEL);
 		if (skb_log) {
 			memcpy(skb_put(skb_log, skb->len), skb->data, skb->len);
 			skb_log->data[0] = (uint8_t) LOGGER_DIRECTION_TX;

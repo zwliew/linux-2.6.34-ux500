@@ -191,9 +191,9 @@ enum ccd_baud_rate_change_state {
   * UART.
   */
 struct ccd_uart_rx {
-	enum ccd_uart_rx_state rx_state;
-	unsigned long               rx_count;
-	struct sk_buff             *rx_skb;
+	enum ccd_uart_rx_state	rx_state;
+	unsigned long		rx_count;
+	struct sk_buff		*rx_skb;
 };
 
 /**
@@ -207,11 +207,11 @@ struct ccd_uart_rx {
   * Contains all necessary information for the UART transport.
   */
 struct ccd_uart {
-	struct tty_struct       *tty;
-	struct workqueue_struct *tx_wq;
-	spinlock_t               rx_lock;
-	struct ccd_uart_rx  rx_info;
-	struct mutex             tx_mutex;
+	struct tty_struct	*tty;
+	struct workqueue_struct	*tx_wq;
+	spinlock_t		rx_lock;
+	struct ccd_uart_rx	rx_info;
+	struct mutex		tx_mutex;
 };
 
 
@@ -233,8 +233,8 @@ struct ccd_work_struct{
   * @rx_queue:     RX data queue.
   */
 struct test_char_dev_info {
-	struct miscdevice    test_miscdev;
-	struct sk_buff_head  rx_queue;
+	struct miscdevice	test_miscdev;
+	struct sk_buff_head	rx_queue;
 };
 
 /**
@@ -271,7 +271,7 @@ struct ccd_info {
 static int char_dev_usage = STE_CONN_ALL_CHAR_DEVS;
 #else
 static int char_dev_usage = STE_CONN_CHAR_DEV_GNSS | STE_CONN_CHAR_DEV_HCI_LOGGER |
-	STE_CONN_CHAR_DEV_US_CTRL | STE_CONN_CHAR_DEV_BT_AUDIO | STE_CONN_CHAR_DEV_FM_RADIO_AUDIO;
+	STE_CONN_CHAR_DEV_US_CTRL | STE_CONN_CHAR_DEV_BT_AUDIO | STE_CONN_CHAR_DEV_FM_RADIO_AUDIO | STE_CONN_CHAR_DEV_CORE;
 #endif
 
 static struct ccd_info *ccd_info;
@@ -757,10 +757,10 @@ static void uart_send_skb_to_cpd(struct sk_buff *skb)
 		 * Let's see if this is the packet we are waiting for.
 		 */
 		if ((ccd_info->h4_channels.bt_evt_channel == skb->data[0]) &&
-		    (HCI_BT_EVT_CMD_COMPLETE == skb->data[1]) &&
-		    (HCI_BT_EVT_CMD_COMPLETE_LEN == skb->data[2]) &&
-		    (CCD_HCI_RESET_LSB == skb->data[4]) &&
-		    (CCD_HCI_RESET_MSB == skb->data[5])) {
+			(HCI_BT_EVT_CMD_COMPLETE == skb->data[1]) &&
+			(HCI_BT_EVT_CMD_COMPLETE_LEN == skb->data[2]) &&
+			(CCD_HCI_RESET_LSB == skb->data[4]) &&
+			(CCD_HCI_RESET_MSB == skb->data[5])) {
 			/* We have received complete event for our baud rate
 			 * change command
 			 */
@@ -1822,23 +1822,25 @@ static int __init ste_conn_init(void)
 
 	/* Get the H4 channel ID for all channels */
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_CMD,
-	                                &(ccd_info->h4_channels.bt_cmd_channel));
+					&(ccd_info->h4_channels.bt_cmd_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_ACL,
-	                                &(ccd_info->h4_channels.bt_acl_channel));
+					&(ccd_info->h4_channels.bt_acl_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_EVT,
-	                                &(ccd_info->h4_channels.bt_evt_channel));
+					&(ccd_info->h4_channels.bt_evt_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_GNSS,
-	                                &(ccd_info->h4_channels.gnss_channel));
+					&(ccd_info->h4_channels.gnss_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_FM_RADIO,
-	                                &(ccd_info->h4_channels.fm_radio_channel));
+					&(ccd_info->h4_channels.fm_radio_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_DEBUG,
-	                                &(ccd_info->h4_channels.debug_channel));
+					&(ccd_info->h4_channels.debug_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_STE_TOOLS,
-	                                &(ccd_info->h4_channels.ste_tools_channel));
+					&(ccd_info->h4_channels.ste_tools_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_HCI_LOGGER,
-	                                &(ccd_info->h4_channels.hci_logger_channel));
+					&(ccd_info->h4_channels.hci_logger_channel));
 	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_US_CTRL,
-	                                &(ccd_info->h4_channels.us_ctrl_channel));
+					&(ccd_info->h4_channels.us_ctrl_channel));
+	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_CORE,
+					&(ccd_info->h4_channels.core_channel));
 
 	/* Convert the time to jiffies and setup the timer structure */
 	ccd_timeout_jiffies = timeval_to_jiffies(&time_50ms);
@@ -1870,8 +1872,8 @@ static int __init ste_conn_init(void)
 	}
 
 	ccd_info->dev = device_create(ccd_info->ccd_class, NULL, temp_devt,
-	                              dev_data, STE_CONN_DEVICE_NAME "%d",
-	                              dev_data->next_free_minor);
+					dev_data, STE_CONN_DEVICE_NAME "%d",
+					dev_data->next_free_minor);
 	if (IS_ERR(ccd_info->dev)) {
 		STE_CONN_ERR("Error creating main device");
 		err = (int)ccd_info->dev;
@@ -1994,7 +1996,10 @@ MODULE_PARM_DESC(char_dev_usage, "Character devices to enable (bitmask):0x00 = N
 									0x20 = CCD debug, \
 									0x40 = HCI Logger, \
 									0x80 = US Ctrl, \
-									0x100 = STE_CONN test");
+									0x100 = STE_CONN test, \
+									0x200 = BT Audio, \
+									0x400 = FM Audio, \
+									0x800 = Core");
 
 module_param(uart_default_baud, int, S_IRUGO);
 MODULE_PARM_DESC(uart_default_baud, "Default UART baud rate, e.g. 115200. If not set 115200 will be used.");

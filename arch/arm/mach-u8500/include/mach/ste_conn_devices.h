@@ -70,6 +70,11 @@
  */
 #define STE_CONN_DEVICES_FM_RADIO_AUDIO	"ste_conn_fm_audio\0"
 
+/** STE_CONN_DEVICES_CORE- HCI H:4 channel
+ * for core configuration related commands in the ST-Ericsson connectivity controller.
+ */
+#define STE_CONN_DEVICES_CORE	"ste_conn_core\0"
+
 /** STE_CONN_NO_CHAR_DEV - Module parameter for
  * no character devices to be initiated.
  */
@@ -119,6 +124,10 @@
 /** STE_CONN_CHAR_DEV_FM_RADIO_AUDIO - Module parameter for character device FM audio application.
  */
 #define STE_CONN_CHAR_DEV_FM_RADIO_AUDIO			0x00000400
+
+/** STE_CONN_CHAR_DEV_CORE - Module parameter for character device core.
+ */
+#define STE_CONN_CHAR_DEV_CORE			0x00000800
 
 /** STE_CONN_CHAR_TEST_DEV - Module parameter for all character devices to be initiated.
  */

@@ -603,7 +603,7 @@
              </varlistentry>
              <varlistentry>
                <term>Default value</term>
-               <listitem><para>0x44</para></listitem>
+               <listitem><para>0x844</para></listitem>
              </varlistentry>
              <varlistentry>
                <term>Runtime readable/modifiable</term>
@@ -626,9 +626,13 @@
                    <listitem><para>0x10 = STE tools (channel for STE tools)</para></listitem>
                    <listitem><para>0x20 = CCD debug (used for debug of the CCD module)</para></listitem>
                    <listitem><para>0x40 = HCI Logger (copies all data transported through the driver)</para></listitem>
-                   <listitem><para>0x80 = STE_CONN test (character device stub used for testing the driver)</para></listitem>
+                   <listitem><para>0x80 = US Control (not used)</para></listitem>
+                   <listitem><para>0x100 = STE_CONN test (character device stub used for testing the driver)</para></listitem>
+                   <listitem><para>0x200 = BT Audio (channel for BT audio configruation)</para></listitem>
+                   <listitem><para>0x400 = FM Radio Audio (channel for FM audio configruation)</para></listitem>
+                   <listitem><para>0x800 = Core (used for turn on off chip)</para></listitem>
                  </itemizedlist>
-                 Default value is GNSS and HCI logger as character devices, i.e. char_dev_usage=0x44.
+                 Default value is Core, GNSS and HCI logger as character devices, i.e. char_dev_usage=0x844.
                </para>
                </listitem>
              </varlistentry>
@@ -1078,12 +1082,12 @@
          <variablelist>
            <varlistentry>
              <term>File</term>
-             <listitem><para><filename>/dev/ste_conn_user_space_control</filename></para></listitem>
+             <listitem><para><filename>/dev/ste_conn_us_ctrl</filename></para></listitem>
            </varlistentry>
            <varlistentry>
              <term>Description</term>
              <listitem>
-             <para>The ste_conn_user_space_control is the device for initialization and control of the STE CONN driver.</para>
+             <para>The ste_conn_us_ctrl is the device for initialization and control of the STE CONN driver.</para>
              </listitem>
            </varlistentry>
          </variablelist>
@@ -1102,6 +1106,60 @@
              <term>Description</term>
              <listitem>
              <para>The ste_conn_ccd_test is the device for performing module tests of the ST-Ericsson connectivity driver. It acts as a stub replacing the transport towards the chip. It is of the type Misc devices.</para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+       </listitem>
+     </varlistentry>
+
+     <varlistentry>
+       <term>BT Audio</term>
+       <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>File</term>
+             <listitem><para><filename>/dev/ste_conn_bt_audio</filename></para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>The ste_conn_bt_audio is the device for sending HCI BT Audio controll commands to the chip. </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+       </listitem>
+     </varlistentry>
+
+     <varlistentry>
+       <term>FM Audio</term>
+       <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>File</term>
+             <listitem><para><filename>/dev/ste_conn_fm_audio</filename></para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>The ste_conn_fm_audio is the device for sending HCI BT Audio controll commands to the chip.</para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+       </listitem>
+     </varlistentry>
+
+     <varlistentry>
+       <term>Core</term>
+       <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>File</term>
+             <listitem><para><filename>/dev/ste_conn_core</filename></para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>The ste_conn_core is a device for turn on/off the chip. NOTE other devices will also turn on/off the chip if needed.</para>
              </listitem>
            </varlistentry>
          </variablelist>

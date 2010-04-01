@@ -68,6 +68,12 @@
  */
 #define STE_CONN_H4_CHANNEL_US_CTRL   	0xFC
 
+/** STE_CONN_H4_CHANNEL_CORE - Bluetooth HCI H:4 channel
+ * for user space control of the ST-Ericsson connectivity controller.
+ */
+#define STE_CONN_H4_CHANNEL_CORE   	0xFD
+
+
 /** BT_ENABLE_GPIO - GPIO to enable/disable the BT module.
  */
 #define BT_ENABLE_GPIO                  (GPIO(170))
@@ -146,10 +152,11 @@ struct ste_conn_device_id ste_conn_devices[] = {
 	{STE_CONN_DEVICES_HCI_LOGGER,		STE_CONN_H4_CHANNEL_HCI_LOGGER},
 	{STE_CONN_DEVICES_US_CTRL,		STE_CONN_H4_CHANNEL_US_CTRL},
 	{STE_CONN_DEVICES_BT_AUDIO,		STE_CONN_H4_CHANNEL_BT_CMD},
-	{STE_CONN_DEVICES_FM_RADIO_AUDIO,		STE_CONN_H4_CHANNEL_FM_RADIO}
+	{STE_CONN_DEVICES_FM_RADIO_AUDIO,		STE_CONN_H4_CHANNEL_FM_RADIO},
+	{STE_CONN_DEVICES_CORE,			STE_CONN_H4_CHANNEL_CORE}
 };
 
-#define STE_CONN_NBR_OF_DEVS 9
+#define STE_CONN_NBR_OF_DEVS 12
 
 int ste_conn_devices_get_h4_channel(char *name, int *h4_channel)
 {

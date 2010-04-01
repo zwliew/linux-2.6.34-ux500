@@ -94,6 +94,7 @@ struct ste_conn_char_dev_user {
   * @us_ctrl_user:		User space control channel user.
   * @bt_audio_user:		BT audio command channel user.
   * @fm_audio_user:		FM audio command channel user.
+  * @core_user:		Core user.
   * @open_mutex:		Open mutex (used for both open and release).
   */
 struct ste_conn_char_info {
@@ -108,6 +109,7 @@ struct ste_conn_char_info {
 	struct ste_conn_char_dev_user	us_ctrl_user;
 	struct ste_conn_char_dev_user	bt_audio_user;
 	struct ste_conn_char_dev_user	fm_audio_user;
+	struct ste_conn_char_dev_user	core_user;
 	struct mutex			open_mutex;
 };
 
@@ -742,6 +744,10 @@ void ste_conn_char_devices_init(int char_dev_usage, struct device *dev)
 		char_dev_setup_cdev(&char_info->fm_audio_user, dev,
 					STE_CONN_DEVICES_FM_RADIO_AUDIO);
 	}
+	if (char_dev_usage & STE_CONN_CHAR_DEV_CORE) {
+		char_dev_setup_cdev(&char_info->core_user, dev,
+					STE_CONN_DEVICES_CORE);
+	}
 }
 
 void ste_conn_char_devices_exit(void)
@@ -760,6 +766,7 @@ void ste_conn_char_devices_exit(void)
 		char_dev_remove_cdev(&char_info->us_ctrl_user);
 		char_dev_remove_cdev(&char_info->bt_audio_user);
 		char_dev_remove_cdev(&char_info->fm_audio_user);
+		char_dev_remove_cdev(&char_info->core_user);
 
 		mutex_destroy(&char_info->open_mutex);
 

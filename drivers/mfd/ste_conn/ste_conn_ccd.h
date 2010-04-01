@@ -31,6 +31,7 @@ struct ste_conn_ccd_h4_channels {
 	int	ste_tools_channel;
 	int	hci_logger_channel;
 	int	us_ctrl_channel;
+	int	core_channel;
 };
 
 struct ste_conn_ccd_driver_data {
