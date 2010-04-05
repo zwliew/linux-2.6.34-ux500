@@ -27,12 +27,7 @@
 /* Interrupt */
 #define GP_SW_ADC_CONV_END      39
 
-static struct completion ab8500_gpadc_complete;
-static DEFINE_MUTEX(ab8500_gpadc_lock);
-
-#if defined(CONFIG_REGULATOR)
-static struct regulator *regu;
-#endif
+static struct ab8500_gpadc_device_info *di;
 
 EXPORT_SYMBOL(ab8500_gpadc_conversion);
 
@@ -49,11 +44,14 @@ int ab8500_gpadc_conversion(int input)
 {
 	int ret, val, low_data, high_data, data;
 
-	mutex_lock(&ab8500_gpadc_lock);
+	if (!di)
+		return -ENOMEM;
+
+	mutex_lock(&di->ab8500_gpadc_lock);
 	/* Enable VTVout LDO this is required for GPADC */
 #if defined(CONFIG_REGULATOR)
-	if (!regulator_is_enabled(regu))
-		regulator_enable(regu);
+	if (!regulator_is_enabled(di->regu))
+		regulator_enable(di->regu);
 #else
 	val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 	ret = ab8500_write(AB8500_REGU_CTRL1,
@@ -85,7 +83,7 @@ int ab8500_gpadc_conversion(int input)
 	if (ret < 0)
 		pr_debug("gpadc_conversion: start sw sonversion failed\n");
 	/* wait for completion of conversion */
-	wait_for_completion_timeout(&ab8500_gpadc_complete, HZ);
+	wait_for_completion_timeout(&di->ab8500_gpadc_complete, HZ);
 
 	/* Read the converted RAW data */
 	low_data = ab8500_read(AB8500_GPADC, AB8500_GPADC_MANDATAL_REG);
@@ -98,7 +96,7 @@ int ab8500_gpadc_conversion(int input)
 		pr_debug("gpadc_conversion: disable gpadc failed\n");
 	/* Disable VTVout LDO this is required for GPADC */
 #if defined(CONFIG_REGULATOR)
-	regulator_disable(regu);
+	regulator_disable(di->regu);
 #else
 	val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 	ret = ab8500_write(AB8500_REGU_CTRL1,
@@ -106,7 +104,7 @@ int ab8500_gpadc_conversion(int input)
 	if (ret < 0)
 		pr_debug("gpadc_conversion: disable VTVout LDO failed\n");
 #endif
-	mutex_unlock(&ab8500_gpadc_lock);
+	mutex_unlock(&di->ab8500_gpadc_lock);
 	return data;
 }
 
@@ -118,7 +116,7 @@ int ab8500_gpadc_conversion(int input)
  **/
 static void ab8500_bm_gpswadcconvend_handler(void)
 {
-	complete(&ab8500_gpadc_complete);
+	complete(&di->ab8500_gpadc_complete);
 }
 
 /**
@@ -135,8 +133,17 @@ static int __devinit ab8500_gpadc_probe(struct platform_device *pdev)
 {
 	int ret, val;
 
+	di = kzalloc(sizeof(*di), GFP_KERNEL);
+	if (!di) {
+		pr_err("Error: No memory\n");
+		return -ENOMEM;
+	}
+
+	/* Initialize mutex */
+	mutex_init(&di->ab8500_gpadc_lock);
+
 	/* Initialize completion used to notify completion of ceinversion */
-	init_completion(&ab8500_gpadc_complete);
+	init_completion(&di->ab8500_gpadc_complete);
 
 	/* Register call back handler  - SwAdcComplete */
 	ret = ab8500_set_callback_handler(GP_SW_ADC_CONV_END,
@@ -144,24 +151,28 @@ static int __devinit ab8500_gpadc_probe(struct platform_device *pdev)
 					  NULL);
 	if (ret < 0) {
 		pr_err("Failed to register call back handler\n");
-		return ret;
+		goto fail;
 	}
 	/* Unmask the sw ADC completion interrupt */
 	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_MASK5_REG);
 	ret = ab8500_write(AB8500_INTERRUPT, AB8500_IT_MASK5_REG, (val & 0x7F));
 	if (ret) {
 		pr_debug("ab8500_bm_hw_presence_en(): write failed\n");
-		return ret;
+		goto fail;
 	}
 #if defined(CONFIG_REGULATOR)
-	regu = regulator_get(NULL, "ab8500-gpadc");
-	if (IS_ERR(regu)) {
-		ret = PTR_ERR(regu);
+	di->regu = regulator_get(NULL, "ab8500-gpadc");
+	if (IS_ERR(di->regu)) {
+		ret = PTR_ERR(di->regu);
 		pr_err("failed to get vtvout LDO\n");
-		return ret;
+		goto fail;
 	}
 #endif
 	return 0;
+fail:
+	kfree(di);
+	di = NULL;
+	return ret;
 }
 
 /**
@@ -192,8 +203,9 @@ static int __devexit ab8500_gpadc_remove(struct platform_device *pdev)
 		return ret;
 	}
 #if defined(CONFIG_REGULATOR)
-	regulator_put(regu);
+	regulator_put(di->regu);
 #endif
+	kfree(di);
 	return 0;
 }
 

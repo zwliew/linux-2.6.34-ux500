@@ -133,7 +133,7 @@ config CHARGER_PCF50633
 
 config AB8500_BM
 	bool "AB8500 Battery Management Driver"
-	depends on AB8500
+	depends on AB8500 && AB8500_GPADC
 	help
 	 say Y to include support for AB8500 battery management.
 

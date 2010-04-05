@@ -946,6 +946,11 @@ static int ab8500_bm_ac_voltage(struct ab8500_bm_device_info *di)
 	int data;
 
 	data = ab8500_gpadc_conversion(MAIN_CHARGER_V);
+	if (!data) {
+		dev_err(di->dev, "gpadc conversion failed\n");
+		return data;
+	}
+
 	/* conversion from RAW val to voltage
 	 * 20250 * X / 1023
 	 */
@@ -964,6 +969,11 @@ static int ab8500_bm_usb_voltage(struct ab8500_bm_device_info *di)
 	int data;
 
 	data = ab8500_gpadc_conversion(VBUS_V);
+	if (!data) {
+		dev_err(di->dev, "gpadc conversion failed\n");
+		return data;
+	}
+
 	/* conversion from RAW data to voltage
 	 * 20250 * X / 1023
 	 */
@@ -983,6 +993,11 @@ static int ab8500_bm_voltage(struct ab8500_bm_device_info *di)
 	int data;
 
 	data = ab8500_gpadc_conversion(MAIN_BAT_V);
+	if (!data) {
+		dev_err(di->dev, "gpadc conversion failed\n");
+		return data;
+	}
+
 	/* conversion from RAW value to voltage
 	 * 2300 + 2500*X / 1023
 	 */
@@ -1038,6 +1053,10 @@ static int ab8500_bm_temperature(struct ab8500_bm_device_info *di)
 	 */
 
 	data = ab8500_gpadc_conversion(BTEMP_BALL);
+	if (!data) {
+		dev_err(di->dev, "gpadc conversion failed\n");
+		return data;
+	}
 
 	/*
 	 * Conversion function for each sub-range
@@ -1204,6 +1223,11 @@ static int ab8500_bm_bk_battery_voltage(struct ab8500_bm_device_info *di)
 	int data;
 
 	data = ab8500_gpadc_conversion(BK_BAT_V);
+	if (!data) {
+		dev_err(di->dev, "gpadc conversion failed\n");
+		return data;
+	}
+
 	/* conversion from RAW value to voltage
 	 * 2300 + 2500*X / 1023
 	 */

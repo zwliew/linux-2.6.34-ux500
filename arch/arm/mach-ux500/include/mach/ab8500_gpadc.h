@@ -23,6 +23,14 @@
 #define DIE_TEMP        0x0D
 #define BTEMP_BALL      0x02
 
+struct ab8500_gpadc_device_info {
+	struct completion ab8500_gpadc_complete;
+	struct mutex ab8500_gpadc_lock;
+#if defined(CONFIG_REGULATOR)
+	struct regulator *regu;
+#endif
+};
+
 int ab8500_gpadc_conversion(int input);
 
 #endif /* _AB8500_GPADC_H */
