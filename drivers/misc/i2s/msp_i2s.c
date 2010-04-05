@@ -469,6 +469,7 @@ static int configure_clock(struct msp_struct *msp,
 		msp->vape_opp_constraint = 1;
 	} else {
 		regulator_set_optimum_mode(msp_vape_supply, 0);
+		msp->vape_opp_constraint = 0;
 	}
 #endif
 
@@ -1571,8 +1572,8 @@ static int stm_msp_close(struct i2s_controller *i2s_cont, i2s_flag flag)
 
 #ifdef CONFIG_REGULATOR
 	if (msp->vape_opp_constraint == 1) {
-		msp->vape_opp_constraint = 0;
 		regulator_set_optimum_mode(msp_vape_supply, 0);
+		msp->vape_opp_constraint = 0;
 	}
 #endif
 	memset(msp->registers,0,0x80);
