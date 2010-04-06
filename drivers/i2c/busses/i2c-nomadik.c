@@ -118,7 +118,7 @@ enum i2c_operation {
 };
 
 /* controller response timeout in ms */
-#define I2C_TIMEOUT_MS	500
+#define I2C_TIMEOUT_MS	2000
 
 /**
  * struct i2c_nmk_client - client specific data
@@ -267,7 +267,7 @@ static int init_hw(struct nmk_i2c_dev *dev)
 
 	clk_disable(dev->clk);
 
-	udelay(500);
+	mdelay(1);
 	return 0;
 }
 
