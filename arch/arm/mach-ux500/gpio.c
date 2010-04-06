@@ -138,10 +138,9 @@ int stm_gpio_altfuncdisable(gpio_alt_function alt_func)
 		}
 
 		for (j = start; j <= end; j++) {
-			/* Reset the pin - input, gpio, pulldown */
+			/* Reset the pin - input, gpio */
 			gpio_direction_input(j);
 			nmk_gpio_set_mode(j, NMK_GPIO_ALT_GPIO);
-			nmk_gpio_set_pull(j, NMK_GPIO_PULL_DOWN);
 			gpio_free(j);
 		}
 	}
