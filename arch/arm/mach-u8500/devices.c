@@ -1939,7 +1939,7 @@ static struct platform_device pmem_device = {
 static struct android_pmem_platform_data pmem_mio_pdata = {
 	.name = "pmem_mio",
 	.no_allocator = 1,	/* We'll manage allocation */
-	.cached = 0,
+	.cached = 1,
 	.start = 0,
 	.size = 0,
 };
