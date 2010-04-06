@@ -954,6 +954,12 @@ static int __init u8500_i2call_init(void)
 	stm_gpio_altfuncenable(GPIO_ALT_I2C_1);
 	stm_gpio_altfuncenable(GPIO_ALT_I2C_2);
 	stm_gpio_altfuncenable(GPIO_ALT_I2C_3);
+
+	/* Enable pullups for UART Rx lines. */
+	nmk_gpio_set_pull(2, NMK_GPIO_PULL_UP);
+	nmk_gpio_set_pull(4, NMK_GPIO_PULL_UP);
+	nmk_gpio_set_pull(29, NMK_GPIO_PULL_UP);
+
 	return 0;
 }
 subsys_initcall(u8500_i2call_init);
