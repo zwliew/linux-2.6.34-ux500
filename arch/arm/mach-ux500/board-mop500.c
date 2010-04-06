@@ -457,6 +457,74 @@ static DEFINE_SPINLOCK(cr_lock);
 
 extern irqreturn_t u8500_kp_intrhandler(/*int irq,*/ void *dev_id);
 
+extern struct mutex u8500_keymap_mutex;
+extern u8 u8500_keymap; /* Default keymap is keymap 0 */
+
+/*
+ * Initializes the key scan table (lookup table) as per pre-defined the scan
+ * codes to be passed to upper layer with respective key codes
+ */
+u8 const kpd_lookup_tbl1[MAX_KPROW][MAX_KPROW] = {
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_POWER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
+	KEY_VOLUMEUP, KEY_RIGHT, KEY_BACK, KEY_RESERVED},
+	{KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_DOWN,
+	KEY_LEFT, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_UP,
+	KEY_RESERVED, KEY_RESERVED, KEY_SEND, KEY_RESERVED},
+	{KEY_MENU, KEY_RESERVED, KEY_END, KEY_VOLUMEDOWN,
+	KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_ENTER},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
+};
+
+
+/*
+ * Alternative keymap for seperate applications, can be enabled from sysfs
+ */
+u8 const kpd_lookup_tbl2[MAX_KPROW][MAX_KPROW] = {
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_ENTER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
+	KEY_KPDOT, KEY_6, KEY_BACK, KEY_RESERVED},
+	{KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_8,
+	KEY_4, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_5,
+	KEY_RESERVED, KEY_RESERVED, KEY_LEFT, KEY_RESERVED},
+	{KEY_UP, KEY_RESERVED, KEY_RIGHT, KEY_MENU,
+	KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_DOWN},
+	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+	KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
+};
+
+
+/*
+ * Key table for a complete 8X8 keyboard
+{KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_SPACE},
+{KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7},
+{KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_INSERT,
+KEY_HOME},
+{KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U},
+{KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH,
+KEY_DELETE, KEY_END},
+{KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J},
+{KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_DOT,
+KEY_COMMA, KEY_SLASH},
+{KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M}
+};
+*/
+
+
+
 /**
  * u8500_kp_results_autoscan :  This function gets scanned key data from stmpe
  * @keys : o/p parameter, returns keys pressed.
@@ -468,6 +536,12 @@ int u8500_kp_results_autoscan(struct keypad_t *kp)
 	t_stmpe1601_key_status keys;
 	u8 kcode, i;
 	static int keyp_cnt;
+	mutex_lock(&u8500_keymap_mutex);
+	if (u8500_keymap == 0)
+		kp->board->kcode_tbl = (u8 *) kpd_lookup_tbl1;
+	else if (u8500_keymap == 1)
+		kp->board->kcode_tbl = (u8 *) kpd_lookup_tbl2;
+	mutex_unlock(&u8500_keymap_mutex);
 	/**
 	 * read key data from stmpe1601
 	 */
@@ -501,7 +575,7 @@ int u8500_kp_results_autoscan(struct keypad_t *kp)
 		}
 	}
 	if (keys.button_pressed || keys.button_released)
-		DEBUG_KP(("\nkp_results_autoscan keyp_cnt = %d, pressed = %d ",
+		DEBUG_KP(("\nkp_results_autoscan keyp_cnt = %d, pressed = %d "
 			"released = %d\n",
 			keyp_cnt, keys.button_pressed, keys.button_released));
 	return keyp_cnt;
@@ -526,7 +600,7 @@ irqreturn_t u8500_kp_intrhandler(/*int irq, */void *dev_id)
 
 		/* schedule_delayed_work(&kp->kscan_work,
 			kp->board->debounce_period); */
-		schedule_work(&kp->kscan_work);
+		schedule_delayed_work(&kp->kscan_work, 0);
 	}
 	return IRQ_HANDLED;
 }
@@ -669,44 +743,6 @@ int u8500_kp_key_irqen(struct keypad_t *kp)
 }
 
 
-/*
- * Initializes the key scan table (lookup table) as per pre-defined the scan
- * codes to be passed to upper layer with respective key codes
- */
-u8 const kpd_lookup_tbl[MAX_KPROW][MAX_KPROW] = {
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_POWER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
-	KEY_VOLUMEUP, KEY_RIGHT, KEY_BACK, KEY_RESERVED},
-	{KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_DOWN,
-	KEY_LEFT, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_UP,
-	KEY_RESERVED, KEY_RESERVED, KEY_SEND, KEY_RESERVED},
-	{KEY_MENU, KEY_RESERVED, KEY_END, KEY_VOLUMEDOWN,
-	KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_ENTER},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
-};
-
-/*
- * Key table for a complete 8X8 keyboard
-{KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_SPACE},
-{KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7},
-{KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_INSERT,
-KEY_HOME},
-{KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U},
-{KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH,
-KEY_DELETE, KEY_END},
-{KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J},
-{KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_DOT,
-KEY_COMMA, KEY_SLASH},
-{KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M}
-};
-*/
 static struct keypad_device keypad_board = {
 	.init = u8500_kp_init_key_hardware,
 	.exit = u8500_kp_exit_key_hardware,
@@ -716,7 +752,7 @@ static struct keypad_device keypad_board = {
 	/* .autoscan_disable = u8500_kp_disable_autoscan, */
 	.autoscan_results = u8500_kp_results_autoscan,
 	/* .autoscan_en=u8500_kp_autoscan_en, */
-	.kcode_tbl = (u8 *) kpd_lookup_tbl,
+	.kcode_tbl = (u8 *) kpd_lookup_tbl1,
 	.krow = KPD_NB_ROWS,
 	.kcol = KPD_NB_COLUMNS,
 	.debounce_period = KEYPAD_DEBOUNCE_PERIOD_STUIB,

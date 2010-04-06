@@ -52,6 +52,40 @@ int kpmode;
 module_param(kpmode, int, 0);
 MODULE_PARM_DESC(kpmode, "Keypad Operating mode (INT/POLL)=(0/1)");
 
+/*static*/ DEFINE_MUTEX(u8500_keymap_mutex);
+/*static*/ u8 u8500_keymap = 0; /* Default keymap is keymap 0 */
+
+static ssize_t u8500_keymap_show(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", u8500_keymap);
+}
+
+static ssize_t u8500_keymap_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	int keymap;
+
+	if (sscanf(buf, "%u", &keymap) != 1)
+		return -EINVAL;
+
+	if ((keymap != 0) && (keymap != 1))
+		return -EINVAL;
+
+	mutex_lock(&u8500_keymap_mutex);
+	if (keymap != u8500_keymap)
+		u8500_keymap = keymap;
+	mutex_unlock(&u8500_keymap_mutex);
+
+	return strnlen(buf, count);
+}
+
+static DEVICE_ATTR(keymap, S_IRUGO | S_IWUSR, u8500_keymap_show,
+		   u8500_keymap_store);
+
+
+
 #if 0
 /*
  * u8500_kp_intrhandler - keypad interrupt handler
@@ -265,6 +299,12 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 		goto err_init_kpd;
 	printk("\nkp_probe 4");
 
+	err = device_create_file(&pdev->dev, &dev_attr_keymap);
+	if (err < 0) {
+		printk(KERN_ERR "\nCould not create sysfs file for keypad");
+		goto err_create_sysfs_entry;
+	}
+
 	if (input_register_device(kp->inp_dev) < 0) {
 		printk(KERN_ERR "Could not register input device");
 		err = -1;
@@ -309,6 +349,8 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 #if 0
 err_req_irq:
 #endif
+err_create_sysfs_entry:
+	device_remove_file(&pdev->dev, &dev_attr_keymap);
 err_inp_reg:
 	/* unregistering device */
 	input_unregister_device(kp->inp_dev);
@@ -344,6 +386,7 @@ static int u8500_kp_remove(struct platform_device *pdev)
 	/* cancel and flush keypad work queues if any  */
 	cancel_delayed_work(&kp->kscan_work);
 	cancel_delayed_work_sync(&kp->kscan_work);
+	device_remove_file(&pdev->dev, &dev_attr_keymap);
 	/* block until work struct's callback terminates */
 	input_unregister_device(kp->inp_dev);
 	input_free_device(kp->inp_dev);
