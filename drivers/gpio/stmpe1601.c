@@ -460,7 +460,7 @@ static int stmpe1601_probe(struct i2c_client *client,
 
 	ret = gpiochip_add(&chip->gpio_chip);
 	if (ret)
-		goto out_failed;
+		goto gpio_add_failed;
 
 	mutex_init(&chip->lock);
 
@@ -530,8 +530,7 @@ static int stmpe1601_probe(struct i2c_client *client,
 		printk(KERN_ERR
 			"unable to request for the irq %d\n",
 			GPIO_TO_IRQ(STMPE16010_INTR)); /* 218 */
-		gpio_free(pdata->irq);
-		return ret;
+		goto out_failed;
 	}
 
 	/**
@@ -577,6 +576,9 @@ static int stmpe1601_probe(struct i2c_client *client,
 	return 0;
 
 out_failed:
+	ret |= gpiochip_remove(&chip->gpio_chip);
+	i2c_set_clientdata(client, NULL);
+gpio_add_failed:
 	kfree(chip);
 	the_stmpe1601 = NULL;
 	return ret;
@@ -855,11 +857,11 @@ EXPORT_SYMBOL(stmpe1601_irqdis);
 static int __exit stmpe1601_remove(struct i2c_client *client)
 {
 	struct stmpe1601_platform_data *pdata = client->dev.platform_data;
-	/* TODO- implement the teardown, gpiochip_remove
-	 */
-	gpio_free(pdata->irq);
+	int ret = 0;
+	free_irq(pdata->irq, the_stmpe1601);
+	ret = gpiochip_remove(&the_stmpe1601->gpio_chip);
 	i2c_set_clientdata(client, NULL);
-	return 0;
+	return ret;
 }
 
 static const struct i2c_device_id stmpe1601_id[] = {
