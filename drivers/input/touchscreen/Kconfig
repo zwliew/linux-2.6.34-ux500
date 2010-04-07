@@ -620,9 +620,15 @@ config U8500_TSC
 		bool   "Multi Touch Mode"
 	endchoice
 
-config TOUCHP_EXT_CLK
-	default y
-	bool "Enable extenral clock for U8500 touch panel tuning"
+config U8500_TSC_EXT_CLK_9_6
+	bool "Enable external clock for U8500 touch panel tuning"
 	depends on U8500_TSC
 
+config U8500_TSC_EXT_CLK_SHARE
+	bool "Clock shared between Camera and touch panel"
+	depends on U8500_TSC_EXT_CLK_9_6
+
+config TOUCHP_TUNING
+	bool "Enable sysfs for U8500 touch panel tuning"
+	depends on U8500_TSC
 endif

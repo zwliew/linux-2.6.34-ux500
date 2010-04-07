@@ -24,7 +24,7 @@
 #define TOUCHP_IRQ	EGPIO_PIN_3	/* PENIRQNO egpio3   */
 #define TOUCHP_CS0	EGPIO_PIN_2	/* Chip select egpio2 */
 
-#define DRIVER_TP1 "u8500_tp1"
+#define DRIVER_TP "u8500_tp"
 /*
  *TOUCH SCREEN DRIVER MACROS used for Power on Sequence
  */
@@ -50,9 +50,6 @@
 
 #define	MAX_10BIT ((1<<10)-1)
 
-/*
- * Resolutions
- */
 /*Panel Resolution, Target size. (864*480)*/
 #define X_MAX (480)
 #define Y_MAX (864)
@@ -126,7 +123,7 @@
 #define SMA_ARRAY 81
 #define THRESHOLD_SMA_N SMA_N
 #define MULTITOUCH_SIN_N 6
-#define PENUP_TIMEOUT 10 /* msec */
+#define PENUP_TIMEOUT 20 /* msec */
 
 /**
  * Error handling messages
@@ -143,7 +140,16 @@ typedef enum {
 } tsc_error;
 
 /**
- * struct tp_device
+ * struct tp_device - Handle the platform data
+ * @cs_en:	pointer to the cs enable function
+ * @cs_dis:	pointer to the cs disable function
+ * @irq_init:    pointer to the irq init function
+ * @irq_exit: pointer to the irq exit function
+ * @pirq_en: pointer to the pen irq en function
+ * @pirq_dis:	pointer to the pen irq disable function
+ * @pirq_read_val:    pointer to read the pen irq value function
+ * @board_href_v1: pointer to the get the board version
+ * @irq: irq variable
  * This is used to handle the platform data
  **/
 struct tp_device {
@@ -159,7 +165,9 @@ struct tp_device {
 };
 
 /**
- * struct touch_point
+ * struct touch_point - x and y co-ordinates of touch panel
+ * @x: x co-ordinate
+ * @y: y co-ordinate
  * This is used to hold the x and y co-ordinates of touch panel
  **/
 struct touch_point {
@@ -168,7 +176,12 @@ struct touch_point {
 };
 
 /**
- * struct gesture_info
+ * struct gesture_info - hold the gesture of the touch
+ * @gesture_kind: gesture kind variable
+ * @pt: arry to touch_point structure
+ * @dir: direction variable
+ * @times: touch times
+ * @speed: speed of the touch
  * This is used to hold the gesture of the touch.
  **/
 struct gesture_info {
@@ -179,6 +192,40 @@ struct gesture_info {
 	signed short speed;
 };
 
+/**
+ * struct u8500_tsc_data - touch panel data structure
+ * @client:	pointer to the i2c client
+ * @chip:	pointer to the touch panel controller
+ * @pin_dev:    pointer to the input device structure
+ * @touchp_tsk: pointer to the task structure
+ * @penirq_timer: variable to the timer list structure
+ * @touchp_event: variable to the wait_queue_head_t structure
+ * @touch_en: variable for reporting the co-ordinates to input device.
+ * @finger1_pressed:      variable to indicate the first co-ordinates.
+ * @finger2_pressed:      variable to indicate the first co-ordinates.
+ * @workq:    variable to work structure
+ * @gesture_info: variable to gesture_info structure
+ * @touch_count:  variable to maintain sensors input count
+ * @touchflag: variable to indicate the touch
+ * @touchp_flag: flag to indicate the touch
+ * @pre_tap_flag: flag to indicate the pre tap
+ * @flick_flag: flickering flag
+ * @touch_continue: to continue the touch flag
+ * @pre_tap_flag_level: pre tap level flag
+ * @x1: x1 co-ordinate
+ * @y1: y1 co-ordinate
+ * @x2: x2 co-ordinate
+ * @y2: y2 co-ordinate
+ * @pinch_start: pinch start
+ * @tap_start_point: variable to touch_point structure
+ * @dir_trace: array for data trace
+ * @dir_idx: id for direction
+ * @rotate_data: array to maintain the rotate data
+ * @href_v1_flag: variable to indicate the href v1 board
+ * @finger2_count: count for finger2 touches
+ *
+ * Tocuh panel data structure
+ */
 struct u8500_tsc_data {
 	struct i2c_client *client;
 	struct tp_device *chip;
@@ -187,6 +234,8 @@ struct u8500_tsc_data {
 	struct timer_list penirq_timer;
 	wait_queue_head_t touchp_event;
 	unsigned short touch_en;
+	unsigned short finger1_pressed;
+	unsigned short finger2_pressed;
 	struct work_struct workq;
 	struct gesture_info gesture_info;
 	signed long touch_count;
@@ -204,6 +253,7 @@ struct u8500_tsc_data {
 	unsigned char dir_idx;
 	unsigned char rotate_data[5][5];
 	bool href_v1_flag;
+	u8 finger2_count;
 };
 
 int doCalibrate(struct i2c_client *i2c);
