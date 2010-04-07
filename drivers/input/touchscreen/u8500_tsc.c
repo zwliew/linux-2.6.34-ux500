@@ -276,7 +276,6 @@ void get_touch(struct u8500_tsc_data *data)
 	u8 j, i;
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 	u8 finger2_buf[4];
-	unsigned char count;
 	u16 tmp2x, tmp2y;
 #endif
 	if (i2c == NULL)
