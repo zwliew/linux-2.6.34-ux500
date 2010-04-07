@@ -29,6 +29,7 @@
 #include <mach/stmpe2401.h>
 #include <mach/stmpe1601.h>
 #include <mach/tc35892.h>
+#include <mach/sensors1p.h>
 #include <mach/av8100_p.h>
 #include <mach/ab8500.h>
 #include <mach/ab8500_bm.h>
@@ -855,6 +856,30 @@ static struct platform_device keypad_device = {
 };
 #endif /* CONFIG_KEYPAD_U8500 */
 
+#ifdef CONFIG_SENSORS1P_MOP
+static struct sensors1p_config sensors1p_config = {
+	/* SFH7741 */
+	.proximity = {
+		.pin = EGPIO_PIN_7,
+		.startup_time = 120, /* ms */
+		.regulator = "v-proximity",
+	},
+	/* HED54XXU11 */
+	.hal = {
+		.pin = EGPIO_PIN_8,
+		.startup_time = 100, /* Actually, I have no clue. */
+		.regulator = "v-hal",
+	},
+};
+
+struct platform_device sensors1p_device = {
+	.name = "sensors1p",
+	.dev = {
+		.platform_data = (void *)&sensors1p_config,
+	},
+};
+#endif
+
 static struct i2s_board_info stm_i2s_board_info[] __initdata = {
 	{
 	 .modalias = "i2s_device.0",
@@ -952,6 +977,9 @@ static struct platform_device *u8500_platform_devices[] __initdata = {
 	/*TODO - add platform devices here */
 #ifdef CONFIG_KEYPAD_U8500
 	&keypad_device,
+#endif
+#ifdef CONFIG_SENSORS1P_MOP
+	&sensors1p_device,
 #endif
 
 };
