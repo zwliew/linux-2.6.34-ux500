@@ -1113,7 +1113,7 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 	 * current has to be in the range of 50-200mA
 	 */
 	if (di->charge_status == POWER_SUPPLY_STATUS_CHARGING) {
-		if (di->voltage_uV > (pdata->termination_vol - 25) && di->voltage_uV < pdata->termination_vol) {
+		if (di->voltage_uV > (pdata->termination_vol - 100) && di->voltage_uV < pdata->termination_vol) {
 			/* Check if charging is in constant voltage */
 			val =
 			    ab8500_read(AB8500_CHARGER, AB8500_CH_STATUS1_REG);
@@ -1385,9 +1385,9 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
 		}
-		/* MainChInputCurr = 900mA */
+		/* MainChInputCurr = 1.1A */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_MCH_IPT_CURLVL_REG,
-				   MAIN_CH_IP_CUR_0P9A);
+				   MAIN_CH_IP_CUR_1P1A);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
@@ -1598,6 +1598,9 @@ static int ab8500_bm_hw_presence_en(struct ab8500_bm_device_info *di,
 				    int enable)
 {
 	int val = 0, ret = 0;
+
+	/* Set BATOVV to 4.75v */
+	ret = ab8500_write(AB8500_CHARGER, AB8500_BATT_OVV, BATT_OVV_TH_4P75);
 
 	/* Low Battery Voltage = 3.1v */
 	val = ab8500_read(AB8500_SYS_CTRL2_BLOCK, AB8500_LOW_BAT_REG);

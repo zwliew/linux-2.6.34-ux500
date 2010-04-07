@@ -17,10 +17,12 @@ struct ab8500_bm_platform_data {
 
 /* Main charge i/p current */
 #define MAIN_CH_IP_CUR_0P9A		0x80
+#define MAIN_CH_IP_CUR_1P1A		0xA0
 /* ChVoltLevel */
 #define CH_VOL_LVL_3P5			0x00
 #define CH_VOL_LVL_4P05			0x16
-#define CH_VOL_LVL_4P1			0x18
+#define CH_VOL_LVL_4P1			0x1B
+#define CH_VOL_LVL_4P2			0x25
 #define CH_VOL_LVL_4P6			0x4D
 
 /* ChOutputCurrentLevel */
