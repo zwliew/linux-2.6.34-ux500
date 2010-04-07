@@ -17,6 +17,7 @@
 #include <linux/power_supply.h>
 #include <linux/completion.h>
 #include <linux/workqueue.h>
+#include <linux/kobject.h>
 #include <mach/ab8500.h>
 #include <mach/ab8500_bm.h>
 #include <mach/ab8500_gpadc.h>
@@ -79,6 +80,7 @@ static DEFINE_MUTEX(ab8500_bm_lock);
  * @ab8500_bm_usb_dis_monitor_work:	Work to disable usb charging
  * @ab8500_bm_wq:			Pointer to work queue-battery mponitor
  * @ab8500_bm_wd_kick_wq:		Pointer to work queue-rekick watchdog
+ * @ab8500_bm_kobject			structure of type kobject
  *
  */
 struct ab8500_bm_device_info {
@@ -102,6 +104,7 @@ struct ab8500_bm_device_info {
 	struct workqueue_struct *ab8500_bm_wq;
 	struct workqueue_struct *ab8500_bm_irq;
 	struct workqueue_struct *ab8500_bm_wd_kick_wq;
+	struct kobject ab8500_bm_kobject;
 };
 
 static char *ab8500_bm_supplied_to[] = {
@@ -146,6 +149,87 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *, int);
 static int ab8500_bm_charger_presence(struct ab8500_bm_device_info *);
 static int ab8500_bm_status(void);
 static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *);
+
+/* TODO: Need to remove this from here as this has to goto ab8500_sysfs.c */
+
+static ssize_t ab8500_bm_sysfs_charger(struct kobject *kobj,
+		struct attribute *attr, const char *buf, size_t length)
+{
+	struct ab8500_bm_device_info *di = container_of(kobj,
+							struct
+							ab8500_bm_device_info,
+							ab8500_bm_kobject);
+	int ac_usb, ret = 0;
+
+	ac_usb = simple_strtol(buf, NULL, 10);
+	switch (ac_usb) {
+	case 0:
+		/* Disable charging */
+		ret = ab8500_bm_ac_en(di, false);
+		ret = ab8500_bm_usb_en(di, false);
+		if (ret < 0)
+			dev_dbg(di->dev, "failed to disable charging\n");
+		break;
+	case 1:
+		/* Enable AC Charging */
+		ret = ab8500_bm_ac_en(di, true);
+		if (ret < 0)
+			dev_dbg(di->dev, "failed to enable AC charging\n");
+		break;
+	case 2:
+		/* Enable USB charging */
+		ret = ab8500_bm_usb_en(di, true);
+		if (ret < 0)
+			dev_dbg(di->dev, "failed to enable USB charging\n");
+		break;
+	default:
+		dev_info(di->dev, "Wrong input\n"
+				"Enter 0. Disable AC/USB Charging\n"
+				"1. Enable AC charging\n"
+				"2. Enable USB Charging\n");
+	};
+	return strlen(buf);
+}
+
+static struct attribute ab8500_bm_en_charger = \
+				{
+				.name = "charger",
+				.mode = S_IWUGO,
+				};
+
+static struct attribute *ab8500_bm_chg[] = {
+	&ab8500_bm_en_charger,
+	NULL
+};
+
+static struct sysfs_ops ab8500_bm_sysfs_ops = {
+	.store = ab8500_bm_sysfs_charger,
+};
+
+static struct kobj_type ab8500_bm_ktype = {
+	.sysfs_ops = &ab8500_bm_sysfs_ops,
+	.default_attrs = ab8500_bm_chg,
+};
+
+static void ab8500_bm_sysfs_exit(struct ab8500_bm_device_info *di)
+{
+	kfree(&di->ab8500_bm_kobject);
+}
+
+static int ab8500_bm_sysfs_init(struct ab8500_bm_device_info *di)
+{
+	int ret = 0;
+
+	ret = kobject_init_and_add(&di->ab8500_bm_kobject, &ab8500_bm_ktype,
+						NULL, "ab8500_charger");
+	if (ret < 0) {
+		dev_err(di->dev, "failed to create sysfs entry\n");
+		kfree(&di->ab8500_bm_kobject);
+	}
+	return ret;
+}
+
+/* END: Need to remove this from here as this has to goto ab8500_sysfs.c */
 
 /**
  * ab8500_bm_detect_usb_type() - get the type of usb connected
@@ -2036,6 +2120,8 @@ static int __devexit ab8500_bm_remove(struct platform_device *pdev)
 	power_supply_unregister(&di->bat);
 	platform_set_drvdata(pdev, NULL);
 	kfree(di);
+	/* sysfs interface to enable/disbale charging from user space */
+	ab8500_bm_sysfs_exit(di);
 
 	return 0;
 }
@@ -2208,6 +2294,10 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 			"failed to enable h/w presence(i.e mask int)\n");
 		goto intr_fail;
 	}
+	/* sysfs interface to enable/disbale charging from user space */
+	ret = ab8500_bm_sysfs_init(di);
+	if (ret)
+		dev_info(di->dev, "failed to create sysfs entry\n");
 	return 0;
 intr_fail:
 	ret = ab8500_bm_hw_presence_en(di, false);
