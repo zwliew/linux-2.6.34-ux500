@@ -65,13 +65,6 @@ config U8500_PM
 config ARCH_HAS_CPU_IDLE_WAIT
     def_bool y
 
-config SENSORS1P_MOP
-	tristate "HAL and Proximity sensors support"
-	depends on GPIO_STMPE2401 || GPIO_TC35892
-	default y
-	help
-		Add support for Osram's SFH7741 Proximity Sensor and Samsumg HED54XXU11 HAL Switch
-
 source "arch/arm/mach-ux500/Kconfig-arch"
 
 config FORCE_MAX_ZONEORDER

@@ -808,10 +808,6 @@ static struct platform_device db8500_vana_regulator_dev = {
 	},
 };
 
-#ifdef CONFIG_SENSORS1P_MOP
-extern struct platform_device sensors1p_device;
-#endif
-
 /* VAUX1 supply */
 #define AB8500_VAUXN_LDO_MIN_VOLTAGE    (1100000)
 #define AB8500_VAUXN_LDO_MAX_VOLTAGE    (3300000)
@@ -841,17 +837,6 @@ static struct regulator_consumer_supply ab8500_vaux1_consumers[] = {
 		.supply = "v-mcde",
 	},
 #endif
-#ifdef CONFIG_SENSORS1P_MOP
-	{
-		.dev = &sensors1p_device.dev,
-		.supply = "v-proximity",
-	},
-	{
-		.dev = &sensors1p_device.dev,
-		.supply = "v-hal",
-	},
-#endif
-
 };
 
 static struct regulator_init_data ab8500_vaux1_init = {
