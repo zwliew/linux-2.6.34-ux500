@@ -14,6 +14,7 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/als_sys.h>
+#include <linux/jiffies.h>
 
 #define BH1780GLI_DRV_NAME	"bh1780gli"
 
@@ -39,6 +40,8 @@ struct bh1780gli_data {
 	struct device *classdev;
 	struct i2c_client *client;
 	struct mutex lock;
+	int active;
+	u64 when_enabled;
 };
 
 static int bh1780gli_write_data(struct i2c_client *client, int reg,
@@ -75,18 +78,18 @@ static ssize_t bh1780gli_show_illuminance(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev->parent);
 	struct bh1780gli_data *data = i2c_get_clientdata(client);
 
+	if (!data->active)
+		return -EINVAL;
+
 	mutex_lock(&data->lock);
 
-	/* Power up device */
-	val = bh1780gli_write_data(client, BH1780GLI_REG_COMMAND,
-				BH1780GLI_CMD_POWER_UP);
-	if (val < 0)
-		goto error_exit;
+	/* Only wait if read() is called before the sensor is up and running
+	 * Since jiffies wrap, always sleep maximum time.
+	 */
+	if (time_before64(get_jiffies_64(), data->when_enabled))
+		/* Wait for data accumulation */
+		msleep(BH1780GLI_ACC_TIME);
 
-	/* Wait for data accumulation */
-	msleep(BH1780GLI_ACC_TIME);
-
-	/* Read data low */
 	data_low = bh1780gli_read_data(client, BH1780GLI_REG_COMMAND |
 				BH1780GLI_REG_DATALOW);
 	if (data_low < 0) {
@@ -97,29 +100,81 @@ static ssize_t bh1780gli_show_illuminance(struct device *dev,
 	/* Read data high */
 	data_high = bh1780gli_read_data(client,	BH1780GLI_REG_COMMAND |
 					BH1780GLI_REG_DATAHIGH);
-	if (data_high < 0) {
+	if (data_high < 0)
 		val = data_high;
-		goto exit;
-	}
-
-	/* Calculate lux value */
-	val = (data_high << 8) | data_low;
+	else
+		/* Calculate lux value */
+		val = (data_high << 8) | data_low;
 
 exit:
-	/* Power down device */
-	(void) bh1780gli_write_data(client, BH1780GLI_REG_COMMAND,
-				BH1780GLI_CMD_POWER_DOWN);
-error_exit:
 	ret = snprintf(buf, 8, "%i\n", val);
 	mutex_unlock(&data->lock);
 
 	return ret;
 }
 
+
+static ssize_t bh1780gli_activate_get(struct device *dev,
+				      struct device_attribute *attr,
+				      char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev->parent);
+	struct bh1780gli_data *data = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%d", data->active);
+}
+
+static ssize_t bh1780gli_activate_set(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+
+	struct i2c_client *client = to_i2c_client(dev->parent);
+	struct bh1780gli_data *data = i2c_get_clientdata(client);
+	int val, ret;
+
+	if (sscanf(buf, "%d", &val) != 1)
+		return -EINVAL;
+	if (val != 0 && val != 1)
+		return -EINVAL;
+
+	mutex_lock(&data->lock);
+	if (val != data->active) {
+		if (val) {
+			/* Power up device */
+			ret = bh1780gli_write_data(client,
+						   BH1780GLI_REG_COMMAND,
+						   BH1780GLI_CMD_POWER_UP);
+			if (ret < 0)
+				goto error_exit;
+
+			data->when_enabled = get_jiffies_64() +
+				msecs_to_jiffies(BH1780GLI_ACC_TIME);
+		} else
+			/* Power down device */
+			(void) bh1780gli_write_data(client,
+						    BH1780GLI_REG_COMMAND,
+						    BH1780GLI_CMD_POWER_DOWN);
+	}
+	data->active = val;
+	mutex_unlock(&data->lock);
+	return strnlen(buf, PAGE_SIZE);
+error_exit:
+	mutex_unlock(&data->lock);
+	return ret;
+
+}
+
+
 static DEVICE_ATTR(illuminance, S_IRUGO, bh1780gli_show_illuminance, NULL);
+static DEVICE_ATTR(illuminance_activate, 0666,
+				   bh1780gli_activate_get,
+				   bh1780gli_activate_set);
+
 
 static struct attribute *bh1780gli_attributes[] = {
 	&dev_attr_illuminance.attr,
+	&dev_attr_illuminance_activate.attr,
 	NULL
 };
 
