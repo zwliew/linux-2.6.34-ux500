@@ -67,11 +67,11 @@ static DEFINE_MUTEX(ab8500_cc_lock);
  * struct ab8500_bm_device_info - device information
  * @dev:				Pointer to the structure device
  * @voltage_uV:				Battery voltage in uV
- * @current_uA:				Battery current in uA
  * @temp_C:				Battery temperature
  * @charge_status:			Charger status(charging, discharging)
  * @bk_battery_charge_status:		Backup battery charger status
  * @usb_ip_cur_lvl:			USB charger i/p current level
+ * @maintenance_chg:			flag for enabling/disabling maintenance charging
  * @bat:		Structure that holds the battery properties
  * @bk_bat:		Structure that holds the backup battery properties
  * @ac:			Structure that holds the ac/mains properties
@@ -90,7 +90,6 @@ static DEFINE_MUTEX(ab8500_cc_lock);
 struct ab8500_bm_device_info {
 	struct device *dev;
 	int voltage_uV;
-	int current_uA;
 	int temp_C;
 	int inst_current;
 	int avg_current;
@@ -98,6 +97,7 @@ struct ab8500_bm_device_info {
 	int charge_status;
 	int bk_battery_charge_status;
 	int usb_ip_cur_lvl;
+	bool maintenance_chg;
 	struct power_supply bat;
 	struct power_supply bk_bat;
 	struct power_supply ac;
@@ -1331,21 +1331,6 @@ static int ab8500_bm_temperature(struct ab8500_bm_device_info *di)
 }
 
 /**
- * ab8500_bm_current() - get battery current
- * @di:		pointer to the ab8500_bm_device_info structure
- *
- * This function returns the battery current that is obtained
- * from the gas guage.
- **/
-static int ab8500_bm_current(struct ab8500_bm_device_info *di)
-{
-	/* TODO: Batt current conversion is not available
-	 * from GPADC, gas guage to be used for this
-	 */
-	return 1;
-}
-
-/**
  * ab8500_bm_battery_read_status() - get the battery parameters
  * @di:		pointer to the ab8500_bm_device_info structure
  *
@@ -1360,7 +1345,6 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 
 	di->temp_C = ab8500_bm_temperature(di);
 	di->voltage_uV = ab8500_bm_voltage(di);
-	di->current_uA = ab8500_bm_current(di);
 
 	get_gas_gauge_capacity(&di->capacity);
 	di->inst_current = ab8500_bm_inst_current(di);
@@ -1372,22 +1356,23 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 	 * current has to be in the range of 50-200mA
 	 */
 	if (di->charge_status == POWER_SUPPLY_STATUS_CHARGING) {
-		if (di->voltage_uV > (pdata->termination_vol - 100) && di->voltage_uV < pdata->termination_vol) {
+		if (di->voltage_uV > (pdata->termination_vol - 25) && di->voltage_uV < pdata->termination_vol
+				&& !di->maintenance_chg) {
 			/* Check if charging is in constant voltage */
 			val =
 			    ab8500_read(AB8500_CHARGER, AB8500_CH_STATUS1_REG);
 			val_usb =
 			    ab8500_read(AB8500_CHARGER, AB8500_CH_USBCH_STAT1_REG);
+			dev_dbg(di->dev, "termination voltage reached\n");
 			if (((val | MAIN_CH_CV_ON) == val) || ((val_usb | USB_CH_CV_ON) == val_usb)) {
 				/* Check for termination current */
-				/* TODO: Need to verify this from for valid
-				 * units from the gas guage
-				 */
-				if (di->current_uA > MIN_TERMINATION_CUR
-				    && di->current_uA < MAX_TERMINATION_CUR) {
+				dev_dbg(di->dev, "in constant voltage\n");
+				if (di->inst_current > MIN_TERMINATION_CUR
+				    && di->inst_current < MAX_TERMINATION_CUR) {
 					/* TODO: Revisit need to use
 					 * ab8500_bm_status()
 					 */
+					dev_dbg(di->dev, "current reduced and in range >5<200mA\n");
 					status = ab8500_bm_charger_presence(di);
 					if ((status ==
 					    (AC_PW_CONN + USB_PW_CONN))
@@ -1399,6 +1384,8 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 						    ab8500_bm_usb_en(di, false);
 					di->charge_status =
 					    POWER_SUPPLY_STATUS_FULL;
+					di->maintenance_chg = true;
+					dev_dbg(di->dev, "Battery full charging stopped\n");
 				}
 				if (ret < 0)
 					dev_dbg(di->dev,
@@ -1439,8 +1426,9 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 	 * function ab8500_bm_battery_read_status()
 	 */
 	status = ab8500_bm_charger_presence(di);
-	if ((di->voltage_uV < (pdata->termination_vol - 100)) && status &&
-			(di->charge_status != POWER_SUPPLY_STATUS_CHARGING)) {
+	if ((di->voltage_uV < (pdata->termination_vol - 200)) && status &&
+			di->maintenance_chg) {
+		dev_dbg(di->dev, "welcome to maintenance charging\n");
 		if ((status == (AC_PW_CONN + USB_PW_CONN))
 				|| (status == AC_PW_CONN))
 			ret = ab8500_bm_ac_en(di, true);
@@ -1448,6 +1436,7 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 			ret = ab8500_bm_usb_en(di, true);
 		if (ret < 0)
 			dev_dbg(di->dev, "Maintenance charging: Enabling charging failed\n");
+		di->maintenance_chg = false;
 	}
 }
 
@@ -1698,6 +1687,7 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			if (ret < 0)
 				dev_vdbg(di->dev, "failed to enable LED\n");
 		}
+		dev_dbg(di->dev, "Enabled AC charging\n");
 		/* Schedule delayed work to re-kick watchdog */
 		queue_delayed_work(di->ab8500_bm_wd_kick_wq,
 				   &di->ab8500_bm_watchdog_work, 300);
@@ -1717,6 +1707,7 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 						 "failed to disable LED\n");
 			}
 		}
+		dev_dbg(di->dev, "Disabled AC charging\n");
 		/* Schedule delayed work to re-kick watchdog */
 		cancel_delayed_work(&di->ab8500_bm_watchdog_work);
 	}
@@ -1819,6 +1810,7 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 			if (ret < 0)
 				dev_vdbg(di->dev, "failed to enable LED\n");
 		}
+		dev_dbg(di->dev, "Enabled USB charging\n");
 		/* Schedule delayed work to re-kick watchdog */
 		queue_delayed_work(di->ab8500_bm_wd_kick_wq,
 				   &di->ab8500_bm_watchdog_work, 300);
@@ -1839,6 +1831,7 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 						 "failed to disable LED\n");
 			}
 		}
+		dev_dbg(di->dev, "Disabled USB charging\n");
 		/* Schedule delayed work to re-kick watchdog */
 		cancel_delayed_work(&di->ab8500_bm_watchdog_work);
 	}
@@ -2347,6 +2340,7 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	/* get the paltform data i.e the battery information */
 	pdata = pdev->dev.platform_data;
 
+	di->maintenance_chg = false;
 	/* Main Battery */
 	di->dev = &pdev->dev;
 	di->bat.name = "ab8500_bm_battery";

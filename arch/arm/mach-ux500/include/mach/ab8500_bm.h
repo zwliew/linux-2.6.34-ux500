@@ -56,8 +56,8 @@ struct ab8500_bm_platform_data {
 /* Battery OVV */
 #define AB8500_BM_BATTOVV_4P75		4750000
 #define AB8500_BM_BATTOVV_3P7		3700000
-#define MIN_TERMINATION_CUR		5000
-#define MAX_TERMINATION_CUR		20000
+#define MIN_TERMINATION_CUR		5
+#define MAX_TERMINATION_CUR		200
 
 /* Check the BattOvv Threshold */
 #define BATT_OVV_TH			0x01
