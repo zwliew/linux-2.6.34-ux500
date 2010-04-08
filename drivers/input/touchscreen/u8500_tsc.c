@@ -61,7 +61,6 @@ struct u8500_tsc_data *pdev_data;
 static ssize_t touchp_attr_show(struct kobject *kobj,
 				struct attribute *attr, char *buf)
 {
-	int error = 0;
 	u8 timeout = 0;
 	u8 sys_th_on = 0;
 	u8 sys_th_off = 0;
@@ -76,7 +75,7 @@ static ssize_t touchp_attr_show(struct kobject *kobj,
 		sys_th_off = th_off;
 		sprintf(buf, "%d\n", sys_th_off);
 	}
-	return error == 0 ? strlen(buf) : 0;
+	return strlen(buf);
 }
 static ssize_t touchp_attr_store(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t len)
@@ -1439,13 +1438,15 @@ static int __exit tp_remove(struct i2c_client *client)
 
 	if (data->touchp_tsk)
 		kthread_stop(data->touchp_tsk);
-	if (data->chip) {
+	if (data->chip != NULL) {
 		data->chip->irq_exit();
 		data->chip->pirq_dis();
 		data->chip->cs_dis();
 	}
-	if (data->href_v1_flag)
-		gpio_free(data->chip->irq);
+	if (data->href_v1_flag != 0) {
+		if (data->chip != NULL)
+			gpio_free(data->chip->irq);
+	}
 	input_unregister_device(data->pin_dev);
 	input_free_device(data->pin_dev);
 	kfree(data);
