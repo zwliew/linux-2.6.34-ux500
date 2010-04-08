@@ -1382,54 +1382,55 @@ int prcmu_i2c_read(u8 reg, u8 slave)
 	uint8_t i2c_status;
 	uint8_t i2c_val;
 
-	dbg_printk("\nprcmu_4500_i2c_read: \
-	  bank=%x;reg=%x;\n", reg, slave);
+	dbg_printk("\nprcmu_4500_i2c_read:bank=%x;reg=%x;\n",
+			reg, slave);
 
-	/* code related to FW 1_0_0_16 */
-	writeb(I2CREAD, PRCM_REQ_MB5_I2COPTYPE);
-	writeb(reg, PRCM_REQ_MB5_I2CREG);
+	/* prepare the data for mailbox 5 */
+	writeb((reg << 1) | I2CWRITE, PRCM_REQ_MB5_I2COPTYPE_REG);
+	writeb((1 << 3) | 0x0, PRCM_REQ_MB5_BIT_FIELDS);
 	writeb(slave, PRCM_REQ_MB5_I2CSLAVE);
 	writeb(0, PRCM_REQ_MB5_I2CVAL);
 
-	/* clear any previous ack */
-	writel(0, PRCM_ACK_MB5);
+	if (cpu_is_u8500v11()) {
+		dbg_printk("\ncpu_is_u8500v11\n");
+		_wait_for_req_complete(REQ_MB5);
+	} else {
+		/* NOTE : due to the I2C workaround, use
+		 *        MB5 for data, MB4 for the header
+		 */
+		/* request I2C workaround header 0x0F */
+		writeb(0x0F, PRCM_MBOX_HEADER_REQ_MB4);
 
-	/* Set an interrupt to XP70 */
-	writel(PRCM_XP70_TRIG_IT17, PRCM_MBOX_CPU_SET);
+		/* we request the mailbox 4 */
+		writel(PRCM_XP70_TRIG_IT14, PRCM_MBOX_CPU_SET);
 
-	dbg_printk("\n readl PRCM_ARM_IT1_VAL =  %d \
-			", readb(PRCM_ARM_IT1_VAL));
-	dbg_printk("\nwaiting at wait queue");
+		/* we wait for ACK mailbox 5 */
+		/* FIXME : regularise this code with mailbox constants */
+		while ((readl(PRCM_ARM_IT1_VAL) & (0x1 << 5)) != (0x1 << 5))
+			cpu_relax();
+	}
 
-
-	/* wait for interrupt */
-	wait_event_interruptible(ack_mb5_queue, \
-	  !(readl(PRCM_MBOX_CPU_VAL) & (PRCM_XP70_TRIG_IT17)));
-
-	dbg_printk("\nAfter wait queue");
+	dbg_printk("\n readl PRCM_ARM_IT1_VAL =  %d",
+			readb(PRCM_ARM_IT1_VAL));
 
 	/* retrieve values */
-	dbg_printk("ack-mb5:transfer status = %x\n", \
-			readb(PRCM_ACK_MB5 + 0x1));
-	dbg_printk("ack-mb5:reg_add = %x\n", readb(PRCM_ACK_MB5 + 0x2));
-	dbg_printk("ack-mb5:slave_add = %x\n", \
-			readb(PRCM_ACK_MB5 + 0x2));
-	dbg_printk("ack-mb5:reg_val = %d\n", readb(PRCM_ACK_MB5 + 0x3));
+	dbg_printk("ack-mb5:transfer status = %x\n",
+			readb(PRCM_ACK_MB5_STATUS));
+	dbg_printk("ack-mb5:reg bank = %x\n", readb(PRCM_ACK_MB5) >> 1);
+	dbg_printk("ack-mb5:slave_add = %x\n",
+			readb(PRCM_ACK_MB5_SLAVE));
+	dbg_printk("ack-mb5:reg_val = %d\n", readb(PRCM_ACK_MB5_VAL));
 
 
-	/* return ack_mb5.req_field.reg_val for a
-	   req->req_field.I2C_op == I2C_READ */
-
-	i2c_status = readb(PRCM_ACK_MB5 + 0x1);
-	i2c_val = readb(PRCM_ACK_MB5 + 0x3);
-
+	i2c_status = readb(PRCM_ACK_MB5_STATUS);
+	i2c_val = readb(PRCM_ACK_MB5_VAL);
 
 	if (i2c_status == I2C_RD_OK)
 		return i2c_val;
 	else {
 
-		printk(KERN_INFO "prcmu_request_mailbox5:read return status = \
-				%d\n", i2c_status);
+		printk(KERN_INFO "prcmu_i2c_read:read return status= %d\n",
+				i2c_status);
 		return -EINVAL;
 	}
 
@@ -1451,36 +1452,50 @@ int prcmu_i2c_write(u8 reg, u8 slave, u8 reg_data)
 {
 	uint8_t i2c_status;
 
-	/* NOTE : due to the I2C workaround, use
-	 *	  MB5 for data, MB4 for the header
-	 */
-
-	/* request I2C workaround header 0x0F */
-	writeb(0x0F, PRCM_MBOX_HEADER_REQ_MB4);
+	dbg_printk("\nprcmu_4500_i2c_write:bank=%x;reg=%x;\n",
+			reg, slave);
 
 	/* prepare the data for mailbox 5 */
-
-	/* register bank and I2C command */
-	writeb((reg << 1) | I2CWRITE, PRCM_REQ_MB5 + 0x0);
-	/* APE_I2C comm. specifics */
-	writeb((1 << 3) | 0x0, PRCM_REQ_MB5 + 0x1);
+	writeb((reg << 1) | I2CWRITE, PRCM_REQ_MB5_I2COPTYPE_REG);
+	writeb((1 << 3) | 0x0, PRCM_REQ_MB5_BIT_FIELDS);
 	writeb(slave, PRCM_REQ_MB5_I2CSLAVE);
 	writeb(reg_data, PRCM_REQ_MB5_I2CVAL);
 
-	/* we request the mailbox 4 */
-	writel(PRCM_XP70_TRIG_IT14, PRCM_MBOX_CPU_SET);
+	if (cpu_is_u8500v11()) {
+		dbg_printk("\ncpu_is_u8500v11\n");
+		_wait_for_req_complete(REQ_MB5);
+	} else {
 
-	/* we wait for ACK mailbox 5 */
-	/* FIXME : regularise this code with mailbox constants */
-	while ((readl(PRCM_ARM_IT1_VAL) & (0x1 << 5)) != (0x1 << 5))
-		cpu_relax();
+		/* NOTE : due to the I2C workaround, use
+		 *	  MB5 for data, MB4 for the header
+		 */
+		/* request I2C workaround header 0x0F */
+		writeb(0x0F, PRCM_MBOX_HEADER_REQ_MB4);
 
-	/* we clear the ACK mailbox 5 interrupt */
-	writel((0x1 << 5), PRCM_ARM_IT1_CLEAR);
+		/* we request the mailbox 4 */
+		writel(PRCM_XP70_TRIG_IT14, PRCM_MBOX_CPU_SET);
 
-	i2c_status = readb(PRCM_ACK_MB5 + 0x1);
+		/* we wait for ACK mailbox 5 */
+		/* FIXME : regularise this code with mailbox constants */
+		while ((readl(PRCM_ARM_IT1_VAL) & (0x1 << 5)) != (0x1 << 5))
+			cpu_relax();
+	}
+
+	dbg_printk("\n readl PRCM_ARM_IT1_VAL =  %d",
+			readb(PRCM_ARM_IT1_VAL));
+
+	/* retrieve values */
+	dbg_printk("ack-mb5:transfer status = %x\n",
+			readb(PRCM_ACK_MB5_STATUS));
+	dbg_printk("ack-mb5:reg bank = %x\n", readb(PRCM_ACK_MB5) >> 1);
+	dbg_printk("ack-mb5:slave_add = %x\n",
+			readb(PRCM_ACK_MB5_SLAVE));
+	dbg_printk("ack-mb5:reg_val = %d\n", readb(PRCM_ACK_MB5_VAL));
+
+	i2c_status = readb(PRCM_ACK_MB5_STATUS);
+	dbg_printk("\ni2c_status = %x\n", i2c_status);
 	if (i2c_status == I2C_WR_OK)
-		return I2C_WR_OK;
+		return 0;
 	else {
 		printk(KERN_INFO "ape-i2c: i2c_status : 0x%x\n", i2c_status);
 		return -EINVAL;
@@ -1496,13 +1511,13 @@ EXPORT_SYMBOL(prcmu_i2c_get_status);
 
 int prcmu_i2c_get_bank()
 {
-	return readb(PRCM_ACK_MB5_BANK);
+	return readb(PRCM_ACK_MB5);
 }
 EXPORT_SYMBOL(prcmu_i2c_get_bank);
 
 int prcmu_i2c_get_reg()
 {
-	return readb(PRCM_ACK_MB5_REG);
+	return readb(PRCM_ACK_MB5_SLAVE);
 }
 EXPORT_SYMBOL(prcmu_i2c_get_reg);
 
