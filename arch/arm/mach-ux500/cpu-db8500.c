@@ -28,6 +28,7 @@ static struct map_desc u8500_io_desc[] __initdata = {
 	__IO_DEV_DESC(U8500_GPIO3_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_PRCMU_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_PRCMU_TCDM_BASE, SZ_4K),
+	__IO_DEV_DESC(U8500_ASIC_ID_BASE, SZ_4K),
 };
 
 static struct map_desc u8500_ed_io_desc[] __initdata = {
@@ -71,6 +72,12 @@ static void __init u8500_earlydrop_fixup(void)
 	u8500_shrm_device.resource[4].end = IRQ_CA_MSG_PEND_NOTIFICATION_0_ED;
 	u8500_shrm_device.resource[5].start = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
 	u8500_shrm_device.resource[5].end = IRQ_CA_MSG_PEND_NOTIFICATION_1_ED;
+}
+
+bool cpu_is_u8500v11(void)
+{
+	void __iomem *asicid = __io_address(U8500_ASIC_ID_BASE) + 0xff4;
+	return cpu_is_u8500() && readl(asicid) == 0x008500A1;
 }
 
 void __init u8500_init_devices(void)

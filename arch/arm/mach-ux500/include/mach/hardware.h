@@ -200,6 +200,12 @@ static inline bool cpu_is_u8500v1(void)
 #endif
 }
 
+#ifdef CONFIG_UX500_SOC_DB8500
+extern bool cpu_is_u8500v11(void);
+#else
+static inline bool cpu_is_u8500v11(void) { return 0; }
+#endif
+
 static inline bool cpu_is_u5500(void)
 {
 #ifdef CONFIG_UX500_SOC_DB5500
