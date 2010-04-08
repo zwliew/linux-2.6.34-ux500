@@ -19,10 +19,46 @@
  */
 extern int __init clk_init(void);
 
+/*PLLSW clk src macros */
+#define PLL_SW_SOC0 0x20
+#define PLL_SW_SOC1 0x40
+#define PLL_SW_DDR 0x80
+
+/*Mode clk src macros */
+#define MODE_NO_CLK 0x0
+#define MODE_CLK32KHZ 0x1
+#define MODE_CLK38_4MHZ 0x2
+#define MODE_PLL_CLK 0x4
+
+#define MAX_CLK_SRC	3
+#define MAX_CLK_SRC_PLL	3
+
+enum clk_pll {
+	SOC0_PLL,
+	SOC1_PLL,
+	DDR_PLL,
+};
+
+enum clk_main {
+	ULP38M4,
+	SYSCLK,
+	CLK32K,
+};
+
+void update_clk_tree(void);
+
+/*CLK38 clk src macros */
+#define CLK38_SRC 0x400
+#define CLK38 0x200
+
 struct clkops {
 	void (*enable) (struct clk *);
 	void (*disable) (struct clk *);
 	unsigned long (*get_rate) (struct clk *);
+};
+
+struct clk_src  {
+ int usage_count;
 };
 
 /**
@@ -87,7 +123,18 @@ struct clk {
 
 	struct clk		*parent_cluster;
 	struct clk		*parent_periph;
+	struct clk    		*clk_src;
+	int			is_clk_src;
 };
+
+#define DEFINE_CLK_SRC(_name)		\
+struct clk clk_##_name = {							\
+		.name		=	#_name,					\
+		.clk_src	=	NULL,					\
+		.is_clk_src	=	1,				\
+		.enabled	=	0						\
+	}
+
 
 #define DEFINE_PRCMU_CLK(_name, _cg_off, _cg_bit, _reg)		\
 struct clk clk_##_name = {					\
