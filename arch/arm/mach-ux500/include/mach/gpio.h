@@ -40,6 +40,11 @@ static inline int irq_to_gpio(unsigned int irq)
 		return -EINVAL;
 }
 
+/* Don't use in new code -- use the plain numbers */
+#define GPIO_LOW	0
+#define GPIO_HIGH	1
+#define GPIO(x)		(x)
+
 /*
  * Alternate Function:
  *  refered in altfun_table to pointout particular altfun to be enabled
