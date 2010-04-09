@@ -80,6 +80,16 @@ static void __clk_enable(struct clk *clk)
 
 		if (clk->ops && clk->ops->enable)
 			clk->ops->enable(clk);
+
+		if (clk->clk_src != NULL) {
+			if (clk->clk_src->is_clk_src == 1) {
+				struct clk *clk_pll_src = (struct clk *)clk->clk_src;
+				if (clk_pll_src->enabled == 0) {
+					clk_pll_src->ops->enable(clk_pll_src);
+				}
+				clk_pll_src->enabled++;
+			}
+		}
 	}
 }
 
@@ -106,6 +116,16 @@ static void __clk_disable(struct clk *clk)
 
 		if (clk->parent_cluster)
 			__clk_disable(clk->parent_cluster);
+
+		if (clk->clk_src != NULL) {
+			if (clk->clk_src->is_clk_src == 1) {
+				struct clk *clk_pll_src = (struct clk *)clk->clk_src;
+				clk_pll_src->enabled--;
+				if (clk_pll_src->enabled == 0) {
+					clk_pll_src->ops->disable(clk_pll_src);
+				}
+			}
+		}
 	}
 }
 
@@ -192,6 +212,21 @@ static struct clkops clk_prcmu_ops = {
 	.disable = clk_prcmu_disable,
 };
 
+static void clk_pllsrc_enable(struct clk *clk)
+{
+	/* To enable pll */
+}
+
+static void clk_pllsrc_disable(struct clk *clk)
+{
+	/* To disable pll */
+}
+
+static struct clkops clk_pll_ops = {
+	.enable = clk_pllsrc_enable,
+	.disable = clk_pllsrc_disable,
+};
+
 static unsigned int clkrst_base[] = {
 	[1] = U8500_CLKRST1_BASE,
 	[2] = U8500_CLKRST2_BASE,
@@ -233,12 +268,12 @@ static struct clk clk_32khz = {
 };
 
 /* CLOCK Source Structures */
-static DEFINE_CLK_SRC(soc0_pll);
-static DEFINE_CLK_SRC(soc1_pll);
-static DEFINE_CLK_SRC(ddr_pll);
-static DEFINE_CLK_SRC(ulp38m4);
-static DEFINE_CLK_SRC(sysclk);
-static DEFINE_CLK_SRC(clk32k);
+static DEFINE_CLK_SRC_PLL(soc0_pll);
+static DEFINE_CLK_SRC_PLL(soc1_pll);
+static DEFINE_CLK_SRC_PLL(ddr_pll);
+static DEFINE_CLK_SRC_MAIN(ulp38m4);
+static DEFINE_CLK_SRC_MAIN(sysclk);
+static DEFINE_CLK_SRC_MAIN(clk32k);
 
 /*
  * PRCMU level clock gating
@@ -461,6 +496,7 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(tvclk,	"U8500-MCDE.3",	"tv"),
 	CLK(lcdclk,	"U8500-MCDE.3",	"lcd"),
 	CLK(b2r2clk,	"U8500-B2R2.0",	NULL),
+
 	/* Register the clock sources */
 	CLK(soc0_pll,	"soc0_pll",	NULL),
 	CLK(soc1_pll,	"soc1_pll",	NULL),
@@ -689,41 +725,38 @@ int __init clk_init(void)
 static LIST_HEAD(clocks);
 static DEFINE_MUTEX(clocks_mutex);
 
-/* Count structure for PLL sources */
-struct clk_src clk_src_pll[MAX_CLK_SRC_PLL] = {
-	{0}, {0}, {0},
-};
-
-/* Count structure for main sources */
-struct clk_src clk_src_main[MAX_CLK_SRC]	=	{
-	{0}, {0}, {0},
-};
-
 static void get_pll_clk_src(struct clk *clk, unsigned int value)
 {
 	if (value & PLL_SW_SOC0) {
 		clk->clk_src = (struct clk *)&clk_soc0_pll;
-		clk_src_pll[SOC0_PLL].usage_count++;
+		if (clk->enabled > 0)
+			clk->clk_src->enabled++;
 	} else if (value & PLL_SW_SOC1) {
 		clk->clk_src = (struct clk *)&clk_soc1_pll;
-		clk_src_pll[SOC1_PLL].usage_count++;
+		if (clk->enabled > 0)
+			clk->clk_src->enabled++;
 	} else if (value & PLL_SW_DDR) {
 		clk->clk_src = (struct clk *)&clk_ddr_pll;
-		clk_src_pll[DDR_PLL].usage_count++;
+		if (clk->enabled > 0)
+			clk->clk_src->enabled++;
 	}
 	return;
 }
+
 static void get_clk38_src(struct clk *clk, unsigned int value)
 {
 	if (value & CLK38_SRC) {
 		clk->clk_src = (struct clk *)&clk_ulp38m4;
-		clk_src_main[ULP38M4].usage_count++;
+		if (clk->enabled > 0)
+			clk->clk_src->enabled++;
 	} else {
 		clk->clk_src = (struct clk *)&clk_sysclk;
-		clk_src_main[SYSCLK].usage_count++;
+		if (clk->enabled > 0)
+			clk->clk_src->enabled++;
 	}
 	return;
 }
+
 static void get_clk_src(struct clk *clk, unsigned int value)
 {
 	unsigned int mode_value;
@@ -733,11 +766,12 @@ static void get_clk_src(struct clk *clk, unsigned int value)
 		get_clk38_src(clk, value);
 	} else {
 		mode_base =
-			(void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + 0x0E8);
+		(void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + 0x0E8);
 		mode_value = readl(mode_base);
 		if (mode_value & MODE_CLK32KHZ) {
 			clk->clk_src = (struct clk *)&clk_clk32k;
-			clk_src_main[CLK32K].usage_count++;
+			if (clk->enabled > 0)
+				clk->clk_src->enabled++;
 		} else if (mode_value & MODE_CLK38_4MHZ) {
 			get_clk38_src(clk, value);
 		} else if (mode_value & MODE_PLL_CLK) {
@@ -747,40 +781,39 @@ static void get_clk_src(struct clk *clk, unsigned int value)
 	}
 	return;
 }
+
+/*
+ * 	This function is called to update the clock tree
+ *	It is called after each vape operating point change
+ */
 void update_clk_tree(void)
 {
 	struct clk *clk;
 	unsigned int val;
-	unsigned int i;
 	void __iomem *addr;
 
-	/*Reset all clock sources usage count*/
-	for (i = 0; i < MAX_CLK_SRC; i++)
-		clk_src_pll[i].usage_count = 0;
+	/* Source clock structure enable count value initialized to zero */
+	clk_clk32k.enabled = 0;
+	clk_ulp38m4.enabled = 0;
+	clk_sysclk.enabled = 0;
+	clk_ddr_pll.enabled = 0;
+	clk_soc0_pll.enabled = 0;
+	clk_soc1_pll.enabled = 0;
 
 	list_for_each_entry(clk, &clocks, list) {
 		/* Figure out its clock source by reading the MODE, yyCLK38,
-		 * yyCLK38SRC and yyCLKPLLSW registers Update the yyCLK/clock
-		 * source relationship
-		 */
+		* yyCLK38SRC and yyCLKPLLSW registers Update the yyCLK/clock
+		* source relationship
+		*/
 		if (clk && !clk->parent_periph && !clk->parent_cluster && !clk->is_clk_src) {
 			addr = __io_address(U8500_PRCMU_BASE) + clk->prcmu_cg_mgt;
 			val = readl(addr);
 			get_clk_src(clk, val);
 		}
 	}
-
-	for (i = 0; i < MAX_CLK_SRC_PLL; i++) {
-		if (clk_src_pll[i].usage_count == 0) {
-			/*TODO: disable the corresponding clk source by calling PRCMU */
-		} else {
-			/*TODO: enable the corresponding clk source by calling PRCMU */
-		}
-	}
 	return;
 }
 EXPORT_SYMBOL(update_clk_tree);
-
 
 static void clk_register(struct clk *clk)
 {
