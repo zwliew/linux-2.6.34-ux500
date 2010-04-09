@@ -1,3 +1,13 @@
+/*
+ * ab8500_bm.c - AB8500 Battery Management Driver
+ *
+ * Copyright (C) 2010 ST-Ericsson SA
+ * Licensed under GPLv2.
+ *
+ * TODO: This file to be replaced by a generic sysfs interface for
+ * ab8500 clients.
+ */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -7,32 +17,32 @@
 #include <linux/kobject.h>
 #include <linux/types.h>
 #include <mach/ab8500.h>
+#include <mach/ab8500_sys.h>
 
 /* Gas Gauge Default values */
 # define NUM_OF_SAMPLES  0x14
-
-
 
 static struct kobject *gauge_kobj;
 static long int samples = NUM_OF_SAMPLES;
 static long int capacity;
 
 
-void get_gas_gauge_capacity(int *value)
+void ab8500_bm_sys_get_gg_capacity(int *value)
 {
 	/* Return capacity to the battery driver */
 	*value = capacity;
-
 }
+EXPORT_SYMBOL(ab8500_bm_sys_get_gg_capacity);
 
-void get_gas_gauge_samples(int *value)
+void ab8500_bm_sys_get_gg_samples(int *value)
 {
 	/* Return number of samples to battery driver */
 	*value = samples;
 }
+EXPORT_SYMBOL(ab8500_bm_sys_get_gg_samples);
 
 static ssize_t gauge_set_gauge_ops(struct kobject *kobj, struct attribute *attr,
-			    char *buf)
+			const char *buf, size_t length)
 {
 	long int status;
 	int ret, flag;
@@ -124,16 +134,22 @@ static struct kobj_type ktype_gauge = {
 
 };
 
-void gauge_sys_init(void)
+void ab8500_bm_sys_deinit(void)
+{
+	kfree(gauge_kobj);
+}
+EXPORT_SYMBOL(ab8500_bm_sys_deinit);
+
+int ab8500_bm_sys_init(void)
 {
 
-	int ret;
+	int ret = 0;
 
 	/* Register  sysfs */
 	gauge_kobj = kzalloc(sizeof(struct kobject), GFP_KERNEL);
-
 	if (gauge_kobj == NULL)
-		ret = -ENOMEM;
+		return -ENOMEM;
+
 	gauge_kobj->ktype = &ktype_gauge;
 	kobject_init(gauge_kobj, gauge_kobj->ktype);
 
@@ -144,7 +160,10 @@ void gauge_sys_init(void)
 	ret = kobject_add(gauge_kobj, NULL, "ab8500_gas_gauge");
 	if (ret)
 		kfree(gauge_kobj);
+	return ret;
 exit:
 	printk(KERN_ERR "kobject failed to set name ");
 	kfree(gauge_kobj);
+	return ret;
 }
+EXPORT_SYMBOL(ab8500_bm_sys_init);

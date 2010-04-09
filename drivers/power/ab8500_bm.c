@@ -21,6 +21,7 @@
 #include <mach/ab8500.h>
 #include <mach/ab8500_bm.h>
 #include <mach/ab8500_gpadc.h>
+#include <mach/ab8500_sys.h>
 
 
 
@@ -68,10 +69,14 @@ static DEFINE_MUTEX(ab8500_cc_lock);
  * @dev:				Pointer to the structure device
  * @voltage_uV:				Battery voltage in uV
  * @temp_C:				Battery temperature
+ * @inst_current:			Battery instantenous current
+ * @avg_current:			Battery average current
+ * @capacity:				Battery capacity
  * @charge_status:			Charger status(charging, discharging)
  * @bk_battery_charge_status:		Backup battery charger status
  * @usb_ip_cur_lvl:			USB charger i/p current level
- * @maintenance_chg:			flag for enabling/disabling maintenance charging
+ * @maintenance_chg:			flag for enabling/disabling
+ * 					 maintenance charging
  * @bat:		Structure that holds the battery properties
  * @bk_bat:		Structure that holds the backup battery properties
  * @ac:			Structure that holds the ac/mains properties
@@ -82,7 +87,11 @@ static DEFINE_MUTEX(ab8500_cc_lock);
  * @ab8500_bm_ac_dis_monitor_work:	Work to disable ac charging
  * @ab8500_bm_usb_en_monitor_work:	Work to enable usb charging
  * @ab8500_bm_usb_dis_monitor_work:	Work to disable usb charging
+ * @ab8500_bm_avg_cur_monitor_work:	Work to monitor the average current
  * @ab8500_bm_wq:			Pointer to work queue-battery mponitor
+ * @ab8500_bm_irq:			Pointer to the work queue-
+ * 					enable/disable chargin from irq
+ * 					handler
  * @ab8500_bm_wd_kick_wq:		Pointer to work queue-rekick watchdog
  * @ab8500_bm_kobject			structure of type kobject
  *
@@ -108,7 +117,7 @@ struct ab8500_bm_device_info {
 	struct work_struct ab8500_bm_ac_dis_monitor_work;
 	struct work_struct ab8500_bm_usb_en_monitor_work;
 	struct work_struct ab8500_bm_usb_dis_monitor_work;
-	struct work_struct ab8500_avg_current_monitor_work;
+	struct work_struct ab8500_bm_avg_cur_monitor_work;
 	struct workqueue_struct *ab8500_bm_wq;
 	struct workqueue_struct *ab8500_bm_irq;
 	struct workqueue_struct *ab8500_bm_wd_kick_wq;
@@ -148,10 +157,6 @@ static enum power_supply_property ab8500_bm_usb_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
-
-extern void gauge_sys_init(void);
-extern void get_gas_gauge_capacity(int *value);
-extern void get_gas_gauge_samples(int *value);
 
 /* Battery specific information */
 static struct ab8500_bm_platform_data *pdata;
@@ -225,7 +230,7 @@ static struct kobj_type ab8500_bm_ktype = {
 
 static void ab8500_bm_sysfs_exit(struct ab8500_bm_device_info *di)
 {
-	kfree(&di->ab8500_bm_kobject);
+	kobject_del(&di->ab8500_bm_kobject);
 }
 
 static int ab8500_bm_sysfs_init(struct ab8500_bm_device_info *di)
@@ -236,7 +241,6 @@ static int ab8500_bm_sysfs_init(struct ab8500_bm_device_info *di)
 						NULL, "ab8500_charger");
 	if (ret < 0) {
 		dev_err(di->dev, "failed to create sysfs entry\n");
-		kfree(&di->ab8500_bm_kobject);
 	}
 	return ret;
 }
@@ -245,7 +249,7 @@ static int ab8500_bm_sysfs_init(struct ab8500_bm_device_info *di)
 
 /**
  * ab8500_bm_detect_usb_type() - get the type of usb connected
- * @di:         pointer to the ab8500_bm_device_info structure
+ * @di:		pointer to the ab8500_bm_device_info structure
  *
  * TODO: Need to remove this function as this data is
  * suppose to come from the USB driver.
@@ -340,10 +344,15 @@ static void ab8500_bm_detect_usb_type(struct ab8500_bm_device_info *di)
 	};
 }
 
-
-/* Enable/disable Gas Gauge, returns negative if  failed */
-
-int ab8500_cc_enable(struct ab8500_bm_device_info *di, int flag)
+/**
+ * ab8500_bm_cc_enable() - enable coulomb counter
+ * @di:		pointer to the ab8500_bm_device_info structure
+ * @flag:	flag to enable/disable
+ *
+ * Enable/Disable coulomb counter.
+ * On failure returns -ve value.
+ **/
+static int ab8500_bm_cc_enable(struct ab8500_bm_device_info *di, int flag)
 {
 	int ret = 0;
 	if (flag) {
@@ -360,18 +369,22 @@ int ab8500_cc_enable(struct ab8500_bm_device_info *di, int flag)
 		if (ret)
 			goto cc_err;
 	}
+	dev_dbg(di->dev, "coulomb counter enabled\n");
 	return ret;
 cc_err:
-	dev_vdbg(di->dev, "CC ENABLED failed\n");
-	return -1;
+	dev_dbg(di->dev, "Enabling coulomb counter failed\n");
+	return ret;
 
 }
 
-/* Gas Gauge - current consumption during one acquisition.
- * Returns postive value on success otherwise negative.
- */
-
-int ab8500_bm_inst_current(struct ab8500_bm_device_info *di)
+/**
+ * ab8500_bm_inst_current() - battery instantenous current
+ * @di:		pointer to the ab8500_bm_device_info structure
+ *
+ * Returns the battery instantenous current else -ve on failure.
+ * This is obtained from the coulomb bounter.
+ **/
+static int ab8500_bm_inst_current(struct ab8500_bm_device_info *di)
 {
 	int ret = 0;
 	s8 low, high;
@@ -422,7 +435,14 @@ int ab8500_bm_inst_current(struct ab8500_bm_device_info *di)
 	return val;
 }
 
-static void read_avg_values_work(struct work_struct *work)
+/**
+ * ab8500_bm_avg_cur_work() - average battery current
+ * @work:	pointer to the work_struct structure
+ *
+ * Updated the average battery current obtained from the
+ * coulomb counter.
+ **/
+static void ab8500_bm_avg_cur_work(struct work_struct *work)
 {
 
 	int val, ret, num_samples;
@@ -430,9 +450,9 @@ static void read_avg_values_work(struct work_struct *work)
 	static int old_average;
 
 	struct ab8500_bm_device_info *di = container_of(work,
-							struct
-							ab8500_bm_device_info,
-							ab8500_avg_current_monitor_work);
+					struct
+					ab8500_bm_device_info,
+					ab8500_bm_avg_cur_monitor_work);
 
 	mutex_lock(&ab8500_cc_lock);
 	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_CTRL, 0x01);
@@ -457,7 +477,7 @@ static void read_avg_values_work(struct work_struct *work)
 	}
 
 	/* Get the number of samples from sysfs */
-	get_gas_gauge_samples(&num_samples);
+	ab8500_bm_sys_get_gg_samples(&num_samples);
 	/* Average Current in mA = (intgrated value * 1627uA) /Number Of samples * 1000)
 	 */
 
@@ -589,18 +609,21 @@ static void ab8500_bm_usb_dis_work(struct work_struct *work)
 	ab8500_bm_battery_update_status(di);
 }
 
-/* callback handler for average current conversion end */
-static void ab8500_cc_ConvEnd_handler (void *_di)
+/**
+ * ab8500_bm_cc_convend_handler() - work to get battery avg current.
+ * @work:	pointer to the work_struct structure
+ *
+ * Work queue function for disabling USB charging
+ **/
+static void ab8500_bm_cc_convend_handler (void *_di)
 {
-
 	struct ab8500_bm_device_info *di = _di;
-	queue_work(di->ab8500_bm_wq, &di->ab8500_avg_current_monitor_work);
-
+	queue_work(di->ab8500_bm_wq, &di->ab8500_bm_avg_cur_monitor_work);
 }
 
 /**
  * ab8500_bm_mainextchnotok_handler()
- * @_di:        void pointer that has to address of ab8500_bm_device_info
+ * @_di:	void pointer that has to address of ab8500_bm_device_info
  *
  * callback handlers  - main charger not OK
  **/
@@ -1056,9 +1079,10 @@ static int ab8500_bm_register_handler(int set, void *_di)
 			dev_vdbg(di->dev,
 				 "failed to set callback handler-usb charger unplug detected\n");
 
-		ret = ab8500_set_callback_handler (NCONV_ACCU, ab8500_cc_ConvEnd_handler, di);
+		/* set callback handlers  - coulomb counter conversion end */
+		ret = ab8500_set_callback_handler (NCONV_ACCU, ab8500_bm_cc_convend_handler, di);
 		if (ret < 0)
-			 dev_vdbg(di->dev, "failed to set Gas gauge conversion end handler\n");
+			 dev_vdbg(di->dev, "failed to set coulomb counter conversion end handler\n");
 	}
 	/* Unregister irq_no and callback handler */
 	else {
@@ -1183,9 +1207,10 @@ static int ab8500_bm_register_handler(int set, void *_di)
 			dev_vdbg(di->dev,
 				"failed to remove callback handler-usb charger unplug detected\n");
 
-		ret = ab8500_remove_callback_handler(NCONV_ACCU, ab8500_cc_ConvEnd_handler);
+		/* remove callback handlers  - coulomb counter conversion end */
+		ret = ab8500_remove_callback_handler(NCONV_ACCU, ab8500_bm_cc_convend_handler);
 		if (ret < 0)
-			dev_vdbg(di->dev, "failed to remove Gas gauge conversion handler\n");
+			dev_vdbg(di->dev, "failed to remove coulomb counter conversion handler\n");
 	}
 
 	return ret;
@@ -1346,7 +1371,7 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 	di->temp_C = ab8500_bm_temperature(di);
 	di->voltage_uV = ab8500_bm_voltage(di);
 
-	get_gas_gauge_capacity(&di->capacity);
+	ab8500_bm_sys_get_gg_capacity(&di->capacity);
 	di->inst_current = ab8500_bm_inst_current(di);
 
 	/* Li-ion batteries gets charged upto 4.2v, hence 4.2v should be one of
@@ -2046,10 +2071,10 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = (di->voltage_uV * 1000);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		val->intval =  di->inst_current;
+		val->intval = (di->inst_current * 1000);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		val->intval = di->avg_current;
+		val->intval = (di->avg_current * 1000);
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		/* TODO: Need to calculate the present energu and update
@@ -2058,25 +2083,26 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = 10000;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		/* This capacity is getting from user space
-		 * if gas gauge algorithm is available */
-		get_gas_gauge_capacity(&di->capacity);
+		/* Get the battery capacity from the gas guage
+		 * if available else use the voltage based
+		 * capacity
+		 */
+		ab8500_bm_sys_get_gg_capacity(&di->capacity);
 		if (0 == di->capacity) {
-
-		if (di->voltage_uV < 2894)
-			val->intval = 5;
-		else if (di->voltage_uV < 3451 && di->voltage_uV > 2894)
-			val->intval = 20;
-		else if (di->voltage_uV < 3702 && di->voltage_uV > 3451)
-			val->intval = 40;
-		else if (di->voltage_uV < 3902 && di->voltage_uV > 3702)
-			val->intval = 50;
-		else if (di->voltage_uV < 3949 && di->voltage_uV > 3902)
-			val->intval = 75;
-		else if (di->voltage_uV > 3949)
-			val->intval = 90;
+			if (di->voltage_uV < 2894)
+				val->intval = 5;
+			else if (di->voltage_uV < 3451 && di->voltage_uV > 2894)
+				val->intval = 20;
+			else if (di->voltage_uV < 3702 && di->voltage_uV > 3451)
+				val->intval = 40;
+			else if (di->voltage_uV < 3902 && di->voltage_uV > 3702)
+				val->intval = 50;
+			else if (di->voltage_uV < 3949 && di->voltage_uV > 3902)
+				val->intval = 75;
+			else if (di->voltage_uV > 3949)
+				val->intval = 90;
 		} else {
-		val->intval = di->capacity;
+			val->intval = di->capacity;
 		}
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
@@ -2267,12 +2293,22 @@ static int __devexit ab8500_bm_remove(struct platform_device *pdev)
 	struct ab8500_bm_device_info *di = platform_get_drvdata(pdev);
 	int ret;
 
+	/* Disable coulomb counter */
+	ret = ab8500_bm_cc_enable(di, false);
+	if (ret)
+		dev_err(&pdev->dev, "failed to disable coulomb counter\n");
+
+	/* Disable AC charging */
 	ret = ab8500_bm_ac_en(di, false);
 	if (ret)
 		dev_err(&pdev->dev, "failed to disable AC charging\n");
+
+	/* Disable USB charging */
 	ret = ab8500_bm_usb_en(di, false);
 	if (ret)
 		dev_err(&pdev->dev, "failed to disable USB charging\n");
+
+	/* Disable interrupts */
 	ret = ab8500_bm_hw_presence_en(di, false);
 	if (ret)
 		dev_err(&pdev->dev,
@@ -2282,6 +2318,12 @@ static int __devexit ab8500_bm_remove(struct platform_device *pdev)
 	ret = ab8500_bm_register_handler(false, NULL);
 	if (ret)
 		dev_err(&pdev->dev, "failed to unregister callback handlers\n");
+
+	/* sysfs interface to enable/disbale charging from user space */
+	ab8500_bm_sysfs_exit(di);
+
+	/* de-initialize the sysfs for gas gauge */
+	ab8500_bm_sys_deinit();
 
 	/* Delete the work queue */
 	destroy_workqueue(di->ab8500_bm_wq);
@@ -2294,8 +2336,6 @@ static int __devexit ab8500_bm_remove(struct platform_device *pdev)
 	power_supply_unregister(&di->bat);
 	platform_set_drvdata(pdev, NULL);
 	kfree(di);
-	/* sysfs interface to enable/disbale charging from user space */
-	ab8500_bm_sysfs_exit(di);
 
 	return 0;
 }
@@ -2382,8 +2422,6 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	di->usb.get_property = ab8500_bm_usb_get_property;
 	di->usb.external_power_changed = NULL;
 
-
-
 	/* Create a work queue for monitoring the battery */
 	di->ab8500_bm_wq = create_singlethread_workqueue("ab8500_bm_wq");
 	if (di->ab8500_bm_wq == NULL) {
@@ -2419,10 +2457,15 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	INIT_WORK(&di->ab8500_bm_ac_dis_monitor_work, ab8500_bm_ac_dis_work);
 	INIT_WORK(&di->ab8500_bm_usb_en_monitor_work, ab8500_bm_usb_en_work);
 	INIT_WORK(&di->ab8500_bm_usb_dis_monitor_work, ab8500_bm_usb_dis_work);
-	INIT_WORK(&di->ab8500_avg_current_monitor_work, read_avg_values_work);
-	ret = ab8500_cc_enable(di, 1);
+
+	/* Init work queue for getting the battery average current */
+	INIT_WORK(&di->ab8500_bm_avg_cur_monitor_work, ab8500_bm_avg_cur_work);
+
+	/* Enable coulomb counter */
+	ret = ab8500_bm_cc_enable(di, true);
 	if (ret)
-		dev_err(&pdev->dev, "failed to enable Gas Gauge\n");
+		dev_err(&pdev->dev, "failed to enable coulomb counter\n");
+
 	/* Enable AC charging */
 	ret = ab8500_bm_ac_en(di, true);
 	if (ret)
@@ -2464,7 +2507,10 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 		goto usb_fail;
 	}
 	/* Initialize Gas gauge sysfs interface */
-	gauge_sys_init();
+	ret = ab8500_bm_sys_init();
+	if (ret)
+		dev_err(&pdev->dev, "failed to initialize sysfs for gas gauge\n");
+
 	/*
 	 * Hardware level detection
 	 * Battery/AC/USB presence detection
