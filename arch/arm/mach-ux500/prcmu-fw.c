@@ -1386,7 +1386,7 @@ int prcmu_i2c_read(u8 reg, u8 slave)
 			reg, slave);
 
 	/* prepare the data for mailbox 5 */
-	writeb((reg << 1) | I2CWRITE, PRCM_REQ_MB5_I2COPTYPE_REG);
+	writeb((reg << 1) | I2CREAD, PRCM_REQ_MB5_I2COPTYPE_REG);
 	writeb((1 << 3) | 0x0, PRCM_REQ_MB5_BIT_FIELDS);
 	writeb(slave, PRCM_REQ_MB5_I2CSLAVE);
 	writeb(0, PRCM_REQ_MB5_I2CVAL);
