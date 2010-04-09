@@ -1580,7 +1580,7 @@ static int ab8500_bm_charger_presence(struct ab8500_bm_device_info *di)
 			ret = USB_PW_CONN;
 	}
 	mutex_unlock(&ab8500_bm_lock);
-	dev_vdbg(di->dev, "Return value of charger presence = %d\n", ret);
+	dev_dbg(di->dev, "Return value of charger presence = %d\n", ret);
 	return ret;
 }
 
@@ -1700,7 +1700,11 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			 * turn off the LED, USB charging is taking place
 			 */
 			ret = ab8500_bm_charger_presence(di);
-			if (ret != USB_PW_CONN) {
+			if ((ret != USB_PW_CONN) &&
+					(ret != (AC_PW_CONN + USB_PW_CONN))) {
+				/* Schedule delayed work to re-kick watchdog */
+				cancel_delayed_work
+					(&di->ab8500_bm_watchdog_work);
 				ret = ab8500_bm_led_en(di, false);
 				if (ret < 0)
 					dev_vdbg(di->dev,
@@ -1708,8 +1712,6 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 			}
 		}
 		dev_dbg(di->dev, "Disabled AC charging\n");
-		/* Schedule delayed work to re-kick watchdog */
-		cancel_delayed_work(&di->ab8500_bm_watchdog_work);
 	}
 	return ret;
 }
@@ -1824,7 +1826,11 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 			 * turn off the LED, AC charging is taking place
 			 */
 			ret = ab8500_bm_charger_presence(di);
-			if (ret != AC_PW_CONN) {
+			if ((ret != AC_PW_CONN) &&
+					(ret != (AC_PW_CONN + USB_PW_CONN))) {
+				/* Schedule delayed work to re-kick watchdog */
+				cancel_delayed_work
+					(&di->ab8500_bm_watchdog_work);
 				ret = ab8500_bm_led_en(di, false);
 				if (ret < 0)
 					dev_vdbg(di->dev,
@@ -1832,8 +1838,6 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 			}
 		}
 		dev_dbg(di->dev, "Disabled USB charging\n");
-		/* Schedule delayed work to re-kick watchdog */
-		cancel_delayed_work(&di->ab8500_bm_watchdog_work);
 	}
 	return ret;
 }
