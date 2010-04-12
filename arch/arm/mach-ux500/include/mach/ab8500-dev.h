@@ -20,11 +20,8 @@ struct ab8500dev_data  {
 	unsigned char	block;
 	unsigned char	addr;
 	unsigned char	data;
-	unsigned char 	int_no;
-	unsigned char	sig_no;
 };
 
 #define AB8500_IOC_MAGIC       'S'
 #define AB8500_GET_REGISTER    _IOWR(AB8500_IOC_MAGIC, 1, struct ab8500dev_data)
 #define AB8500_SET_REGISTER    _IOW(AB8500_IOC_MAGIC, 2, struct ab8500dev_data)
-#define SET_INT_SIGNAL	       _IOW(AB8500_IOC_MAGIC, 3, struct ab8500dev_data)
