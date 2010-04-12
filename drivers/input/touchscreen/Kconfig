@@ -620,6 +620,15 @@ config U8500_TSC
 		bool   "Multi Touch Mode"
 	endchoice
 
+config U8500_TSC_X_FLIP
+	bool "Enable x flip for U8500 touch panel in portrait mode"
+	depends on U8500_TSC && FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+
+config U8500_TSC_Y_FLIP
+	bool "Enable y flip for U8500 touch panel in portrait mode"
+	depends on U8500_TSC && FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+	default y
+
 config U8500_TSC_EXT_CLK_9_6
 	bool "Enable external clock for U8500 touch panel tuning"
 	depends on U8500_TSC

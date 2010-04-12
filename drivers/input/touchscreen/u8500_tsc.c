@@ -240,23 +240,29 @@ void touch_calculation(struct gesture_info *p_gesture_info)
 	y1 = p_gesture_info->pt[0].y;
 
 	x1 = x1 * tmpx / 1000;
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+#if (defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT && defined CONFIG_U8500_TSC_X_FLIP)
 	x1 = X_MAX - x1;
 #endif
 	p_gesture_info->pt[0].x = x1;
 
 	y1 = y1 * tmpy / 1000;
+#if (defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT && defined CONFIG_U8500_TSC_Y_FLIP)
+	y1 = Y_MAX - y1;
+#endif
 	p_gesture_info->pt[0].y = y1;
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 	x2 = p_gesture_info->pt[1].x;
 	x2 = x2 * tmpx / 1000;
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+#if (defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT && defined CONFIG_U8500_TSC_X_FLIP)
 	x2 = X_MAX - x2;
 #endif
 	p_gesture_info->pt[1].x = x2;
 
 	y2 = p_gesture_info->pt[1].y;
 	y2 = y2 * tmpy / 1000;
+#if (defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT && defined CONFIG_U8500_TSC_Y_FLIP)
+	y2 = Y_MAX - y2;
+#endif
 	p_gesture_info->pt[1].y = y2;
 #endif
 }
