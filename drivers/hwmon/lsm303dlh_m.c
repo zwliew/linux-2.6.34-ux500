@@ -97,19 +97,18 @@
 /*
  * LSM303DLH_M magnetometer local data
  */
-
 struct lsm303dlh_m_data{
 	struct i2c_client *client;
 	struct lsm303dlh_platform_data pdata;
-	unsigned long m_open;
 	short gain[3];
 	short ms_delay;
+	unsigned char mode;
 };
 
-static struct lsm303dlh_m_data *ldata;
+static struct lsm303dlh_m_data *file_private;
 
 /* set lsm303dlh magnetometer bandwidth */
-int lsm303dlh_m_set_rate(unsigned char bw)
+int lsm303dlh_m_set_rate(struct lsm303dlh_m_data *ldata, unsigned char bw)
 {
 	unsigned char data = 0;
 	int res;
@@ -151,7 +150,7 @@ int lsm303dlh_m_set_rate(unsigned char bw)
 }
 
 /* read selected bandwidth from lsm303dlh_mag */
-int lsm303dlh_m_get_bandwidth(unsigned char *bw)
+int lsm303dlh_m_get_bandwidth(struct lsm303dlh_m_data *ldata, unsigned char *bw)
 {
 	unsigned char data;
 
@@ -163,7 +162,8 @@ int lsm303dlh_m_get_bandwidth(unsigned char *bw)
 }
 
 /*  i2c read routine for lsm303dlh magnetometer */
-static int lsm303dlh_m_one_axis(unsigned char reg_addr,
+static int lsm303dlh_m_one_axis(struct lsm303dlh_m_data *ldata,
+				unsigned char reg_addr,
 				u8 negative,
 				short *axis_data)
 {
@@ -196,6 +196,7 @@ ssize_t lsm303dlh_m_read(struct file *filp, char __user *buf, size_t count,
 {
 	int res;
 	short xyz_data[3];
+	struct lsm303dlh_m_data *ldata = filp->private_data;
 
 	if (count < sizeof(xyz_data))
 		return -EINVAL;
@@ -213,17 +214,17 @@ ssize_t lsm303dlh_m_read(struct file *filp, char __user *buf, size_t count,
 			return -EINTR;
 	}
 
-	res = lsm303dlh_m_one_axis(OUT_X_M, ldata->pdata.negative_x,
+	res = lsm303dlh_m_one_axis(ldata, OUT_X_M, ldata->pdata.negative_x,
 		&xyz_data[ldata->pdata.axis_map_x]);
 	if (res != 0)
 		return -EINVAL;
 
-	res = lsm303dlh_m_one_axis(OUT_Y_M, ldata->pdata.negative_y,
+	res = lsm303dlh_m_one_axis(ldata, OUT_Y_M, ldata->pdata.negative_y,
 		&xyz_data[ldata->pdata.axis_map_y]);
 	if (res != 0)
 		return -EINVAL;
 
-	res = lsm303dlh_m_one_axis(OUT_Z_M, ldata->pdata.negative_z,
+	res = lsm303dlh_m_one_axis(ldata, OUT_Z_M, ldata->pdata.negative_z,
 		&xyz_data[ldata->pdata.axis_map_z]);
 	if (res != 0)
 		return -EINVAL;
@@ -241,7 +242,7 @@ ssize_t lsm303dlh_m_read(struct file *filp, char __user *buf, size_t count,
 	return sizeof(xyz_data);
 }
 
-int lsm303dlh_m_set_range(unsigned char range)
+int lsm303dlh_m_set_range(struct lsm303dlh_m_data *ldata, unsigned char range)
 {
 	short xy_gain;
 	short z_gain;
@@ -289,16 +290,26 @@ int lsm303dlh_m_set_range(unsigned char range)
 
 }
 
-int lsm303dlh_m_set_mode(unsigned char mode)
+int lsm303dlh_m_set_mode(struct lsm303dlh_m_data *ldata, unsigned char mode)
 {
+	s32 res;
 	mode = (mode << LSM303DLH_M_MR_MD_BIT) & LSM303DLH_M_MR_MD_MASK;
 
-	return i2c_smbus_write_byte_data(ldata->client, MR_REG_M, mode);
+	res = i2c_smbus_write_byte_data(ldata->client, MR_REG_M, mode);
+	if (res < 0)
+		return res;
+
+	ldata->mode = (mode >> LSM303DLH_M_MR_MD_BIT);
+	return 0;
 }
 
 /*  open command for lsm303dlh_m device file  */
 static int lsm303dlh_m_open(struct inode *inode, struct file *filp)
 {
+	struct lsm303dlh_m_data *ldata = file_private;
+
+	filp->private_data = ldata;
+
 	if (ldata->client == NULL) {
 		printk(KERN_ERR"I2C driver not install\n");
 		return -EINVAL;
@@ -306,31 +317,30 @@ static int lsm303dlh_m_open(struct inode *inode, struct file *filp)
 		dev_err(&ldata->client->dev,
 			"Non Blocking operations are not supported\n");
 		return -EAGAIN;
-	} else if (test_and_set_bit(0, &ldata->m_open)) {
-		return -EBUSY;
 	}
 
-	dev_info(&ldata->client->dev, "lsm303dlh_m has been opened\n");
+	dev_dbg(&ldata->client->dev, "lsm303dlh_m has been opened\n");
 
 	return 0;
 }
 
 /*  release command for lsm303dlh_m device file */
-static int lsm303dlh_m_close(struct inode *inode, struct file *file)
+static int lsm303dlh_m_close(struct inode *inode, struct file *filp)
 {
-	clear_bit(0, &ldata->m_open);
+	struct lsm303dlh_m_data *ldata = filp->private_data;
 
-	dev_info(&ldata->client->dev, "lsm303dlh_m has been closed\n");
+	dev_dbg(&ldata->client->dev, "lsm303dlh_m has been closed\n");
 	return 0;
 }
 
 
 /*  ioctl command for lsm303dlh_m device file */
-static int lsm303dlh_m_ioctl(struct inode *inode, struct file *file,
+static int lsm303dlh_m_ioctl(struct inode *inode, struct file *filp,
 			       unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
 	unsigned char data[6];
+	struct lsm303dlh_m_data *ldata = filp->private_data;
 
 	/* check lsm303dlh_m_client */
 	if (ldata->client == NULL) {
@@ -346,7 +356,7 @@ static int lsm303dlh_m_ioctl(struct inode *inode, struct file *file,
 			dev_err(&ldata->client->dev, "copy_from_user error\n");
 			return -EFAULT;
 		}
-		err = lsm303dlh_m_set_range(*data);
+		err = lsm303dlh_m_set_range(ldata, *data);
 		return err;
 
 	case LSM303DLH_M_SET_RATE:
@@ -354,7 +364,7 @@ static int lsm303dlh_m_ioctl(struct inode *inode, struct file *file,
 			dev_err(&ldata->client->dev, "copy_from_user error\n");
 			return -EFAULT;
 		}
-		err = lsm303dlh_m_set_rate(*data);
+		err = lsm303dlh_m_set_rate(ldata, *data);
 		return err;
 
 	case LSM303DLH_M_SET_MODE:
@@ -362,12 +372,20 @@ static int lsm303dlh_m_ioctl(struct inode *inode, struct file *file,
 			dev_err(&ldata->client->dev, "copy_from_user error\n");
 			return -EFAULT;
 		}
-		err = lsm303dlh_m_set_mode(*data);
+		err = lsm303dlh_m_set_mode(ldata, *data);
 		return err;
 
 	case LSM303DLH_M_GET_GAIN:
 		if (copy_to_user((unsigned char *)arg,
 			ldata->gain, sizeof(ldata->gain)) != 0) {
+			dev_err(&ldata->client->dev, "copy_to_user error\n");
+			return -EFAULT;
+		}
+		return 0;
+
+	case LSM303DLH_M_GET_MODE:
+		if (copy_to_user((unsigned char *)arg,
+			&ldata->mode, sizeof(ldata->mode)) != 0) {
 			dev_err(&ldata->client->dev, "copy_to_user error\n");
 			return -EFAULT;
 		}
@@ -427,6 +445,7 @@ int lsm303dlh_m_probe(struct i2c_client *client,
 {
 	int err = 0;
 	int tempvalue;
+	struct lsm303dlh_m_data *ldata;
 
 	if (client->dev.platform_data == NULL) {
 		dev_err(&client->dev, "platform data is NULL. exiting.\n");
@@ -456,10 +475,14 @@ int lsm303dlh_m_probe(struct i2c_client *client,
 		goto exit;
 	}
 
+	file_private = ldata;
+
 	/* Initialize gain by 1 to avoid any divided by 0 errors */
 	ldata->gain[0] = 1;
 	ldata->gain[1] = 1;
 	ldata->gain[2] = 1;
+
+	ldata->mode = LSM303DLH_M_MODE_SLEEP;
 
 	i2c_set_clientdata(client, ldata);
 	ldata->client = client;
@@ -519,18 +542,29 @@ static int lsm303dlh_m_remove(struct i2c_client *client)
 #ifdef CONFIG_PM
 static int lsm303dlh_m_suspend(struct i2c_client *client, pm_message_t state)
 {
+	s32 reg_data;
+	struct lsm303dlh_m_data *ldata = i2c_get_clientdata(client);
+
 	dev_info(&client->dev, "lsm303dlh_m_suspend\n");
 
-	lsm303dlh_m_set_mode(LSM303DLH_M_MODE_SLEEP);
+	reg_data = i2c_smbus_read_byte_data(ldata->client, CRA_REG_M);
+	if (reg_data < 0)
+		return reg_data;
+
+	ldata->mode = (reg_data & 0xFF);
+
+	lsm303dlh_m_set_mode(ldata, LSM303DLH_M_MODE_SLEEP);
 
 	return 0;
 }
 
 static int lsm303dlh_m_resume(struct i2c_client *client)
 {
+	struct lsm303dlh_m_data *ldata = i2c_get_clientdata(client);
+
 	dev_info(&client->dev, "lsm303dlh_m_resume\n");
 
-	lsm303dlh_m_set_mode(LSM303DLH_M_MODE_CONTINUOUS);
+	lsm303dlh_m_set_mode(ldata, ldata->mode);
 
 	return 0;
 }

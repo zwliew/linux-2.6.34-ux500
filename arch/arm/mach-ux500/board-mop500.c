@@ -392,6 +392,22 @@ static struct tp_device tsc_plat_device = {
 };
 #endif
 
+/*  Portrait */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+
+static struct lsm303dlh_platform_data __initdata lsm303dlh_pdata = {
+        .register_irq = NULL,
+        .free_irq = NULL,
+        .axis_map_x = 0, /* Axis map for HREF ED, HREF v1 and mop500 */
+        .axis_map_y = 1,
+        .axis_map_z = 2,
+        .negative_x = 0,
+        .negative_y = 0,
+        .negative_z = 0,
+};
+
+#else /* Landsacpe */
+
 static struct lsm303dlh_platform_data __initdata lsm303dlh_pdata = {
 	.register_irq = NULL,
 	.free_irq = NULL,
@@ -402,6 +418,7 @@ static struct lsm303dlh_platform_data __initdata lsm303dlh_pdata = {
 	.negative_y = 0,
 	.negative_z = 0,
 };
+#endif
 
 static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
 	{

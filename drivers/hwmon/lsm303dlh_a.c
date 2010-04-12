@@ -124,21 +124,21 @@ struct lsm303dlh_a_data {
 	struct lsm303dlh_platform_data pdata;
 	struct input_dev *input_dev;
 	struct work_struct work;
-	unsigned long a_open;
 	u8 shift_adj;
 	u8 ctrl_1;
 	u8 mode;
 	u8 rate;
 	short ms;
+	atomic_t user_count;
 #ifndef A_USE_INT
 	struct task_struct *kthread;
 #endif
 };
 
-static struct lsm303dlh_a_data *ldata;
+static struct lsm303dlh_a_data *file_private;
 
 /* set lsm303dlh accelerometer bandwidth */
-int lsm303dlh_a_set_rate(unsigned char bw)
+int lsm303dlh_a_set_rate(struct lsm303dlh_a_data *ldata, unsigned char bw)
 {
 	unsigned char data;
 
@@ -151,7 +151,7 @@ int lsm303dlh_a_set_rate(unsigned char bw)
 }
 
 /* read selected bandwidth from lsm303dlh_acc */
-int lsm303dlh_a_get_bandwidth(unsigned char *bw)
+int lsm303dlh_a_get_bandwidth(struct lsm303dlh_a_data *ldata, unsigned char *bw)
 {
 	unsigned char data;
 
@@ -167,7 +167,7 @@ static int lsm303dlh_a_kthread(void *data);
 #endif
 
 
-int lsm303dlh_a_set_mode(unsigned char mode)
+int lsm303dlh_a_set_mode(struct lsm303dlh_a_data *ldata, unsigned char mode)
 {
 	unsigned char data;
 	int res;
@@ -185,7 +185,7 @@ int lsm303dlh_a_set_mode(unsigned char mode)
 #ifndef A_USE_INT
 	if (mode) {
 		if (!ldata->kthread) {
-			ldata->kthread = kthread_run(lsm303dlh_a_kthread, NULL,
+			ldata->kthread = kthread_run(lsm303dlh_a_kthread, ldata,
 				"klsm303dlh_a");
 			if (IS_ERR(ldata->kthread))
 				return PTR_ERR(ldata->kthread);
@@ -201,7 +201,7 @@ int lsm303dlh_a_set_mode(unsigned char mode)
 	return 0;
 }
 
-int lsm303dlh_a_set_range(unsigned char range)
+int lsm303dlh_a_set_range(struct lsm303dlh_a_data *ldata, unsigned char range)
 {
 	switch (range) {
 	case LSM303DLH_A_RANGE_2G:
@@ -223,9 +223,10 @@ int lsm303dlh_a_set_range(unsigned char range)
 }
 
 /*  i2c read routine for lsm303dlh accelerometer */
-static char lsm303dlh_a_i2c_read(unsigned char reg_addr,
-				   unsigned char *data,
-				   unsigned char len)
+static char lsm303dlh_a_i2c_read(struct lsm303dlh_a_data *ldata,
+			unsigned char reg_addr,
+			unsigned char *data,
+			unsigned char len)
 {
 	int res;
 	int i = 0;
@@ -245,7 +246,8 @@ static char lsm303dlh_a_i2c_read(unsigned char reg_addr,
 }
 
 /* X,Y and Z-axis acceleration data readout */
-int lsm303dlh_a_read_xyz(struct lsm303dlh_a_t *data)
+int lsm303dlh_a_read_xyz(struct lsm303dlh_a_data *ldata,
+				struct lsm303dlh_a_t *data)
 {
 	int res;
 	unsigned char acc_data[6];
@@ -257,7 +259,7 @@ int lsm303dlh_a_read_xyz(struct lsm303dlh_a_t *data)
 		return -EFAULT;
 	}
 
-	res = lsm303dlh_a_i2c_read(AXISDATA_REG, &acc_data[0], 6);
+	res = lsm303dlh_a_i2c_read(ldata, AXISDATA_REG, &acc_data[0], 6);
 
 	if (res >= 0) {
 		hw_d[0] = (short) (((acc_data[1]) << 8) | acc_data[0]);
@@ -283,15 +285,18 @@ int lsm303dlh_a_read_xyz(struct lsm303dlh_a_t *data)
 }
 
 /*  open command for lsm303dlh_a device file  */
-static int lsm303dlh_a_open(struct inode *inode, struct file *file)
+static int lsm303dlh_a_open(struct inode *inode, struct file *filp)
 {
+	struct lsm303dlh_a_data *ldata = file_private;
+
+	filp->private_data = ldata;
+
 	if (ldata->client == NULL) {
 		printk(KERN_ERR"I2C driver not install\n");
 		return -EINVAL;
 	}
 
-	if (test_and_set_bit(0, &ldata->a_open))
-		return -EBUSY;
+	atomic_inc(&ldata->user_count);
 
 	dev_dbg(&ldata->client->dev, "lsm303dlh_a has been opened\n");
 
@@ -299,16 +304,19 @@ static int lsm303dlh_a_open(struct inode *inode, struct file *file)
 }
 
 /*  release command for lsm303dlh_a device file */
-static int lsm303dlh_a_close(struct inode *inode, struct file *file)
+static int lsm303dlh_a_close(struct inode *inode, struct file *filp)
 {
+	struct lsm303dlh_a_data *ldata = filp->private_data;
+	int res;
+
+	res = atomic_dec_and_test(&ldata->user_count);
+
 #ifndef A_USE_INT
-	if (ldata->kthread) {
+	if ((res) && (ldata->kthread)) {
 		kthread_stop(ldata->kthread);
 		ldata->kthread = NULL;
 	}
 #endif
-
-	clear_bit(0, &ldata->a_open);
 
 	dev_dbg(&ldata->client->dev, "lsm303dlh_a has been closed\n");
 
@@ -316,11 +324,12 @@ static int lsm303dlh_a_close(struct inode *inode, struct file *file)
 }
 
 /*  ioctl command for lsm303dlh_a device file */
-static int lsm303dlh_a_ioctl(struct inode *inode, struct file *file,
+static int lsm303dlh_a_ioctl(struct inode *inode, struct file *filp,
 			       unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
-	unsigned char data[6];
+	unsigned char buf[1];
+	struct lsm303dlh_a_data *ldata = filp->private_data;
 
 	/* check lsm303dlh_a_client */
 	if (ldata->client == NULL) {
@@ -333,29 +342,37 @@ static int lsm303dlh_a_ioctl(struct inode *inode, struct file *file,
 	switch (cmd) {
 
 	case LSM303DLH_A_SET_RANGE:
-		if (copy_from_user(data, (unsigned char *)arg, 1) != 0) {
+		if (copy_from_user(buf, (unsigned char *)arg, 1) != 0) {
 			dev_err(&ldata->client->dev, "copy_from_user error\n");
 			return -EFAULT;
 		}
-		err = lsm303dlh_a_set_range(*data);
+		err = lsm303dlh_a_set_range(ldata, buf[0]);
 		return err;
 
 	case LSM303DLH_A_SET_MODE:
-		if (copy_from_user(data, (unsigned char *)arg, 1) != 0) {
+		if (copy_from_user(buf, (unsigned char *)arg, 1) != 0) {
 			dev_err(&ldata->client->dev, "copy_from_user error\n");
 			return -EFAULT;
 		}
-		err = lsm303dlh_a_set_mode(*data);
+		err = lsm303dlh_a_set_mode(ldata, buf[0]);
 
 		return err;
 
 	case LSM303DLH_A_SET_RATE:
-		if (copy_from_user(data, (unsigned char *)arg, 1) != 0) {
+		if (copy_from_user(buf, (unsigned char *)arg, 1) != 0) {
 			dev_err(&ldata->client->dev, "copy_from_user error\n");
 			return -EFAULT;
 		}
-		err = lsm303dlh_a_set_rate(*data);
+		err = lsm303dlh_a_set_rate(ldata, buf[0]);
 		return err;
+
+	case LSM303DLH_A_GET_MODE:
+		if (copy_to_user((unsigned char *)arg,
+			&ldata->mode, sizeof(ldata->mode)) != 0) {
+			dev_err(&ldata->client->dev, "copy_to_user error\n");
+			return -EFAULT;
+		}
+		return 0;
 
 	default:
 		return 0;
@@ -363,7 +380,7 @@ static int lsm303dlh_a_ioctl(struct inode *inode, struct file *file,
 }
 
 #ifndef A_USE_INT
-static int lsm303dlh_a_calculate_ms(void)
+static int lsm303dlh_a_calculate_ms(struct lsm303dlh_a_data *ldata)
 {
 	int ms;
 	if (ldata->mode == LSM303DLH_A_MODE_NORMAL) {
@@ -398,16 +415,21 @@ static int lsm303dlh_a_calculate_ms(void)
 #ifdef A_USE_INT
 static void lsm303dlh_a_work_func(struct work_struct *work)
 #else
-static void lsm303dlh_a_work_func(void)
+static void lsm303dlh_a_work_func(struct lsm303dlh_a_data *ldata)
 #endif /* A_USE_INT */
 {
 	int res;
 	struct lsm303dlh_a_t abuf;
 
+#ifdef A_USE_INT
+	struct lsm303dlh_a_data *ldata =
+		container_of(work, struct lsm303dlh_a_data, work);
+#endif
+
 	/* Clear interrupt. */
 	res = i2c_smbus_read_byte_data(ldata->client, INT1_SRC_A_REG);
 
-	res = lsm303dlh_a_read_xyz(&abuf);
+	res = lsm303dlh_a_read_xyz(ldata, &abuf);
 
 	if (res >= 0) {
 		input_report_abs(ldata->input_dev, ABS_X, abuf.x);
@@ -429,10 +451,12 @@ static void lsm303dlh_a_work_func(void)
  */
 static int lsm303dlh_a_kthread(void *data)
 {
+	struct lsm303dlh_a_data *ldata = data;
+
 	while (!kthread_should_stop()) {
-		lsm303dlh_a_work_func();
+		lsm303dlh_a_work_func(ldata);
 		try_to_freeze();
-		msleep_interruptible(lsm303dlh_a_calculate_ms());
+		msleep_interruptible(lsm303dlh_a_calculate_ms(ldata));
 	}
 
 	return 0;
@@ -446,11 +470,11 @@ void lsm303dlh_a_interrupt(void *dev_id)
 static irqreturn_t lsm303dlh_a_interrupt(int irq, void *dev_id)
 #endif /* A_USE_GPIO_EXTENDER_INT */
 {
-	struct lsm303dlh_a_data *adata = dev_id;
+	struct lsm303dlh_a_data *ldata = dev_id;
 #ifndef A_USE_GPIO_EXTENDER_INT
-	disable_irq(adata->client->irq);
+	disable_irq(ldata->client->irq);
 #endif /* A_USE_GPIO_EXTENDER_INT */
-	schedule_work(&adata->work);
+	schedule_work(&ldata->work);
 
 #ifndef A_USE_GPIO_EXTENDER_INT
 	return IRQ_HANDLED;
@@ -510,6 +534,7 @@ static int lsm303dlh_a_probe(struct i2c_client *client,
 {
 	int err = 0;
 	int tempvalue;
+	struct lsm303dlh_a_data *ldata;
 
 	if (client->dev.platform_data == NULL) {
 		dev_err(&client->dev, "platform data is NULL. exiting.\n");
@@ -544,6 +569,8 @@ static int lsm303dlh_a_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, ldata);
 	ldata->client = client;
+
+	file_private = ldata;
 
 	memcpy(&ldata->pdata, client->dev.platform_data, sizeof(ldata->pdata));
 
@@ -647,6 +674,8 @@ exit:
 
 static int lsm303dlh_a_remove(struct i2c_client *client)
 {
+	struct lsm303dlh_a_data *ldata = i2c_get_clientdata(client);
+
 	dev_info(&client->dev, "lsm303dlh_a driver removing\n");
 #ifdef A_USE_INT
 #ifdef A_USE_GPIO_EXTENDER_INT
@@ -668,6 +697,7 @@ static int lsm303dlh_a_remove(struct i2c_client *client)
 static int lsm303dlh_a_suspend(struct i2c_client *client, pm_message_t state)
 {
 	int res;
+	struct lsm303dlh_a_data *ldata = i2c_get_clientdata(client);
 
 	dev_dbg(&client->dev, "lsm303dlh_a_suspend\n");
 
@@ -682,6 +712,8 @@ static int lsm303dlh_a_suspend(struct i2c_client *client, pm_message_t state)
 	if (res)
 		return res;
 
+	ldata->mode = 0;
+
 #if defined(A_USE_INT) && !defined(A_USE_GPIO_EXTENDER_INT)
 	disable_irq(client->irq);
 #endif
@@ -692,6 +724,7 @@ static int lsm303dlh_a_suspend(struct i2c_client *client, pm_message_t state)
 static int lsm303dlh_a_resume(struct i2c_client *client)
 {
 	int res;
+	struct lsm303dlh_a_data *ldata = i2c_get_clientdata(client);
 
 	dev_dbg(&client->dev, "lsm303dlh_a_resume\n");
 
@@ -700,6 +733,9 @@ static int lsm303dlh_a_resume(struct i2c_client *client)
 		ldata->ctrl_1);
 	if (res)
 		return res;
+
+	ldata->mode = ((ldata->ctrl_1 & LSM303DLH_A_CR1_PM_MASK) >>
+		LSM303DLH_A_CR1_PM_BIT);
 
 #if defined(A_USE_INT) && !defined(A_USE_GPIO_EXTENDER_INT)
 	enable_irq(client->irq);
