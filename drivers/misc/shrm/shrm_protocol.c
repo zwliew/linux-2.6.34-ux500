@@ -265,6 +265,10 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 		hrtimer_init(&timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		timer.function = callback;
 	}
+
+	/* enable the PRCM_HostAccess req HIGH as of now*/
+	prcmu_ac_wake_req();
+
 	/* register callback with PRCMU for ca_wake_req */
 	prcmu_set_callback_cawakereq(&shrm_cawake_req_callback);
 
