@@ -114,4 +114,7 @@ struct ab8500_bm_platform_data {
 #define MASK_USB_CHARGER_NOT_OK_F	0x80
 #define UNMASK_USB_CHARGER_NOT_OK_F	0x7F
 
+/* Battery resistance */
+#define NOKIA_BL_5F			0x04
+
 #endif /* _AB8500_BM_H */

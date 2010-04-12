@@ -23,8 +23,6 @@
 #include <mach/ab8500_gpadc.h>
 #include <mach/ab8500_sys.h>
 
-
-
 /* Interrupt */
 #define MAIN_EXT_CH_NOT_OK	0
 #define BATT_OVV		8
@@ -135,8 +133,10 @@ static enum power_supply_property ab8500_bm_bk_battery_props[] = {
 
 static enum power_supply_property ab8500_bm_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
@@ -2006,6 +2006,24 @@ static int ab8500_bm_status(void)
 }
 
 /**
+ * ab8500_bm_get_bat_resis(): get battery resistance
+ * @di:		pointer to the ab8500_bm_device_info structure
+ *
+ * This function returns the battery resistance that is
+ * read from the GPADC.
+ **/
+static int ab8500_bm_get_bat_resis(struct ab8500_bm_device_info *di)
+{
+	int data, rbs, vbs;
+
+	data = ab8500_gpadc_conversion(BAT_CTRL);
+	vbs = (1350 * data) / 1023;
+	rbs = (80 * vbs) / (1800 - vbs);
+	dev_dbg(di->dev, "Battery Resistance = %d\n", rbs);
+	return rbs;
+}
+
+/**
  * ab8500_bm_get_battery_property() - get the battery properties
  * @psy:	pointer to the power_supply structure
  * @psp:	pointer to the power_supply_property structure
@@ -2040,10 +2058,23 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		ab8500_bm_battery_update_status(di);
 		val->intval = di->charge_status;
 		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
+			val->intval = POWER_SUPPLY_HEALTH_GOOD;
+		else
+			val->intval = POWER_SUPPLY_HEALTH_UNKNOWN;
+		break;
 	case POWER_SUPPLY_PROP_PRESENT:
-		/* Battery presence AB8500 register set doesnt provide
-		 * any register to check the presence of battery by
-		 * default its value is '1'
+		/* TODO: Battery presence can be obtained from the
+		 * battery sense of GPADC. This reading is not
+		 * consistant.
+		 * This should always be 1 fro android to work.
+		 * Hence by default havin it to be 0x01;
+		 */
+		/*if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
+		 *	val->intval = 0x01;
+		 * else
+		 *	val->intval = 0x00;
 		 */
 		val->intval = 0x01;
 		break;
@@ -2057,7 +2088,10 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_TYPE_BATTERY;
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
-		val->intval = pdata->name;
+		if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
+			val->intval = pdata->name;
+		else
+			val->intval = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		status = ab8500_read(AB8500_CHARGER, AB8500_BATT_OVV);
@@ -2106,7 +2140,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
-		val->intval = di->temp_C;
+		val->intval = (di->temp_C * 10);
 		break;
 	default:
 		return -EINVAL;
@@ -2375,8 +2409,8 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	/* TODO: This might be required for storing the temp calibration data
 	   struct ab8500_bm_platform_data *pdata = pdev->dev.platform_data;
 	 */
-	struct ab8500_bm_device_info *di;
 	int ret = 0;
+	struct ab8500_bm_device_info *di;
 
 	di = kzalloc(sizeof(*di), GFP_KERNEL);
 	if (!di)
