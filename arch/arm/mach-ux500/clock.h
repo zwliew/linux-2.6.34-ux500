@@ -23,6 +23,7 @@ extern int __init clk_init(void);
 #define PLL_SW_SOC0 0x20
 #define PLL_SW_SOC1 0x40
 #define PLL_SW_DDR 0x80
+#define PLL_SELECT_BITS 0xE0
 
 /*Mode clk src macros */
 #define MODE_NO_CLK 0x0
@@ -36,6 +37,8 @@ void update_clk_tree(void);
 /*CLK38 clk src macros */
 #define CLK38_SRC 0x400
 #define CLK38 0x200
+/* Clock enable bit */
+#define ENABLE_BIT 0x100
 
 struct clkops {
 	void (*enable) (struct clk *);

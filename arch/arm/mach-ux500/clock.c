@@ -498,12 +498,12 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(b2r2clk,	"U8500-B2R2.0",	NULL),
 
 	/* Register the clock sources */
-	CLK(soc0_pll,	"soc0_pll",	NULL),
-	CLK(soc1_pll,	"soc1_pll",	NULL),
-	CLK(ddr_pll,	"ddr_pll",	NULL),
-	CLK(ulp38m4,	"ulp38m4",	NULL),
-	CLK(sysclk,	"sysclk",	NULL),
-	CLK(clk32k,	"clk32k",	NULL),
+	CLK(soc0_pll, NULL,	"soc0_pll"),
+	CLK(soc1_pll,	NULL, "soc1_pll"),
+	CLK(ddr_pll, NULL,	"ddr_pll"),
+	CLK(ulp38m4, NULL,	"ulp38m4"),
+	CLK(sysclk,	NULL, "sysclk"),
+	CLK(clk32k,	NULL, "clk32k"),
 };
 
 static struct clk_lookup u8500_ed_clkregs[] = {
@@ -805,7 +805,7 @@ void update_clk_tree(void)
 		* yyCLK38SRC and yyCLKPLLSW registers Update the yyCLK/clock
 		* source relationship
 		*/
-		if (clk && !clk->parent_periph && !clk->parent_cluster && !clk->is_clk_src) {
+		if (!clk->parent_periph && !clk->parent_cluster && !clk->is_clk_src) {
 			addr = __io_address(U8500_PRCMU_BASE) + clk->prcmu_cg_mgt;
 			val = readl(addr);
 			get_clk_src(clk, val);
@@ -814,6 +814,168 @@ void update_clk_tree(void)
 	return;
 }
 EXPORT_SYMBOL(update_clk_tree);
+
+struct clk *clk_get_parent(struct clk *clk)
+{
+	struct clk *prcmu_clk;
+	unsigned int val;
+	void __iomem *addr;
+
+	if (clk == NULL)
+		return NULL;
+
+	if (clk->is_clk_src == 1) {
+		return NULL;
+	} else if ((clk->parent_cluster != NULL) && (clk->parent_periph == NULL))	{
+		prcmu_clk = (struct clk *) clk->parent_cluster;
+	} else if ((clk->parent_cluster != NULL) && (clk->parent_periph != NULL)) {
+		prcmu_clk = (struct clk *) clk->parent_periph;
+	} else if ((clk->parent_cluster == NULL) && (clk->parent_periph == NULL)) {
+		prcmu_clk = (struct clk *) clk;
+	} else
+		return NULL;
+
+	addr = __io_address(U8500_PRCMU_BASE) + prcmu_clk->prcmu_cg_mgt;
+	val = readl(addr);
+	get_clk_src(prcmu_clk, val);
+	return prcmu_clk->clk_src;
+}
+EXPORT_SYMBOL(clk_get_parent);
+
+int clk_set_parent(struct clk *clk, struct clk *new_parent)
+{
+	unsigned int val;
+	unsigned int mode_value;
+	void __iomem *mode_base;
+	void __iomem *addr;
+	struct clk *prcmu_clk = NULL;
+	int clked = 0;
+	int enable_count = 0;
+	int loop_count = 0;
+	unsigned long flags;
+	int ret = 0;
+
+	/* Set the parent clock source to parent */
+	if ((new_parent == NULL) || (clk == NULL)) {
+			return -EINVAL;
+	} else if ((clk->parent_cluster != NULL) && (clk->parent_periph == NULL)) {
+			return -EINVAL;
+	} else if ((clk->parent_cluster != NULL) && (clk->parent_periph != NULL)) {
+			/* Has a peripheral parent register */
+			prcmu_clk = (struct clk *) clk->parent_periph;
+	} else if ((clk->parent_cluster == NULL) && (clk->parent_periph == NULL)) {
+			/* Clk itself is a PRCMU clk */
+			prcmu_clk = (struct clk *) clk;
+	}
+
+	/* Holding the lock so that val register is not modified in between */
+	/* NOTE : Dont use printk() further in the code untill the lock is held */
+	spin_lock_irqsave(&clocks_lock, flags);
+
+	/* Read the value of the configuration register */
+	addr = __io_address(U8500_PRCMU_BASE) + prcmu_clk->prcmu_cg_mgt;
+	val = readl(addr);
+
+	/* If the clock is enabled turn it down before re enabling */
+	if (val & ENABLE_BIT) {
+		clked = 1;
+		enable_count = prcmu_clk->enabled;
+		loop_count = enable_count;
+		while (loop_count) {
+			__clk_disable(prcmu_clk);
+			loop_count -= 1;
+		}
+		val = readl(addr);
+	}
+
+	/* Get the current source clock if not known*/
+	if (prcmu_clk->clk_src == NULL)
+		get_clk_src(prcmu_clk, val);
+
+	/* Consider the value in mode register */
+	mode_base = (void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + 0x0E8);
+	mode_value = readl(mode_base);
+
+	/* Check which clock is requested to be the new source clock */
+	if ((strcmp(new_parent->name, (&clk_ulp38m4)->name) == 0) || (strcmp(new_parent->name, (&clk_sysclk)->name)) == 0) {
+		/* Override in the register since mode is not 38MHz */
+		if (!(mode_value & MODE_CLK38_4MHZ))
+			val = val | CLK38;
+
+		/* Check which is the type of source clock to be configured */
+		if (strcmp(new_parent->name, (&clk_ulp38m4)->name) == 0) {
+			val = val | CLK38_SRC;
+			prcmu_clk->clk_src = (struct clk *)&clk_ulp38m4;
+		} else if (strcmp(new_parent->name, (&clk_sysclk)->name) == 0) {
+			val = val & ~CLK38_SRC;
+			prcmu_clk->clk_src = (struct clk *)&clk_sysclk;
+		}
+	} else if (strcmp(new_parent->name, (&clk_soc0_pll)->name) == 0) {
+		/* Change to a different PLL source only if appropriate mode is set */
+		if (mode_value & MODE_PLL_CLK) {
+			/* If mode is appropriate then CLK38 bit should be 0 */
+			if (val & CLK38)
+				val = val & ~CLK38;
+			/* Make the PLL bits to 0 */
+			val = val & ~PLL_SELECT_BITS;
+			/* Write with appropriate PLL bits */
+			val = val | PLL_SW_SOC0;
+			/* Change the clock source */
+			prcmu_clk->clk_src = (struct clk *)&clk_soc0_pll;
+		} else {
+			/* Cannot switch to a differnt PLL source if it is not a PLL mode */
+			ret = -EBUSY;
+			goto out;
+		}
+	} else if (strcmp(new_parent->name, (&clk_ddr_pll)->name) == 0) {
+		/* Change to a different PLL source only if appropriate mode is set */
+		if (mode_value & MODE_PLL_CLK) {
+			if (val & CLK38)
+				val = val & ~CLK38;
+			val = val & ~PLL_SELECT_BITS;
+			val = val | PLL_SW_DDR;
+			prcmu_clk->clk_src = (struct clk *)&clk_ddr_pll;
+		} else {
+			ret = -EBUSY;
+			goto out;
+		}
+	} else if (strcmp(new_parent->name, (&clk_soc1_pll)->name) == 0) {
+		/* Change to a different PLL source only if appropriate mode is set */
+		if (mode_value & MODE_PLL_CLK) {
+			if (val & CLK38)
+				val = val & ~CLK38;
+			val = val & ~PLL_SELECT_BITS;
+			val = val | PLL_SW_SOC1;
+			prcmu_clk->clk_src = (struct clk *)&clk_soc1_pll;
+		} else {
+			ret = -EBUSY;
+			goto out;
+		}
+	} else {
+			ret = -EINVAL;
+			goto out;
+	}
+
+	/* write back the val value */
+	writel(val, addr);
+	ret = 0;
+
+out:		if (clked) {
+			/* Re-enable the clock if already was enabled */
+			loop_count = enable_count;
+			while (loop_count) {
+				__clk_enable(prcmu_clk);
+				loop_count -= 1;
+			}
+			clked = 0;
+		}
+
+		/* Release the spin lock */
+		spin_unlock_irqrestore(&clocks_lock, flags);
+		return ret;
+}
+EXPORT_SYMBOL(clk_set_parent);
+
 
 static void clk_register(struct clk *clk)
 {
