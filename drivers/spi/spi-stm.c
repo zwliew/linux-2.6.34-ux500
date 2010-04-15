@@ -542,12 +542,10 @@ static void do_dma_transfer(void *data)
 				(void *)drv_data);
 	}
 
-	if (drv_data->rx_dmach >= 0)
-		if (stm_enable_dma(drv_data->rx_dmach))
-			goto err_dma_transfer;
-	if (drv_data->tx_dmach >= 0)
-		if (stm_enable_dma(drv_data->tx_dmach))
-			goto err_dma_transfer;
+	if (stm_enable_dma(drv_data->rx_dmach))
+		goto err_dma_transfer;
+	if (stm_enable_dma(drv_data->tx_dmach))
+		goto err_dma_transfer;
 
 	/*Enable SPI Controller */
 	drv_data->execute_cmd(drv_data, ENABLE_CONTROLLER);

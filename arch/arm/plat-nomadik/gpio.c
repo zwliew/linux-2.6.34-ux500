@@ -162,8 +162,13 @@ static inline int nmk_gpio_get_bitmask(int gpio)
 static unsigned int nmk_gpio_irq_startup(unsigned int irq)
 {
 	int gpio = NOMADIK_IRQ_TO_GPIO(irq);
+	int status = 0;
 
-	gpio_request(gpio, "IRQ");
+	status = gpio_request(gpio, "IRQ");
+	if (status < 0) {
+		printk(KERN_ERR "GPIO-request failed\n");
+		return status;
+	}
 
 	gpio_direction_input(gpio);
 	nmk_gpio_set_mode(gpio, NMK_GPIO_ALT_GPIO);
@@ -419,7 +424,8 @@ static void nmk_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 			chip->get
 				? (chip->get(chip, i) ? "hi" : "lo")
 				: "?  ",
-			modes[nmk_gpio_get_mode(gpio)],
+			((nmk_gpio_get_mode(gpio)) < 0)	?
+			"unknown" : modes[nmk_gpio_get_mode(gpio)],
 			pull ? "pull" : "none");
 
 		if (!is_out) {
@@ -576,13 +582,17 @@ static int __exit nmk_gpio_remove(struct platform_device *dev)
 	struct resource *res;
 
 	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
+	if (!res)
+		printk(KERN_ERR "IORESOURCE_MEM unavailable\n");
 
 	nmk_chip = platform_get_drvdata(dev);
 	gpiochip_remove(&nmk_chip->chip);
 	clk_disable(nmk_chip->clk);
 	clk_put(nmk_chip->clk);
 	kfree(nmk_chip);
-	release_mem_region(res->start, resource_size(res));
+	if (res)
+		release_mem_region(res->start, resource_size(res));
+
 	return 0;
 }
 

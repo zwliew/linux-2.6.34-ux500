@@ -579,12 +579,16 @@ static void tc35892_work(struct work_struct *_chip)
 	struct tc35892_chip *chip =
 	    container_of(_chip, struct tc35892_chip, work);
 	unsigned char mask;
-	int count = 0, i, bit;
+	int count = 0, i, bit, ret;
 	unsigned long mask_intr_status;
 	void (*handler) (void *data);
 
 	for (i = 0; i < 3; i++) {
-		tc35892_read_byte(chip, (GPIO_MIS0_Index + i), (char *)&mask_intr_status);
+		ret = tc35892_read_byte(chip, (GPIO_MIS0_Index + i), (char *)&mask_intr_status);
+		if (ret < 0) {
+			printk(KERN_ERR "Error in tc35892_gpio_get_vaule\n");
+			return;
+		}
 		bit = find_first_bit(&mask_intr_status, 8);
 		while (bit) {
 			handler = the_tc35892->handlers[bit + count];

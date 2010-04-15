@@ -2460,14 +2460,14 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	di->ab8500_bm_wq = create_singlethread_workqueue("ab8500_bm_wq");
 	if (di->ab8500_bm_wq == NULL) {
 		dev_err(&pdev->dev, "failed to create work queue\n");
-		goto free_wq;
+		goto free_device_info;
 	}
 
 	/* Create a work queue for en/dis AC/USB from irq handler */
 	di->ab8500_bm_irq = create_singlethread_workqueue("ab8500_bm_irq");
 	if (di->ab8500_bm_irq == NULL) {
 		dev_err(&pdev->dev, "failed to create work queue\n");
-		goto free_wq;
+		goto free_bm_wq;
 	}
 
 	/* Create a work queue for rekicking the watchdog */
@@ -2475,7 +2475,7 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	    create_singlethread_workqueue("ab8500_bm_wd_kick_wq");
 	if (di->ab8500_bm_wd_kick_wq == NULL) {
 		dev_err(&pdev->dev, "failed to create work queue\n");
-		goto free_wq;
+		goto free_bm_irq;
 	}
 
 	/* Work Queue to re-kick the charging watchdog */
@@ -2581,11 +2581,13 @@ irq_fail:
 	ret = ab8500_bm_usb_en(di, false);
 	if (ret)
 		dev_err(&pdev->dev, "failed to disable USB charging\n");
-free_wq:
 	/* Delete the work queue */
-	destroy_workqueue(di->ab8500_bm_wq);
 	destroy_workqueue(di->ab8500_bm_wd_kick_wq);
+free_bm_irq:
 	destroy_workqueue(di->ab8500_bm_irq);
+free_bm_wq:
+	destroy_workqueue(di->ab8500_bm_wq);
+free_device_info:
 	kfree(di);
 
 	return ret;
