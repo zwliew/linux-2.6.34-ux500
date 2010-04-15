@@ -1845,16 +1845,26 @@ void prcmu_ack_mb0_wkuph_status_tasklet(unsigned long tasklet_data)
 	/* ca_wake_req signal  - modem wakes up ARM */
 	if (event_8500 & (1 << 5)) {
 		/* call shrm driver callback */
+		dbg_printk("ack_mb0_tasklet:ca_wake_req arrived !\n");
 		if (prcmu_ca_wake_req_shrm_callback != NULL)
 			(*prcmu_ca_wake_req_shrm_callback)(1);
 		else {
-			printk(KERN_INFO "\n prcmu: SHRM callback for \
-					ca_wake_req not registered!!\n");
+			printk(KERN_INFO "\nSHRM callback ca_wake_req NULL\n");
 			/* SHRM driver not initialized */
 			spin_lock_irqsave(&ca_wake_lock, flags);
 			ca_wake_req_pending++;
 			spin_unlock_irqrestore(&ca_wake_lock, flags);
 		}
+	} else if (event_8500 & (1 << 20)) {
+		/* mod_sw_reset_req bit - forward it to SHRM driver*/
+		dbg_printk("ack_mb0_tasklet:mod_sw_reset_req arrived !\n");
+		if (prcmu_modem_reset_shrm != NULL)
+			(*prcmu_modem_reset_shrm)();
+		else {
+			/* SHRM callback for reset not registered!*/
+			printk(KERN_INFO "\nSHRM callback for reset NULL\n");
+		}
+
 	}
 	prcmu_ack_wakeup_reason();
 
@@ -1871,19 +1881,13 @@ void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
 	/* read the ack mb7 value and carry out actions accordingly */
 	u8 ack_mb7 = readb(PRCM_ACK_MB7);
 
+	dbg_printk("\n prcmu_ack_mb7_status_tasklet \n");
+
 	switch (ack_mb7) {
-	case MOD_SW_RESET_REQ:
-		/*forward the reset request to SHRM */
-		if (prcmu_modem_reset_shrm != NULL)
-			(*prcmu_modem_reset_shrm)();
-		else {
-			/* SHRM callback for reset not registered!*/
-			printk(KERN_INFO "\nSHRM callback for reset NULL\n");
-		}
-		break;
 	case CA_SLEEP_REQ:
 		/* modem no longer requires to communicate
 		 * with ARM so ARM can go to sleep */
+		dbg_printk("\nack_mb7_tasklet:CA_SLEEP_REQ\n");
 		if (prcmu_ca_wake_req_shrm_callback != NULL)
 			(*prcmu_ca_wake_req_shrm_callback)(0);
 		else {
@@ -1894,6 +1898,7 @@ void prcmu_ack_mb7_status_tasklet(unsigned long tasklet_data)
 	case HOST_PORT_ACK:
 		/* modem up.ARM can communicate to modem */
 		/* wake_up_interruptible- prcmu_arm_wakeup_modem api*/
+		dbg_printk("\nack_mb7_tasklet:HOST_PORT_ACK\n");
 		wake_up_interruptible(&ack_mb7_queue);
 		break;
 	};
