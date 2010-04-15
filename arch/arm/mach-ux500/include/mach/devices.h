@@ -40,6 +40,7 @@ extern struct platform_device u8500_pmem_mio_device;
 extern struct platform_device u8500_pmem_hwb_device;
 extern struct amba_device ux500_rtc_device;
 extern struct platform_device ux500_dma_device;
+extern struct platform_device ux500_hash1_device;
 extern struct amba_device u8500_ssp0_device;
 extern struct amba_device u8500_ssp1_device;
 extern struct amba_device ux500_spi0_device;

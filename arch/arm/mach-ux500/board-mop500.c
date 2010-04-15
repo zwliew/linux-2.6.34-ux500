@@ -1021,6 +1021,9 @@ static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_pmem_device,
 	&u8500_pmem_mio_device,
 	&u8500_pmem_hwb_device,
+#ifdef CONFIG_CRYPTO_DEV_UX500_HASH
+	&ux500_hash1_device,
+#endif
 };
 
 static void __init mop500_platdata_init(void)

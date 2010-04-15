@@ -442,6 +442,23 @@ struct platform_device ux500_dma_device = {
 	.resource	= ux500_dma_resources
 };
 
+#ifdef CONFIG_CRYPTO_DEV_UX500_HASH
+static struct resource ux500_hash1_resources[] = {
+	[0] = {
+		.start = UX500_HASH1_BASE,
+		.end = UX500_HASH1_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+struct platform_device ux500_hash1_device = {
+	.name = "hash1",
+	.id = -1,
+	.num_resources = 1,
+	.resource = ux500_hash1_resources
+};
+#endif
+
 #define NUM_SPI023_CLIENTS 10
 static struct nmdk_spi_master_cntlr spi0_platform_data = {
 	.enable_dma		= 1,
