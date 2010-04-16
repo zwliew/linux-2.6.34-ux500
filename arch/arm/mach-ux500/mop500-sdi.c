@@ -46,7 +46,11 @@ static int mmc_configure(struct amba_device *dev)
 		gpio_direction_output(pin[1], 1);
 
 		gpio_set_value(pin[0], 1);
+#if defined(CONFIG_LEVELSHIFTER_HREF_V1_PLUS)
+		gpio_set_value(pin[1], 0);
+#else
 		gpio_set_value(pin[1], 1);
+#endif
 	} else
 		dev_err(&dev->dev, "unable to configure gpios\n");
 

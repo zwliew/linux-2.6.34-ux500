@@ -396,6 +396,12 @@ config MMC_U8500
 		bool   "Interrupt mode"
 	endchoice
 
+config LEVELSHIFTER_HREF_V1_PLUS
+	bool "configure for HREF+ V1 level shifter"
+	depends on MMC_U8500
+	help
+	  This enables the 1V8_3V_SEL command for HREF+.
+
 config U8500_SDIO
 	tristate "Nomadik SDIO Card Interface support"
 	depends on MMC_U8500
