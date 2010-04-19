@@ -676,10 +676,6 @@ static void u8500_amba_clk_enable(void)
 	writel(0xBF, IO_ADDRESS(U8500_PER3_BASE + 0xF000 + 0x04));
 	writel(~0x0 & ~(1 << 6), IO_ADDRESS(U8500_PER3_BASE + 0xF000 + 0x0C));
 
-	/* enable AMBA configuration clock ONLY */
-	writel(~0x0, IO_ADDRESS(U8500_PER6_BASE + 0xF000 + 0x04));
-	writel(~0x0, IO_ADDRESS(U8500_PER6_BASE + 0xF000 + 0x0C));
-
 	for (i = 0; i < ARRAY_SIZE(u8500_boot_clk); i++) {
 		boot_clks[i] = clk_get_sys(u8500_boot_clk[i], NULL);
 		clk_enable(boot_clks[i]);

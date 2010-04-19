@@ -22,7 +22,7 @@ obj-$(CONFIG_MACH_U5500_SIMULATOR)	+= board-u5500.o
 obj-$(CONFIG_SMP)			+= platsmp.o headsmp.o localtimer.o
 obj-$(CONFIG_U8500_CPUIDLE) 		+= cpuidle.o
 obj-$(CONFIG_U8500_CPUFREQ) 		+= cpufreq.o
-obj-$(CONFIG_U8500_PM)			+= pm.o
+obj-$(CONFIG_U8500_PM)			+= pm.o savecontext.o
 obj-$(CONFIG_SENSORS1P_MOP)            	+= sensors1p.o
 obj-$(CONFIG_USB)            		+= musb_db8500.o
 

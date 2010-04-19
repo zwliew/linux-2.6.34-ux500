@@ -12,6 +12,30 @@
 #include <mach/prcmu-fw-api.h>
 #include <mach/prcmu-fw-defs_v1.h>
 
+/* Define for GPIO configuration */
+#define GPIO_BANK0_BASE         (U8500_PER1_BASE + 0xE000)
+#define GPIO_BANK1_BASE         (U8500_PER1_BASE + 0xE000 + 0x80)
+#define GPIO_BANK2_BASE         (U8500_PER3_BASE + 0xE000)
+#define GPIO_BANK3_BASE         (U8500_PER3_BASE + 0xE000 + 0x80)
+#define GPIO_BANK4_BASE         (U8500_PER3_BASE + 0xE000 + 0x100)
+#define GPIO_BANK5_BASE         (U8500_PER3_BASE + 0xE000 + 0x180)
+#define GPIO_BANK6_BASE         (U8500_PER2_BASE + 0xE000)
+#define GPIO_BANK7_BASE         (U8500_PER2_BASE + 0xE000 + 0x80)
+#define GPIO_BANK8_BASE         (U8500_PER5_BASE + 0x1E000)
+
+
+#define _GPIO_BK0_BASE IO_ADDRESS(GPIO_BANK0_BASE)
+
+#define GPIO_BK0_DAT (_GPIO_BK0_BASE)
+#define GPIO_BK0_DATS (_GPIO_BK0_BASE + 0x4)
+#define GPIO_BK0_DATC (_GPIO_BK0_BASE + 0x8)
+#define GPIO_BK0_DIR (_GPIO_BK0_BASE + 0x10)
+#define GPIO_BK0_FSLA (_GPIO_BK0_BASE + 0x20)
+#define GPIO_BK0_FSLB (_GPIO_BK0_BASE + 0x24)
+#define GPIO_BK0_RWMSC (_GPIO_BK0_BASE + 0x50)
+#define GPIO_BK0_FWMSC (_GPIO_BK0_BASE + 0x54)
+
+
 #define _PRCMU_TCDM_BASE     IO_ADDRESS(U8500_PRCMU_TCDM_BASE)
 #define PRCM_BOOT_STATUS    (_PRCMU_TCDM_BASE + 0xFFF)
 #define PRCM_ROMCODE_A2P    (_PRCMU_TCDM_BASE + 0xFFE)
@@ -144,9 +168,14 @@ enum mailbox_t {
 	REQ_MB5 = 5,	/* Uses XP70_IT_EVENT_17 */
 };
 
+/* PRCMU Wakeup defines */
+#define	PRCMU_WAKEUPBY_MODEM		(0x1 << 5)
+#define PRCMU_WAKEUPBY_ARMITMGMT	(0x1 << 17)
+#define PRCMU_WAKEUPBY_APE4500INT	(0x1 << 7)
+#define PRCMU_WAKEUPBY_GPIOS		(0xff800000)
+#define PRCMU_WAKEUPBY_RTCRTT		(0x3)
+
 /* Union declaration */
-
-
 
 /* ARM to XP70 mailbox definition */
 union req_mb0_t {
