@@ -1128,7 +1128,7 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 
 		spin_unlock(&req_mb0_lock);
 
-		printk(KERN_INFO "u8500-prcm : To Deep Sleep\n");
+		printk(KERN_INFO "u8500-prcm : To ApSleep\n");
 
 		/* Context Saving beings */
 
@@ -1136,21 +1136,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 
 		pm_save_config_UART();
 
-		a9ss_save_public_config();
-
-		a9ss_save_scu_config();
-
-		/* TODO : take a backup of the SP and the public rom code
-		 *	  entry point
-		 */
-
 		/* here comes the wfi */
 		__asm__ __volatile__(
 				"dsb\n\t" "wfi\n\t" : : : "memory");
-
-		a9ss_restore_scu_config();
-
-		a9ss_restore_public_config();
 
 		/* Restore PRCC Configs */
 		pm_restore_config_PRCC();
