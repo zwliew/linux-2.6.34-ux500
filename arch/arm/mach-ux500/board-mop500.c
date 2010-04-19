@@ -1060,7 +1060,9 @@ static void __init mop500_init_machine(void)
 	stm_gpio_set_altfunctable(gpio_altfun_table,
 				  ARRAY_SIZE(gpio_altfun_table));
 
+#ifdef CONFIG_REGULATOR
 	u8500_init_regulators();
+#endif
 	u8500_init_devices();
 
 	mop500_platdata_init();
