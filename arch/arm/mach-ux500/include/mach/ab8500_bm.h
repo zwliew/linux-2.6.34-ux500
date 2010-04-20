@@ -32,6 +32,13 @@ struct ab8500_bm_platform_data {
 #define CH_OP_CUR_LVL_1P5		0x0E
 #define CH_OP_CUR_LVL_1P6		0x0F
 
+/* current is mA */
+#define USB_0P1A			100
+#define USB_0P2A			200
+#define USB_0P3A			300
+#define USB_0P4A			400
+#define USB_0P5A			500
+
 /* UsbChCurrLevel */
 #define USB_CH_IP_CUR_LVL_0P05		0x00
 #define USB_CH_IP_CUR_LVL_0P09		0x10
@@ -40,6 +47,7 @@ struct ab8500_bm_platform_data {
 #define USB_CH_IP_CUR_LVL_0P38		0x40
 #define USB_CH_IP_CUR_LVL_0P45		0x50
 #define USB_CH_IP_CUR_LVL_0P5		0x60
+#define USB_CH_IP_CUR_LVL_1P5		0xF0
 
 #define LOW_BAT_3P1V			0x20
 #define LOW_BAT_2P3V			0x00
@@ -116,5 +124,26 @@ struct ab8500_bm_platform_data {
 
 /* Battery resistance */
 #define NOKIA_BL_5F			0x04
+/* static constants */
+#define STANDARD_HOST			0x04
 
+/* UsbLineStatus register - usb types */
+enum {
+	USB_STAT_NOT_CONFIGURED,
+	USB_STAT_STD_HOST_NC,
+	USB_STAT_STD_HOST_C_NS,
+	USB_STAT_STD_HOST_C_S,
+	USB_STAT_HOST_CHG_NM,
+	USB_STAT_HOST_CHG_HS,
+	USB_STAT_HOST_CHG_HS_CHIRP,
+	USB_STAT_DEDICATED_CHG,
+	USB_STAT_ACA_RID_A,
+	USB_STAT_ACA_RID_B,
+	USB_STAT_ACA_RID_C_NM,
+	USB_STAT_ACA_RID_C_HS,
+	USB_STAT_ACA_RID_C_HS_CHIRP,
+	USB_STAT_HM_IDGND,
+	USB_STAT_RESERVED,
+	USB_STAT_NOT_VALID_LINK,
+};
 #endif /* _AB8500_BM_H */

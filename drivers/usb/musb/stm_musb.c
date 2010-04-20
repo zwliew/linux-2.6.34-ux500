@@ -83,12 +83,13 @@ ab8500_bm_usb_state_changed_wrapper(u8 bm_usb_state)
 		ab8500_bm_ulpi_test();
 #endif
 	}
-
+#if 0
 	printk(KERN_INFO "Please implement ab8500_bm_usb_state_changed"
 	    "(%d AB8500_BM_USB_STATE_XXX, %d mA)\n",
 	    bm_usb_state, musb_power);
+#endif
 
-	/* ab8500_bm_usb_state_changed(bm_usb_state, musb_power); */
+	ab8500_bm_usb_state_changed(bm_usb_state, musb_power);
 }
 
 void

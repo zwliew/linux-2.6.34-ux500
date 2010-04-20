@@ -23,6 +23,8 @@
 #include <mach/ab8500_gpadc.h>
 #include <mach/ab8500_sys.h>
 
+#include <drivers/usb/musb/stm_musb.h>
+
 /* Interrupt */
 #define MAIN_EXT_CH_NOT_OK	0
 #define BATT_OVV		8
@@ -73,8 +75,15 @@ static DEFINE_MUTEX(ab8500_cc_lock);
  * @charge_status:			Charger status(charging, discharging)
  * @bk_battery_charge_status:		Backup battery charger status
  * @usb_ip_cur_lvl:			USB charger i/p current level
+ * @usb_mA				current that can be drawn, obtained
+ * 					from usb stack.
+ * @usb_state				USB state obtained from the usb stack
  * @maintenance_chg:			flag for enabling/disabling
- * 					 maintenance charging
+ * 					maintenance charging
+ * @usb_changed				flag to indicate that usb stack has
+ * 					some updates on the usb state
+ * @usb_plug_unplug			flag to indicate the event as usb
+ *					plug ot unplug
  * @bat:		Structure that holds the battery properties
  * @bk_bat:		Structure that holds the backup battery properties
  * @ac:			Structure that holds the ac/mains properties
@@ -86,13 +95,16 @@ static DEFINE_MUTEX(ab8500_cc_lock);
  * @ab8500_bm_usb_en_monitor_work:	Work to enable usb charging
  * @ab8500_bm_usb_dis_monitor_work:	Work to disable usb charging
  * @ab8500_bm_avg_cur_monitor_work:	Work to monitor the average current
+ * @ab8500_bm_usb_state_changed_monitor_work
+ * 					Work to enable/disable usb charging
+ * 					based on the info from usb stack
  * @ab8500_bm_wq:			Pointer to work queue-battery mponitor
  * @ab8500_bm_irq:			Pointer to the work queue-
  * 					enable/disable chargin from irq
  * 					handler
  * @ab8500_bm_wd_kick_wq:		Pointer to work queue-rekick watchdog
  * @ab8500_bm_kobject			structure of type kobject
- *
+ * @ab8500_bm_spin_lock			spin lock to lock the usb changed flag
  */
 struct ab8500_bm_device_info {
 	struct device *dev;
@@ -104,7 +116,12 @@ struct ab8500_bm_device_info {
 	int charge_status;
 	int bk_battery_charge_status;
 	int usb_ip_cur_lvl;
+	int usb_mA;
+	int usb_state;
 	bool maintenance_chg;
+	bool usb_changed;
+	bool usb_plug_unplug;
+	struct ab8500_bm_platform_data *pdata;
 	struct power_supply bat;
 	struct power_supply bk_bat;
 	struct power_supply ac;
@@ -116,10 +133,13 @@ struct ab8500_bm_device_info {
 	struct work_struct ab8500_bm_usb_en_monitor_work;
 	struct work_struct ab8500_bm_usb_dis_monitor_work;
 	struct work_struct ab8500_bm_avg_cur_monitor_work;
+	struct work_struct ab8500_bm_usb_state_changed_monitor_work;
 	struct workqueue_struct *ab8500_bm_wq;
 	struct workqueue_struct *ab8500_bm_irq;
 	struct workqueue_struct *ab8500_bm_wd_kick_wq;
 	struct kobject ab8500_bm_kobject;
+	spinlock_t ab8500_bm_spin_lock;
+	struct completion ab8500_bm_usb_completed;
 };
 
 static char *ab8500_bm_supplied_to[] = {
@@ -159,7 +179,7 @@ static enum power_supply_property ab8500_bm_usb_props[] = {
 };
 
 /* Battery specific information */
-static struct ab8500_bm_platform_data *pdata;
+struct ab8500_bm_device_info *di;
 
 static int ab8500_bm_ac_en(struct ab8500_bm_device_info *, int);
 static int ab8500_bm_usb_en(struct ab8500_bm_device_info *, int);
@@ -248,6 +268,181 @@ static int ab8500_bm_sysfs_init(struct ab8500_bm_device_info *di)
 /* END: Need to remove this from here as this has to goto ab8500_sysfs.c */
 
 /**
+ * ab8500_bm_get_usb_cur() - get usb current
+ * @di:		pointer to the ab8500_bm_device_info structre
+ *
+ * The usb stack provides the i/p current that can be drawn from the standard
+ * usb host. This will be in mA. This function converts current in mA to a
+ * value that can be written to the register.
+ **/
+static void ab8500_bm_get_usb_cur(struct ab8500_bm_device_info *di)
+{
+	switch (di->usb_mA) {
+	case USB_0P1A:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		break;
+	case USB_0P2A:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P19;
+		break;
+	case USB_0P3A:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
+		break;
+	case USB_0P4A:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P38;
+		break;
+	case USB_0P5A:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+		break;
+	default:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
+		break;
+	};
+}
+
+/**
+ * ab8500_bm_usb_state_changed() - get notified with the usb states
+ * @bm_usb_state:       USB status(reset, config, high speed)
+ * @mA:                 current in mA
+ *
+ * USB driver will call this API to notify the change in the USB state
+ * to the battery driver. Based on this information battery driver will
+ * take measurements to enable/disable charging.
+ *
+ **/
+void ab8500_bm_usb_state_changed(u8 bm_usb_state, u16 mA)
+{
+	/* USB unplug event, disable charging */
+	if (!di->usb_plug_unplug) {
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		return;
+	}
+
+	spin_lock(&di->ab8500_bm_spin_lock);
+		di->usb_changed = true;
+	spin_unlock(&di->ab8500_bm_spin_lock);
+
+	di->usb_state = bm_usb_state;
+	di->usb_mA = mA;
+
+	queue_work(di->ab8500_bm_wd_kick_wq,
+			&di->ab8500_bm_usb_state_changed_monitor_work);
+	return;
+}
+EXPORT_SYMBOL(ab8500_bm_usb_state_changed);
+
+/**
+ * ab8500_bm_usb_state_changed_work() - work to get notified with usb state
+ * @work:               Pointer to the work_struct structure
+ *
+ * USB driver will call this API to notify the change in the USB state
+ * to the battery driver. Based on this informatio battery driver will
+ * take measurements to enable/disable charging.
+ *
+ **/
+void ab8500_bm_usb_state_changed_work(struct work_struct *work)
+{
+	int val;
+
+	/* USB unplug event, disable charging */
+	if (!di->usb_plug_unplug) {
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		return;
+	}
+
+	/* Before reading the UsbLineStatus register, ITSource 21
+	 * register should be read
+	 */
+	do {
+		val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_SOURCE21_REG);
+		val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
+		/* get the USB type */
+		val = (val >> 3) & 0x0F;
+		/* If the detected device is not s standard host then return
+		 * as it has nothing to do with Host chargeror dedicated host
+		 * or ACA.
+		 */
+	} while (!val);
+	if (val > STANDARD_HOST || val < 0x01) {
+		dev_info(di->dev, "Is not a standard host device\n");
+		return;
+	}
+	spin_lock(&di->ab8500_bm_spin_lock);
+		di->usb_changed = false;
+	spin_unlock(&di->ab8500_bm_spin_lock);
+	/* wait for some time until you get updates from the usb stack
+	 * and negotiations are completed
+	 */
+	msleep(250);
+	if (di->usb_changed)
+		return;
+
+	if (!di->usb_mA) {
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		return;
+	}
+
+	switch (di->usb_state) {
+	case AB8500_BM_USB_STATE_RESET_HS:
+		/* if cur > 0 enable charging else disable */
+		dev_dbg(di->dev, "USB configured in HS mode\n");
+		if (di->usb_mA > 0)
+			queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		else
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		break;
+	case AB8500_BM_USB_STATE_RESET_FS:
+		/* if cur > 0 enable charging else disable */
+		dev_dbg(di->dev, "USB configured in LS/FS mode\n");
+		if (di->usb_mA > 0)
+			queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		else
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		break;
+	case AB8500_BM_USB_STATE_CONFIGURED:
+		/* USB is configured, enable charging with the charging
+		* input current obtained from USB driver
+		*/
+		dev_dbg(di->dev, "USB configured for standard host\n");
+		complete(&di->ab8500_bm_usb_completed);
+		break;
+	case AB8500_BM_USB_STATE_SUSPEND:
+		/* USB in suspend state */
+		ab8500_bm_ulpi_set_char_suspend_mode
+				(AB8500_BM_USB_STATE_SUSPEND);
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_dis_monitor_work);
+		dev_dbg(di->dev, "USB entering suspend mode\n");
+		break;
+	case AB8500_BM_USB_STATE_RESUME:
+		/* USB in resume state */
+		ab8500_bm_ulpi_set_char_speed_mode
+				(AB8500_BM_USB_STATE_RESUME);
+		/* when suspend->resume there should be delay
+		 * of 1sec for enabling charging
+		 */
+		msleep(1000);
+		dev_dbg(di->dev, "USB entering resume mode\n");
+		queue_work(di->ab8500_bm_irq,
+				&di->ab8500_bm_usb_en_monitor_work);
+		break;
+	case AB8500_BM_USB_STATE_MAX:
+		/* USB in max state */
+		dev_dbg(di->dev, "USB max state\n");
+		break;
+	default:
+		break;
+	};
+	return;
+}
+
+/**
  * ab8500_bm_detect_usb_type() - get the type of usb connected
  * @di:		pointer to the ab8500_bm_device_info structure
  *
@@ -258,90 +453,107 @@ static int ab8500_bm_sysfs_init(struct ab8500_bm_device_info *di)
  * type set the mac current and voltage
  **/
 
-static void ab8500_bm_detect_usb_type(struct ab8500_bm_device_info *di)
+static int ab8500_bm_detect_usb_type(struct ab8500_bm_device_info *di)
 {
-	int val;
+	int val, cnt;
 
 	/* On getting the VBUS rising edge detect interrupt there
 	 * is a 250ms delay after which the register UsbLineStatus
 	 * if filled with valid data
 	 */
-	msleep(250);
-	/* Until the IT source register is read the UsbLineStatus
-	 * register is not updated, hence doing the same
-	 * Revisit this:
-	 */
-	val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_SOURCE21_REG);
-	val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
-	/* get the USB type */
-	val = (val >> 3) & 0x0F;
+	for (cnt = 0; cnt < 10; cnt++) {
+		msleep(250);
+		val = ab8500_read(AB8500_INTERRUPT, AB8500_IT_SOURCE21_REG);
+		val = ab8500_read(AB8500_USB, AB8500_USB_LINE_STAT_REG);
+		/* Until the IT source register is read the UsbLineStatus
+		 * register is not updated, hence doing the same
+		 * Revisit this:
+		 */
+
+		/* get the USB type */
+		val = (val >> 3) & 0x0F;
+	}
+	if (!val && cnt == 10) {
+		dev_err(di->dev, "unable to detect the usb type\n");
+		return -1;
+	}
+
 	/* TODO: verify the i/p current levev for the types of USB */
 	switch (val) {
-	case 0:
+	case USB_STAT_NOT_CONFIGURED:
 		dev_dbg(di->dev, "USB Type - Not configured\n");
 		break;
-	case 1:
-		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+	case USB_STAT_STD_HOST_NC:
+		wait_for_completion(&di->ab8500_bm_usb_completed);
+		ab8500_bm_get_usb_cur(di);
 		dev_dbg(di->dev, "USB Type - Standard Host, Not Charging\n");
 		break;
-	case 2:
-		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+	case USB_STAT_STD_HOST_C_NS:
+		/* This is never being called */
+		dev_info(di->dev, "This is never called, if called bug,,!!\n");
+		wait_for_completion(&di->ab8500_bm_usb_completed);
+		ab8500_bm_get_usb_cur(di);
 		dev_dbg(di->dev, "USB Type - Standard Host, charging, not suspended\n");
 		break;
-	case 3:
-		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
+	case USB_STAT_STD_HOST_C_S:
+		/* This is never being called */
+		dev_info(di->dev, "This is never called, if called bug,,!!\n");
+		wait_for_completion(&di->ab8500_bm_usb_completed);
+		ab8500_bm_get_usb_cur(di);
 		dev_dbg(di->dev, "USB Type - Standard Host, charging, suspended\n");
 		break;
-	case 4:
+	case USB_STAT_HOST_CHG_NM:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
 		dev_dbg(di->dev, "USB Type - Host charger, noraml mode\n");
 		break;
-	case 5:
+	case USB_STAT_HOST_CHG_HS:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
 		dev_dbg(di->dev, "USB Type - Host charger, HS mode\n");
 		break;
-	case 6:
+	case USB_STAT_HOST_CHG_HS_CHIRP:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P29;
 		dev_dbg(di->dev, "USB Type - Host charger, HS Chirp mode\n");
 		break;
-	case 7:
-		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
-		dev_dbg(di->dev, "USB Type - Dedicated UBx Charger\n");
+	case USB_STAT_DEDICATED_CHG:
+		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_1P5;
+		dev_dbg(di->dev, "USB Type - Dedicated USB Charger\n");
+		printk(KERN_ALERT "USB Type - Dedicated USB Charger\n");
 		break;
-	case 8:
+	case USB_STAT_ACA_RID_A:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
 		dev_dbg(di->dev, "USB Type - ACA RID_A configuration\n");
 		break;
-	case 9:
+	case USB_STAT_ACA_RID_B:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
 		dev_dbg(di->dev, "USB Type - ACA RiD_B configuration\n");
 		break;
-	case 10:
+	case USB_STAT_ACA_RID_C_NM:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
 		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, normal mode\n");
 		break;
-	case 11:
+	case USB_STAT_ACA_RID_C_HS:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
 		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, HS mode\n");
 		break;
-	case 12:
+	case USB_STAT_ACA_RID_C_HS_CHIRP:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P09;
 		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, HS Chirp mode\n");
 		break;
-	case 13:
+	case USB_STAT_HM_IDGND:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
 		dev_dbg(di->dev, "USB Type - Host Mode(IDGND)\n");
 		break;
-	case 14:
+	case USB_STAT_RESERVED:
 		dev_dbg(di->dev, "USB Type - Reserved\n");
 		break;
-	case 15:
+	case USB_STAT_NOT_VALID_LINK:
 		dev_dbg(di->dev, "USB Type - USB link not valid\n");
 		break;
 	default:
 		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
 		break;
 	};
+	return 0;
 }
 
 /**
@@ -699,6 +911,7 @@ static void ab8500_bm_mainchplugdet_handler(void *_di)
 static void ab8500_bm_vbusdetr_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
+	di->usb_plug_unplug = true;
 	power_supply_changed(&di->bat);
 	dev_dbg(di->dev, "vbus rising edge detected....!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_en_monitor_work);
@@ -713,6 +926,7 @@ static void ab8500_bm_vbusdetr_handler(void *_di)
 static void ab8500_bm_vbusdetf_handler(void *_di)
 {
 	struct ab8500_bm_device_info *di = _di;
+	di->usb_plug_unplug = false;
 	power_supply_changed(&di->bat);
 	dev_dbg(di->dev, "vbus falling edge detected....!\n");
 	queue_work(di->ab8500_bm_irq, &di->ab8500_bm_usb_dis_monitor_work);
@@ -1381,7 +1595,8 @@ static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 	 * current has to be in the range of 50-200mA
 	 */
 	if (di->charge_status == POWER_SUPPLY_STATUS_CHARGING) {
-		if (di->voltage_uV > (pdata->termination_vol - 25) && di->voltage_uV < pdata->termination_vol
+		if (di->voltage_uV > (di->pdata->termination_vol - 25)
+				&& di->voltage_uV < di->pdata->termination_vol
 				&& !di->maintenance_chg) {
 			/* Check if charging is in constant voltage */
 			val =
@@ -1451,7 +1666,7 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 	 * function ab8500_bm_battery_read_status()
 	 */
 	status = ab8500_bm_charger_presence(di);
-	if ((di->voltage_uV < (pdata->termination_vol - 200)) && status &&
+	if ((di->voltage_uV < (di->pdata->termination_vol - 200)) && status &&
 			di->maintenance_chg) {
 		dev_dbg(di->dev, "welcome to maintenance charging\n");
 		if ((status == (AC_PW_CONN + USB_PW_CONN))
@@ -1653,7 +1868,7 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 		/* ChVoltLevel */
 		ret =
 		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG,
-				   pdata->ip_vol_lvl);
+				   di->pdata->ip_vol_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
@@ -1667,7 +1882,7 @@ static int ab8500_bm_ac_en(struct ab8500_bm_device_info *di, int enable)
 		}
 		/* ChOutputCurentLevel */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CH_OPT_CRNTLVL_REG,
-			       pdata->op_cur_lvl);
+			       di->pdata->op_cur_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_ac_en(): write failed\n");
 			return ret;
@@ -1763,10 +1978,14 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 			return ret;
 		}
 		if ((ret != USB_PW_CONN) && (ret != (AC_PW_CONN + USB_PW_CONN))) {
-			dev_vdbg(di->dev, "USB charger not connected\n");
+			dev_err(di->dev, "USB charger not connected\n");
 			return -ENXIO;
 		}
-		ab8500_bm_detect_usb_type(di);
+		ret = ab8500_bm_detect_usb_type(di);
+		if (ret < 0) {
+			dev_err(di->dev, "Unable to detect usb type\n");
+			return ret;
+		}
 		/* BattOVV threshold = 4.75v */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_BATT_OVV, 0x03);
 		if (ret) {
@@ -1779,7 +1998,7 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 		/* ChVoltLevel */
 		ret =
 		    ab8500_write(AB8500_CHARGER, AB8500_CH_VOLT_LVL_REG,
-				   pdata->ip_vol_lvl);
+				   di->pdata->ip_vol_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
@@ -1793,7 +2012,7 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 		}
 		/* ChOutputCurentLevel */
 		ret = ab8500_write(AB8500_CHARGER, AB8500_CH_OPT_CRNTLVL_REG,
-				   pdata->op_cur_lvl);
+				   di->pdata->op_cur_lvl);
 		if (ret) {
 			dev_vdbg(di->dev, "ab8500_bm_usb_en(): write failed\n");
 			return ret;
@@ -2089,7 +2308,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
-			val->intval = pdata->name;
+			val->intval = di->pdata->name;
 		else
 			val->intval = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
 		break;
@@ -2111,7 +2330,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = (di->avg_current * 1000);
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
-		/* TODO: Need to calculate the present energu and update
+		/* TODO: Need to calculate the present energy and update
 		 * the same in uWh from gasguage driver
 		 */
 		val->intval = 10000;
@@ -2410,13 +2629,15 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	   struct ab8500_bm_platform_data *pdata = pdev->dev.platform_data;
 	 */
 	int ret = 0;
+#if 0
 	struct ab8500_bm_device_info *di;
+#endif
 
 	di = kzalloc(sizeof(*di), GFP_KERNEL);
 	if (!di)
 		return -ENOMEM;
 	/* get the paltform data i.e the battery information */
-	pdata = pdev->dev.platform_data;
+	di->pdata = pdev->dev.platform_data;
 
 	di->maintenance_chg = false;
 	/* Main Battery */
@@ -2486,14 +2707,23 @@ static int __devinit ab8500_bm_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK_DEFERRABLE(&di->ab8500_bm_monitor_work,
 				     ab8500_bm_battery_work);
 
-	/* Init work queue for enable/desable AC/USB charge */
+	/* Init work for enable/desable AC/USB charge */
 	INIT_WORK(&di->ab8500_bm_ac_en_monitor_work, ab8500_bm_ac_en_work);
 	INIT_WORK(&di->ab8500_bm_ac_dis_monitor_work, ab8500_bm_ac_dis_work);
 	INIT_WORK(&di->ab8500_bm_usb_en_monitor_work, ab8500_bm_usb_en_work);
 	INIT_WORK(&di->ab8500_bm_usb_dis_monitor_work, ab8500_bm_usb_dis_work);
 
-	/* Init work queue for getting the battery average current */
+	/* Init work for getting the battery average current */
 	INIT_WORK(&di->ab8500_bm_avg_cur_monitor_work, ab8500_bm_avg_cur_work);
+
+	/* Init work to handle usb state changed event from USB stack */
+	INIT_WORK(&di->ab8500_bm_usb_state_changed_monitor_work,
+			ab8500_bm_usb_state_changed_work);
+
+	/* Init completion to get notified when USB negotiations are
+	 * done for a standard host
+	 */
+	init_completion(&di->ab8500_bm_usb_completed);
 
 	/* Enable coulomb counter */
 	ret = ab8500_bm_cc_enable(di, true);
