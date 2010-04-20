@@ -115,6 +115,8 @@
 #include "davinci.h"
 #endif
 
+#include "stm_musb.h"
+
 #define TA_WAIT_BCON(m) max_t(int, (m)->a_wait_bcon, OTG_TIME_A_WAIT_BCON)
 
 
@@ -385,6 +387,29 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 
 	DBG(3, "<== Power=%02x, DevCtl=%02x, int_usb=0x%x\n", power, devctl,
 		int_usb);
+
+	/*
+	 * XXX The following code has been inserted here as a temporary hack
+	 * to get some USB events directly from the USB hardware. This code
+	 * and callbacks should eventually be integrated into the generic
+	 * USB gadget stack.
+	 */
+	if (!(devctl & MUSB_DEVCTL_HM)) {
+		if (int_usb & MUSB_INTR_RESET) {
+			if (power & MUSB_POWER_HSMODE)
+				ab8500_bm_usb_state_changed_wrapper(
+				    AB8500_BM_USB_STATE_RESET_HS);
+			else
+				ab8500_bm_usb_state_changed_wrapper(
+				    AB8500_BM_USB_STATE_RESET_FS);
+		}
+		if (int_usb & MUSB_INTR_RESUME)
+			ab8500_bm_usb_state_changed_wrapper(
+			    AB8500_BM_USB_STATE_RESUME);
+		else if (int_usb & MUSB_INTR_SUSPEND)
+			ab8500_bm_usb_state_changed_wrapper(
+			    AB8500_BM_USB_STATE_SUSPEND);
+	}
 
 	/* in host mode, the peripheral may issue remote wakeup.
 	 * in peripheral mode, the host may resume the link.

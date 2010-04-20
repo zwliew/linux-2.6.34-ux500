@@ -25,8 +25,111 @@
 #include "stm_musb.h"
 #include <mach/musb_db8500.h>
 
-/* Sys interfaces*/
-struct musb *musb_status;
+static u8 ulpi_read_register(struct musb *musb, u8 address);
+static u8 ulpi_write_register(struct musb *musb, u8 address, u8 data);
+/* callback argument for AB8500 callback functions */
+static struct musb *musb_status;
+static spinlock_t musb_ulpi_spinlock;
+static unsigned musb_power;
+
+#if 0
+static void
+ab8500_bm_ulpi_test(void)
+{
+	u8 x;
+
+	x = ulpi_read_register(musb_status, ULPI_VIDLO);
+	if (x != 0x83)
+		printk(KERN_ALERT "Unexpected USB PHY VID-LO: 0x%02x\n", x);
+
+	x = ulpi_read_register(musb_status, ULPI_VIDHI);
+	if (x != 0x04)
+		printk(KERN_ALERT "Unexpected USB PHY VID-HI: 0x%02x\n", x);
+
+	x = ulpi_read_register(musb_status, ULPI_PIDLO);
+	if (x != 0x00)
+		printk(KERN_ALERT "Unexpected USB PHY PID-LO: 0x%02x\n", x);
+
+	x = ulpi_read_register(musb_status, ULPI_PIDHI);
+	if (x != 0x45)
+		printk(KERN_ALERT "Unexpected USB PHY PID-HI: 0x%02x\n", x);
+
+	ulpi_write_register(musb_status, ULPI_SCRATCH, 0xAA);
+
+	x = ulpi_read_register(musb_status, ULPI_SCRATCH);
+	if (x != 0xAA)
+		printk(KERN_ALERT "Unexpected ULPI "
+		    "read-back value: 0x%02x\n", x);
+
+	ulpi_write_register(musb_status, ULPI_SCRATCH, 0x55);
+
+	x = ulpi_read_register(musb_status, ULPI_SCRATCH);
+	if (x != 0x55)
+		printk(KERN_ALERT "Unexpected ULPI "
+		    "read-back value: 0x%02x\n", x);
+	else
+		printk(KERN_INFO "USB: ULPI read-back value OK\n");
+}
+#endif
+
+void
+ab8500_bm_usb_state_changed_wrapper(u8 bm_usb_state)
+{
+	if ((bm_usb_state == AB8500_BM_USB_STATE_RESET_HS) ||
+	    (bm_usb_state == AB8500_BM_USB_STATE_RESET_FS)) {
+		musb_power = 0;
+#if 0
+		/* for debugging purpose only */
+		ab8500_bm_ulpi_test();
+#endif
+	}
+
+	printk(KERN_INFO "Please implement ab8500_bm_usb_state_changed"
+	    "(%d AB8500_BM_USB_STATE_XXX, %d mA)\n",
+	    bm_usb_state, musb_power);
+
+	/* ab8500_bm_usb_state_changed(bm_usb_state, musb_power); */
+}
+
+void
+ab8500_bm_ulpi_set_char_speed_mode(u8 mode)
+{
+	if (musb_status == NULL) {
+		printk(KERN_ALERT "musb_status is NULL. "
+		    "Cannot write to ULPI.\n");
+		return;
+	}
+
+	mode &= 3;
+	mode <<= 5;
+	mode |= ulpi_read_register(musb_status, ULPI_ULINKSTAT) &
+	    ~ULPI_ULINKSTAT_CHARSPEED_MODE;
+
+	printk(KERN_INFO "Writing 0x%02x to USB char-speed mode bits\n", mode);
+
+	ulpi_write_register(musb_status, ULPI_ULINKSTAT, mode);
+}
+
+void
+ab8500_bm_ulpi_set_char_suspend_mode(u8 suspend)
+{
+	if (musb_status == NULL) {
+		printk(KERN_ALERT "musb_status is NULL. "
+		    "Cannot write to ULPI.\n");
+		return;
+	}
+
+	suspend &= 1;
+	suspend <<= 7;
+	suspend |= ulpi_read_register(musb_status, ULPI_ULINKSTAT) &
+	    ~ULPI_ULINKSTAT_SUSPEND_MODE;
+
+	printk(KERN_INFO "Writing 0x%02x to USB suspend mode bits\n", suspend);
+
+	ulpi_write_register(musb_status, ULPI_ULINKSTAT, suspend);
+}
+
+/* Sys interfaces */
 static struct kobject *usbstatus_kobj;
 static ssize_t usb_cable_status
 		(struct kobject *kobj, struct attribute *attr, char *buf)
@@ -71,8 +174,11 @@ static struct timer_list notify_timer;
 static u8 ulpi_read_register(struct musb *musb, u8 address)
 {
 	void __iomem *mbase = musb->mregs;
-	int count = 20;
+	unsigned long flags;
+	int count = 200;
 	u8 val;
+
+	spin_lock_irqsave(&musb_ulpi_spinlock, flags);
 
 	/* set ULPI register address */
 	musb_writeb(mbase, OTG_UREGADDR, address);
@@ -89,20 +195,87 @@ static u8 ulpi_read_register(struct musb *musb, u8 address)
 
 	/* wait for completion with a time-out */
 	do {
-		udelay(100);
+		udelay(10);
 		val = musb_readb(mbase, OTG_UREGCTRL);
 		count--;
 	} while (!(val & OTG_UREGCTRL_REGCMP) && (count > 0));
 
 	/* check for time-out */
-	if (!(val & OTG_UREGCTRL_REGCMP) && (count == 0))
+	if (!(val & OTG_UREGCTRL_REGCMP) && (count == 0)) {
+		spin_unlock_irqrestore(&musb_ulpi_spinlock, flags);
+		printk(KERN_ALERT "U8500 USB : ULPI read timed out\n");
 		return 0;
+	}
+
 	/* acknowledge completion */
 	val &= ~OTG_UREGCTRL_REGCMP;
 	musb_writeb(mbase, OTG_UREGCTRL, val);
 
-	return musb_readb(mbase, OTG_UREGDATA);
+	/* get data */
+	val = musb_readb(mbase, OTG_UREGDATA);
+	spin_unlock_irqrestore(&musb_ulpi_spinlock, flags);
+
+	return val;
 }
+
+/**
+ * ulpi_write_register() - Write to a usb phy's ULPI register
+ * using the Mentor ULPI wrapper functionality
+ * @musb: struct musb pointer.
+ * @address: address of ULPI register
+ * @data: data for ULPI register
+ * This function writes the value given by data to the specific address
+ */
+static u8 ulpi_write_register(struct musb *musb, u8 address, u8 data)
+{
+	void __iomem *mbase = musb->mregs;
+	unsigned long flags;
+	int count = 200;
+	u8 val;
+
+	spin_lock_irqsave(&musb_ulpi_spinlock, flags);
+
+	/* First write to ULPI wrapper registers */
+	/* set ULPI register address */
+	musb_writeb(mbase, OTG_UREGADDR, address);
+
+	/* request a write access */
+	val = musb_readb(mbase, OTG_UREGCTRL);
+	val &= ~OTG_UREGCTRL_URW;
+	musb_writeb(mbase, OTG_UREGCTRL, val);
+
+	/* Write data to ULPI wrapper data register */
+	musb_writeb(mbase, OTG_UREGDATA, data);
+
+	/* perform access  */
+	val = musb_readb(mbase, OTG_UREGCTRL);
+	val |= OTG_UREGCTRL_REGREQ;
+	musb_writeb(mbase, OTG_UREGCTRL, val);
+
+	/* wait for completion with a time-out */
+	do {
+		udelay(10);
+		val = musb_readb(mbase, OTG_UREGCTRL);
+		count--;
+	} while (!(val & OTG_UREGCTRL_REGCMP) && (count > 0));
+
+	/* check for time-out */
+	if (!(val & OTG_UREGCTRL_REGCMP) && (count == 0)) {
+		spin_unlock_irqrestore(&musb_ulpi_spinlock, flags);
+		printk(KERN_ALERT "U8500 USB : ULPI write timed out\n");
+		return 0;
+	}
+
+	/* acknowledge completion */
+	val &= ~OTG_UREGCTRL_REGCMP;
+	musb_writeb(mbase, OTG_UREGCTRL, val);
+
+	spin_unlock_irqrestore(&musb_ulpi_spinlock, flags);
+
+	return 0;
+
+}
+
 /**
  * musb_stm_hs_otg_init() - Initialize the USB for paltform specific.
  * @musb: struct musb pointer.
@@ -262,6 +435,10 @@ static void set_vbus(struct musb *musb, int is_on)
  */
 static int set_power(struct otg_transceiver *x, unsigned mA)
 {
+	musb_power = mA;
+
+	ab8500_bm_usb_state_changed_wrapper(AB8500_BM_USB_STATE_CONFIGURED);
+
 	return 0;
 }
 /**
@@ -339,8 +516,12 @@ int __init musb_platform_init(struct musb *musb)
 	if (ret < 0)
 		return ret;
 
+	if (musb_status == NULL) {
+		musb_status = musb;
+		spin_lock_init(&musb_ulpi_spinlock);
+	}
+
 	/* Registering usb device  for sysfs */
-	musb_status = musb;
 	usbstatus_kobj = kzalloc(sizeof(struct kobject), GFP_KERNEL);
 
 	if (usbstatus_kobj == NULL)
@@ -385,5 +566,8 @@ int musb_platform_exit(struct musb *musb)
 	}
 	if (musb->board_mode != MUSB_PERIPHERAL)
 		del_timer_sync(&notify_timer);
+
+	musb_status = NULL;
+
 	return 0;
 }

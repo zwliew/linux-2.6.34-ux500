@@ -13,6 +13,15 @@
 
 #include <mach/hardware.h>
 
+enum {
+	AB8500_BM_USB_STATE_RESET_HS,	/* HighSpeed Reset */
+	AB8500_BM_USB_STATE_RESET_FS,	/* FullSpeed/LowSpeed Reset */
+	AB8500_BM_USB_STATE_CONFIGURED,
+	AB8500_BM_USB_STATE_SUSPEND,
+	AB8500_BM_USB_STATE_RESUME,
+	AB8500_BM_USB_STATE_MAX,
+};
+
 /**
  * U8500-specific definitions
  */
@@ -89,6 +98,7 @@
 #define ULPI_SCRATCH	0x16	/* Scratch Register             */
 #define ULPI_CCTRL	0x19	/* Carkit Control Register      */
 #define ULPI_PCTRL	0x3D	/* Power Control Register       */
+#define ULPI_ULINKSTAT	0x39	/* USB Link Status & Control Register */
 
 /*
  * Vendor and Product IDs
@@ -135,5 +145,18 @@
 #define ULPI_OCTRL_DRVVBUS (1 << 5)
 #define ULPI_OCTRL_DRVVBUSEXT (1 << 6)
 #define ULPI_OCTRL_EXTVBUSIND (1 << 7)
+
+/**
+ * STULPI USB Link Status & Control Register
+ */
+#define	ULPI_ULINKSTAT_CHARSPEED_MODE (3 << 5)
+#define	ULPI_ULINKSTAT_SUSPEND_MODE (1 << 7)
+
+/* function prototypes */
+
+void ab8500_bm_usb_state_changed(u8 bm_usb_state, u16 mA);
+void ab8500_bm_usb_state_changed_wrapper(u8 bm_usb_state);
+void ab8500_bm_ulpi_set_char_speed_mode(u8 mode);
+void ab8500_bm_ulpi_set_char_suspend_mode(u8 suspend);
 
 #endif/* __MUSB_U8500_H__ */
