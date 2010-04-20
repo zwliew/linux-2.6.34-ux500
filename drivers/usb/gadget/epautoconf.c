@@ -290,7 +290,7 @@ struct usb_ep * __init usb_ep_autoconfig (
 	list_for_each_entry (ep, &gadget->ep_list, ep_list) {
 #if (defined(CONFIG_ARCH_U8500) && !defined(CONFIG_MUSB_PIO_ONLY))
 	if(!strcmp(((gadget->dev).driver)->name,"g_file_storage")) {
-		if((strcmp(ep->name, "ep1in")==0) ||(strcmp(ep->name, "ep7out")==0)) {
+		if((strcmp(ep->name, "ep1in")==0) ||(strcmp(ep->name, "ep3out")==0)) {
 			if (ep_matches (gadget, ep, desc))
 				return ep;
 		}

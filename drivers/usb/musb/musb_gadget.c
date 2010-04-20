@@ -47,7 +47,7 @@
 #include <linux/slab.h>
 
 #include "musb_core.h"
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_ARCH_U8500
 #include "ste_config.h"
 #endif
 

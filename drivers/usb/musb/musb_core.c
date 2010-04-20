@@ -2446,12 +2446,14 @@ static int __init musb_init(void)
 /* make us init after usbcore and i2c (transceivers, regulators, etc)
  * and before usb gadget and host-side drivers start to register
  */
-fs_initcall(musb_init);
+//fs_initcall(musb_init);
 #else
 /* with fs_initcall the dma controller driver was loaded after mentor IP
  * driver so when DMA is enabled, it will break as DMA controller driver is
  * not loaded. This has been done to correct the order
  */
+module_init(musb_init);
+#else
 module_init(musb_init);
 #endif
 
