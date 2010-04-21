@@ -28,7 +28,6 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/firmware.h>
-#include <linux/mutex.h>
 #include <linux/list.h>
 
 #include <linux/mfd/ste_conn.h>
@@ -352,13 +351,12 @@ struct tx_list_item {
   * @boot_download_state:  Current BOOT_DOWNLOAD-state of CPD.
   * @wq:                   CPD workqueue.
   * @hci_logger_config:    Stores HCI logger configuration.
-  * @setup_lock:           Spinlock for setup of CPD.
   * @dev:                  Device structure for STE Connectivity driver.
   * @h4_channels:	   HCI H:4 channel used by this device.
   * @tx_list_bt:	TX queue for HCI BT cmds when nr of cmds allowed is 0 (ste_conn internal flow ctrl).
   * @tx_list_fm:        TX queue for HCI FM cmds when nr of cmds allowed is 0 (ste_conn internal flow ctrl).
-  * @tx_bt_mutex:  Mutex used to protect some global structures related to internal BT cmd flow control.
-  * @tx_fm_mutex:  Mutex used to protect some global structures related to internal FM cmd flow control.
+  * @tx_bt_lock:	Spinlock used to protect some global structures related to internal BT cmd flow control.
+  * @tx_fm_lock:	Spinlock used to protect some global structures related to internal FM cmd flow control.
   * @tx_fm_audio_awaiting_irpt:  Indicates if an FM interrupt evt related to audio driver cmd is expected.
   * @fm_radio_mode:  Current FM radio mode.
   * @tx_nr_pkts_allowed_bt:  Number of packets allowed to send on BT HCI CMD H4 channel.
@@ -382,13 +380,12 @@ struct ste_conn_cpd_info {
 	enum cpd_boot_download_state		boot_download_state;
 	struct workqueue_struct			*wq;
 	struct ste_conn_cpd_hci_logger_config	hci_logger_config;
-	spinlock_t				setup_lock;
 	struct device				*dev;
 	struct ste_conn_ccd_h4_channels		h4_channels;
 	struct list_head			tx_list_bt;
 	struct list_head			tx_list_fm;
-	struct mutex				tx_bt_mutex;
-	struct mutex				tx_fm_mutex;
+	spinlock_t				tx_bt_lock;
+	spinlock_t				tx_fm_lock;
 	bool					tx_fm_audio_awaiting_irpt;
 	enum cpd_fm_radio_mode			fm_radio_mode;
 	int					tx_nr_pkts_allowed_bt;
@@ -1015,12 +1012,9 @@ int ste_conn_cpd_init(int char_dev_usage, struct device *dev)
 		INIT_LIST_HEAD(&cpd_info->tx_list_bt);
 		INIT_LIST_HEAD(&cpd_info->tx_list_fm);
 
-		/* Initialize tx mutexes. */
-		mutex_init(&cpd_info->tx_bt_mutex);
-		mutex_init(&cpd_info->tx_fm_mutex);
-
-		/* Initialize the spin lock */
-		spin_lock_init(&cpd_info->setup_lock);
+		/* Initialize the spin locks */
+		spin_lock_init(&cpd_info->tx_bt_lock);
+		spin_lock_init(&cpd_info->tx_fm_lock);
 
 		/* Initialize the character devices */
 		ste_conn_char_devices_init(char_dev_usage, dev);
@@ -1088,10 +1082,6 @@ void ste_conn_cpd_exit(void)
 	/* Free everything allocated in cpd_info */
 	kfree(cpd_info->patch_file_name);
 	kfree(cpd_info->settings_file_name);
-
-	/* Destroy mutexes. */
-	mutex_destroy(&cpd_info->tx_bt_mutex);
-	mutex_destroy(&cpd_info->tx_fm_mutex);
 
 	if (cpd_info->fw_file) {
 		release_firmware(cpd_info->fw_file);
@@ -1643,7 +1633,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			struct list_head *cursor, *next;
 			struct tx_list_item *tmp;
 
-			mutex_lock(&cpd_info->tx_bt_mutex);
+			spin_lock(&cpd_info->tx_bt_lock);
 			list_for_each_safe(cursor, next, &cpd_info->tx_list_bt) {
 					tmp = list_entry(cursor, struct tx_list_item, list);
 					list_del(cursor);
@@ -1656,7 +1646,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			cpd_info->tx_nr_outstanding_cmds_bt = 0;
 			/* Reset the hci_audio_cmd_opcode_bt. */
 			cpd_info->hci_audio_cmd_opcode_bt = 0xFFFF;
-			mutex_unlock(&cpd_info->tx_bt_mutex);
+			spin_unlock(&cpd_info->tx_bt_lock);
 		}
 	} else if ((*dev)->h4_channel == cpd_info->h4_channels.bt_acl_channel) {
 		if (*dev == cpd_info->users.bt_acl) {
@@ -1695,7 +1685,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			struct list_head *cursor, *next;
 			struct tx_list_item *tmp;
 
-			mutex_lock(&cpd_info->tx_fm_mutex);
+			spin_lock(&cpd_info->tx_fm_lock);
 			list_for_each_safe(cursor, next, &cpd_info->tx_list_fm) {
 				tmp = list_entry(cursor, struct tx_list_item, list);
 				list_del(cursor);
@@ -1707,7 +1697,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			cpd_info->tx_nr_pkts_allowed_fm = 1;
 			/* Reset the hci_audio_cmd_opcode_bt. */
 			cpd_info->hci_audio_fm_cmd_id = 0xFFFF;
-			mutex_unlock(&cpd_info->tx_fm_mutex);
+			spin_unlock(&cpd_info->tx_fm_lock);
 		}
 	} else if ((*dev)->h4_channel == cpd_info->h4_channels.debug_channel) {
 		if (*dev == cpd_info->users.debug) {
@@ -2892,7 +2882,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_bt(struct sk_buff *skb,
 	 * for BT cmd and FM channel) we need to have an internal HCI cmd flow control
 	 * in ste_conn driver. So check here how many tickets we have and store skb in a queue
 	 * if there are no tickets left. The skb will be sent later when we get more ticket(s). */
-	mutex_lock(&cpd_info->tx_bt_mutex);
+	spin_lock(&cpd_info->tx_bt_lock);
 
 	if ((cpd_info->tx_nr_pkts_allowed_bt - cpd_info->tx_nr_outstanding_cmds_bt) > 0) {
 		(cpd_info->tx_nr_pkts_allowed_bt)--;
@@ -2920,7 +2910,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_bt(struct sk_buff *skb,
 			STE_CONN_ERR("Failed to alloc memory!");
 		}
 	}
-	mutex_unlock(&cpd_info->tx_bt_mutex);
+	spin_unlock(&cpd_info->tx_bt_lock);
 }
 
 /**
@@ -2948,7 +2938,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_fm(struct sk_buff *skb,
 	 * for BT cmd and FM channel) we need to have an internal HCI cmd flow control
 	 * in ste_conn driver. So check here how many tickets we have and store skb in a queue
 	 * there are no tickets left. The skb will be sent later when we get more ticket(s). */
-	mutex_lock(&cpd_info->tx_fm_mutex);
+	spin_lock(&cpd_info->tx_fm_lock);
 
 	if (cpd_info->tx_nr_pkts_allowed_fm) {
 		(cpd_info->tx_nr_pkts_allowed_fm)--;
@@ -2972,7 +2962,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_fm(struct sk_buff *skb,
 			STE_CONN_ERR("Failed to alloc memory!");
 		}
 	}
-	mutex_unlock(&cpd_info->tx_fm_mutex);
+	spin_unlock(&cpd_info->tx_fm_lock);
 }
 
 
@@ -2992,7 +2982,7 @@ static void cpd_transmit_skb_from_tx_queue_bt(void)
 
 	STE_CONN_INFO("cpd_transmit_skb_from_tx_queue_bt");
 
-	mutex_lock(&cpd_info->tx_bt_mutex);
+	spin_lock(&cpd_info->tx_bt_lock);
 
 	list_for_each_safe(cursor, next, &cpd_info->tx_list_bt) {
 		tmp = list_entry(cursor, struct tx_list_item, list);
@@ -3020,6 +3010,7 @@ static void cpd_transmit_skb_from_tx_queue_bt(void)
 				kfree(tmp);
 			} else {
 				/* If no more pckts allowed just return, we'll get back here after next cmd cmpl/cmd status evt. */
+				spin_unlock(&cpd_info->tx_bt_lock);
 				return;
 			}
 		} else {
@@ -3028,7 +3019,7 @@ static void cpd_transmit_skb_from_tx_queue_bt(void)
 		}
 	}
 
-	mutex_unlock(&cpd_info->tx_bt_mutex);
+	spin_unlock(&cpd_info->tx_bt_lock);
 }
 
 /**
@@ -3047,7 +3038,7 @@ static void cpd_transmit_skb_from_tx_queue_fm(void)
 
 	STE_CONN_INFO("cpd_transmit_skb_from_tx_queue_fm");
 
-	mutex_lock(&cpd_info->tx_fm_mutex);
+	spin_lock(&cpd_info->tx_fm_lock);
 
 	list_for_each_safe(cursor, next, &cpd_info->tx_list_fm) {
 		tmp = list_entry(cursor, struct tx_list_item, list);
@@ -3071,6 +3062,7 @@ static void cpd_transmit_skb_from_tx_queue_fm(void)
 				kfree(tmp);
 			} else {
 				/* If no more pckts allowed just return, we'll get back here after next cmd cmpl/cmd status evt. */
+				spin_unlock(&cpd_info->tx_fm_lock);
 				return;
 			}
 		} else {
@@ -3079,7 +3071,7 @@ static void cpd_transmit_skb_from_tx_queue_fm(void)
 		}
 	}
 
-	mutex_unlock(&cpd_info->tx_fm_mutex);
+	spin_unlock(&cpd_info->tx_fm_lock);
 }
 
 /**

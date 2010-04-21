@@ -199,6 +199,7 @@ static int __init ste_conn_hci_driver_init(void);
 static void __exit ste_conn_hci_driver_exit(void);
 
 /* HCI handlers */
+static void remove_bt_users(struct ste_conn_hci_info *info);
 static int ste_conn_hci_open(struct hci_dev *hdev);
 static int ste_conn_hci_close(struct hci_dev *hdev);
 static int ste_conn_hci_flush(struct hci_dev *hdev);
@@ -244,6 +245,40 @@ static struct timeval time_1s = {
 static DECLARE_WAIT_QUEUE_HEAD(ste_conn_hci_wait_queue);
 
 /* Internal functions */
+
+/**
+ * remove_bt_users() - unregister and remove any existing BT users.
+ * @info: STE_CONN HCI info structure.
+ */
+static void remove_bt_users(struct ste_conn_hci_info *info)
+{
+	if (info->cpd_bt_cmd) {
+		if (info->cpd_bt_cmd->user_data) {
+			kfree(info->cpd_bt_cmd->user_data);
+			info->cpd_bt_cmd->user_data = NULL;
+		}
+		ste_conn_deregister(info->cpd_bt_cmd);
+		info->cpd_bt_cmd = NULL;
+	}
+
+	if (info->cpd_bt_evt) {
+		if (info->cpd_bt_evt->user_data) {
+			kfree(info->cpd_bt_evt->user_data);
+			info->cpd_bt_evt->user_data = NULL;
+		}
+		ste_conn_deregister(info->cpd_bt_evt);
+		info->cpd_bt_evt = NULL;
+	}
+
+	if (info->cpd_bt_acl) {
+		if (info->cpd_bt_acl->user_data) {
+			kfree(info->cpd_bt_acl->user_data);
+			info->cpd_bt_acl->user_data = NULL;
+		}
+		ste_conn_deregister(info->cpd_bt_acl);
+		info->cpd_bt_acl = NULL;
+	}
+}
 
 /**
  * ste_conn_hci_open() - open ste_conn hci interface.
@@ -296,7 +331,7 @@ static int ste_conn_hci_open(struct hci_dev *hdev)
 		} else {
 			STE_CONN_ERR("Couldn't register STE_CONN_DEVICES_BT_CMD to CPD");
 			err = -EACCES;
-			goto finished;
+			goto handle_error;
 		}
 	}
 
@@ -310,7 +345,7 @@ static int ste_conn_hci_open(struct hci_dev *hdev)
 		} else {
 			STE_CONN_ERR("Couldn't register STE_CONN_DEVICES_BT_EVT to CPD");
 			err = -EACCES;
-			goto finished;
+			goto handle_error;
 		}
 	}
 
@@ -324,7 +359,7 @@ static int ste_conn_hci_open(struct hci_dev *hdev)
 		} else {
 			STE_CONN_ERR("Couldn't register STE_CONN_DEVICES_BT_ACL to CPD");
 			err = -EACCES;
-			goto finished;
+			goto handle_error;
 		}
 	}
 
@@ -352,13 +387,18 @@ static int ste_conn_hci_open(struct hci_dev *hdev)
 			STE_CONN_ERR("Could not enable BT core (%d).", info->enable_state);
 			err = -EACCES;
 			HCI_SET_ENABLE_STATE(HCI_ENABLE_STATE_BT_DISABLED);
-			goto finished;
+			goto handle_error;
 		}
 	} else {
 		/* The chip is enabled by default */
 		HCI_SET_ENABLE_STATE(HCI_ENABLE_STATE_BT_ENABLED);
 	}
 
+	goto finished;
+
+handle_error:
+	remove_bt_users(info);
+	clear_bit(HCI_RUNNING, &(hdev->flags));
 finished:
 	return err;
 
@@ -439,35 +479,10 @@ static int ste_conn_hci_close(struct hci_dev *hdev)
 		HCI_SET_ENABLE_STATE(HCI_ENABLE_STATE_BT_ENABLED);
 	}
 
-	if (info->cpd_bt_cmd) {
-		if (info->cpd_bt_cmd->user_data) {
-			kfree(info->cpd_bt_cmd->user_data);
-			info->cpd_bt_cmd->user_data = NULL;
-		}
-		ste_conn_deregister(info->cpd_bt_cmd);
-		info->cpd_bt_cmd = NULL;
-	}
-
-	if (info->cpd_bt_evt) {
-		if (info->cpd_bt_evt->user_data) {
-			kfree(info->cpd_bt_evt->user_data);
-			info->cpd_bt_evt->user_data = NULL;
-		}
-		ste_conn_deregister(info->cpd_bt_evt);
-		info->cpd_bt_evt = NULL;
-	}
-
-	if (info->cpd_bt_acl) {
-		if (info->cpd_bt_acl->user_data) {
-			kfree(info->cpd_bt_acl->user_data);
-			info->cpd_bt_acl->user_data = NULL;
-		}
-		ste_conn_deregister(info->cpd_bt_acl);
-		info->cpd_bt_acl = NULL;
-	}
+	/* Finally deregister all users and free allocated data */
+	remove_bt_users(info);
 
 finished:
-
 	return err;
 }
 
