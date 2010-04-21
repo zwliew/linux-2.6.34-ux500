@@ -89,7 +89,9 @@ ab8500_bm_usb_state_changed_wrapper(u8 bm_usb_state)
 	    bm_usb_state, musb_power);
 #endif
 
+#ifdef CONFIG_AB8500_BM
 	ab8500_bm_usb_state_changed(bm_usb_state, musb_power);
+#endif
 }
 
 void
