@@ -385,6 +385,10 @@ config AB8500_GPADC
 	help
 	  AB8500 GPADC driver used to convert Acc and battery/ac/usb voltage
 
+config STE_IRRC
+	bool "STEricsson Infra Red Remote Control Driver"
+	default n
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

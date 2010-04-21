@@ -38,3 +38,4 @@ obj-$(CONFIG_AB8500)            += ab8500-dev.o
 obj-$(CONFIG_AB8500_GPADC)	+= ab8500_gpadc.o
 obj-$(CONFIG_ISA_HSI_MODEM)     += msw/
 obj-$(CONFIG_U8500_SHRM)        += shrm/
+obj-$(CONFIG_STE_IRRC)		+= irrc.o
