@@ -477,7 +477,7 @@ uint8_t ste_fm_get_signal_strength(
  *	 STE_STATUS_SYSTEM_ERROR, otherwise.
  */
 uint8_t ste_fm_get_mode(
-		uint8_t *cur_mode
+		uint32_t *cur_mode
 		);
 
 /**

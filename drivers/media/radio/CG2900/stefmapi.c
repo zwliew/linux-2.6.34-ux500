@@ -2022,18 +2022,18 @@ uint8_t ste_fm_get_signal_strength(
 }
 
 uint8_t ste_fm_get_mode(
-		uint8_t *cur_mode
+		uint32_t *cur_mode
 		)
 {
 	uint8_t result = STE_STATUS_OK;
-	uint8_t mode;
+	uint32_t mode;
 
 	FM_INFO_REPORT("ste_fm_get_mode");
 
 	if (STE_TRUE == fm_init) {
 		if (STE_TRUE == fm_power_on && STE_FALSE == fm_stand_by) {
 			result = fmd_rx_get_stereo_mode(context,
-				(uint32_t *)&mode);
+				&mode);
 			if (FMD_RESULT_SUCCESS != result) {
 				FM_ERR_REPORT("ste_fm_get_mode: "\
 				"fmd_rx_get_stereo_mode failed, Error Code %d",

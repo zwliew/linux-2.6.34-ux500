@@ -291,7 +291,7 @@ static int vidioc_g_tuner(
 {
 	struct v4l2_tuner *v = arg;
 	uint8_t status;
-	uint8_t mode;
+	uint32_t mode;
 	uint16_t rssi;
 	FM_DEBUG_REPORT("vidioc_g_tuner");
 
