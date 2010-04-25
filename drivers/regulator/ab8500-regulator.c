@@ -30,7 +30,7 @@
 #include <mach/prcmu-fw-api.h>
 #include <mach/ab8500.h>
 
-#define AB8500_NUM_REGULATORS	(10)
+#define AB8500_NUM_REGULATORS	(11)
 
 #define AB8500_LDO_VAUX1        (1)
 #define AB8500_LDO_VAUX2        (2)
@@ -41,6 +41,35 @@
 #define AB8500_LDO_VAMIC2	(7)
 #define AB8500_LDO_VDMIC	(8)
 #define AB8500_LDO_VINTCORE	(9)
+#define AB8500_LDO_VAUX3	(10)
+
+/* defines for regulator masks */
+#define MASK_ENABLE		(0x1)
+#define MASK_DISABLE		(0x0)
+
+/* audio supplies */
+#define MASK_LDO_VAUDIO		(0x2)
+#define MASK_LDO_VDMIC 		(0x4)
+#define MASK_LDO_VAMIC1 	(0x8)
+#define MASK_LDO_VAMIC2		(0x10)
+
+/* misc. supplies */
+#define MASK_LDO_VTVOUT		(0x2)
+#define MASK_LDO_VINTCORE	(0x4)
+
+/* aux supplies */
+#define MASK_LDO_VAUX1		(0x3)
+#define MASK_LDO_VAUX2		(0xc)
+#define MASK_LDO_VAUX3		(0x3)
+
+#define MASK_LDO_VAUX1_SHIFT	(0x0)
+#define MASK_LDO_VAUX2_SHIFT    (0x2)
+#define MASK_LDO_VAUX3_SHIFT    (0x0)
+
+/* regulator voltages */
+#define VAUX1_VOLTAGE_3_3V	(0xf)
+#define VAUX2_VOLTAGE_2_9V	(0xd)
+#define VAUX3_VOLTAGE_2_9V	(0xd)
 
 static int ab8500_ldo_enable(struct regulator_dev *rdev)
 {
@@ -50,28 +79,74 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 	if (regulator_id >= AB8500_NUM_REGULATORS)
 		return -EINVAL;
 
-	/* FIXME : as reads from regulator bank are not supported yet
-	 *	   enable both the VAUX1/2 by default. Add appropriate
-	 *	   read calls when I2C_APE support is available
-	 */
-	if ((regulator_id == AB8500_LDO_VAUX1) ||
-		(regulator_id == AB8500_LDO_VAUX2))
-		ab8500_write(AB8500_REGU_CTRL2,
-			AB8500_REGU_VAUX12_REGU_REG, 0x5);
+	if (!cpu_is_u8500v11()) {
+		/* FIXME : as reads from regulator bank are not supported yet
+		 *         enable both the VAUX1/2 by default. Add appropriate
+		 *         read calls when I2C_APE support is available
+		 */
+		if ((regulator_id == AB8500_LDO_VAUX1) ||
+				(regulator_id == AB8500_LDO_VAUX2))
+			ab8500_write(AB8500_REGU_CTRL2,
+					AB8500_REGU_VAUX12_REGU_REG, 0x5);
+	}
 
 	switch (regulator_id) {
 	case AB8500_LDO_VAUX1:
+		if (!cpu_is_u8500v11()) {
+			ab8500_write(AB8500_REGU_CTRL2,
+					AB8500_REGU_VAUX1_SEL_REG,
+						VAUX1_VOLTAGE_3_3V);
+			break;
+		}
+		/* setting to 3.3V for MCDE */
+		val = ab8500_read(AB8500_REGU_CTRL2,
+			AB8500_REGU_VAUX12_REGU_REG);
 		ab8500_write(AB8500_REGU_CTRL2,
-				AB8500_REGU_VAUX1_SEL_REG, 0x0F);
+				AB8500_REGU_VAUX1_SEL_REG,
+					VAUX1_VOLTAGE_3_3V);
+		val = val & ~MASK_LDO_VAUX1;
+		val = val | (1 << MASK_LDO_VAUX1_SHIFT);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG, val);
 		break;
 	case AB8500_LDO_VAUX2:
+		if (!cpu_is_u8500v11()) {
+			ab8500_write(AB8500_REGU_CTRL2,
+					AB8500_REGU_VAUX2_SEL_REG,
+					VAUX2_VOLTAGE_2_9V);
+			break;
+		}
+
+		/* setting to 2.9V for on-board eMMC */
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG);
 		ab8500_write(AB8500_REGU_CTRL2,
-				AB8500_REGU_VAUX2_SEL_REG, 0x0D);
+				AB8500_REGU_VAUX2_SEL_REG,
+				VAUX2_VOLTAGE_2_9V);
+		val = val & ~MASK_LDO_VAUX2;
+		val = val | (1 << MASK_LDO_VAUX2_SHIFT);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG, val);
+		break;
+	case AB8500_LDO_VAUX3:
+		/* setting to 2.9V for MMC-SD */
+		 val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_REGU_REG);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_SEL_REG,
+				VAUX3_VOLTAGE_2_9V);
+		val = val & ~MASK_LDO_VAUX3;
+		val = val | (1 << MASK_LDO_VAUX1_SHIFT);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_REGU_REG, val);
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_REGU_REG);
 		break;
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_MISC1_REG, (val | 0x02));
+				AB8500_REGU_MISC1_REG,
+				(val | MASK_LDO_VTVOUT));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot enable TVOUT LDO\n");
@@ -82,7 +157,8 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val | 0x02));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+				(val | MASK_LDO_VAUDIO));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot enable TVOUT LDO\n");
@@ -93,10 +169,11 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val | 0x04));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+				(val | MASK_LDO_VDMIC));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
-					"cannot enable VAMIC1 LDO\n");
+					"cannot enable VDMIC LDO\n");
 			return -EINVAL;
 		}
 		break;
@@ -104,7 +181,8 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val | 0x08));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+				(val | MASK_LDO_VAMIC1));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot enable VAMIC1 LDO\n");
@@ -115,7 +193,8 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val | 0x10));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+				(val | MASK_LDO_VAMIC2));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot enable VAMIC2 LDO\n");
@@ -125,7 +204,8 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 	case AB8500_LDO_VINTCORE:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_MISC1_REG, (val | 0x04));
+				AB8500_REGU_MISC1_REG,
+				(val | MASK_LDO_VINTCORE));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot enable VINTCORE12 LDO\n");
@@ -147,16 +227,47 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 	if (regulator_id >= AB8500_NUM_REGULATORS)
 		return -EINVAL;
 
+	if (!cpu_is_u8500v11()) {
+		/* FIXME : as reads from regulator bank are not supported yet
+		 *         disable both the VAUX1/2 by default. Add appropriate
+		 *         read calls when I2C_APE support is available
+		 */
+		if ((regulator_id == AB8500_LDO_VAUX1) ||
+				(regulator_id == AB8500_LDO_VAUX2)) {
+			ab8500_write(AB8500_REGU_CTRL2,
+					AB8500_REGU_VAUX12_REGU_REG,
+						MASK_DISABLE);
+			return 0;
+		}
+	}
+
 	switch (regulator_id) {
 	case AB8500_LDO_VAUX1:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG,
+					val & ~MASK_LDO_VAUX1);
+		break;
 	case AB8500_LDO_VAUX2:
-		prcmu_i2c_write(AB8500_REGU_CTRL2,
-				AB8500_REGU_VAUX12_REGU_REG, 0x0);
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG,
+					val & ~MASK_LDO_VAUX2);
+		break;
+	case AB8500_LDO_VAUX3:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_REGU_REG);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_REGU_REG,
+					val & ~MASK_LDO_VAUX3);
 		break;
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_MISC1_REG, (val & ~0x02));
+				AB8500_REGU_MISC1_REG,
+					(val & ~MASK_LDO_VTVOUT));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disable TVOUT LDO\n");
@@ -167,7 +278,8 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 		/* FIXME : allow voltage control using set_voltage helpers */
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_MISC1_REG, (val & ~0x04));
+				AB8500_REGU_MISC1_REG,
+					(val & ~MASK_LDO_VINTCORE));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disable VINTCORE12 LDO\n");
@@ -178,7 +290,8 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val & ~0x02));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+					(val & ~MASK_LDO_VAUDIO));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disable VAUDIO LDO\n");
@@ -189,7 +302,8 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val & ~0x04));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+					(val & ~MASK_LDO_VDMIC));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disable VDMIC LDO\n");
@@ -200,7 +314,8 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val & ~0x08));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+					(val & ~MASK_LDO_VAMIC1));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disble VAMIC1 LDO\n");
@@ -211,7 +326,8 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 		val = ab8500_read(AB8500_REGU_CTRL1,
 					AB8500_REGU_VAUDIO_SUPPLY_REG);
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VAUDIO_SUPPLY_REG, (val & ~0x10));
+				AB8500_REGU_VAUDIO_SUPPLY_REG,
+					(val & ~MASK_LDO_VAMIC2));
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disable VAMIC2 LDO\n");
@@ -237,38 +353,39 @@ static int ab8500_ldo_is_enabled(struct regulator_dev *rdev)
 	switch (regulator_id) {
 	case AB8500_LDO_VAUX1:
 	case AB8500_LDO_VAUX2:
+	case AB8500_LDO_VAUX3:
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
-		if (val & 0x02)
+		if (val & MASK_LDO_VTVOUT)
 			return true;
 		break;
 	case AB8500_LDO_VINTCORE:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
-		if (val & 0x04)
+		if (val & MASK_LDO_VINTCORE)
 			return true;
 		break;
 	case AB8500_LDO_VAUDIO:
 		val = ab8500_read(AB8500_REGU_CTRL1,
 				AB8500_REGU_VAUDIO_SUPPLY_REG);
-		if (val & 0x02)
+		if (val & MASK_LDO_VAUDIO)
 			return true;
 		break;
 	case AB8500_LDO_VDMIC:
 		val = ab8500_read(AB8500_REGU_CTRL1,
 				AB8500_REGU_VAUDIO_SUPPLY_REG);
-		if (val & 0x04)
+		if (val & MASK_LDO_VDMIC)
 			return true;
 		break;
 	case AB8500_LDO_VAMIC1:
 		val = ab8500_read(AB8500_REGU_CTRL1,
 				AB8500_REGU_VAUDIO_SUPPLY_REG);
-		if (val & 0x08)
+		if (val & MASK_LDO_VAMIC1)
 			return true;
 		break;
 	case AB8500_LDO_VAMIC2:
 		val = ab8500_read(AB8500_REGU_CTRL1,
 				AB8500_REGU_VAUDIO_SUPPLY_REG);
-		if (val & 0x10)
+		if (val & MASK_LDO_VAMIC2)
 			return true;
 		break;
 	default:
@@ -305,7 +422,7 @@ static int ab8500_dcdc_enable(struct regulator_dev *rdev)
 	switch (regulator_id) {
 	case AB8500_DCDC_VBUS:
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VUSB_CTRL_REG, 0x1);
+				AB8500_REGU_VUSB_CTRL_REG, MASK_ENABLE);
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot enable VBUS\n");
@@ -330,7 +447,7 @@ static int ab8500_dcdc_disable(struct regulator_dev *rdev)
 	switch (regulator_id) {
 	case AB8500_DCDC_VBUS:
 		ret = ab8500_write(AB8500_REGU_CTRL1,
-				AB8500_REGU_VUSB_CTRL_REG, 0x0);
+				AB8500_REGU_VUSB_CTRL_REG, MASK_DISABLE);
 		if (ret < 0) {
 			dev_dbg(rdev_get_dev(rdev),
 					"cannot disable VBUS\n");
@@ -415,6 +532,14 @@ static struct regulator_desc ab8500_desc[AB8500_NUM_REGULATORS] = {
 		.type   = REGULATOR_VOLTAGE,
 		.owner  = THIS_MODULE,
 	},
+	{
+		.name   = "LDO-VAUX3",
+		.id     = AB8500_LDO_VAUX3,
+		.ops    = &ab8500_ldo_ops,
+		.type   = REGULATOR_VOLTAGE,
+		.owner  = THIS_MODULE,
+	},
+
 };
 
 static int __devinit ab8500_regulator_probe(struct platform_device *pdev)

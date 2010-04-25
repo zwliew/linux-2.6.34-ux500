@@ -154,7 +154,7 @@ static struct regulator_init_data ab8500_vaux1_init = {
 	.constraints = {
 		.name = "AB8500-VAUX1",
 		.min_uV = AB8500_VAUXN_LDO_MIN_VOLTAGE,
-		.max_uV = AB8500_VAUXN_LDO_MIN_VOLTAGE,
+		.max_uV = AB8500_VAUXN_LDO_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
 			REGULATOR_CHANGE_MODE,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
@@ -201,6 +201,37 @@ static struct platform_device ab8500_vaux2_regulator_dev = {
 	.id   = 1,
 	.dev  = {
 		.platform_data = &ab8500_vaux2_init,
+	},
+};
+
+/* VAUX3 supply */
+/* supply for MMC-SD */
+static struct regulator_consumer_supply ab8500_vaux3_consumers[] = {
+	{
+		.dev    = &ux500_sdi0_device.dev,
+		.supply = "v-MMC-SD"
+	}
+};
+
+static struct regulator_init_data ab8500_vaux3_init = {
+	.supply_regulator_dev = NULL,
+	.constraints = {
+		.name = "AB8500-VAUX3",
+		.min_uV = AB8500_VAUXN_LDO_MIN_VOLTAGE,
+		.max_uV = AB8500_VAUXN_LDO_MAX_VOLTAGE,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
+			REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaux3_consumers),
+	.consumer_supplies = ab8500_vaux3_consumers,
+};
+
+static struct platform_device ab8500_vaux3_regulator_dev = {
+	.name = "ab8500-regulator",
+	.id   = 9,
+	.dev  = {
+		.platform_data = &ab8500_vaux3_init,
 	},
 };
 
@@ -432,6 +463,7 @@ static struct platform_device *u8500_regulators[] = {
 	&db8500_vana_regulator_dev,
 	&ab8500_vaux1_regulator_dev,
 	&ab8500_vaux2_regulator_dev,
+	&ab8500_vaux3_regulator_dev,
 	&ab8500_vtvout_regulator_dev,
 	&ab8500_vbus_regulator_dev,
 	&ab8500_vaudio_regulator_dev,
