@@ -753,8 +753,6 @@ static unsigned int isa_select(struct file *filp, \
 			memcpy(buf, \
 				(unsigned char *)(q->p_fifo_base+q->readptr), \
 				msgsize);
-			dbg_printk("*buf = %p, q->readptr = %d\n", \
-					(void *)*buf, q->readptr);
 		}
 		len = msgsize;
 #if (ISA_DEBUG & 1)
@@ -1229,7 +1227,6 @@ static int __init shrm_probe(struct platform_device *pdev)
 	int err = 0;
 	struct resource *res;
 	struct shrm_dev *shm_dev_data = NULL;
-	unsigned int *p_edge;
 
 	if (pdev == NULL)  {
 		printk(KERN_ALERT "No device/platform_data found on shm device\n");
