@@ -127,6 +127,9 @@ static struct mmc_board mmc_data = {
 	.level_shifter = 1,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_SD_HIGHSPEED |
 					MMC_CAP_MMC_HIGHSPEED,
+#ifdef CONFIG_REGULATOR
+	.supply = "v-MMC-SD" /* tying to VAUX3 regulator */
+#endif
 };
 
 /*
