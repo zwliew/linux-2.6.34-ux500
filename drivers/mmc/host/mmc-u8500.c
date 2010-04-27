@@ -1494,6 +1494,7 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 		host->regulator = regulator_get(&dev->dev, board->supply);
 		if (IS_ERR(host->regulator)) {
 			ret = PTR_ERR(host->regulator);
+			goto host_free;
 		}
 		regulator_enable(host->regulator);
 	}
