@@ -1,0 +1,70 @@
+if ARCH_U8500
+
+choice
+
+prompt "U8500 target board"
+	default MACH_U8500_MOP
+
+config MACH_U8500_SIMULATOR
+	bool "sim8500"
+	select CPU_V7
+	select ARM_GIC
+	select SMP
+	help
+		Supports Simulation for u8500 platform
+
+config MACH_U8500_MOP
+	bool "MOP500"
+	select CPU_V7
+	select ARM_GIC
+	select SMP
+	help
+		Supports MOP500 target board
+
+endchoice
+
+config U8500_CPUIDLE
+    tristate "CPUIdle support"
+    depends on CPU_IDLE
+    default y
+    help
+        Add support for CPUIdle for U8500
+
+config U8500_CPUFREQ
+    tristate "CPUFreq support"
+    depends on CPU_FREQ
+    default y
+    help
+        Add support for CPU Frequency scaling for U8500
+
+config ARCH_HAS_CPU_IDLE_WAIT
+    def_bool y
+
+choice
+
+prompt "U8500 sub architecture"
+	default MACH_U8500_ED
+	depends on MACH_U8500_MOP
+
+config U8500_V1
+	bool "8500_cut_v1"
+	depends on MACH_U8500_MOP
+	help
+		Supports 8500 silicon cut v1.0 based target platform
+
+config U8500_ED
+	bool "8500_ED"
+	depends on MACH_U8500_MOP
+	help
+		Supports 8500 silicon early drop based target platform
+endchoice
+
+source "arch/arm/mach-u8500/Kconfig-arch"
+source "arch/arm/mach-u8500/sim8500_Kconfig"
+source "arch/arm/mach-u8500/mop500_Kconfig"
+
+config FORCE_MAX_ZONEORDER
+    int "Maximum zone order"
+    default "12"
+
+endif

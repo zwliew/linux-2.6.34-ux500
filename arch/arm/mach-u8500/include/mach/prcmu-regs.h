@@ -1,0 +1,88 @@
+/*
+ * Copyright (c) 2009 STEricsson
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __MACH_PRCMU_REGS_H
+#define __MACH_PRCMU_REGS_H
+
+#include <mach/hardware.h>
+
+#define _PRCMU_BASE 		IO_ADDRESS(U8500_PRCMU_BASE)
+
+#define PRCM_ARM_PLLDIVPS 	(_PRCMU_BASE + 0x118)
+#define PRCM_ARM_CHGCLKREQ 	(_PRCMU_BASE + 0x114)
+#define PRCM_PLLARM_ENABLE	(_PRCMU_BASE + 0x98)
+#define PRCM_ARMCLKFIX_MGT	(_PRCMU_BASE + 0x0)
+#define PRCM_A9_RESETN_CLR	(_PRCMU_BASE + 0x1f4)
+#define PRCM_A9_RESETN_SET	(_PRCMU_BASE + 0x1f0)
+#define PRCM_ARM_LS_CLAMP	(_PRCMU_BASE + 0x30c)
+#define PRCM_SRAM_A9		(_PRCMU_BASE + 0x308)
+
+/* CPU mailbox registers */
+#define PRCM_MBOX_CPU_VAL	(_PRCMU_BASE + 0x0fc)
+#define PRCM_MBOX_CPU_SET	(_PRCMU_BASE + 0x100)
+#define PRCM_MBOX_CPU_CLR	(_PRCMU_BASE + 0x104)
+
+/* Dual A9 core interrupt management unit registers */
+#define PRCM_A9_MASK_REQ	(_PRCMU_BASE + 0x328)
+#define PRCM_A9_MASK_ACK	(_PRCMU_BASE + 0x32c)
+#define PRCM_ARMITMSK31TO0	(_PRCMU_BASE + 0x11c)
+#define PRCM_ARMITMSK63TO32	(_PRCMU_BASE + 0x120)
+#define PRCM_ARMITMSK95TO64	(_PRCMU_BASE + 0x124)
+#define PRCM_ARMITMSK127TO96 (_PRCMU_BASE + 0x128)
+
+/* Clock management */
+#define PRCM_YYCLKEN0_MGT_SET	(_PRCMU_BASE + 0x510)
+#define PRCM_YYCLKEN1_MGT_SET	(_PRCMU_BASE + 0x514)
+#define PRCM_YYCLKEN0_MGT_CLR	(_PRCMU_BASE + 0x518)
+#define PRCM_YYCLKEN1_MGT_CLR	(_PRCMU_BASE + 0x51C)
+#define PRCM_YYCLKEN0_MGT_VAL	(_PRCMU_BASE + 0x520)
+#define PRCM_YYCLKEN1_MGT_VAL	(_PRCMU_BASE + 0x524)
+
+#define PRCM_SVAMMDSPCLK_MGT	(_PRCMU_BASE + 0x008)
+#define PRCM_SIAMMDSPCLK_MGT	(_PRCMU_BASE + 0x00C)
+#define PRCM_SGACLK_MGT		(_PRCMU_BASE + 0x014)
+#define PRCM_UARTCLK_MGT	(_PRCMU_BASE + 0x018)
+#define PRCM_MSP02CLK_MGT	(_PRCMU_BASE + 0x01C)
+#define PRCM_MSP1CLK_MGT	(_PRCMU_BASE + 0x288)
+#define PRCM_I2CCLK_MGT		(_PRCMU_BASE + 0x020)
+#define PRCM_SDMMCCLK_MGT	(_PRCMU_BASE + 0x024)
+#define PRCM_SLIMCLK_MGT	(_PRCMU_BASE + 0x028)
+#define PRCM_PER1CLK_MGT	(_PRCMU_BASE + 0x02C)
+#define PRCM_PER2CLK_MGT	(_PRCMU_BASE + 0x030)
+#define PRCM_PER3CLK_MGT	(_PRCMU_BASE + 0x034)
+#define PRCM_PER5CLK_MGT	(_PRCMU_BASE + 0x038)
+#define PRCM_PER6CLK_MGT	(_PRCMU_BASE + 0x03C)
+#define PRCM_PER7CLK_MGT	(_PRCMU_BASE + 0x040)
+#define PRCM_LCDCLK_MGT		(_PRCMU_BASE + 0x044)
+#define PRCM_BMLCLK_MGT		(_PRCMU_BASE + 0x04C)
+#define PRCM_HSITXCLK_MGT	(_PRCMU_BASE + 0x050)
+#define PRCM_HSIRXCLK_MGT	(_PRCMU_BASE + 0x054)
+#define PRCM_HDMICLK_MGT	(_PRCMU_BASE + 0x058)
+#define PRCM_APEATCLK_MGT	(_PRCMU_BASE + 0x05C)
+#define PRCM_APETRACECLK_MGT	(_PRCMU_BASE + 0x060)
+#define PRCM_MCDECLK_MGT	(_PRCMU_BASE + 0x064)
+#define PRCM_IPI2CCLK_MGT	(_PRCMU_BASE + 0x068)
+#define PRCM_DSIALTCLK_MGT	(_PRCMU_BASE + 0x06C)
+#define PRCM_DMACLK_MGT		(_PRCMU_BASE + 0x074)
+#define PRCM_B2R2CLK_MGT	(_PRCMU_BASE + 0x078)
+#define PRCM_TVCLK_MGT		(_PRCMU_BASE + 0x07C)
+#define PRCM_UNIPROCLK_MGT	(_PRCMU_BASE + 0x278)
+#define PRCM_SSPCLK_MGT		(_PRCMU_BASE + 0x280)
+#define PRCM_RNGCLK_MGT		(_PRCMU_BASE + 0x284)
+#define PRCM_UICCCLK_MGT	(_PRCMU_BASE + 0x27C)
+
+#endif /* __MACH_PRCMU__REGS_H */

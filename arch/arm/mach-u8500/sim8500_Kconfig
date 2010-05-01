@@ -1,0 +1,9 @@
+if MACH_U8500_SIMULATOR
+
+comment "Target chip used U8500 "
+
+config U8500_TARGET
+	string
+	default sim8500
+
+endif
