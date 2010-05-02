@@ -22,8 +22,6 @@ config ARCH_REQUIRE_GPIOLIB
 	  Selecting this from the architecture code will cause the gpiolib
 	  code to always get built in.
 
-
-
 menuconfig GPIOLIB
 	bool "GPIO Support"
 	depends on ARCH_WANT_OPTIONAL_GPIOLIB || ARCH_REQUIRE_GPIOLIB
@@ -234,6 +232,30 @@ config GPIO_ADP5588
 	  on Analog Devices ADP5588 GPIO Expanders.
 	  To compile this driver as a module, choose M here: the module will be
 	  called adp5588-gpio.
+
+config GPIO_STMPE2401
+	tristate "STMPE2401 I2C GPIO exapander"
+	depends on I2C_STM
+	default y
+	help
+	  If you say yes here you get the support for stmpe2401 port expander chip
+	  on the u8500 platform.
+
+config GPIO_TC35892
+	tristate "TC35892 I2C GPIO exapander"
+	depends on I2C_STM
+	default y
+	help
+	  If you say yes here you get the support for Thoshiba port expander chip
+	  on the u8500 platform.
+
+config GPIO_STMPE1601
+	tristate "STMPE1601 I2C GPIO exapander"
+	depends on I2C_STM
+	default y
+	help
+	  If you say yes here you get the support for stmpe1601 port expander chip
+	  on the u8500 platform.
 
 comment "PCI GPIO expanders:"
 

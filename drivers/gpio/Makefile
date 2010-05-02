@@ -28,3 +28,7 @@ obj-$(CONFIG_GPIO_WM831X)	+= wm831x-gpio.o
 obj-$(CONFIG_GPIO_WM8350)	+= wm8350-gpiolib.o
 obj-$(CONFIG_GPIO_WM8994)	+= wm8994-gpio.o
 obj-$(CONFIG_GPIO_SCH)		+= sch_gpio.o
+obj-$(CONFIG_GPIO_STM)          += stm_gpio.o
+obj-$(CONFIG_GPIO_STMPE2401)    += stmpe2401.o
+obj-$(CONFIG_GPIO_STMPE1601)    += stmpe1601.o
+obj-$(CONFIG_GPIO_TC35892)      += tc35892.o
