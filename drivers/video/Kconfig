@@ -242,6 +242,10 @@ config FB_TILEBLITTING
 comment "Frame buffer hardware drivers"
 	depends on FB
 
+source "drivers/video/mcde/Kconfig"
+
+source "drivers/video/av8100/Kconfig"
+
 config FB_CIRRUS
 	tristate "Cirrus Logic support"
 	depends on FB && (ZORRO || PCI)
@@ -301,6 +305,10 @@ config FB_ARMCLCD
 	  inserted into and removed from the running kernel), say M
 	  here and read <file:Documentation/kbuild/modules.txt>.  The module
 	  will be called amba-clcd.
+
+# B2R2 support
+
+source "drivers/video/b2r2/Kconfig"
 
 choice
 
