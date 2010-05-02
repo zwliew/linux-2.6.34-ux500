@@ -594,4 +594,35 @@ config TOUCHSCREEN_PCAP
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called pcap_ts.
+
+config U8500_TSC
+	tristate "BU21013 based capcitive based sensors for U8500 platform"
+	depends on ARCH_U8500 && STM_SPI && I2C_STM
+	default m
+	help
+	  Say Y here if you have a touchscreen interface using the
+	  BU21013 controller for U8500 platform.
+
+	  If unsure, say N (but it's safe to say "Y").
+
+	  To compile this driver as a module, choose M here:
+	choice
+		prompt "TOUCH MODE"
+		depends on U8500_TSC
+		default U8500_TSC_SINGLETOUCH
+
+		config U8500_TSC_SINGLETOUCH
+		depends on U8500_TSC
+		bool   "Single Touch Mode"
+
+		config U8500_TSC_MULTITOUCH
+		depends on U8500_TSC
+		bool   "Multi Touch Mode"
+	endchoice
+
+config TOUCHP_TEST
+	default y
+	bool "Enable sysfs for U8500 touch panel tuning"
+	depends on U8500_TSC
+
 endif
