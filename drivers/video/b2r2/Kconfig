@@ -1,0 +1,6 @@
+config FB_B2R2
+	tristate "B2R2 engine support"
+	default y
+	help
+	  B2R2 engine does various bit-blitting operations,post-processor operations
+	  and various compositions.
