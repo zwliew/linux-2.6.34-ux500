@@ -1,0 +1,6 @@
+config FB_HDMI
+       tristate "AV8100 driver support(HDMI/CVBS)"
+       depends on (FB_MCDE)
+       default y
+       help
+           Please disable this feature if hdmi driver support not required.
