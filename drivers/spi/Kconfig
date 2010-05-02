@@ -90,6 +90,43 @@ config SPI_BITBANG
 	  need it.  You only need to select this explicitly to support driver
 	  modules that aren't part of this kernel tree.
 
+config STM_SPI
+	tristate "STM SPI master"
+	depends on SPI_MASTER && EXPERIMENTAL
+	default y
+	help
+	  This enables using the STM SPI controller in master
+	  mode.
+
+config STM_SSP
+	tristate "STM SSP CONTROLLER (SPI master)"
+	depends on STM_SPI && STM_DMA && EXPERIMENTAL
+	default y
+	help
+	  This enables using the STM SSP controller in master
+	  mode.
+
+config STM_MSP_SPI
+	tristate "STM MSP CONTROLLER (SPI master)"
+	depends on STM_SPI && STM_DMA && EXPERIMENTAL
+	default y
+	help
+	  This enables using the STM MSP controller in master
+	  mode.
+
+config STM_SPI023
+	tristate "STM SPI CONTROLLER (SPI master)"
+	depends on STM_SPI && STM_DMA && ARCH_U8500 && EXPERIMENTAL
+	default y
+	help
+	  This enables using the STM SPI023 controller in master
+	  mode.
+
+config SPI_WORKQUEUE
+	bool "SPI_WORKQUEUE"
+	depends on STM_SPI
+	default n
+
 config SPI_BUTTERFLY
 	tristate "Parallel port adapter for AVR Butterfly (DEVELOPMENT)"
 	depends on PARPORT
