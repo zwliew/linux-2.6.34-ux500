@@ -1,0 +1,18 @@
+config FB_MCDE
+	tristate "MCDE display engine support"
+	depends on FB
+	default y
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+	  MCDE display engine offers multiple channel,multiple input, multiple
+	  overlay support for rendering on various types of display panels.
+
+config FB_MCDE_MULTIBUFFER
+       tristate "MCDE multibuffer support"
+       depends on FB && FB_MCDE
+       default y
+       help
+           Please disable this feature if multibuffer not required.
+
