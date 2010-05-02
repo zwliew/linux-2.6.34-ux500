@@ -327,9 +327,25 @@ config VMWARE_BALLOON
 	  To compile this driver as a module, choose M here: the
 	  module will be called vmware_balloon.
 
+config AB8500
+	bool "AB8500 Mixed Signal Power management chip"
+	depends on SPI
+	default y
+	help
+	  Select this option to enable access to AB8500 power management
+	  chip. This connects to U8500 on the SSP/SPI bus and exports
+	  read/write functions for the devices to get access to this chip.
+	  This chip embeds various other multimedia funtionalities as well.
+
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
 source "drivers/misc/iwmc3200top/Kconfig"
+source "drivers/misc/hsi/Kconfig"
+source "drivers/misc/hsi/hsi-legacy/Kconfig"
+source "drivers/misc/i2s/Kconfig"
+source "drivers/misc/msw/Kconfig"
+source "drivers/misc/shrm/Kconfig"
 
 endif # MISC_DEVICES
