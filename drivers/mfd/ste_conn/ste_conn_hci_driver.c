@@ -81,6 +81,7 @@
   * @HCI_RESET_STATE_2_CB_RECIVED: Two reset callbacks of three callbacks received.
   * @HCI_RESET_STATE_UNREGISTER: Unregister and free hci device.
   * @HCI_RESET_STATE_REGISTER: Alloc and register hci device.
+  * @HCI_RESET_STATE_SUCCESS: Reset success.
   * @HCI_RESET_STATE_FAILED:  Reset failed.
   */
 
@@ -95,20 +96,20 @@ enum ste_conn_hci_reset_state {
 };
 
 /**
-  * This enum holds the different internal states of the HCI driver.
+  * enum ste_conn_hci_enable_state - Internal states of the HCI driver.
   *
-  * @HCI_ENABLE_STATE_IDLE      The HCI driver is loaded but not opened.
-  * @HCI_ENABLE_STATE_WAITING_BT_ENABLED_CC
+  * @HCI_ENABLE_STATE_IDLE:      The HCI driver is loaded but not opened.
+  * @HCI_ENABLE_STATE_WAITING_BT_ENABLED_CC:
   *                              The HCI driver is waiting for a command complete event from
   *                              the BT chip as a response to a BT Enable (true) command.
-  * @HCI_ENABLE_STATE_BT_ENABLED
+  * @HCI_ENABLE_STATE_BT_ENABLED:
   *                              The BT chip is enabled.
-  * @HCI_ENABLE_STATE_WAITING_BT_DISABLED_CC
+  * @HCI_ENABLE_STATE_WAITING_BT_DISABLED_CC:
   *                              The HCI driver is waiting for a command complete event from
   *                              the BT chip as a response to a BT Enable (false) command.
-  * @HCI_ENABLE_STATE_BT_DISABLED
+  * @HCI_ENABLE_STATE_BT_DISABLED:
   *                              The BT chip is disabled.
-  * @HCI_ENABLE_STATE_BT_ERROR The HCI driver is in a bad state, some thing has failed and
+  * @HCI_ENABLE_STATE_BT_ERROR: The HCI driver is in a bad state, some thing has failed and
   *                              is not expected to work properly.
   */
 enum ste_conn_hci_enable_state {
