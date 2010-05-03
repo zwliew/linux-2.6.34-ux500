@@ -1009,12 +1009,12 @@ int ste_conn_cpd_init(int char_dev_usage, struct device *dev)
 		}
 
 		/* Initialize linked lists for HCI BT and FM cmds that can't be sent due to internal ste_conn flow control. */
-		INIT_LIST_HEAD(&cpd_info->tx_list_bt);
-		INIT_LIST_HEAD(&cpd_info->tx_list_fm);
+		INIT_LIST_HEAD(&(cpd_info->tx_list_bt));
+		INIT_LIST_HEAD(&(cpd_info->tx_list_fm));
 
 		/* Initialize the spin locks */
-		spin_lock_init(&cpd_info->tx_bt_lock);
-		spin_lock_init(&cpd_info->tx_fm_lock);
+		spin_lock_init(&(cpd_info->tx_bt_lock));
+		spin_lock_init(&(cpd_info->tx_fm_lock));
 
 		/* Initialize the character devices */
 		ste_conn_char_devices_init(char_dev_usage, dev);
@@ -1633,7 +1633,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			struct list_head *cursor, *next;
 			struct tx_list_item *tmp;
 
-			spin_lock(&cpd_info->tx_bt_lock);
+			spin_lock_bh(&cpd_info->tx_bt_lock);
 			list_for_each_safe(cursor, next, &cpd_info->tx_list_bt) {
 					tmp = list_entry(cursor, struct tx_list_item, list);
 					list_del(cursor);
@@ -1646,7 +1646,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			cpd_info->tx_nr_outstanding_cmds_bt = 0;
 			/* Reset the hci_audio_cmd_opcode_bt. */
 			cpd_info->hci_audio_cmd_opcode_bt = 0xFFFF;
-			spin_unlock(&cpd_info->tx_bt_lock);
+			spin_unlock_bh(&cpd_info->tx_bt_lock);
 		}
 	} else if ((*dev)->h4_channel == cpd_info->h4_channels.bt_acl_channel) {
 		if (*dev == cpd_info->users.bt_acl) {
@@ -1685,7 +1685,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			struct list_head *cursor, *next;
 			struct tx_list_item *tmp;
 
-			spin_lock(&cpd_info->tx_fm_lock);
+			spin_lock_bh(&cpd_info->tx_fm_lock);
 			list_for_each_safe(cursor, next, &cpd_info->tx_list_fm) {
 				tmp = list_entry(cursor, struct tx_list_item, list);
 				list_del(cursor);
@@ -1697,7 +1697,7 @@ static int cpd_remove_h4_user(struct ste_conn_device **dev)
 			cpd_info->tx_nr_pkts_allowed_fm = 1;
 			/* Reset the hci_audio_cmd_opcode_bt. */
 			cpd_info->hci_audio_fm_cmd_id = 0xFFFF;
-			spin_unlock(&cpd_info->tx_fm_lock);
+			spin_unlock_bh(&cpd_info->tx_fm_lock);
 		}
 	} else if ((*dev)->h4_channel == cpd_info->h4_channels.debug_channel) {
 		if (*dev == cpd_info->users.debug) {
@@ -2882,7 +2882,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_bt(struct sk_buff *skb,
 	 * for BT cmd and FM channel) we need to have an internal HCI cmd flow control
 	 * in ste_conn driver. So check here how many tickets we have and store skb in a queue
 	 * if there are no tickets left. The skb will be sent later when we get more ticket(s). */
-	spin_lock(&cpd_info->tx_bt_lock);
+	spin_lock_bh(&cpd_info->tx_bt_lock);
 
 	if ((cpd_info->tx_nr_pkts_allowed_bt - cpd_info->tx_nr_outstanding_cmds_bt) > 0) {
 		(cpd_info->tx_nr_pkts_allowed_bt)--;
@@ -2910,7 +2910,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_bt(struct sk_buff *skb,
 			STE_CONN_ERR("Failed to alloc memory!");
 		}
 	}
-	spin_unlock(&cpd_info->tx_bt_lock);
+	spin_unlock_bh(&cpd_info->tx_bt_lock);
 }
 
 /**
@@ -2938,7 +2938,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_fm(struct sk_buff *skb,
 	 * for BT cmd and FM channel) we need to have an internal HCI cmd flow control
 	 * in ste_conn driver. So check here how many tickets we have and store skb in a queue
 	 * there are no tickets left. The skb will be sent later when we get more ticket(s). */
-	spin_lock(&cpd_info->tx_fm_lock);
+	spin_lock_bh(&cpd_info->tx_fm_lock);
 
 	if (cpd_info->tx_nr_pkts_allowed_fm) {
 		(cpd_info->tx_nr_pkts_allowed_fm)--;
@@ -2962,7 +2962,7 @@ static void cpd_transmit_skb_to_ccd_with_flow_ctrl_fm(struct sk_buff *skb,
 			STE_CONN_ERR("Failed to alloc memory!");
 		}
 	}
-	spin_unlock(&cpd_info->tx_fm_lock);
+	spin_unlock_bh(&cpd_info->tx_fm_lock);
 }
 
 
@@ -2982,7 +2982,7 @@ static void cpd_transmit_skb_from_tx_queue_bt(void)
 
 	STE_CONN_INFO("cpd_transmit_skb_from_tx_queue_bt");
 
-	spin_lock(&cpd_info->tx_bt_lock);
+	spin_lock_bh(&cpd_info->tx_bt_lock);
 
 	list_for_each_safe(cursor, next, &cpd_info->tx_list_bt) {
 		tmp = list_entry(cursor, struct tx_list_item, list);
@@ -3010,7 +3010,7 @@ static void cpd_transmit_skb_from_tx_queue_bt(void)
 				kfree(tmp);
 			} else {
 				/* If no more pckts allowed just return, we'll get back here after next cmd cmpl/cmd status evt. */
-				spin_unlock(&cpd_info->tx_bt_lock);
+				spin_unlock_bh(&cpd_info->tx_bt_lock);
 				return;
 			}
 		} else {
@@ -3019,7 +3019,7 @@ static void cpd_transmit_skb_from_tx_queue_bt(void)
 		}
 	}
 
-	spin_unlock(&cpd_info->tx_bt_lock);
+	spin_unlock_bh(&cpd_info->tx_bt_lock);
 }
 
 /**
@@ -3038,7 +3038,7 @@ static void cpd_transmit_skb_from_tx_queue_fm(void)
 
 	STE_CONN_INFO("cpd_transmit_skb_from_tx_queue_fm");
 
-	spin_lock(&cpd_info->tx_fm_lock);
+	spin_lock_bh(&cpd_info->tx_fm_lock);
 
 	list_for_each_safe(cursor, next, &cpd_info->tx_list_fm) {
 		tmp = list_entry(cursor, struct tx_list_item, list);
@@ -3062,7 +3062,7 @@ static void cpd_transmit_skb_from_tx_queue_fm(void)
 				kfree(tmp);
 			} else {
 				/* If no more pckts allowed just return, we'll get back here after next cmd cmpl/cmd status evt. */
-				spin_unlock(&cpd_info->tx_fm_lock);
+				spin_unlock_bh(&cpd_info->tx_fm_lock);
 				return;
 			}
 		} else {
@@ -3071,7 +3071,7 @@ static void cpd_transmit_skb_from_tx_queue_fm(void)
 		}
 	}
 
-	spin_unlock(&cpd_info->tx_fm_lock);
+	spin_unlock_bh(&cpd_info->tx_fm_lock);
 }
 
 /**
