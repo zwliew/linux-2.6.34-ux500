@@ -11,6 +11,6 @@ snd-pxa2xx-pcm-objs		:= pxa2xx-pcm.o
 obj-$(CONFIG_SND_PXA2XX_AC97)	+= snd-pxa2xx-ac97.o
 snd-pxa2xx-ac97-objs		:= pxa2xx-ac97.o
 obj-$(CONFIG_SND_U8500_ALSA_AB8500)  += u8500mod_alsa.o
-ifeq ($(CONFIG_SND_U8500_ALSA_AB8500),y)
-u8500mod_alsa-objs		:= u8500_alsa_ab8500.o devdma.o
+ifneq ($(CONFIG_SND_U8500_ALSA_AB8500),n)
+u8500mod_alsa-objs		:= u8500_alsa_ab8500.o devdma.o u8500_alsa_hdmi.o
 endif

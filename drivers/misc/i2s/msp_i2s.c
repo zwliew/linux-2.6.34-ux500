@@ -1053,7 +1053,65 @@ static void msp_start_dma(struct msp_struct *msp, int transmit, void *data,
 	}
 
 }
+static void msp_loopback_inf_start_dma(struct msp_struct *msp, void *data,
+			  size_t bytes)
+{
+		struct scatterlist *sg;
+		msp->rx_sglist = kmalloc(sizeof(struct scatterlist) * 3, GFP_KERNEL);
+		msp->tx_sglist = kmalloc(sizeof(struct scatterlist) * 3, GFP_KERNEL);
+		msp->sglist = kmalloc(sizeof(struct scatterlist) * 3, GFP_KERNEL);
 
+		/* RX mem sg configuration */
+		sg = msp->rx_sglist;
+		sg->dma_address = (dma_addr_t)data;
+		sg->length = bytes >> 1; /*bytes/2 */
+		sg++;
+                sg->dma_address = (dma_addr_t)(data + (bytes >> 1));
+                sg->length = bytes >> 1;
+		sg++;
+                sg->dma_address = (dma_addr_t)data;
+                sg->length = bytes >> 1;
+
+		/* TX mem sg configuration */
+		sg = msp->tx_sglist;
+		sg->dma_address = (dma_addr_t)(data + (bytes >> 1));
+		sg->length = bytes >> 1; /*bytes/2 */
+		sg++;
+                sg->dma_address = (dma_addr_t)data;
+                sg->length = bytes >> 1;
+		sg++;
+		sg->dma_address = (dma_addr_t)(data + (bytes >> 1));
+		sg->length = bytes >> 1; /*bytes/2 */
+
+		/* RX/TX pheriph(msp) sg configuration */
+		sg = msp->sglist;
+		sg->dma_address = (dma_addr_t)(msp->msp_base_addr);
+		sg->length = bytes >> 1;
+		sg++;
+		sg->dma_address = (dma_addr_t)(msp->msp_base_addr);
+		sg->length = bytes >> 1;
+		sg++;
+		sg->dma_address = (dma_addr_t)(msp->msp_base_addr);
+		sg->length = bytes >> 1;
+
+		/* Enable Infinite mode */
+		msp->pipe_params_rx.channel_type |= CH_INF_MODE_EN;
+		msp->pipe_params_tx.channel_type |= CH_INF_MODE_EN;
+
+		stm_configure_dma_channel(msp->rx_pipeid, &msp->pipe_params_rx);
+		stm_configure_dma_channel(msp->tx_pipeid, &msp->pipe_params_tx);
+
+		/* Set SG at dma for both RX and TX */
+		stm_set_dma_sg(msp->rx_pipeid, msp->rx_sglist, 3, 1);
+		stm_set_dma_sg(msp->rx_pipeid, msp->sglist, 3, 0);
+		stm_set_dma_sg(msp->tx_pipeid, msp->tx_sglist, 3, 0);
+		stm_set_dma_sg(msp->tx_pipeid, msp->sglist, 3, 1);
+
+		/* Enable DMA */
+		stm_enable_dma(msp->rx_pipeid);
+		stm_enable_dma(msp->tx_pipeid);
+
+}
 /**
  * msp_dma_xfer - Handles DMA transfers over i2s bus.
  * @msp: main msp structure.
@@ -1081,7 +1139,18 @@ static int msp_dma_xfer(struct msp_struct *msp, struct i2s_message *msg)
 	msp->xfer_data.message.txbytes = msg->txbytes;
 	msp->xfer_data.message.rxbytes = msg->rxbytes;
 	msp->xfer_data.message.dma_flag = msg->dma_flag;
+	msp->inf_loopback_xfer = msg->inf_loopback_xfer;
 	message = &msp->xfer_data.message;
+	if (msp->inf_loopback_xfer == MSP_INF_TRANSFER_ENABLED) {
+		/* Configure loopback dma at msp */
+		msp_loopback_inf_start_dma(msp, message->rxdata, message->rxbytes);
+		/* Enable RX and TX at msp */
+		stm_msp_write((stm_msp_read(msp->registers + MSP_GCR) |
+			       (RX_ENABLE)), msp->registers + MSP_GCR);
+		stm_msp_write((stm_msp_read(msp->registers + MSP_GCR) |
+			       (TX_ENABLE)), msp->registers + MSP_GCR);
+	}
+	else {
 	if (message->rxdata && (message->rxbytes > 0)) {
 		if (!message->dma_flag)
 			message->rxdata =
@@ -1103,7 +1172,7 @@ static int msp_dma_xfer(struct msp_struct *msp, struct i2s_message *msg)
 		stm_msp_write((stm_msp_read(msp->registers + MSP_GCR) |
 			       (TX_ENABLE)), msp->registers + MSP_GCR);
 	}
-
+	}
 	return status;
 }
 
@@ -1535,6 +1604,12 @@ static int stm_msp_disable(struct msp_struct *msp, int direction, i2s_flag flag)
 		stm_msp_write(0, msp->registers + MSP_MCR);
 		stm_msp_write(0, msp->registers + MSP_RCM);
 		stm_msp_write(0, msp->registers + MSP_RCV);
+	}
+	if(msp->inf_loopback_xfer == MSP_INF_TRANSFER_ENABLED) {
+		kfree(msp->rx_sglist);
+		kfree(msp->tx_sglist);
+		kfree(msp->sglist);
+		msp->inf_loopback_xfer = 0;
 	}
 	return status;
 }

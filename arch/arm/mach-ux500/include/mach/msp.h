@@ -18,6 +18,11 @@
  * control register
  */
 typedef enum {
+	MSP_INF_TRANSFER_DISABLED = 0,
+	MSP_INF_TRANSFER_ENABLED = 1
+} t_msp_inf_transfer_enable;
+
+typedef enum {
 	MSP_MULTICHANNEL_DISABLED = 0,
 	MSP_MULTICHANNEL_ENABLED = 1
 } t_msp_multichannel_enable;
@@ -921,6 +926,9 @@ struct msp_struct {
 	u32 msp_base_addr;
 	dmach_t tx_pipeid;
 	dmach_t rx_pipeid;
+	struct scatterlist *rx_sglist;
+	struct scatterlist *tx_sglist;
+	struct scatterlist *sglist;
 	t_msp_state msp_state;
 	void (*read) (struct trans_data *xfer_data);
 	void (*write) (struct trans_data *xfer_data);
@@ -936,6 +944,7 @@ struct msp_struct {
 	int users;
 	int loopback_enable;
 	u32 backup_regs[MAX_MSP_BACKUP_REGS];
+	t_msp_inf_transfer_enable inf_loopback_xfer;
 	int vape_opp_constraint;
 };
 

@@ -144,6 +144,7 @@ struct i2s_message {
 	int dma_flag;
 	int tx_offset;
 	int rx_offset;
+	int inf_loopback_xfer;
 };
 
 typedef enum {

@@ -378,6 +378,11 @@ enum dma_master_id {
 #define NO_TIM_FOR_LINK (0x0 << INFO_TIM_POS)
 #define TIM_FOR_LINK (0x1 << INFO_TIM_POS)
 
+
+#define INFO_CH_INF_MODE_POS 11
+#define CH_INF_MODE_DIS (0x0 << INFO_CH_INF_MODE_POS)
+#define CH_INF_MODE_EN (0x1 << INFO_CH_INF_MODE_POS)
+
 /******************************************************************/
 
 enum dma_phys_res_type {
@@ -749,6 +754,7 @@ struct dma_channel_info {
 	enum dma_dest_dev_type dst_dev_type;
 	struct dma_half_channel_info src_info;
 	struct dma_half_channel_info dst_info;
+	int infinite_xfer;
 	spinlock_t cfg_lock;
 };
 

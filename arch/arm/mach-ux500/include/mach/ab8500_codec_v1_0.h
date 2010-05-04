@@ -1,24 +1,23 @@
 /*****************************************************************************/
 /**
-*  Â© ST-Ericsson, 2009 - All rights reserved
-* Reproduction and Communication of this document is strictly prohibited
-* unless specifically authorized in writing by ST-Ericsson
+*  © ST-Ericsson, 2009 - All rights reserved
+*  Reproduction and Communication of this document is strictly prohibited
+*  unless specifically authorized in writing by ST-Ericsson
 *
 * \brief   Public header file for AB8500 Codec
 * \author  ST-Ericsson
 */
 /*****************************************************************************/
 
-#ifndef _AB8500_CODEC_H_
-#define _AB8500_CODEC_H_
+#ifndef _AB8500_CODEC_V1_0_H_
+#define _AB8500_CODEC_V1_0_H_
 
 /*---------------------------------------------------------------------
  * Includes
  *--------------------------------------------------------------------*/
 #include "hcl_defs.h"
 #include "debug.h"
-#include <mach/ab8500_codec_p.h>
-
+#include <mach/ab8500_codec_p_v1_0.h>
 /*---------------------------------------------------------------------
  * Define
  *--------------------------------------------------------------------*/
@@ -33,6 +32,16 @@ extern "C" {
 		AB8500_CODEC_CONFIG_NOT_COHERENT,
 		AB8500_CODEC_TRANSACTION_FAILED
 	} t_ab8500_codec_error;
+
+	typedef enum {
+		AB8500_CODEC_SRC_STATE_DISABLE,
+		AB8500_CODEC_SRC_STATE_ENABLE
+	} t_ab8500_codec_src_state;
+
+	typedef enum {
+		AB8500_CODEC_DEST_STATE_DISABLE,
+		AB8500_CODEC_DEST_STATE_ENABLE
+	} t_ab8500_codec_dest_state;
 
 	typedef enum {
 		AB8500_CODEC_MASTER_MODE_DISABLE,
@@ -82,18 +91,22 @@ extern "C" {
 		AB8500_CODEC_DA_CHANNEL_NUMBER_4,
 		AB8500_CODEC_DA_CHANNEL_NUMBER_5,
 		AB8500_CODEC_DA_CHANNEL_NUMBER_6,
+		AB8500_CODEC_DA_CHANNEL_NUMBER_7,
+		AB8500_CODEC_DA_CHANNEL_NUMBER_8,
 		AB8500_CODEC_DA_CHANNEL_NUMBER_UNDEFINED
 	} t_ab8500_codec_da_channel_number;
 
-	typedef enum {
-		AB8500_CODEC_SRC_STATE_DISABLE,
-		AB8500_CODEC_SRC_STATE_ENABLE
-	} t_ab8500_codec_src_state;
-
-	typedef enum {
-		AB8500_CODEC_DEST_STATE_DISABLE,
-		AB8500_CODEC_DEST_STATE_ENABLE
-	} t_ab8500_codec_dest_state;
+	typedef struct {
+		t_ab8500_codec_cr105_bfifomsk cr105_bfifomsk;
+		t_ab8500_codec_cr105_bfifoint cr105_bfifoint;
+		t_ab8500_codec_cr106_bfifotx cr106_bfifotx;
+		t_ab8500_codec_cr107_bfifoexsl cr107_bfifoexsl;
+		t_ab8500_codec_cr107_prebitclk0 cr107_prebitclk0;
+		t_ab8500_codec_cr107_bfifomast cr107_bfifomast;
+		t_ab8500_codec_cr107_bfiforun cr107_bfiforun;
+		t_ab8500_codec_cr108_bfifoframsw cr108_bfifoframsw;
+		t_ab8500_codec_cr109_bfifowakeup cr109_bfifowakeup;
+	} t_ab8500_codec_burst_fifo_config;
 
 	typedef struct {
 		t_ab8500_codec_cr27_if1_bitclk_osr cr27_if1_bitclk_osr;
@@ -103,17 +116,6 @@ extern "C" {
 		t_ab8500_codec_cr28_bitclk0p cr28_bitclk0p;
 		t_ab8500_codec_cr28_if0del cr28_if0del;
 	} t_ab8500_codec_tdm_config;
-
-	typedef struct {
-		t_ab8500_codec_cr104_bfifoint cr104_bfifoint;
-		t_ab8500_codec_cr105_bfifotx cr105_bfifotx;
-		t_ab8500_codec_cr106_bfifofsext cr106_bfifofsext;
-		t_ab8500_codec_cr106_bfifomsk cr106_bfifomsk;
-		t_ab8500_codec_cr106_bfifomstr cr106_bfifomstr;
-		t_ab8500_codec_cr106_bfifostrt cr106_bfifostrt;
-		t_ab8500_codec_cr107_bfifosampnr cr107_bfifosampnr;
-		t_ab8500_codec_cr108_bfifowakeup cr108_bfifowakeup;
-	} t_ab8500_codec_burst_fifo_config;
 
 /************************************************************/
 /*---------------------------------------------------------------------
@@ -202,7 +204,7 @@ extern "C" {
 							   t_ab8500_codec_da_channel_number
 							   channel_number,
 							   IN
-							   t_ab8500_codec_cr51_to_cr56_sltoda
+							   t_ab8500_codec_cr51_to_cr58_sltoda
 							   slot);
 
 /* Loopback Management */

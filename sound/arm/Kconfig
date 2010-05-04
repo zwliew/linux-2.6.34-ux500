@@ -32,7 +32,7 @@ config SND_PXA2XX_AC97
 
 config SND_U8500_ALSA_AB8500
 	tristate "U8500 alsa support for AB8500"
-	depends on SND && STM_DMA && U8500_ACODEC && U8500_AB8500_ACODEC
+	depends on SND && STM_DMA && U8500_ACODEC && (U8500_AB8500_ED || U8500_AB8500_CUT10)
 	default y
 	select SND_PCM
 	help

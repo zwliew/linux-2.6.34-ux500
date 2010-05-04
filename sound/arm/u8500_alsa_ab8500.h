@@ -15,20 +15,27 @@
 #define _U8500_ALSA_H_
 
 #include <asm/dma.h>
-#include <mach/ab8500_codec.h>
-#include <mach/u8500_acodec_ab8500.h>
 #include "devdma.h"
+
+#ifdef CONFIG_U8500_AB8500_CUT10
+#include <mach/ab8500_codec_v1_0.h>
+//#include <mach/ab8500_codec_p_v1_0.h>
+#else
+//#include <mach/ab8500_codec_p.h>
+#include <mach/ab8500_codec.h>
+#endif
+#include <mach/u8500_acodec_ab8500.h>
 
 #define DEFAULT_SAMPLE_RATE      48000
 #define NMDK_BUFFER_SIZE 	(64*1024)
 #define U8500_ALSA_DRIVER	"u8500_alsa"
 
-#define MAX_NUMBER_OF_DEVICES		3 /* ALSA_PCM, ALSA_BT, ALSA_HDMI */
-#define MAX_NUMBER_OF_STREAMS		2 /* PLAYBACK, CAPTURE */
+#define MAX_NUMBER_OF_DEVICES		3	/* ALSA_PCM, ALSA_BT, ALSA_HDMI */
+#define MAX_NUMBER_OF_STREAMS		2	/* PLAYBACK, CAPTURE */
 
 #define ALSA_PCM_DEV				0
-#define ALSA_BT_DEV					1
-#define ALSA_HDMI_DEV				2
+#define ALSA_BT_DEV					2
+#define ALSA_HDMI_DEV				1
 
 /* Debugging stuff */
 #ifndef CONFIG_DEBUG_USER
@@ -48,10 +55,9 @@ enum alsa_state {
 	ALSA_STATE_UNPAUSE
 };
 
-
 /* audio stream definition */
 typedef struct audio_stream_s {
-	char *id;		/* module identifier  string */
+	char id[64];		/* module identifier  string */
 	int stream_id;		/* stream identifier  */
 	int status;
 	int active;		/* we are using this stream for transfer now */
@@ -69,10 +75,17 @@ typedef struct audio_stream_s {
 
 } audio_stream_t;
 
+typedef struct hdmi_params_s {
+	int sampling_freq;
+	int channel_count;
+} hdmi_params_t;
+
 /* chip structure definition */
 typedef struct u8500_acodec_s {
 	struct snd_card *card;
 	struct snd_pcm *pcm;
+	struct snd_pcm *pcm_hdmi;
+	struct snd_pcm *pcm_bt;
 	unsigned int freq;
 	unsigned int channels;
 	unsigned int input_lvolume;
@@ -91,15 +104,13 @@ typedef struct u8500_acodec_s {
 	t_u8500_pmc_rendering_state fm_playback_mode;
 	t_u8500_pmc_rendering_state fm_tx_mode;
 	audio_stream_t stream[MAX_NUMBER_OF_DEVICES][MAX_NUMBER_OF_STREAMS];
+	hdmi_params_t hdmi_params;
 } u8500_acodec_chip_t;
 
+void u8500_alsa_dma_start(audio_stream_t * stream);
 
-static int configure_rate(struct snd_pcm_substream *, t_u8500_acodec_config_need acodec_config_need);
-static int spawn_acodec_feeding_thread(audio_stream_t * stream);
-static irqreturn_t dma_eot_handler(void *data, int irq);
-static int configure_dmadev_acodec(struct snd_pcm_substream *substream);
-static void u8500_alsa_dma_start(audio_stream_t * stream);
 #if (defined(CONFIG_U8500_ACODEC_DMA) || defined(CONFIG_U8500_ACODEC_INTR))
+
 #define stm_trigger_alsa(x) u8500_alsa_dma_start(x)
 static void inline stm_pause_alsa(audio_stream_t * stream)
 {
@@ -125,9 +136,15 @@ static void inline stm_hw_free(struct snd_pcm_substream *substream)
 {
 	devdma_hw_free(NULL, substream);
 }
+
 #define stm_close_alsa(x, y,z)
 #define stm_config_hw(w,x, y, z) 0
-#else
+
+#else ////// CONFIG_U8500_ACODEC_POLL ////////////
+
+int spawn_acodec_feeding_thread(audio_stream_t * stream);
+//static int configure_dmadev_acodec(struct snd_pcm_substream *substream);
+
 #define stm_trigger_alsa(x) spawn_acodec_feeding_thread(x)
 #define stm_close_alsa(x, y,z)
 #define stm_config_hw(w,x, y, z) 0
@@ -138,7 +155,7 @@ static void inline stm_pause_alsa(audio_stream_t * stream)
 }
 static void inline stm_unpause_alsa(audio_stream_t * stream)
 {
-    stream->state = ALSA_STATE_UNPAUSE;
+	stream->state = ALSA_STATE_UNPAUSE;
 	complete(&stream->alsa_com);
 }
 static void inline stm_stop_alsa(audio_stream_t * stream)
@@ -150,4 +167,4 @@ static void inline stm_stop_alsa(audio_stream_t * stream)
 }
 
 #endif
-#endif
+#endif /*END OF HEADER FILE */
