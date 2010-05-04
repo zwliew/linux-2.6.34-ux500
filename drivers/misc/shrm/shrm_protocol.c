@@ -51,16 +51,19 @@ spinlock_t ca_wake_req_lock;
 
 static enum hrtimer_restart callback(struct hrtimer *timer)
 {
+	dbgprintk(" shrm_rx_state = %d; shrm_tx_state = %d \n",
+		shrm_rx_state, shrm_tx_state);
+
 	if ((shrm_rx_state == SHRM_IDLE) && (shrm_tx_state == SHRM_IDLE)) {
 		shrm_rx_state = SHRM_SLEEP_STATE;
 		shrm_tx_state = SHRM_SLEEP_STATE;
-	}
 
-	dbgprintk("hrtimer_restart \n");
+		dbgprintk(" calling prcmu_ac_sleep()\n");
+		prcmu_ac_sleep_req();
+	}
 
 	return HRTIMER_NORESTART;
 }
-
 
 static void shrm_cawake_req_callback(u8);
 static void shrm_modem_reset_req_callback(void);
@@ -110,9 +113,6 @@ void shm_ca_msgpending_0_tasklet(unsigned long tasklet_data)
 				receive_messages_common();
 			else {
 				shrm_rx_state = SHRM_IDLE;
-				hrtimer_start(&timer,
-						ktime_set(0, 2*NSEC_PER_MSEC),
-						HRTIMER_MODE_REL);
 			}
 		} else {
 			unsigned int config = 0, version = 0;
@@ -332,8 +332,13 @@ void shrm_cawake_req_callback(u8 ca_wake_state)
 			ca_wake_req_state = 0;
 			spin_unlock(&ca_wake_req_lock);
 
-			prcmu_ac_sleep_req();
-			shrm_tx_state = SHRM_SLEEP_STATE;
+			shrm_rx_state = SHRM_IDLE;
+
+			/* start timer for 5 msec before clearing the
+			 * prcm_hostport_req
+			 */
+			hrtimer_start(&timer, ktime_set(0, 5*NSEC_PER_MSEC),
+					HRTIMER_MODE_REL);
 
 	}
 
@@ -456,6 +461,14 @@ irqreturn_t ca_msg_pending_notif_1_irq_handler(int irq, void *ctrlr)
 int shm_write_msg(u8 l2_header, void *addr, u32 length)
 {
 	unsigned char channel = 0;
+	int ret;
+
+	/* cancel the hrtimer running for calling the
+	 * prcmu_ac_sleep req
+	 */
+	ret = hrtimer_cancel(&timer);
+	if (ret)
+		dbgprintk(" timer_ac_sleep was running\n");
 
 	if (boot_state == BOOT_DONE) {
 		if ((l2_header == 0) || (l2_header == 1) || \
@@ -513,6 +526,7 @@ void send_ac_msg_pending_notification_0(void)
 	writel((1<<GOP_COMMON_AC_MSG_PENDING_NOTIFICATION_BIT), \
 			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 
+	dbgprintk(" shrm_tx_state = %d \n", shrm_tx_state);
 	if (shrm_tx_state == SHRM_PTR_FREE)
 		shrm_tx_state = SHRM_PTR_BUSY;
 
