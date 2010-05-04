@@ -56,6 +56,15 @@
 #define BAT_NOT_PRESENT		0
 #define NO_BAT_CONN		1350
 
+/* Gas gauge */
+#define CC_PWR_UP_DIS                   0x00
+#define CC_PWR_UP_EN                    0x01
+#define RD_NCONV_ACCU_REQUEST           0x01
+#define RST_COUNTER_AND_READ_REQ        0x03
+#define ENBL_DEEP_SLEEP_AND_CG_PWR_ON   0x03
+#define CC_DEFAULT_NUM_SAMPLES          0x28
+
+
 #define to_ab8500_bm_usb_device_info(x) container_of((x), \
 		struct ab8500_bm_device_info, usb);
 #define to_ab8500_bm_ac_device_info(x) container_of((x), \
@@ -597,15 +606,17 @@ static int ab8500_bm_cc_enable(struct ab8500_bm_device_info *di, int flag)
 	int ret = 0;
 	if (flag) {
 		/* Enable CC */
-		ret = ab8500_write(AB8500_RTC, AB8500_RTC_CC_CONF_REG, 0x03);
+		ret = ab8500_write(AB8500_RTC, AB8500_RTC_CC_CONF_REG,
+					ENBL_DEEP_SLEEP_AND_CG_PWR_ON);
 		if (ret)
 			goto cc_err;
 		ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU,
-								 0x14);
+						CC_DEFAULT_NUM_SAMPLES);
 		if (ret)
 			goto cc_err;
 	} else {
-		ret = ab8500_write(AB8500_RTC, AB8500_RTC_CC_CONF_REG, 0x01);
+		ret = ab8500_write(AB8500_RTC, AB8500_RTC_CC_CONF_REG,
+						 CC_PWR_UP_DIS);
 		if (ret)
 			goto cc_err;
 	}
@@ -627,12 +638,13 @@ cc_err:
 static int ab8500_bm_inst_current(struct ab8500_bm_device_info *di)
 {
 	int ret = 0;
-	s8 low, high;
+	int low, high;
 	static int val;
 
 	mutex_lock(&ab8500_cc_lock);
 	/* Reset counter and Read request */
-	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_CTRL_REG, 0x03);
+	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_CTRL_REG,
+						RST_COUNTER_AND_READ_REQ);
 	if (ret) {
 		dev_vdbg(di->dev, "ab8500_bm_inst_current:: write failed\n");
 		mutex_unlock(&ab8500_cc_lock);
@@ -654,8 +666,8 @@ static int ab8500_bm_inst_current(struct ab8500_bm_device_info *di)
 	 *  convert 2's compliment into decimal */
 	if (high & 0x10) {
 		val = (low | high << 8);
-		val ^= 0x1;
 		val = ~val;
+		val = val + 1;
 		/* Extract 12 bits */
 		val &= 0xfff;
 	} else
@@ -686,8 +698,9 @@ static void ab8500_bm_avg_cur_work(struct work_struct *work)
 {
 
 	int val, ret, num_samples;
-	s8 low, med, high;
+	int low, med, high;
 	static int old_average;
+	int status;
 
 	struct ab8500_bm_device_info *di = container_of(work,
 					struct
@@ -695,7 +708,9 @@ static void ab8500_bm_avg_cur_work(struct work_struct *work)
 					ab8500_bm_avg_cur_monitor_work);
 
 	mutex_lock(&ab8500_cc_lock);
-	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_CTRL, 0x01);
+	/* Read Request */
+	ret = ab8500_write(AB8500_GAS_GAUGE, AB8500_GASG_CC_NCOV_ACCU_CTRL,
+						RD_NCONV_ACCU_REQUEST);
 	if (ret) {
 		mutex_unlock(&ab8500_cc_lock);
 		goto exit;
@@ -708,12 +723,18 @@ static void ab8500_bm_avg_cur_work(struct work_struct *work)
 	/* Check for sign bit in case of negative value, 2's compliment */
 	if (high & 0x10) {
 		val = (low | (med << 8) | (high << 16));
-		val ^= 0x1;
 		val = ~val;
+		val = val + 1;
 		/* Extract 20 bits */
 		val &= 0xfffff;
+
+		status = ab8500_bm_status();
+		if ((status ==  AC_PW_CONN) || (status == USB_PW_CONN))
+			dev_dbg(di->dev, "Negative current during charging\n");
+
 	} else {
 		val = (low | (med << 8) | (high << 16));
+		dev_dbg(di->dev, "raw average current %d\n", val);
 	}
 
 	/* Get the number of samples from sysfs */

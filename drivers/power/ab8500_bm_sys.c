@@ -20,7 +20,7 @@
 #include <mach/ab8500_sys.h>
 
 /* Gas Gauge Default values */
-# define NUM_OF_SAMPLES  0x14
+# define NUM_OF_SAMPLES  0x28
 
 static struct kobject *gauge_kobj;
 static long int samples = NUM_OF_SAMPLES;
