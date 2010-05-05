@@ -47,6 +47,8 @@ enum b2r2_core_queue {
 	B2R2_CORE_QUEUE_NO_OF,
 };
 
+#define B2R2_NUM_APPLICATIONS_QUEUES 4
+
 /**
  * enum b2r2_core_job_state - Indicates the current state of the job
  *
@@ -137,6 +139,10 @@ struct b2r2_core_job {
 	u32 control;
 	u32 pace_control;
 	u32 interrupt_context;
+
+	/* Timing data */
+	u32 hw_start_time;
+	s32 nsec_active_in_hw;
 
 	u32 end_sentinel;
 };

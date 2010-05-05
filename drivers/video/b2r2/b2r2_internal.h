@@ -293,6 +293,7 @@ struct b2r2_node_split_job {
  * @src_resolved: Calculated info about the source buffer
  * @src_mask_resolved: Calculated info about the source mask buffer
  * @dst_resolved: Calculated info about the destination buffer
+ * @profile: True if the blit shall be profiled, false otherwise
  */
 struct b2r2_blt_request {
 	struct b2r2_blt_instance   *instance;
@@ -311,6 +312,14 @@ struct b2r2_blt_request {
 	/* TBD: Info about SRAM usage & needs */
 	struct b2r2_work_buf *bufs;
 	u32 buf_count;
+
+	/* Profiling stuff */
+	bool profile;
+
+	s32 nsec_active_in_cpu;
+
+	u32 start_time_nsec;
+	s32 total_time_nsec;
 };
 
 /* FIXME: The functions below should be removed when we are

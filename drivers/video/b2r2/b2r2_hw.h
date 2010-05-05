@@ -55,6 +55,7 @@ enum b2r2_native_fmt {
 	/* Misc. formats */
 	B2R2_NATIVE_A1 = 0x18 << B2R2_COLOR_FORMAT_SHIFT,
 	B2R2_NATIVE_A8 = 0x19 << B2R2_COLOR_FORMAT_SHIFT,
+	B2R2_NATIVE_YUV	= 0x1e << B2R2_COLOR_FORMAT_SHIFT,
 	B2R2_NATIVE_BYTE = 0x1f << B2R2_COLOR_FORMAT_SHIFT,
 };
 
@@ -408,5 +409,60 @@ enum b2r2_fctl {
 #define B2R2_VMX1_RGB_TO_BGR 0x00040000
 #define B2R2_VMX2_RGB_TO_BGR 0x20000000
 #define B2R2_VMX3_RGB_TO_BGR 0x00000000
+
+/*  VMX register values for BGR to YUV color conversion */
+/*  Note: All YUV <--> BGR values are calculated by taking the values above and
+          multiplying them with the inverted unity matrix */
+
+/* 601 Video Matrix (standard 601 conversion) */
+#define B2R2_VMX0_BGR_TO_YUV_601_VIDEO 0xfd7e4883
+#define B2R2_VMX1_BGR_TO_YUV_601_VIDEO 0x03220442
+#define B2R2_VMX2_BGR_TO_YUV_601_VIDEO 0x107ea7d4
+#define B2R2_VMX3_BGR_TO_YUV_601_VIDEO 0x08000080
+
+/* 601 Gfx Matrix (full range conversion) */
+#define B2R2_VMX0_BGR_TO_YUV_601_GFX 0xFDDE8870
+#define B2R2_VMX1_BGR_TO_YUV_601_GFX 0x08420419
+#define B2R2_VMX2_BGR_TO_YUV_601_GFX 0xFA9EA483
+#define B2R2_VMX3_BGR_TO_YUV_601_GFX 0x08004080
+
+/* 709 Video Matrix (standard 709 conversion) */
+#define B2R2_VMX0_BGR_TO_YUV_709_VIDEO 0xFE9E2483
+#define B2R2_VMX1_BGR_TO_YUV_709_VIDEO 0x0262DC37
+#define B2R2_VMX2_BGR_TO_YUV_709_VIDEO 0x107E6FE2
+#define B2R2_VMX3_BGR_TO_YUV_709_VIDEO 0x08000080
+
+/* 709 Gfx Matrix (standard 709 conversion) */
+#define B2R2_VMX0_BGR_TO_YUV_709_GFX 0xFEBE6871
+#define B2R2_VMX1_BGR_TO_YUV_709_GFX 0x0202742F
+#define B2R2_VMX2_BGR_TO_YUV_709_GFX 0x0E3EA7E6
+#define B2R2_VMX3_BGR_TO_YUV_709_GFX 0x08004080
+
+
+/* VMX register values for YUV to BGR conversion */
+
+/* 601 Video Matrix (standard 601 conversion) */
+#define B2R2_VMX0_YUV_TO_BGR_601_VIDEO 0x00040162
+#define B2R2_VMX1_YUV_TO_BGR_601_VIDEO 0xF544034D
+#define B2R2_VMX2_YUV_TO_BGR_601_VIDEO 0x27E40000
+#define B2R2_VMX3_YUV_TO_BGR_601_VIDEO 0x34f21322
+
+/* 601 Gfx Matrix (full range conversion) */
+#define B2R2_VMX0_YUV_TO_BGR_601_GFX 0x0004A999
+#define B2R2_VMX1_YUV_TO_BGR_601_GFX 0xF384AB30
+#define B2R2_VMX2_YUV_TO_BGR_601_GFX 0x2AE4A800
+#define B2R2_VMX3_YUV_TO_BGR_601_GFX 0x32121eeb
+
+/* 709 Video Matrix (standard 709 conversion) */
+#define B2R2_VMX0_YUV_TO_BGR_709_VIDEO 0x0004038A
+#define B2R2_VMX1_YUV_TO_BGR_709_VIDEO 0xFA24038B
+#define B2R2_VMX2_YUV_TO_BGR_709_VIDEO 0x28A40000
+#define B2R2_VMX3_YUV_TO_BGR_709_VIDEO 0x33b14b18
+
+/* 709 Gfx Matrix (standard 709 conversion) */
+#define B2R2_VMX0_YUV_TO_BGR_709_GFX 0x0004ABCB
+#define B2R2_VMX1_YUV_TO_BGR_709_GFX 0xF924AB78
+#define B2R2_VMX2_YUV_TO_BGR_709_GFX 0x2BE4A800
+#define B2R2_VMX3_YUV_TO_BGR_709_GFX 0x307132df
 
 #endif /* B2R2_HW_H__ */

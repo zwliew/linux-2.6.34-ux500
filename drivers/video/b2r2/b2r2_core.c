@@ -52,15 +52,23 @@
 #endif
 #include <linux/jiffies.h>
 #include <linux/timer.h>
+#include <linux/clk.h>
+
+#include <linux/sched.h>
 
 #include "b2r2_core.h"
 #include "b2r2_global.h"
 #include "b2r2_structures.h"
 #include "b2r2_internal.h"
+#include "b2r2_profiler_api.h"
+#include "b2r2_timing.h"
+
+#include <mach/prcmu-fw-api.h>
 
 /* TBD: Remove from here (split_init from b2r2_blt_main) */
 int __init b2r2_blt_module_init(void);
 void __exit b2r2_blt_module_exit(void);
+
 
 
 /**
@@ -78,10 +86,12 @@ void __exit b2r2_blt_module_exit(void);
  */
 #define DEBUG_CHECK_ADDREF_RELEASE 1
 
+#ifdef CONFIG_DEBUG_FS
 /**
  * HANDLE_TIMEOUTED_JOBS - Define this to check jobs for timeout and cancel them
  */
 #define HANDLE_TIMEOUTED_JOBS 1
+#endif
 
 /**
  * B2R2_CLOCK_ALWAYS_ON - Define this to disable power save clock turn off
@@ -235,7 +245,10 @@ struct b2r2_core {
 	spinlock_t       lock;
 
 	struct b2r2_memory_map *hw;
-	u32 *pmu_b2r2_clock;
+
+    struct clk* b2r2_clock;
+
+    bool b2r2_clock_on;
 
 	struct device *log_dev;
 
@@ -300,12 +313,19 @@ static struct b2r2_core_job *find_tag_in_active_jobs(int tag);
 static void clock_off_timer_function(unsigned long arg);
 static void clock_enable(void);
 static void clock_disable(void);
+static void turn_on_clock(void);
+static void turn_off_clock(void);
+static void stop_queue(enum b2r2_core_queue queue);
 
 #ifdef HANDLE_TIMEOUTED_JOBS
 static void printk_regs(void);
 static int hw_reset(void);
 static void timeout_work_function(struct work_struct *ptr);
 #endif
+
+static void reset_hw_timer(struct b2r2_core_job *job);
+static void start_hw_timer(struct b2r2_core_job *job);
+static void stop_hw_timer(struct b2r2_core_job *job);
 
 
 /* Tracking release bug... */
@@ -632,6 +652,8 @@ int b2r2_core_job_wait(struct b2r2_core_job *job)
  * @job: Job to cancel
  *
  * Returns true if the job was found and cancelled
+ *
+ * b2r2_core.lock must be held when calling this function
  */
 static bool cancel_job(struct b2r2_core_job *job)
 {
@@ -654,6 +676,8 @@ static bool cancel_job(struct b2r2_core_job *job)
 			     i < ARRAY_SIZE(b2r2_core.active_jobs);
 			     i++) {
 				if (b2r2_core.active_jobs[i] == job) {
+					stop_queue((enum b2r2_core_queue)i);
+					stop_hw_timer(job);
 					b2r2_core.active_jobs[i] = NULL;
 					b2r2_core.n_active_jobs--;
 					clock_disable();
@@ -706,7 +730,25 @@ int b2r2_core_job_cancel(struct b2r2_core_job *job)
 
 /* LOCAL FUNCTIONS BELOW */
 
-/**
+
+static void turn_on_clock(void)
+{
+    if (!b2r2_core.b2r2_clock_on) {
+        clk_enable(b2r2_core.b2r2_clock);
+        b2r2_core.b2r2_clock_on = true;
+    }
+}
+
+static void turn_off_clock(void)
+{
+    if (b2r2_core.b2r2_clock_on) {
+        clk_disable(b2r2_core.b2r2_clock);
+        b2r2_core.b2r2_clock_on = false;
+    }
+}
+
+
+ /**
  * clock_off_timer_function() - Checks if the B2R2 clock should be turned off
  *
  * @arg: Timer function argument (not used)
@@ -718,12 +760,19 @@ static void clock_off_timer_function(unsigned long arg)
 	if (b2r2_core.clock_request_count == 0) {
 		unsigned long j = jiffies;
 #ifndef B2R2_CLOCK_ALWAYS_ON
-		if (time_after_eq(j, b2r2_core.clock_off_timer.expires))
-			writel(0, b2r2_core.pmu_b2r2_clock);
+		if (time_after_eq(j, b2r2_core.clock_off_timer.expires)) {
+            turn_off_clock();
+			dev_dbg(b2r2_core.log_dev,
+				"B2R2 disable clock: disable b2r2 = %X\n",
+				(int)b2r2_core.b2r2_clock);
+		}
 #endif
 	}
 	spin_unlock_irqrestore(&b2r2_core.lock, flags);
 }
+
+
+
 
 /**
  * clock_enable() - Turns on the B2R2 clock.
@@ -736,9 +785,14 @@ static void clock_off_timer_function(unsigned long arg)
 static void clock_enable(void)
 {
 	b2r2_core.clock_request_count++;
-	if (b2r2_core.clock_request_count == 1)
-		writel(B2R2_CLK_FLAG, b2r2_core.pmu_b2r2_clock);
+	if (b2r2_core.clock_request_count == 1) {
+        turn_on_clock();
+		dev_dbg(b2r2_core.log_dev,
+			"B2R2 enable clock: enable b2r2 = %X\n",
+			(int)b2r2_core.b2r2_clock);
+	}
 }
+
 
 /**
  * clock_disable() - Turns off the B2R2 clock.
@@ -752,12 +806,25 @@ static void clock_disable(void)
 {
 	BUG_ON(b2r2_core.clock_request_count == 0);
 	b2r2_core.clock_request_count--;
-	if (b2r2_core.clock_request_count == 0) {
-		/* Delayed clock turn off
-		   (10 ms but at least 2 jiffie increments) */
-		mod_timer(&b2r2_core.clock_off_timer,
-			  jiffies + min(HZ / 100, 2));
-	}
+
+    if (b2r2_core.clock_request_count == 0) {
+	    /* Delayed clock turn off
+	       (10 ms but at least 2 jiffie increments) */
+	    mod_timer(&b2r2_core.clock_off_timer,
+			      jiffies + min(HZ / 100, 2));
+    }
+}
+
+/**
+ * stop_queue() - Stops the specified queue.
+ */
+static void stop_queue(enum b2r2_core_queue queue)
+{
+	/* TODO: Implement! If this function is not implemented canceled jobs will
+	use b2r2 which is a waste of resources. Not stopping jobs will also screw up
+	the hardware timing, the job the canceled job intrerrupted (if any) will be
+	billed for the time between the point where the job is cancelled and when it
+	stops. */
 }
 
 /**
@@ -855,7 +922,9 @@ static void timeout_work_function(struct work_struct *ptr)
 			/* Active jobs and more than a second since last irq! */
 			int i;
 
-			/* Look for timeout:ed jobs and put them in tmp list */
+			/* Look for timeout:ed jobs and put them in tmp list. It's
+			important that the application queues are killed in order
+			of decreasing priority */
 			for (i = 0;
 			     i < ARRAY_SIZE(b2r2_core.active_jobs);
 			     i++) {
@@ -863,6 +932,8 @@ static void timeout_work_function(struct work_struct *ptr)
 					b2r2_core.active_jobs[i];
 
 				if (job) {
+					stop_hw_timer(job);
+
 					b2r2_core.active_jobs[i] = NULL;
 					b2r2_core.n_active_jobs--;
 					clock_disable();
@@ -909,6 +980,107 @@ static void timeout_work_function(struct work_struct *ptr)
 	spin_unlock_irqrestore(&b2r2_core.lock, flags);
 }
 #endif
+
+/**
+ * reset_hw_timer() - Resets a job's hardware timer. Must be called before
+ *                    the timer is used.
+ *
+ * @job: Pointer to job struct
+ *
+ * b2r2_core.lock _must_ be held when calling this function
+ */
+static void reset_hw_timer(struct b2r2_core_job *job)
+{
+	job->nsec_active_in_hw = 0;
+}
+
+/**
+ * start_hw_timer() - Times how long a job spends in hardware (active).
+ *                    Should be called immediatly before starting the
+ *                    hardware.
+ *
+ * @job: Pointer to job struct
+ *
+ * b2r2_core.lock _must_ be held when calling this function
+ */
+static void start_hw_timer(struct b2r2_core_job *job)
+{
+	job->hw_start_time = b2r2_get_curr_nsec();
+}
+
+/**
+ * stop_hw_timer() - Times how long a job spends in hardware (active).
+ *                   Should be called immediatly after the hardware has
+ *                   finished.
+ *
+ * @job: Pointer to job struct
+ *
+ * b2r2_core.lock _must_ be held when calling this function
+ */
+static void stop_hw_timer(struct b2r2_core_job *job)
+{
+	/* Assumes only app queues are used, which is the case right now. */
+	/* Not 100% accurate. When a higher prio job interrupts a lower prio job it does
+	so after the current node of the low prio job has finished. Currently we can not
+	sense when the actual switch takes place so the time reported for a job that
+	interrupts a lower prio job will on average contain the time it takes to process
+	half a node in the lower prio job in addition to the time it takes to process the
+	job's own nodes. This could possibly be solved by adding node notifications but
+	that would involve a significant amount of work and consume system resources due
+	to the extra interrupts. */
+	/* If a job takes more than ~2s (absolute time, including idleing in the hardware)
+	the state of the hardware timer will be corrupted and it will not report valid
+	values until b2r2 becomes idle (no active jobs on any queues). The maximum length
+	can possibly be increased by using 64 bit integers. */
+
+	int i;
+
+	u32 stop_time_raw = b2r2_get_curr_nsec();
+	/* We'll add an offset to all positions in time to make the current time equal to
+	0xFFFFFFFF. This way we can compare positions in time to each other without having
+	to wory about wrapping (so long as all positions in time are in the past). */
+	u32 stop_time = 0xFFFFFFFF;
+	u32 time_pos_offset = 0xFFFFFFFF - stop_time_raw;
+	u32 nsec_in_hw = stop_time - (job->hw_start_time + time_pos_offset);
+	job->nsec_active_in_hw += (s32)nsec_in_hw;
+
+	/* Check if we have delayed the start of higher prio jobs. Can happen as queue
+	switching only can be done between nodes. */
+	for (i = (int)job->queue - 1; i >= (int)B2R2_CORE_QUEUE_AQ1; i--)
+	{
+		struct b2r2_core_job *queue_active_job = b2r2_core.active_jobs[i];
+		if (NULL == queue_active_job)
+			continue;
+
+		queue_active_job->hw_start_time = stop_time_raw;
+	}
+
+	/* Check if the job has stolen time from lower prio jobs */
+	for (i = (int)job->queue + 1; i < B2R2_NUM_APPLICATIONS_QUEUES; i++)
+	{
+		struct b2r2_core_job *queue_active_job = b2r2_core.active_jobs[i];
+		u32 queue_active_job_hw_start_time;
+
+		if (NULL == queue_active_job)
+			continue;
+
+		queue_active_job_hw_start_time = queue_active_job->hw_start_time + time_pos_offset;
+
+		if (queue_active_job_hw_start_time < stop_time)
+		{
+			u32 queue_active_job_nsec_in_hw = stop_time - queue_active_job_hw_start_time;
+			u32 num_stolen_nsec = min(queue_active_job_nsec_in_hw, nsec_in_hw);
+
+			queue_active_job->nsec_active_in_hw -= (s32)num_stolen_nsec;
+
+			nsec_in_hw -= num_stolen_nsec;
+			stop_time -= num_stolen_nsec;
+		}
+
+		if (0 == nsec_in_hw)
+			break;
+	}
+}
 
 /**
  * init_job() - Initializes a job structure from filled in client data.
@@ -1269,6 +1441,7 @@ static void trigger_job(struct b2r2_core_job *job)
 	dev_dbg(b2r2_core.log_dev, "BLT TRIG_CTL 0x%x \n", job->control);
 	dev_dbg(b2r2_core.log_dev, "BLT PACE_CTL 0x%x \n", job->pace_control);
 
+	reset_hw_timer(job);
 	job->job_state = B2R2_CORE_JOB_RUNNING;
 
 	/* Enable interrupt */
@@ -1293,6 +1466,7 @@ static void trigger_job(struct b2r2_core_job *job)
 		writel(job->control, &b2r2_core.hw->BLT_AQ1_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ1_IP);
 		wmb();
+		start_hw_timer(job);
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ1_LNA);
 		break;
 
@@ -1300,6 +1474,7 @@ static void trigger_job(struct b2r2_core_job *job)
 		writel(job->control, &b2r2_core.hw->BLT_AQ2_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ2_IP);
 		wmb();
+		start_hw_timer(job);
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ2_LNA);
 		break;
 
@@ -1307,6 +1482,7 @@ static void trigger_job(struct b2r2_core_job *job)
 		writel(job->control, &b2r2_core.hw->BLT_AQ3_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ3_IP);
 		wmb();
+		start_hw_timer(job);
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ3_LNA);
 		break;
 
@@ -1314,6 +1490,7 @@ static void trigger_job(struct b2r2_core_job *job)
 		writel(job->control, &b2r2_core.hw->BLT_AQ4_CTL);
 		writel(job->first_node_address, &b2r2_core.hw->BLT_AQ4_IP);
 		wmb();
+		start_hw_timer(job);
 		writel(job->last_node_address, &b2r2_core.hw->BLT_AQ4_LNA);
 		break;
 
@@ -1343,6 +1520,8 @@ static void handle_queue_event(enum b2r2_core_queue queue)
 			   Severe error. TBD */
 			dev_warn(b2r2_core.log_dev,
 				 "%s: Job is not running", __func__);
+
+		stop_hw_timer(job);
 
 		/* Remove from queue */
 		BUG_ON(b2r2_core.n_active_jobs == 0);
@@ -1709,11 +1888,16 @@ static void printk_regs(void)
 static int debugfs_b2r2_reg_read(struct file *filp, char __user *buf,
 				 size_t count, loff_t *f_pos)
 {
-	char Buf[4096];
 	size_t dev_size;
 	int ret = 0;
 
 	unsigned long value;
+	char *Buf = kmalloc(sizeof(char) * 4096, GFP_KERNEL);
+
+	if (Buf == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
 
 	/* We need a clock when reading from B2R2 */
 	clock_enable();
@@ -1741,6 +1925,8 @@ static int debugfs_b2r2_reg_read(struct file *filp, char __user *buf,
 	ret = count;
 
 out:
+	if (Buf != NULL)
+		kfree(Buf);
 	return ret;
 }
 
@@ -1806,10 +1992,15 @@ static const struct file_operations debugfs_b2r2_reg_fops = {
 static int debugfs_b2r2_regs_read(struct file *filp, char __user *buf,
 				  size_t count, loff_t *f_pos)
 {
-	char Buf[4096];
 	size_t dev_size = 0;
 	int ret = 0;
 	int i;
+	char *Buf = kmalloc(sizeof(char) * 4096, GFP_KERNEL);
+
+	if (Buf == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
 
 	/* Build a giant string containing all registers */
 	clock_enable();
@@ -1836,6 +2027,8 @@ static int debugfs_b2r2_regs_read(struct file *filp, char __user *buf,
 	ret = count;
 
 out:
+	if (Buf != NULL)
+		kfree(Buf);
 	return ret;
 }
 
@@ -1860,10 +2053,15 @@ static const struct file_operations debugfs_b2r2_regs_fops = {
 static int debugfs_b2r2_stat_read(struct file *filp, char __user *buf,
 				  size_t count, loff_t *f_pos)
 {
-	char Buf[4096];
 	size_t dev_size = 0;
 	int ret = 0;
 	int i = 0;
+	char *Buf = kmalloc(sizeof(char) * 4096, GFP_KERNEL);
+
+	if (Buf == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
 
 	/* Build a string containing all statistics */
 	dev_size += sprintf(Buf + dev_size, "Interrupts: %lu\n",
@@ -1895,6 +2093,8 @@ static int debugfs_b2r2_stat_read(struct file *filp, char __user *buf,
 	ret = count;
 
 out:
+	if (Buf != NULL)
+		kfree(Buf);
 	return ret;
 }
 
@@ -1920,13 +2120,13 @@ static const struct file_operations debugfs_b2r2_stat_fops = {
 static int debugfs_b2r2_clock_read(struct file *filp, char __user *buf,
 				   size_t count, loff_t *f_pos)
 {
-	char Buf[4096];
+	char Buf[10+2];//10 characters hex number + newline + string terminator;
 	size_t dev_size;
 	int ret = 0;
 
-	unsigned long value = readl(b2r2_core.pmu_b2r2_clock);
+	unsigned long value = clk_get_rate(b2r2_core.b2r2_clock);
 
-	dev_size = sprintf(Buf, "%8lX\n", value);
+	dev_size = sprintf(Buf, "%#010lX\n", value);
 
 	/* No more to read if offset != 0 */
 	if (*f_pos > dev_size)
@@ -1969,7 +2169,8 @@ static int debugfs_b2r2_clock_write(struct file *filp, const char __user *buf,
 	if (sscanf(Buf, "%8lX", (unsigned long *) &reg_value) != 1)
 		return -EINVAL;
 
-	writel(reg_value, b2r2_core.pmu_b2r2_clock);
+	/*not working yet*/
+	/*clk_set_rate(b2r2_core.b2r2_clock, (unsigned long) reg_value);*/
 
 	*f_pos += count;
 	ret = count;
@@ -2018,6 +2219,8 @@ static int init_hw(struct platform_device *pdev)
 
 	dev_dbg(b2r2_core.log_dev, "%s started..\n", __func__);
 	dev_dbg(b2r2_core.log_dev, "Map B2R2 registers...\n");
+
+    (void)prcmu_set_hwacc(HW_ACC_B2R2, HW_ON);
 
 	/* Map B2R2 into kernel virtual memory space */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2178,6 +2381,8 @@ static void exit_hw(void)
 
 	spin_unlock_irqrestore(&b2r2_core.lock, flags);
 
+    (void)prcmu_set_hwacc(HW_ACC_B2R2, HW_OFF);
+
 	dev_dbg(b2r2_core.log_dev, "%s ended...\n", __func__);
 }
 
@@ -2190,7 +2395,6 @@ static int __init b2r2_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct resource *res;
-	volatile u32 __iomem *b2r2_clk;
 
 	BUG_ON(pdev == NULL);
 
@@ -2212,6 +2416,7 @@ static int __init b2r2_probe(struct platform_device *pdev)
 	init_timer(&b2r2_core.clock_off_timer);
 	b2r2_core.clock_off_timer.function = clock_off_timer_function;
 
+
 	/* Work queue for callbacks and timeout management */
 	b2r2_core.work_queue = create_workqueue("B2R2");
 	if (!b2r2_core.work_queue) {
@@ -2219,29 +2424,19 @@ static int __init b2r2_probe(struct platform_device *pdev)
 		goto b2r2_probe_no_work_queue;
 	}
 
-	/**  b2r2 clock ~ PRCMU. */
-	/** FIXME: Magic number, should come from platform data */
-	b2r2_clk = (u32 *) ioremap(0x801571E4, (0x801571E4+3)-0x801571E4 + 1);
-	if (!b2r2_clk) {
-		ret = -EINVAL;
-		goto b2r2_probe_no_b2r2_clk;
+	/* Get the clock for B2R2*/
+	b2r2_core.b2r2_clock = clk_get(&pdev->dev, "b2r2");
+	if (IS_ERR(b2r2_core.b2r2_clock)) {
+		ret = PTR_ERR(b2r2_core.b2r2_clock);
+		printk(KERN_ERR "B2R2: clk_get b2r2 failed\n");
+		goto b2r2_probe_no_clk;
 	}
-	*b2r2_clk = 0xC;
-	iounmap(b2r2_clk);
 
 	/** Enable B2R2 power domain & check it.*/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (res == NULL) {
 		ret = -EINVAL;
 		goto b2r2_probe_no_pmu_b2r2_res;
-	}
-
-	/* Map B2R2 clock into virtual memory space */
-	b2r2_core.pmu_b2r2_clock =
-		(u32 *) ioremap(res->start, res->end - res->start + 1);
-	if (b2r2_core.pmu_b2r2_clock == NULL) {
-		ret = -EINVAL;
-		goto b2r2_probe_no_pmu_b2r2_ioremap;
 	}
 
 	/** Init B2R2 hardware */
@@ -2269,10 +2464,8 @@ b2r2_probe_blt_init_fail:
 	exit_hw();
 b2r2_probe_init_hw_fail:
 	clock_disable();
-b2r2_probe_no_pmu_b2r2_ioremap:
 b2r2_probe_no_pmu_b2r2_res:
-	iounmap(b2r2_clk);
-b2r2_probe_no_b2r2_clk:
+b2r2_probe_no_clk:
 	destroy_workqueue(b2r2_core.work_queue);
 	b2r2_core.work_queue = NULL;
 b2r2_probe_no_work_queue:
@@ -2332,7 +2525,52 @@ static int b2r2_remove(struct platform_device *pdev)
 	return 0;
 
 }
+/**
+ * b2r2_suspend() - This routine puts the B2R2 device in to sustend state.
+ * @pdev: platform device.
+ *
+ * This routine stores the current state of the b2r2 device and puts in to suspend state.
+ *
+ */
+int b2r2_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	printk(KERN_INFO "%s\n", __func__);
 
+	/* Flush B2R2 work queue (call all callbacks) */
+	flush_workqueue(b2r2_core.work_queue);
+
+#ifdef HANDLE_TIMEOUTED_JOBS
+	cancel_delayed_work(&b2r2_core.timeout_work);
+#endif
+
+	/* Flush B2R2 work queue (call all callbacks for
+	   cancelled jobs) */
+	flush_workqueue(b2r2_core.work_queue);
+
+	/** Exit B2R2 hardware */
+	exit_hw();
+
+	/* Wait for delayed timer to execute */
+	while (timer_pending(&b2r2_core.clock_off_timer))
+		mdelay(10);
+
+	return 0;
+}
+
+
+/**
+ * b2r2_resume() - This routine resumes the B2R2 device from sustend state.
+ * @pdev: platform device.
+ *
+ * This routine restore back the current state of the b2r2 device resumes.
+ *
+ */
+int b2r2_resume(struct platform_device *pdev)
+{
+	printk(KERN_INFO "%s\n", __func__);
+
+    return init_hw(pdev);
+}
 
 /**
  * struct platform_b2r2_driver - Platform driver configuration for the
@@ -2344,6 +2582,9 @@ static struct platform_driver platform_b2r2_driver = {
 	.driver = {
 		.name	= "U8500-B2R2",
 	},
+	/** TODO implement power mgmt functions */
+	.suspend = b2r2_suspend,
+	.resume =  b2r2_resume,
 };
 
 

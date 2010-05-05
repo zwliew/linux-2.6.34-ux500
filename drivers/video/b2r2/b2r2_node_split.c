@@ -20,6 +20,9 @@
 
 #include <linux/kernel.h>
 #include <linux/debugfs.h>
+#include <linux/dma-mapping.h>
+#include <asm/dma-mapping.h>
+
 
 #include "b2r2_node_split.h"
 #include "b2r2_internal.h"
@@ -30,6 +33,13 @@
  ******************/
 static u32 debug;
 static u32 verbose;
+
+static u32 hf_coeffs_addr = 0;
+static u32 vf_coeffs_addr = 0;
+static void *hf_coeffs = NULL;
+static void *vf_coeffs = NULL;
+#define HF_TABLE_SIZE 64
+#define VF_TABLE_SIZE 40
 
 #define pdebug(...) \
 	do { \
@@ -91,19 +101,19 @@ static const u32 vmx_rgb_to_bgr[] = {
 	B2R2_VMX3_RGB_TO_BGR,
 };
 
-/* TODO: Find out iVMX values for BGR <--> YUV */
+/* TODO: Verify iVMX values for BGR <--> YUV */
 static const u32 vmx_bgr_to_yuv[] = {
-	0,
-	0,
-	0,
-	0,
+	B2R2_VMX0_BGR_TO_YUV_601_VIDEO,
+	B2R2_VMX1_BGR_TO_YUV_601_VIDEO,
+	B2R2_VMX2_BGR_TO_YUV_601_VIDEO,
+	B2R2_VMX3_BGR_TO_YUV_601_VIDEO,
 };
 
 static const u32 vmx_yuv_to_bgr[] = {
-	0,
-	0,
-	0,
-	0,
+	B2R2_VMX0_YUV_TO_BGR_601_VIDEO,
+	B2R2_VMX1_YUV_TO_BGR_601_VIDEO,
+	B2R2_VMX2_YUV_TO_BGR_601_VIDEO,
+	B2R2_VMX3_YUV_TO_BGR_601_VIDEO,
 };
 
 /********************************************
@@ -172,7 +182,9 @@ static void configure_tmp_buf(struct b2r2_node_split_buf *this, int index,
 static int configure_rot_scale(struct b2r2_node_split_job *this,
 		struct b2r2_node *node, struct b2r2_node **next);
 
-static int check_rects(const struct b2r2_node_split_job *this, bool color_fill);
+static int check_rect(const struct b2r2_blt_img *img,
+		const struct b2r2_blt_rect *rect,
+		const struct b2r2_blt_rect *clip);
 static void set_buf(struct b2r2_node_split_buf *buf, u32 addr,
 		const struct b2r2_blt_img *img,
 		const struct b2r2_blt_rect *rect, bool color_fill, u32 color);
@@ -184,7 +196,7 @@ static int calculate_tile_count(s32 area_width, s32 area_height, s32 tile_width,
 		s32 tile_height);
 
 static inline enum b2r2_ty get_alpha_range(enum b2r2_blt_fmt fmt);
-static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u32 alpha, u32 color);
+static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u8 alpha, u32 color);
 static inline u8  get_alpha(enum b2r2_blt_fmt fmt, u32 pixel);
 static inline bool fmt_has_alpha(enum b2r2_blt_fmt fmt);
 static inline bool is_rgb_fmt(enum b2r2_blt_fmt fmt);
@@ -266,11 +278,6 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 		this->dst.rect.x, this->dst.rect.y, this->dst.rect.width,
 		this->dst.rect.height);
 
-	/* Validate the input */
-	ret = check_rects(this, color_fill);
-	if (ret < 0)
-		goto error;
-
 	/* Check for blending */
 	if (this->flags & B2R2_BLT_FLAG_GLOBAL_ALPHA_BLEND)
 		this->blend = true;
@@ -314,6 +321,20 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 	this->clip_rect.width -= 1;
 	this->clip_rect.height -= 1;
 
+	/* Validate the destination */
+	ret = check_rect(&req->user_req.dst_img, &req->user_req.dst_rect,
+			&this->clip_rect);
+	if (ret < 0)
+		goto error;
+
+	/* Validate the source (if not color fill) */
+	if (!color_fill) {
+		ret = check_rect(&req->user_req.src_img,
+					&req->user_req.src_rect, NULL);
+		if (ret < 0)
+			goto error;
+	}
+
 	/* Do the analysis depending on the type of operation */
 	if (color_fill) {
 		ret = analyze_color_fill(this, req, &this->node_count);
@@ -336,9 +357,6 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 		printk(KERN_ERR "%s: Analysis failed!\n", __func__);
 		goto error;
 	}
-
-	if (this->rotation && (this->horiz_rescale || this->vert_rescale))
-		this->blend = false;
 
 	*buf_count = this->buf_count;
 	*node_count = this->node_count;
@@ -393,6 +411,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 	bool last_col = false;
 
 	s32 src_win_width;
+	s32 src_win_height;
 	s32 dst_win_width;
 	s32 dst_win_height;
 
@@ -412,6 +431,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 
 	/* Save these so we can do restore them when moving to a new row */
 	src_win_width = this->src.window.width;
+	src_win_height = this->src.window.height;
 	dst_win_width = this->dst.window.width;
 	dst_win_height = this->dst.window.height;
 
@@ -437,32 +457,28 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 			pverbose(KERN_INFO "%s: last col\n", __func__);
 			this->src.window.width = this->src.rect.width -
 				ABS(this->src.rect.x - this->src.window.x);
-			if (this->rotation)
-				this->dst.window.height =
-					this->dst.rect.height -
-					ABS(this->dst.window.y -
-						this->dst.rect.y);
-			else
-				this->dst.window.width =
-					this->dst.rect.width -
-					ABS(this->dst.window.x -
-						this->dst.rect.x);
+			if (this->src.window.width != src_win_width) { /* To not introduce precision issues on "normal" tiles */
+				s32 new_dst_width =
+					this->horiz_rescale ? rescale(this->src.window.width, this->horiz_sf) : this->src.window.width;
+				if (this->rotation)
+					this->dst.window.height = new_dst_width;
+				else
+					this->dst.window.width = new_dst_width;
+			}
 		}
 
 		if (last_row) {
 			pverbose(KERN_INFO "%s: last row\n", __func__);
 			this->src.window.height = this->src.rect.height -
 				ABS(this->src.rect.y - this->src.window.y);
-			if (this->rotation)
-				this->dst.window.width =
-					this->dst.rect.width -
-					ABS(this->dst.rect.x -
-						this->dst.window.x);
-			else
-				this->dst.window.height =
-					this->dst.rect.height -
-					ABS(this->dst.rect.y -
-						this->dst.window.y);
+			if (this->src.window.height != src_win_height) { /* To not introduce precision issues on "normal" tiles */
+				s32 new_dst_height =
+					this->vert_rescale ? rescale(this->src.window.height, this->vert_sf) : this->src.window.height;
+				if (this->rotation)
+					this->dst.window.width = new_dst_height;
+				else
+					this->dst.window.height = new_dst_height;
+			}
 		}
 
 		pverbose(KERN_INFO "%s: src=(%d, %d, %d, %d), "
@@ -616,30 +632,48 @@ void b2r2_node_split_cancel(struct b2r2_node_split_job *this)
  * Private functions
  **********************/
 
-static int check_rects(const struct b2r2_node_split_job *this, bool color_fill)
+static int check_rect(const struct b2r2_blt_img *img,
+		const struct b2r2_blt_rect *rect,
+		const struct b2r2_blt_rect *clip)
 {
 	int ret;
 
-	/* Check source rectangle (if not color fill) */
-	if (!color_fill) {
-		if ((this->src.rect.width <= 0) ||
-				(this->src.rect.height <= 0)) {
-			printk(KERN_ERR LOG_TAG "::%s: "
-				"Illegal src rect (%d, %d, %d, %d)\n",
-				__func__, this->src.rect.x, this->src.rect.y,
-				this->src.rect.width, this->src.rect.height);
-			ret = -EINVAL;
-			goto error;
-		}
+	s32 l, r, b, t;
+
+	/* Check rectangle dimensions*/
+	if ((rect->width <= 0) || (rect->height <= 0)) {
+		printk(KERN_ERR LOG_TAG "::%s: "
+			"Illegal rect (%d, %d, %d, %d)\n",
+			__func__, rect->x,rect->y, rect->width, rect->height);
+		ret = -EINVAL;
+		goto error;
 	}
 
-	/* Check dest rectangle */
-	if ((this->dst.rect.width <= 0) ||
-			(this->dst.rect.height <= 0)) {
+	/* If we are using clip we should only look at the intersection of the
+	   rects */
+	if (clip) {
+		l = MAX(rect->x, clip->x);
+		t = MAX(rect->y, clip->y);
+		r = MIN(rect->x + rect->width, clip->x + clip->width);
+		b = MIN(rect->y + rect->height, clip->y + clip->height);
+	} else {
+		l = rect->x;
+		t = rect->y;
+		r = rect->x + rect->width;
+		b = rect->y + rect->height;
+	}
+
+	/* Check so that the rect isn't outside the buffer */
+	if ((l < 0) || (t < 0)) {
 		printk(KERN_ERR LOG_TAG "::%s: "
-			"Illegal dst rect (%d, %d, %d, %d)\n",
-			__func__, this->src.rect.x, this->src.rect.y,
-			this->src.rect.width, this->src.rect.height);
+			"rect origin outside buffer\n", __func__);
+		ret = -EINVAL;
+		goto error;
+	}
+
+	if ((r > img->width) ||	(t > img->height)) {
+		printk(KERN_ERR LOG_TAG "::%s: "
+			"rect ends outside buffer\n", __func__);
 		ret = -EINVAL;
 		goto error;
 	}
@@ -743,7 +777,9 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 			} else if (is_rgb_fmt(this->dst.fmt)) {
 				this->src.fmt =	B2R2_BLT_FMT_32_BIT_ARGB8888;
 			} else if (is_bgr_fmt(this->dst.fmt)) {
-				this->src.fmt =	B2R2_BLT_FMT_32_BIT_ABGR8888;
+				/* Color will still be ARGB, we will translate
+				   using IVMX (configured later) */
+				this->src.fmt =	B2R2_BLT_FMT_32_BIT_ARGB8888;
 			} else {
 				/* Wait, what? */
 				printk(KERN_ERR "%s: "
@@ -820,6 +856,7 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 
 	pverbose(KERN_INFO LOG_TAG "::%s: Analyzing transform...\n", __func__);
 
+	/* Check for scaling */
 	if (this->rotation) {
 		is_scaling = (this->src.rect.width != this->dst.rect.height) ||
 			(this->src.rect.height != this->dst.rect.width);
@@ -828,11 +865,20 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 			(this->src.rect.height != this->dst.rect.height);
 	}
 
+	/* Plane separated formats must be treated as scaling */
 	is_scaling = is_scaling ||
 			(this->src.type == B2R2_FMT_TYPE_SEMI_PLANAR) ||
 			(this->src.type == B2R2_FMT_TYPE_PLANAR) ||
 			(this->dst.type == B2R2_FMT_TYPE_SEMI_PLANAR) ||
 			(this->dst.type == B2R2_FMT_TYPE_PLANAR);
+
+	if (is_scaling && this->rotation && this->blend) {
+		/* TODO: This is unsupported. Fix it! */
+		printk(KERN_DEBUG LOG_TAG "::%s: Unsupported operation\n",
+			__func__);
+		ret = -ENOSYS;
+		goto unsupported;
+	}
 
 	/* Check which type of transform */
 	if (is_scaling && this->rotation) {
@@ -889,6 +935,7 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 
 error:
 	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+unsupported:
 	return ret;
 }
 
@@ -1075,8 +1122,10 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	u32 tile_rots;
 	u32 scale_count;
 
-	s32 right_width;
-	s32 bottom_height;
+	s32 src_right_width;
+	s32 src_bottom_height;
+	s32 dst_right_width;
+	s32 dst_bottom_height;
 
 	int nbr_full_rows;
 	int nbr_full_cols;
@@ -1092,15 +1141,19 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	nbr_full_cols = this->src.rect.width / this->src.window.width;
 	nbr_full_rows = this->src.rect.height / this->src.window.height;
 
-	if (this->src.rect.width % this->src.window.width)
-		right_width = this->dst.rect.height % this->dst.window.height;
+	src_right_width = this->src.rect.width % this->src.window.width;
+	if (src_right_width)
+		dst_right_width =
+			this->horiz_rescale ? rescale(src_right_width, this->horiz_sf) : src_right_width;
 	else
-		right_width = 0;
+		dst_right_width = 0;
 
-	if (this->src.rect.height % this->src.window.height)
-		bottom_height = this->dst.rect.width % this->dst.window.width;
+	src_bottom_height = this->src.rect.height % this->src.window.height;
+	if (src_bottom_height)
+		dst_bottom_height =
+			this->horiz_rescale ? rescale(src_bottom_height, this->vert_sf) : src_bottom_height;
 	else
-		bottom_height = 0;
+		dst_bottom_height = 0;
 
 	pdebug(KERN_INFO "dst.window=\t(%4d, %4d, %4d, %4d)\n",
 		this->dst.window.x, this->dst.window.y, this->dst.window.width,
@@ -1108,8 +1161,8 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	pdebug(KERN_INFO "src.window=\t(%4d, %4d, %4d, %4d)\n",
 		this->src.window.x, this->src.window.y, this->src.window.width,
 		this->src.window.height);
-	pdebug(KERN_INFO "right_width=%d, bottom_height=%d\n", right_width,
-		bottom_height);
+	pdebug(KERN_INFO "right_width=%d, bottom_height=%d\n", dst_right_width,
+		dst_bottom_height);
 
 	/* Update the rot_count and scale_count with all the "inner" tiles */
 	tile_rots = rot_node_count(this->dst.window.height,
@@ -1121,8 +1174,8 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 		tile_rots);
 
 	/* Update with "right tile" rotations (one tile per row) */
-	if (right_width) {
-		tile_rots = rot_node_count(right_width, this->dst.window.width);
+	if (dst_right_width) {
+		tile_rots = rot_node_count(dst_right_width, this->dst.window.width);
 		rot_count += tile_rots * nbr_full_rows;
 		scale_count += nbr_full_rows;
 
@@ -1131,9 +1184,9 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	}
 
 	/* Update with "bottom tile" rotations (one tile per col) */
-	if (bottom_height) {
+	if (dst_bottom_height) {
 		tile_rots = rot_node_count(this->dst.window.height,
-			bottom_height);
+			dst_bottom_height);
 		rot_count += tile_rots * nbr_full_cols;
 		scale_count += nbr_full_cols;
 
@@ -1142,8 +1195,8 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	}
 
 	/* Update with "bottom right tile" rotations (ever only one tile) */
-	if (right_width && bottom_height) {
-		tile_rots = rot_node_count(right_width, bottom_height);
+	if (dst_right_width && dst_bottom_height) {
+		tile_rots = rot_node_count(dst_right_width, dst_bottom_height);
 		rot_count += tile_rots;
 		scale_count++;
 
@@ -1210,9 +1263,7 @@ static int analyze_scaling(struct b2r2_node_split_job *this,
 
 	this->src.window.width = MIN(this->src.window.width,
 					B2R2_RESCALE_MAX_WIDTH);
-
 	if (this->horiz_rescale)
-		/* TODO: Take care of precision problems */
 		this->dst.window.width = rescale(this->src.window.width,
 						this->horiz_sf);
 	else
@@ -1439,9 +1490,11 @@ static int configure_tile(struct b2r2_node_split_job *this,
 	switch (this->type) {
 	case B2R2_DIRECT_FILL:
 		configure_direct_fill(node, this->src.color, dst, &last);
+
 		break;
 	case B2R2_DIRECT_COPY:
 		configure_direct_copy(node, &this->src, dst, &last);
+
 		break;
 	case B2R2_FILL:
 		ret = configure_fill(node, this->src.color, this->src.fmt,
@@ -2009,6 +2062,7 @@ static int configure_scale(struct b2r2_node *node,
 	rsf &= ~(0xffff << B2R2_RSF_HSRC_INC_SHIFT);
 	rsf |= h_rsf << B2R2_RSF_HSRC_INC_SHIFT;
 	rzi |= B2R2_RZI_DEFAULT_HNB_REPEAT;
+	fctl |= B2R2_FCTL_HF2D_MODE_ENABLE_COLOR_CHANNEL_FILTER;
 
 	/* Configure vertical rescale */
 	fctl |= B2R2_FCTL_VF2D_MODE_ENABLE_RESIZER |
@@ -2016,6 +2070,7 @@ static int configure_scale(struct b2r2_node *node,
 	rsf &= ~(0xffff << B2R2_RSF_VSRC_INC_SHIFT);
 	rsf |= v_rsf << B2R2_RSF_VSRC_INC_SHIFT;
 	rzi |= B2R2_RZI_DEFAULT_VNB_REPEAT;
+	fctl |= B2R2_FCTL_VF2D_MODE_ENABLE_COLOR_CHANNEL_FILTER;
 
 	ret = configure_copy(node, src, dst, ivmx, &last);
 	if (ret < 0)
@@ -2038,27 +2093,36 @@ static int configure_scale(struct b2r2_node *node,
 		/* Set the filter control and rescale registers */
 		node->node.GROUP8.B2R2_FCTL |= fctl;
 		if ((src->type == B2R2_FMT_TYPE_SEMI_PLANAR) ||
-				(src->type == B2R2_FMT_TYPE_PLANAR) ||
-				(dst->type == B2R2_FMT_TYPE_SEMI_PLANAR) ||
-				(dst->type == B2R2_FMT_TYPE_PLANAR)) {
-			u32 chroma_vsf;
+				(src->type == B2R2_FMT_TYPE_PLANAR)) {
+			u32 chroma_vsf = v_rsf;
+			u32 chroma_hsf = h_rsf;
+
+			if ((dst->type != B2R2_FMT_TYPE_SEMI_PLANAR) &&
+				(dst->type != B2R2_FMT_TYPE_PLANAR))
+				chroma_hsf = h_rsf / 2;
 
 			/* YUV420 needs to be vertically upsampled */
-			if (is_yuv420_fmt(src->fmt))
-				chroma_vsf = v_rsf / 2;
-			else
-				chroma_vsf = v_rsf;
+			if (is_yuv420_fmt(src->fmt) !=
+					is_yuv420_fmt(dst->fmt))
+				chroma_vsf /= 2;
 
 			node->node.GROUP9.B2R2_RSF =
-					h_rsf/2 << B2R2_RSF_HSRC_INC_SHIFT |
+					chroma_hsf << B2R2_RSF_HSRC_INC_SHIFT |
 					chroma_vsf << B2R2_RSF_VSRC_INC_SHIFT;
 
 			/* Set the Luma rescale registers as well */
 			node->node.GROUP10.B2R2_RSF |= rsf;
 			node->node.GROUP10.B2R2_RZI |= rzi;
+			node->node.GROUP8.B2R2_FCTL |=
+				B2R2_FCTL_LUMA_HF2D_MODE_ENABLE_FILTER |
+				B2R2_FCTL_LUMA_VF2D_MODE_ENABLE_FILTER;
+			node->node.GROUP10.B2R2_HFP = hf_coeffs_addr;
+			node->node.GROUP10.B2R2_VFP = vf_coeffs_addr;
 		} else {
 			node->node.GROUP9.B2R2_RSF = rsf;
 		}
+		node->node.GROUP9.B2R2_HFP = hf_coeffs_addr;
+		node->node.GROUP9.B2R2_VFP = vf_coeffs_addr;
 		node->node.GROUP9.B2R2_RZI |= rzi;
 
 		node = node->next;
@@ -2115,8 +2179,6 @@ static void configure_src(struct b2r2_node *node,
 	case B2R2_FMT_TYPE_PLANAR:
 		memcpy(&tmp_buf, src, sizeof(tmp_buf));
 
-		node->node.GROUP0.B2R2_INS |= B2R2_INS_RESCALE2D_ENABLED;
-
 		/* Each chroma buffer will have half as many values per line as
 		   the luma buffer */
 		tmp_buf.pitch >>= 1;
@@ -2132,9 +2194,9 @@ static void configure_src(struct b2r2_node *node,
 			tmp_buf.window.y >>= 1;
 		}
 
-		set_src_1(node, tmp_buf.chroma_addr, &tmp_buf);    /* U */
-		set_src_2(node, tmp_buf.chroma_cr_addr, &tmp_buf); /* V */
 		set_src_3(node, src->addr, src);                   /* Y */
+		set_src_2(node, tmp_buf.chroma_addr, &tmp_buf);    /* U */
+		set_src_1(node, tmp_buf.chroma_cr_addr, &tmp_buf); /* V */
 
 		break;
 	default:
@@ -2163,7 +2225,7 @@ static int configure_dst(struct b2r2_node *node,
 		struct b2r2_node **next)
 {
 	int ret;
-	int nbr_planes;
+	int nbr_planes = 1;
 	int i;
 
 	struct b2r2_node_split_buf dst_planes[3];
@@ -2172,33 +2234,41 @@ static int configure_dst(struct b2r2_node *node,
 
 	memcpy(&dst_planes[0], dst, sizeof(dst_planes[0]));
 
-	/* Check how many planes we should use */
-	switch (dst->type) {
-	case B2R2_FMT_TYPE_SEMI_PLANAR:
+	if (dst->type != B2R2_FMT_TYPE_RASTER) {
+		/* There will be at least 2 planes */
 		nbr_planes = 2;
 
 		memcpy(&dst_planes[1], dst, sizeof(dst_planes[1]));
 
 		dst_planes[1].addr = dst->chroma_addr;
 		dst_planes[1].plane_selection = B2R2_TTY_CHROMA_NOT_LUMA;
-		break;
-	case B2R2_FMT_TYPE_PLANAR:
-		nbr_planes = 3;
 
-		memcpy(&dst_planes[1], dst, sizeof(dst_planes[1]));
-		memcpy(&dst_planes[2], dst, sizeof(dst_planes[2]));
+		/* Horizontal resolution is half */
+		dst_planes[1].window.x >>= 1;
+		dst_planes[1].window.width >>= 1;
 
-		dst_planes[1].addr = dst->chroma_addr;
-		dst_planes[1].plane_selection = B2R2_TTY_CHROMA_NOT_LUMA;
-		dst_planes[1].chroma_selection = B2R2_TTY_CB_NOT_CR;
+		/* If the buffer is in YUV420 format, the vertical resolution
+		   is half as well  */
+		if (is_yuv420_fmt(dst->fmt)) {
+			dst_planes[1].window.height >>= 1;
+			dst_planes[1].window.y >>= 1;
+		}
 
-		dst_planes[2].addr = dst->chroma_cr_addr;
-		dst_planes[2].plane_selection = B2R2_TTY_CHROMA_NOT_LUMA;
+		if (dst->type == B2R2_FMT_TYPE_PLANAR) {
+			/* There will be a third plane as well */
+			nbr_planes = 3;
 
-		break;
-	default:
-		nbr_planes = 1;
-		break;
+			/* The chroma planes have half the luma pitch */
+			dst_planes[1].pitch >>= 1;
+
+			memcpy(&dst_planes[2], &dst_planes[1],
+				sizeof(dst_planes[2]));
+			dst_planes[2].addr = dst->chroma_cr_addr;
+
+			/* The second plane will be Cb */
+			dst_planes[1].chroma_selection = B2R2_TTY_CB_NOT_CR;
+		}
+
 	}
 
 	/* Configure one node for each plane */
@@ -2263,7 +2333,7 @@ static void configure_blend(struct b2r2_node *node, u32 flags, u32 global_alpha,
 	if ((flags & B2R2_BLT_FLAG_GLOBAL_ALPHA_BLEND) != 0) {
 
 		/* B2R2 expects the global alpha to be in 0...128 range */
-		global_alpha = ((global_alpha + 1) / 2) & 0xFF;
+		global_alpha = (global_alpha*128)/255;
 
 		node->node.GROUP0.B2R2_ACK |=
 			global_alpha <<	B2R2_ACK_GALPHA_ROPID_SHIFT;
@@ -2511,53 +2581,40 @@ static inline enum b2r2_ty get_alpha_range(enum b2r2_blt_fmt fmt)
 	case B2R2_BLT_FMT_8_BIT_A8:
 	case B2R2_BLT_FMT_32_BIT_ABGR8888:
 		return B2R2_TY_ALPHA_RANGE_255; /* 0 - 255 */
-		break;
 	default:
-		break;
+		return B2R2_TY_ALPHA_RANGE_128; /* 0 - 128 */
 	}
-
-	return B2R2_TY_ALPHA_RANGE_128; /* 0 - 128 */
 }
 
 /**
- * get_alpha() - parses the alpha value from the given pixel
+ * get_alpha() - returns the pixel alpha in 0...255 range
  */
 static inline u8 get_alpha(enum b2r2_blt_fmt fmt, u32 pixel)
 {
-	u8 alpha;
-
 	switch (fmt) {
 	case B2R2_BLT_FMT_32_BIT_ARGB8888:
 	case B2R2_BLT_FMT_32_BIT_ABGR8888:
 	case B2R2_BLT_FMT_32_BIT_AYUV8888:
-		alpha = (pixel >> 24);
-		break;
+		return (pixel >> 24) & 0xff;
 	case B2R2_BLT_FMT_24_BIT_ARGB8565:
-		alpha = (pixel & 0xfff) >> 16;
-		break;
+		return (pixel & 0xfff) >> 16;
 	case B2R2_BLT_FMT_16_BIT_ARGB4444:
-		alpha = (pixel & 0xfff) >> 9;
-		break;
+		return (((pixel >> 12) & 0xf) * 255) / 15;
 	case B2R2_BLT_FMT_16_BIT_ARGB1555:
-		alpha = (pixel >> 15) * 255;
-		break;
+		return (pixel >> 15) * 255;
 	case B2R2_BLT_FMT_1_BIT_A1:
-		alpha = pixel * 255;
-		break;
+		return pixel * 255;
 	case B2R2_BLT_FMT_8_BIT_A8:
-		alpha = pixel;
-		break;
+		return pixel;
 	default:
-		alpha = 255;
+		return 255;
 	}
-
-	return alpha;
 }
 
 /**
  * set_alpha() - returns a color value with the alpha component set
  */
-static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u32 alpha, u32 color)
+static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u8 alpha, u32 color)
 {
 	u32 alpha_mask;
 
@@ -2565,25 +2622,31 @@ static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u32 alpha, u32 color)
 	case B2R2_BLT_FMT_32_BIT_ARGB8888:
 	case B2R2_BLT_FMT_32_BIT_ABGR8888:
 	case B2R2_BLT_FMT_32_BIT_AYUV8888:
+		color &= 0x00ffffff;
 		alpha_mask = alpha << 24;
 		break;
 	case B2R2_BLT_FMT_24_BIT_ARGB8565:
+		color &= 0x00ffff;
 		alpha_mask = alpha << 16;
 		break;
 	case B2R2_BLT_FMT_16_BIT_ARGB4444:
+		color &= 0x0fff;
 		alpha_mask = (alpha << 8) & 0xF000;
 		break;
 	case B2R2_BLT_FMT_16_BIT_ARGB1555:
+		color &= 0x7fff;
 		alpha_mask = (alpha / 255) << 15 ;
 		break;
 	case B2R2_BLT_FMT_1_BIT_A1:
+		color = 0;
 		alpha_mask = (alpha / 255);
 		break;
 	case B2R2_BLT_FMT_8_BIT_A8:
+		color = 0;
 		alpha_mask = alpha;
 		break;
 	default:
-		alpha_mask = alpha;
+		alpha_mask = 0;
 	}
 
 	return color | alpha_mask;
@@ -2782,18 +2845,15 @@ static inline enum b2r2_native_fmt to_native_fmt(enum b2r2_blt_fmt fmt)
 		return B2R2_NATIVE_YCBCR422R;
 	case B2R2_BLT_FMT_Y_CB_Y_CR:
 		return B2R2_NATIVE_YCBCR422R;
-	case B2R2_BLT_FMT_YUV420_PACKED_PLANAR:
-		return B2R2_NATIVE_YCBCR42X_MB;
-	case B2R2_BLT_FMT_YUV420_PACKED_SEMIPLANAR_MB_STE:
-		return B2R2_NATIVE_YCBCR42X_MBN;
 	case B2R2_BLT_FMT_YUV420_PACKED_SEMI_PLANAR:
-		return B2R2_NATIVE_YCBCR42X_R2B;
-	case B2R2_BLT_FMT_YUV422_PACKED_PLANAR:
-		return B2R2_NATIVE_YCBCR42X_MB;
-	case B2R2_BLT_FMT_YUV422_PACKED_SEMIPLANAR_MB_STE:
-		return B2R2_NATIVE_YCBCR42X_MBN;
 	case B2R2_BLT_FMT_YUV422_PACKED_SEMI_PLANAR:
 		return B2R2_NATIVE_YCBCR42X_R2B;
+	case B2R2_BLT_FMT_YUV420_PACKED_SEMIPLANAR_MB_STE:
+	case B2R2_BLT_FMT_YUV422_PACKED_SEMIPLANAR_MB_STE:
+		return B2R2_NATIVE_YCBCR42X_MBN;
+	case B2R2_BLT_FMT_YUV420_PACKED_PLANAR:
+	case B2R2_BLT_FMT_YUV422_PACKED_PLANAR:
+		return B2R2_NATIVE_YUV;
 	default:
 		/* Should never ever happen */
 		return B2R2_NATIVE_BYTE;
@@ -2881,9 +2941,9 @@ static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 	int ret;
 
 	/* Assume normal nearest neighbor scaling:
-	 *
-	 *      sf = (src - min_step) / (dst - 1)
-	 */
+
+	        sf = (src - min_step) / (dst - 1)
+	*/
 	u32 sf = ((from << 10) - 1) / (to - 1);
 
 	if ((sf & 0xffff0000) != 0) {
@@ -3044,22 +3104,22 @@ static void set_target(struct b2r2_node *node, u32 addr,
 
 	/* Check if the rectangle is outside the buffer */
 	if (buf->vso == B2R2_TY_VSO_BOTTOM_TO_TOP)
-		t = buf->rect.y - (buf->rect.height - 1);
+		t = buf->window.y - (buf->window.height - 1);
 	else
-		t = buf->rect.y;
+		t = buf->window.y;
 
 	if (buf->hso == B2R2_TY_HSO_RIGHT_TO_LEFT)
-		l = buf->rect.x - (buf->rect.width - 1);
+		l = buf->window.x - (buf->window.width - 1);
 	else
-		l = buf->rect.x;
+		l = buf->window.x;
 
-	r = l + buf->rect.width;
-	b = t + buf->rect.height;
+	r = l + buf->window.width;
+	b = t + buf->window.height;
 
 	/* Clip to the destination buffer to prevent memory overwrites */
 	if ((l < 0) || (r > buf_width) || (t < 0) || (b > buf->height)) {
 		pverbose(KERN_INFO LOG_TAG "::%s: "
-			"Rectangle outside buffer. Clipping...\n", __func__);
+			"Window outside buffer. Clipping...\n", __func__);
 
 		/* The clip rectangle is including the borders */
 		l = MAX(l, 0);
@@ -3372,10 +3432,55 @@ static inline void exit_debugfs(void) {}
 
 int b2r2_node_split_init(void)
 {
+	if (hf_coeffs == NULL) {
+		unsigned char hf[HF_TABLE_SIZE] = {
+								0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
+								0xff, 0x03, 0xfd, 0x08, 0x3e, 0xf9, 0x04, 0xfe,
+								0xfd, 0x06, 0xf8, 0x13, 0x3b, 0xf4, 0x07, 0xfc,
+								0xfb, 0x08, 0xf5, 0x1f, 0x34, 0xf1, 0x09, 0xfb,
+								0xfb, 0x09, 0xf2, 0x2b, 0x2a, 0xf1, 0x09, 0xfb,
+								0xfb, 0x09, 0xf2, 0x35, 0x1e, 0xf4, 0x08, 0xfb,
+								0xfc, 0x07, 0xf5, 0x3c, 0x12, 0xf7, 0x06, 0xfd,
+								0xfe, 0x04, 0xfa, 0x3f, 0x07, 0xfc, 0x03, 0xff};
+
+		hf_coeffs = dma_alloc_coherent(b2r2_blt_device(),
+				sizeof(hf), &hf_coeffs_addr, GFP_DMA | GFP_KERNEL);
+		if (hf_coeffs != NULL)
+			memcpy(hf_coeffs, hf, sizeof(hf));
+	}
+
+	if (vf_coeffs == NULL) {
+		unsigned char vf[VF_TABLE_SIZE] = {
+								0x00, 0x00, 0x40, 0x00, 0x00,
+								0xfd, 0x09, 0x3c, 0xfa, 0x04,
+								0xf9, 0x13, 0x39, 0xf5, 0x06,
+								0xf5, 0x1f, 0x31, 0xf3, 0x08,
+								0xf3, 0x2a, 0x28, 0xf3, 0x08,
+								0xf3, 0x34, 0x1d, 0xf5, 0x07,
+								0xf5, 0x3b, 0x12, 0xf9, 0x05,
+								0xfa, 0x3f, 0x07, 0xfd, 0x03};
+		vf_coeffs = dma_alloc_coherent(b2r2_blt_device(),
+				sizeof(vf), &vf_coeffs_addr, GFP_DMA | GFP_KERNEL);
+		if (vf_coeffs != NULL)
+			memcpy(vf_coeffs, vf, sizeof(vf));
+	}
+
 	return init_debugfs();
 }
 
 void b2r2_node_split_exit(void)
 {
+	if (hf_coeffs != NULL) {
+		dma_free_coherent(b2r2_blt_device(),
+				HF_TABLE_SIZE, hf_coeffs, hf_coeffs_addr);
+		hf_coeffs = NULL;
+	}
+
+	if (vf_coeffs != NULL) {
+		dma_free_coherent(b2r2_blt_device(),
+				VF_TABLE_SIZE, vf_coeffs, vf_coeffs_addr);
+		vf_coeffs = NULL;
+	}
+
 	exit_debugfs();
 }
