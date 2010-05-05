@@ -289,6 +289,20 @@ static struct resource mcde3_resources[] = {
 		.name = "mcde_irq",
 		.flags = IORESOURCE_IRQ
 	},
+	[11] = {
+		.start = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNELA_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "cha_specific",
+		.flags = IORESOURCE_MEM,
+	},
+	[12] = {
+		.start = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE,
+		.end = U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_BASE +
+			(U8500_MCDE_CHANNELB_SPECIFIC_REGISTER_SIZE - 1),
+		.name = "chb_specific",
+		.flags = IORESOURCE_MEM,
+	},
 };
 
 #else	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */

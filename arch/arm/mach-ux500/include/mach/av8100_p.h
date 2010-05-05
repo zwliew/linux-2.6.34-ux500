@@ -99,6 +99,26 @@ struct av8100_platform_data {
     unsigned	gpio_base;
     int irq;
 };
+
+typedef struct {
+    u16	c0;
+    u16	c1;
+    u16	c2;
+    u16	c3;
+    u16	c4;
+    u16	c5;
+    u16	c6;
+    u16	c7;
+    u16	c8;
+    u16	a_offset;
+    u16	b_offset;
+    u16	c_offset;
+    u8	l_max;
+    u8	l_min;
+    u8	c_max;
+    u8	c_min;
+} av8100_color_space_conversion_cmd;
+
 /**
  * struct av8100_video_input_format_cmd - video input format structure
  * @dsi_input_mode:
@@ -121,6 +141,7 @@ typedef struct {
     unsigned long                      master_clock_freq;                  /* Master clock frequency in HZ */
     unsigned char			ui_x4;
 } av8100_video_input_format_cmd;
+
 /**
  * struct av8100_video_output_format_cmd - video output format structure
  * @dsi_input_mode:
@@ -190,4 +211,17 @@ typedef struct {
     av8100_hdmi_format           hdmi_format;
     av8100_DVI_format            dvi_format; /* used only if HDMI_format = DVI*/
 } av8100_hdmi_cmd;
+
+/**
+ * struct av8100_denc_cmd - denc command structure
+ **/
+typedef struct {
+	av8100_TV_lines                    tv_lines;
+	av8100_TV_std                      tv_std;
+	av8100_DENC_State                  denc;
+	av8100_macrovision_state           macrovision;
+	av8100_internal_generator_state    internal_generator;
+	av8100_chroma_cws_capture_state    chroma;
+} av8100_denc_cmd;
+
 /* STWav8100 Private functions */

@@ -48,10 +48,47 @@ extern void u8500_mcde_tasklet_4(unsigned long);
 
 /*#define AV8100_USE_KERNEL_THREAD*/
 
+#if !defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI &&	\
+	!defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI &&	\
+	!defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+#define TEST_PATTERN_TEST
+#endif
+
+#define HDMI_LOGGING
+#define CONFIG_MCDE_COLOURED_PRINTS
+
+#define PRNK_COL_BLACK		30
+#define PRNK_COL_RED		31
+#define PRNK_COL_GREEN		32
+#define PRNK_COL_YELLOW		33
+#define PRNK_COL_BLUE		34
+#define PRNK_COL_MAGENTA	35
+#define PRNK_COL_CYAN		36
+#define PRNK_COL_WHITE		37
+
+#ifdef CONFIG_MCDE_COLOURED_PRINTS
+#define PRNK_COL(_col)	printk(KERN_ERR "%c[0;%d;40m\n", 0x1b, _col)
+#else /* CONFIG_MCDE_COLOURED_PRINTS */
+#define PRNK_COL(_col)
+#endif /* CONFIG_MCDE_COLOURED_PRINTS */
+
+#ifdef HDMI_LOGGING
+#define HDMI_TRACE do {\
+	PRNK_COL(PRNK_COL_YELLOW);\
+	printk(KERN_DEBUG "HDMI send cmd %s\n", __func__);\
+	PRNK_COL(PRNK_COL_WHITE);\
+} while (0)
+#else
+#define HDMI_TRACE
+#endif
+
 static int av8100_open(struct inode *inode, struct file *filp);
 static int av8100_release(struct inode *inode, struct file *filp);
 static int av8100_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
+static void av8100_configure_hdmi(struct i2c_client *i2c);
+static void av8100_configure_denc(struct av8100_data *av8100DataTemp);
 static irqreturn_t av8100_intr_handler(int irq, void *p);
+
 static int av8100_write_multi_byte(struct i2c_client *client, unsigned char regOffset,unsigned char *buf,unsigned char nbytes);
 static int av8100_write_single_byte(struct i2c_client *client, unsigned char reg,unsigned char data);
 #if 0
@@ -86,7 +123,9 @@ static int av8100_download_firmware(struct i2c_client *i2c, char regoffset, char
 static unsigned short av8100_get_ui_x4(av8100_output_CEA_VESA output_video_format);
 static unsigned short av8100_get_te_line_nb(av8100_output_CEA_VESA output_video_format);
 static void av8100_init_config_params(void);
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+static void av8100_config_output_dep_params(void);
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 static mcde_video_mode av8100_get_mcde_video_mode(av8100_output_CEA_VESA format);
 #endif
 static void av8100_set_state(av8100_operating_mode state);
@@ -101,11 +140,13 @@ unsigned int g_dcs_data_count_last = 0;
 struct av8100_data *av8100Data;
 av8100_operating_mode g_av8100_state = AV8100_OPMODE_SHUTDOWN;
 
-av8100_video_input_format_cmd hdmi_video_input_cmd;
-av8100_video_output_format_cmd hdmi_video_output_cmd;
-av8100_hdmi_cmd hdmi_cmd;
-av8100_pattern_generator_cmd hdmi_pattern_generator_cmd;
-av8100_audio_input_format_cmd hdmi_audio_input_cmd;
+av8100_video_input_format_cmd     hdmi_video_input_cmd;
+av8100_video_output_format_cmd    hdmi_video_output_cmd;
+av8100_hdmi_cmd                   hdmi_cmd;
+av8100_pattern_generator_cmd      hdmi_pattern_generator_cmd;
+av8100_audio_input_format_cmd     hdmi_audio_input_cmd;
+av8100_color_space_conversion_cmd hdmi_color_conversion_cmd;
+av8100_denc_cmd                   hdmi_denc_cmd;
 
 wait_queue_head_t av8100_event;
 bool av8100_flag = 0x0;
@@ -115,26 +156,26 @@ extern unsigned int isReady;
 #define DSI_MAX_DATA_WRITE 15
 
 av8100_cea av8100_all_cea[29] ={
-// INFO texte for format-CEA nb-total line-active line-VBP-Vsyncact-VFP-polarity-total pix-active pix-HBP-Hsyncact-HFP- Freq-polarity-regline duration-blkeol duration-uix4-pll_mulp-pll_div
+/* cea id                                   cea_nr vtot   vact   vsbpp vslen  vsfp          vpol    htot    hact    hbp  hslen  hfp  freq       hpol rld,bd,uix4,pm,pd */
 { "0  CUSTOM                            "    , 0  ,0    , 0      ,0   , 0     , 0         ,  "-"   , 800   ,640   , 16  , 96   , 10, 25200000     ,"-",0,0,0,0,0},//Settings to be define
 { "1  CEA 1 VESA 4 640x480p @ 60 Hz     "    , 1  ,525  , 480   ,33   , 2     , 10        ,  "-"   , 800   ,640   , 49  , 290  , 146, 25200000    ,"-",2438,1270,6,32,1},//RGB888
 { "2  CEA 2 - 3    720x480p @ 60 Hz 4:3 "    , 2  ,525  , 480   ,30   , 6     , 9         ,  "-"   , 858   ,720   , 34  , 130  , 128, 27027000    ,"-",1828,0x3C0,8,24,1},//RGB565
 { "3  CEA 4        1280x720p @ 60 Hz    "    , 4  ,750  , 720   ,20   , 5     , 5         ,  "+"   , 1650  ,1280  , 114 , 39   , 228, 74250000    ,"+",1706,164,6,32,1},//RGB565
-{ "4  CEA 5        1920x1080i @ 60 Hz   "    , 5  ,562.5, 540   ,20   , 5     , 0 / 1100  ,  "+"   , 2200  ,1920  , 88  , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
-{ "5  CEA 6-7      480i (NTSC)          "    , 6  ,625  , 576   ,44   , 5     , 0         ,  "-"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
-{ "6  CEA 14-15    480p @ 60 Hz         "    , 14 ,625  , 576   ,44   , 5     , 0         ,  "-"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
+{ "4  CEA 5        1920x1080i @ 60 Hz   "    , 5  ,1125 , 540   ,20   , 5     , 0         ,  "+"   , 2200  ,1920  , 88  , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "5  CEA 6-7      480i (NTSC)          "    , 6  ,525  , 240   ,44   , 5     , 0         ,  "-"   , 1716  ,1440  , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
+{ "6  CEA 14-15    480p @ 60 Hz         "    , 14 ,525  , 480   ,44   , 5     , 0         ,  "-"   , 858   ,720   , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
 { "7  CEA 16       1920x1080p @ 60 Hz   "    , 16 ,1125 , 1080  ,36   , 5     , 0         ,  "+"   , 1980  ,1280  , 440 , 40   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
 { "8  CEA 17-18    720x576p @ 50 Hz     "    , 17 ,625  , 576   ,44   , 5     , 0         ,  "-"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
 { "9  CEA 19       1280x720p @ 50 Hz    "    , 19 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1980  ,1280  , 440 , 40   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
-{ "10 CEA 20       1920 x 1080i @ 50 Hz "    , 20 ,562.5, 540   ,20   , 5     , 0 / 1320  ,  "+"   , 2640  ,1920  , 528 , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
-{ "11 CEA 21-22    576i (PAL)           "    , 21 ,625  , 576   ,44   , 5     , 0         ,  "-"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
+{ "10 CEA 20       1920 x 1080i @ 50 Hz "    , 20 ,1125 , 540   ,20   , 5     , 0         ,  "+"   , 2640  ,1920  , 528 , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
+{ "11 CEA 21-22    576i (PAL)           "    , 21 ,625  , 288   ,44   , 5     , 0         ,  "-"   , 1728  ,1440  , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
 { "12 CEA 29/30    576p                 "    , 29 ,625  , 576   ,44   , 5     , 0         ,  "-"   , 864   ,720   , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
 { "13 CEA 31       1080p 50Hz           "    , 31 ,1125 , 1080  ,44   , 5     , 0         ,  "-"   , 2750  ,1920  , 12  , 64   , 10, 27000000     ,"-",0,0,0,0,0},//Settings to be define
 { "14 CEA 32       1920x1080p @ 24 Hz   "    , 32 ,1125 , 1080  ,36   , 5     , 4         ,  "+"   , 2750  ,1920  , 660 , 44   , 153, 74250000    ,"+",2844,0x530,6,32,1},//RGB565
 { "15 CEA 33       1920x1080p @ 25 Hz   "    , 33 ,1125 , 1080  ,36   , 5     , 4         ,  "+"   , 2640  ,1920  , 528 , 44   , 10, 74250000     ,"+",0,0,0,0,0},//Settings to be define
 { "16 CEA 34       1920x1080p @ 30Hz    "    , 34 ,1125 , 1080  ,36   , 5     , 4         ,  "+"   , 2200  ,1920  , 91  , 44   , 153, 74250000    ,"+",2275,0xAB,6,32,1},//RGB565
 { "17 CEA 60       1280x720p @ 24 Hz    "    , 60 ,750  , 720   ,20   , 5     , 5         ,  "+"   , 3300  ,1280  , 284 , 50   , 2276, 29700000   ,"+",4266,0xAD0,5,32,1},//RGB565
-{ "18 CEA 61       1280x720p @ 25 Hz    "    , 61 ,750  , 720   ,25   , 5     , 0         ,  "+"   , 1650  ,1280  , 110 , 40   , 10 ,30937500     ,"+",0,0,0,0,0},//Settings to be define
+{ "18 CEA 61       1280x720p @ 25 Hz    "    , 61 ,750  , 720   ,20   , 5     , 5         ,  "+"   , 3960  ,1280  , 228 , 39   , 2503 ,30937500     ,"+",4096,0x500,5,32,1},//RGB565
 { "19 CEA 62       1280x720p @ 30 Hz    "    , 62 ,750  , 720   ,20   , 5     , 5         ,  "+"   , 3300  ,1280  , 228 , 39   , 1820, 37125000   ,"+",3413,0x770,5,32,1},//RGB565
 { "20 VESA 9       800x600 @ 60 Hz      "   , 109 ,628  , 600   ,28   , 4     , 0         ,  "+"   , 1056  ,800   , 40  , 128  , 10, 40000000     ,"+",0,0,0,0,0},//Settings to be define
 { "21 VESA 14      848x480  @ 60 Hz     "   , 114 ,500  , 480   ,20   , 5     , 0         ,  "+"   , 1056  ,848   , 24  , 80   , 10, 31500000     ,"-",0,0,0,0,0},//Settings to be define
@@ -442,6 +483,7 @@ static void av8100_configure_hdmi(struct i2c_client *i2c)
 		return;
 	}
 
+#ifndef TEST_PATTERN_TEST
 	retval = av8100_send_command (i2c, AV8100_COMMAND_VIDEO_INPUT_FORMAT,/*DSI_INTERFACE*/I2C_INTERFACE);
 	if(retval != AV8100_OK)
 	{
@@ -449,13 +491,25 @@ static void av8100_configure_hdmi(struct i2c_client *i2c)
 		return;
 	}
 
-#if 0
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+	retval = av8100_send_command (i2c, AV8100_COMMAND_COLORSPACECONVERSION, I2C_INTERFACE);
+	if(retval != AV8100_OK)
+	{
+		printk("Failed to send the AV8100_COMMAND_COLORSPACECONVERSION command\n");
+		return;
+	}
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV */
+
+#else /* TEST_PATTERN_TEST */
+#ifndef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+
 	retval = av8100_send_command (i2c, AV8100_COMMAND_PATTERNGENERATOR, /*DSI_INTERFACE*/I2C_INTERFACE);
 	if(retval != AV8100_OK)
 	{
 		printk("Failed to send the  AV8100_COMMAND_PATTERNGENERATOR command\n");
 		return;
 	}
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV */
 #endif
 	retval = av8100_send_command (i2c, AV8100_COMMAND_VIDEO_OUTPUT_FORMAT, I2C_INTERFACE);
 	if(retval != AV8100_OK)
@@ -463,6 +517,7 @@ static void av8100_configure_hdmi(struct i2c_client *i2c)
 		printk("Failed to send the  AV8100_COMMAND_VIDEO_OUTPUT_FORMAT command\n");
 		return;
 	}
+#ifndef TEST_PATTERN_TEST
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
 	mcde_hdmi_display_init_video_mode();
 #endif
@@ -472,6 +527,17 @@ static void av8100_configure_hdmi(struct i2c_client *i2c)
 		printk("Failed to send the  AV8100_COMMAND_AUDIO_INPUT_FORMAT command\n");
 		return;
 	}
+#endif /* TEST_PATTERN_TEST */
+	av8100_configure_denc(av8100Data);
+	return;
+}
+
+static void av8100_configure_denc(struct av8100_data *av8100DataTemp)
+{
+	if (AV8100_OK != av8100_send_command(av8100DataTemp->client,
+				AV8100_COMMAND_DENC, I2C_INTERFACE)) {
+		printk("Failed to send the  AV8100_COMMAND_DENC command\n");
+	}
 	return;
 }
 
@@ -479,6 +545,7 @@ static void av8100_hdmi_on(struct av8100_data *av8100DataTemp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	hdmi_cmd.hdmi_mode = AV8100_HDMI_ON;
 	hdmi_cmd.hdmi_format = AV8100_HDMI;
 
@@ -495,6 +562,7 @@ static void av8100_hdmi_off(struct av8100_data *av8100DataTemp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	hdmi_cmd.hdmi_mode = AV8100_HDMI_OFF;
 	hdmi_cmd.hdmi_format = AV8100_HDMI;
 
@@ -516,6 +584,7 @@ static int configure_av8100_video_input(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	buffer_temp[0] = hdmi_video_input_cmd.dsi_input_mode;//mcde_get_dsi_mode_config();
 	buffer_temp[1] = hdmi_video_input_cmd.input_pixel_format;//mcde_get_input_bpp();
 	buffer_temp[2] = REG_16_8_MSB(hdmi_video_input_cmd.total_horizontal_pixel);
@@ -553,6 +622,7 @@ static int configure_av8100_audio_input(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	buffer_temp[0] = hdmi_audio_input_cmd.audio_input_if_format;
 	buffer_temp[1] = hdmi_audio_input_cmd.i2s_input_nb;
 	buffer_temp[2] = hdmi_audio_input_cmd.sample_audio_freq;
@@ -574,6 +644,7 @@ static int configure_av8100_video_output(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	buffer_temp[0] = hdmi_video_output_cmd.video_output_cea_vesa;
 
 	if (buffer_temp[0] == AV8100_CUSTOM) {
@@ -618,7 +689,8 @@ static int configure_av8100_video_scaling(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
-	g_av8100_cmd_length = AV8100_COMMAND_VIDEO_SCALING_FORMAT_SIZE;
+	HDMI_TRACE;
+	g_av8100_cmd_length = AV8100_COMMAND_VIDEO_SCALING_FORMAT_SIZE - 1;
 	return retval;
 }
 
@@ -630,8 +702,38 @@ static int configure_av8100_video_scaling(char* buffer_temp)
 static int configure_av8100_colorspace_conversion(char* buffer_temp)
 {
 	int retval = AV8100_OK;
+	int i = 0;
 
-	g_av8100_cmd_length = AV8100_COMMAND_COLORSPACECONVERSION_SIZE;
+	HDMI_TRACE;
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c0);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c0);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c1);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c1);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c2);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c2);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c3);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c3);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c4);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c4);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c5);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c5);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c6);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c6);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c7);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c7);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c8);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c8);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.a_offset);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.a_offset);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.b_offset);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.b_offset);
+	buffer_temp[i++] = REG_16_8_MSB(hdmi_color_conversion_cmd.c_offset);
+	buffer_temp[i++] = REG_16_8_LSB(hdmi_color_conversion_cmd.c_offset);
+	buffer_temp[i++] = hdmi_color_conversion_cmd.l_max;
+	buffer_temp[i++] = hdmi_color_conversion_cmd.l_min;
+	buffer_temp[i++] = hdmi_color_conversion_cmd.c_max;
+	buffer_temp[i++] = hdmi_color_conversion_cmd.c_min;
+	g_av8100_cmd_length = i;
 	return retval;
 }
 
@@ -644,6 +746,7 @@ static int configure_av8100_cec_message_write(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	g_av8100_cmd_length = AV8100_COMMAND_CEC_MESSAGEWRITE_SIZE;
 	return retval;
 }
@@ -657,12 +760,14 @@ static int configure_av8100_cec_message_read(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	g_av8100_cmd_length = AV8100_COMMAND_CEC_MESSAGEREAD_BACK_SIZE;
 	return retval;
 }
 
 /**
- * configure_av8100_denc() - This function will be used to configure the denc.
+ * configure_av8100_denc() - This function will be used to configure the denc,
+ *                           which is used for SDTV (CVBS).
  * @buffer_temp:     configuration pointer
  *
  **/
@@ -670,7 +775,17 @@ static int configure_av8100_denc(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
-	g_av8100_cmd_length = AV8100_COMMAND_DENC_SIZE;
+	HDMI_TRACE;
+
+	/* Start with PAL std format */
+	buffer_temp[0] = hdmi_denc_cmd.tv_lines;
+	buffer_temp[1] = hdmi_denc_cmd.tv_std;
+	buffer_temp[2] = hdmi_denc_cmd.denc;
+	buffer_temp[3] = hdmi_denc_cmd.macrovision;
+	buffer_temp[4] = hdmi_denc_cmd.internal_generator;
+	buffer_temp[5] = hdmi_denc_cmd.chroma;
+
+	g_av8100_cmd_length = AV8100_COMMAND_DENC_SIZE - 1;
 	return retval;
 }
 
@@ -683,6 +798,7 @@ static int configure_av8100_hdmi(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	buffer_temp[0] = hdmi_cmd.hdmi_mode;
 	buffer_temp[1] = hdmi_cmd.hdmi_format;
 	buffer_temp[2] = hdmi_cmd.dvi_format;
@@ -700,6 +816,7 @@ static int configure_av8100_hdcp_senkey(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	g_av8100_cmd_length = AV8100_COMMAND_HDCP_SENDKEY_SIZE;
 	return retval;
 }
@@ -713,6 +830,7 @@ static int configure_av8100_hdcp_management(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	g_av8100_cmd_length = AV8100_COMMAND_HDCP_MANAGEMENT_SIZE;
 	return retval;
 }
@@ -726,6 +844,7 @@ static int configure_av8100_infoframe(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	g_av8100_cmd_length = AV8100_COMMAND_INFOFRAMES_SIZE;
 	return retval;
 }
@@ -739,6 +858,7 @@ static int configure_av8100_pattern_generator(char* buffer_temp)
 {
 	int retval = AV8100_OK;
 
+	HDMI_TRACE;
 	buffer_temp[0] = hdmi_pattern_generator_cmd.pattern_type;
 	buffer_temp[1] = hdmi_pattern_generator_cmd.pattern_video_format;
 	buffer_temp[2] = hdmi_pattern_generator_cmd.pattern_audio_mode;
@@ -950,6 +1070,17 @@ static int av8100_send_command (struct i2c_client *i2cClient, char command_type,
 
 	}
 
+#ifdef HDMI_LOGGING
+	PRNK_COL(PRNK_COL_YELLOW);
+	printk(KERN_DEBUG "HDMI send cmd parameters: ");
+	{ int i;
+		for (i = 0; i < g_av8100_cmd_length; i++)
+			printk("0x%02x ", buffer[i]);
+	}
+	printk("\n");
+	printk(KERN_DEBUG "HDMI send cmd: 0x%02x\n", command_type);
+	PRNK_COL(PRNK_COL_WHITE);
+#endif /* HDMI_LOGGING */
 	if(if_type == I2C_INTERFACE)
 	{
 		/* writing the command configuration */
@@ -1096,7 +1227,7 @@ static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id
 	/* configuration length */
 	g_av8100_cmd_length = 6;
 	/** reset the av8100 */
-	gpio_set_value(GPIO_AV8100_RSTN,GPIO_HIGH);
+	gpio_set_value(GPIO_AV8100_RSTN, 1);
 	av8100_set_state(AV8100_OPMODE_STANDBY);
 
 	retval = av8100_write_single_byte(i2c, STANDBY_REG, 0x3B); /* Device runing, master clock = 38.4Mhz, Enable searching CVBS cable*/
@@ -1157,11 +1288,14 @@ static int av8100_powerup(struct i2c_client *i2c, const struct i2c_device_id *id
 static int av8100_enable_interrupt(struct i2c_client *i2c)
 {
 	int retval = AV8100_OK;
-#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI || defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||	\
+	defined CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_HDMI||	\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 	char val = 0x0;
 #endif
 
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 	val = TE_INTERRUPT;
 	retval = av8100_write_single_byte(i2c, GENERAL_INTERRUPT_MASK_REG, val);
 	if(retval != AV8100_OK)
@@ -1236,7 +1370,8 @@ static int av8100_ioctl(struct inode *inode, struct file *file,
 	struct av8100_command_register	commandReg;
 	struct av8100_status			status;
 	av8100_output_CEA_VESA			video_output_format;
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 	mcde_video_mode 				mcde_mode;
 #endif
 	char							val = 0x0;
@@ -1549,7 +1684,8 @@ static int av8100_ioctl(struct inode *inode, struct file *file,
 
 	case IOC_AV8100_ENABLE:
 		/* Use the latest video mode */
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 		mcde_mode = av8100_get_mcde_video_mode(hdmi_video_output_cmd.video_output_cea_vesa);
 		mcde_hdmi_display_init_command_mode(mcde_mode);
 #endif
@@ -1600,7 +1736,9 @@ static int av8100_ioctl(struct inode *inode, struct file *file,
 
 			/* mcde */
 			hdmi_video_output_cmd.video_output_cea_vesa = video_output_format;
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+			av8100_config_output_dep_params();
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 			mcde_mode = av8100_get_mcde_video_mode(video_output_format);
 			mcde_hdmi_display_init_command_mode(mcde_mode);
 #endif
@@ -1671,6 +1809,12 @@ static unsigned short av8100_get_te_line_nb(av8100_output_CEA_VESA output_video_
 		retval = 30;
 		break;
 
+	case AV8100_CEA5_1920X1080I_60HZ:
+	case AV8100_CEA6_7_NTSC_60HZ:
+	case AV8100_CEA20_1920X1080I_50HZ:
+		retval = 18;
+		break;
+
 	case AV8100_CEA4_1280X720P_60HZ:
 		retval = 21;
 		break;
@@ -1681,6 +1825,18 @@ static unsigned short av8100_get_te_line_nb(av8100_output_CEA_VESA output_video_
 
 	case AV8100_CEA19_1280X720P_50HZ:
 		retval = 22;
+		break;
+
+	case AV8100_CEA21_22_576I_PAL_50HZ:
+		/* Different values below come from LLD,
+		 * TODO: check if this is really needed
+		 * if not merge with AV8100_CEA6_7_NTSC_60HZ case
+		 */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+		retval = 18;
+#else
+		retval = 17;
+#endif
 		break;
 
 	case AV8100_CEA32_1920X1080P_24HZ:
@@ -1697,12 +1853,8 @@ static unsigned short av8100_get_te_line_nb(av8100_output_CEA_VESA output_video_
 	case AV8100_CEA14_15_480p_60HZ:
 	case AV8100_VESA14_848X480P_60HZ:
 	case AV8100_CEA61_1280X720P_25HZ:
-	case AV8100_CEA5_1920X1080I_60HZ:
 	case AV8100_CEA16_1920X1080P_60HZ:
-	case AV8100_CEA20_1920X1080I_50HZ:
 	case AV8100_CEA31_1920x1080P_50Hz:
-	case AV8100_CEA6_7_NTSC_60HZ:
-	case AV8100_CEA21_22_576I_PAL_50HZ:
 	case AV8100_CEA29_30_576P_50HZ:
 	case AV8100_VESA9_800X600P_60_32HZ:
 	case AV8100_VESA16_1024X768P_60HZ:
@@ -1729,8 +1881,12 @@ static unsigned short av8100_get_ui_x4(av8100_output_CEA_VESA output_video_forma
 	case AV8100_CEA1_640X480P_59_94HZ:
 	case AV8100_CEA2_3_720X480P_59_94HZ:
 	case AV8100_CEA4_1280X720P_60HZ:
+	case AV8100_CEA5_1920X1080I_60HZ:
+	case AV8100_CEA6_7_NTSC_60HZ:
 	case AV8100_CEA17_18_720X576P_50HZ:
 	case AV8100_CEA19_1280X720P_50HZ:
+	case AV8100_CEA20_1920X1080I_50HZ:
+	case AV8100_CEA21_22_576I_PAL_50HZ:
 	case AV8100_CEA32_1920X1080P_24HZ:
 	case AV8100_CEA33_1920X1080P_25HZ:
 	case AV8100_CEA34_1920X1080P_30HZ:
@@ -1742,12 +1898,8 @@ static unsigned short av8100_get_ui_x4(av8100_output_CEA_VESA output_video_forma
 	case AV8100_CEA14_15_480p_60HZ:
 	case AV8100_VESA14_848X480P_60HZ:
 	case AV8100_CEA61_1280X720P_25HZ:
-	case AV8100_CEA5_1920X1080I_60HZ:
 	case AV8100_CEA16_1920X1080P_60HZ:
-	case AV8100_CEA20_1920X1080I_50HZ:
 	case AV8100_CEA31_1920x1080P_50Hz:
-	case AV8100_CEA6_7_NTSC_60HZ:
-	case AV8100_CEA21_22_576I_PAL_50HZ:
 	case AV8100_CEA29_30_576P_50HZ:
 	case AV8100_VESA9_800X600P_60_32HZ:
 	case AV8100_VESA16_1024X768P_60HZ:
@@ -1768,15 +1920,43 @@ static unsigned short av8100_get_ui_x4(av8100_output_CEA_VESA output_video_forma
 
 static void av8100_init_config_params(void)
 {
-	memset(&hdmi_video_input_cmd, 0x0, sizeof(av8100_video_input_format_cmd));
 	memset(&hdmi_video_output_cmd, 0x0, sizeof(av8100_video_output_format_cmd));
-	memset(&hdmi_cmd, 0x0, sizeof(av8100_hdmi_cmd));
-	memset(&hdmi_pattern_generator_cmd, 0x0, sizeof(av8100_pattern_generator_cmd));
-	memset(&hdmi_audio_input_cmd, 0x0, sizeof(av8100_audio_input_format_cmd));
+
+
+	/* SDTV mode settings */
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+
+	/* Default output mode */
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA21_22_576I_PAL_50HZ;
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_PAL_THRU_AV8100
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA21_22_576I_PAL_50HZ;
+#elif defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_NTSC_THRU_AV8100
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA6_7_NTSC_60HZ;
+#endif
+
+	hdmi_color_conversion_cmd.c0       = 0xFFDA;
+	hdmi_color_conversion_cmd.c1       = 0xFFB6;
+	hdmi_color_conversion_cmd.c2       = 0x0070;
+	hdmi_color_conversion_cmd.c3       = 0x0042;
+	hdmi_color_conversion_cmd.c4       = 0x0081;
+	hdmi_color_conversion_cmd.c5       = 0x0019;
+	hdmi_color_conversion_cmd.c6       = 0x0070;
+	hdmi_color_conversion_cmd.c7       = 0xFFA2;
+	hdmi_color_conversion_cmd.c8       = 0xFFEE;
+	hdmi_color_conversion_cmd.a_offset = 0x007F;
+	hdmi_color_conversion_cmd.b_offset = 0x0010;
+        hdmi_color_conversion_cmd.c_offset = 0x007F;
+        hdmi_color_conversion_cmd.l_max    = 0xEB;
+        hdmi_color_conversion_cmd.l_min    = 0x10;
+        hdmi_color_conversion_cmd.c_max    = 0xF0;
+        hdmi_color_conversion_cmd.c_min    = 0x10;
+
+#else /* CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV */
 
 	/* Default output mode */
 	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA4_1280X720P_60HZ;
 
+	/* HDMI mode settings */
 #ifdef CONFIG_FB_U8500_MCDE_HDMI_640x480P60
 	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA1_640X480P_59_94HZ;
 #endif
@@ -1786,13 +1966,87 @@ static void av8100_init_config_params(void)
 #ifdef CONFIG_FB_U8500_MCDE_HDMI_1280x720P60
 	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA4_1280X720P_60HZ;
 #endif
+#ifdef CONFIG_FB_U8500_MCDE_HDMI_1920x1080I60
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA5_1920X1080I_60HZ;
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_HDMI_1920x1080I50
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA20_1920X1080I_50HZ;
+#endif
 #ifdef CONFIG_FB_U8500_MCDE_HDMI_1920x1080P30
 	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA34_1920X1080P_30HZ;
 #endif
+#ifdef CONFIG_FB_U8500_MCDE_HDMI_720x576I50
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA21_22_576I_PAL_50HZ;
+#endif
+#ifdef CONFIG_FB_U8500_MCDE_HDMI_720x480I60
+	hdmi_video_output_cmd.video_output_cea_vesa = AV8100_CEA6_7_NTSC_60HZ;
+#endif
+#endif /* else of if CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV */
+	av8100_config_output_dep_params();
+}
+
+static void av8100_config_output_dep_params(void)
+{
+	memset(&hdmi_cmd, 0x0, sizeof(av8100_hdmi_cmd));
+	memset(&hdmi_video_input_cmd, 0x0, sizeof(av8100_video_input_format_cmd));
+	memset(&hdmi_pattern_generator_cmd, 0x0, sizeof(av8100_pattern_generator_cmd));
+	memset(&hdmi_audio_input_cmd, 0x0, sizeof(av8100_audio_input_format_cmd));
+	memset(&hdmi_denc_cmd, 0x0, sizeof(av8100_denc_cmd));
+
+	hdmi_video_input_cmd.dsi_input_mode = AV8100_HDMI_DSI_COMMAND_MODE;
+	hdmi_video_input_cmd.total_horizontal_pixel = av8100_all_cea[
+			hdmi_video_output_cmd.video_output_cea_vesa].htotale;
+	hdmi_video_input_cmd.total_horizontal_active_pixel = av8100_all_cea[
+			hdmi_video_output_cmd.video_output_cea_vesa].hactive;
+	hdmi_video_input_cmd.total_vertical_lines = av8100_all_cea[
+			hdmi_video_output_cmd.video_output_cea_vesa].vtotale;
+	hdmi_video_input_cmd.total_vertical_active_lines = av8100_all_cea[
+			hdmi_video_output_cmd.video_output_cea_vesa].vactive;
+
+	hdmi_video_input_cmd.nb_data_lane       = AV8100_DATA_LANES_USED_2;
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+	/* hdmi_video_input_cmd.input_pixel_format = AV8100_INPUT_PIX_YCBCR422;
+	 */
+	hdmi_video_input_cmd.input_pixel_format = AV8100_INPUT_PIX_RGB565;
+	hdmi_video_input_cmd.video_mode         = AV8100_VIDEO_INTERLACE;
+
+	/* only shared for channel A */
+	hdmi_video_input_cmd.ui_x4 = av8100_get_ui_x4(
+				hdmi_video_output_cmd.video_output_cea_vesa);
+	hdmi_video_input_cmd.TE_config = AV8100_TE_IT_LINE;
+	hdmi_video_input_cmd.TE_line_nb = av8100_get_te_line_nb(
+				hdmi_video_output_cmd.video_output_cea_vesa);
+
+	if (hdmi_video_output_cmd.video_output_cea_vesa ==
+						AV8100_CEA21_22_576I_PAL_50HZ
+	) {
+		hdmi_denc_cmd.tv_lines = AV8100_TV_LINES_625;
+		hdmi_denc_cmd.tv_std   = AV8100_TV_STD_PALBDGHI;
+	} else if (
+		hdmi_video_output_cmd.video_output_cea_vesa ==
+						AV8100_CEA6_7_NTSC_60HZ
+	) {
+		hdmi_denc_cmd.tv_lines = AV8100_TV_LINES_525;
+		hdmi_denc_cmd.tv_std   = AV8100_TV_STD_NTSCM;
+	} else {
+		printk(KERN_WARNING "AV8100: unsupported video mode, using default\n");
+		hdmi_denc_cmd.tv_lines = AV8100_TV_LINES_625;
+	}
+	hdmi_denc_cmd.denc               = AV8100_DENC_ON;
+	hdmi_denc_cmd.macrovision        = AV8100_MACROVISION_OFF;
+
+#ifdef TEST_PATTERN_TEST
+	hdmi_denc_cmd.internal_generator = AV8100_INTERNAL_GENERATOR_ON;
+	hdmi_denc_cmd.chroma             = AV8100_CHROMA_CWS_CAPTURE_ON;
+#else
+	hdmi_denc_cmd.internal_generator = AV8100_INTERNAL_GENERATOR_OFF;
+	hdmi_denc_cmd.chroma             = AV8100_CHROMA_CWS_CAPTURE_OFF;
+#endif /* CONFIG_AV8100_TEST_PATTERN */
+
+#else /* CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV */
 
 	/** Config for command mode **/
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
-	hdmi_video_input_cmd.dsi_input_mode = AV8100_HDMI_DSI_COMMAND_MODE;
 	hdmi_video_input_cmd.ui_x4 = av8100_get_ui_x4(hdmi_video_output_cmd.video_output_cea_vesa);
 	hdmi_video_input_cmd.TE_line_nb = av8100_get_te_line_nb(hdmi_video_output_cmd.video_output_cea_vesa);
 	//	hdmi_video_input_cmd.TE_config = AV8100_TE_DSI_IT; // IT on both I/F (DSI & GPIO)
@@ -1806,13 +2060,23 @@ static void av8100_init_config_params(void)
 	hdmi_video_input_cmd.TE_config = AV8100_TE_OFF; // No TE IT
 #endif
 
-	hdmi_video_input_cmd.input_pixel_format = AV8100_INPUT_PIX_RGB565;//AV8100_INPUT_PIX_RGB565;
-	hdmi_video_input_cmd.total_horizontal_pixel = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].htotale;
-	hdmi_video_input_cmd.total_horizontal_active_pixel = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].hactive;
-	hdmi_video_input_cmd.total_vertical_lines = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].vtotale;
-	hdmi_video_input_cmd.total_vertical_active_lines = av8100_all_cea[hdmi_video_output_cmd.video_output_cea_vesa].vactive;
-	hdmi_video_input_cmd.video_mode = AV8100_VIDEO_PROGRESSIVE;
-	hdmi_video_input_cmd.nb_data_lane = AV8100_DATA_LANES_USED_2;
+	hdmi_video_input_cmd.input_pixel_format = AV8100_INPUT_PIX_RGB565;
+	if (hdmi_video_output_cmd.video_output_cea_vesa ==
+						AV8100_CEA5_1920X1080I_60HZ
+		||
+		hdmi_video_output_cmd.video_output_cea_vesa ==
+						AV8100_CEA20_1920X1080I_50HZ
+		||
+		hdmi_video_output_cmd.video_output_cea_vesa ==
+						AV8100_CEA21_22_576I_PAL_50HZ
+		||
+		hdmi_video_output_cmd.video_output_cea_vesa ==
+						AV8100_CEA6_7_NTSC_60HZ
+	) {
+		hdmi_video_input_cmd.video_mode = AV8100_VIDEO_INTERLACE;
+	} else {
+		hdmi_video_input_cmd.video_mode = AV8100_VIDEO_PROGRESSIVE;
+	}
 
 	hdmi_pattern_generator_cmd.pattern_audio_mode = AV8100_PATTERN_AUDIO_OFF;
 	hdmi_pattern_generator_cmd.pattern_type =  AV8100_PATTERN_GENERATOR;
@@ -1826,6 +2090,8 @@ static void av8100_init_config_params(void)
     else
         hdmi_pattern_generator_cmd.pattern_video_format = AV8100_PATTERN_720P;
 
+	hdmi_denc_cmd.denc = AV8100_DENC_OFF;
+
 	/* default audio configurations in i2s mode*/
 	hdmi_audio_input_cmd.audio_input_if_format  =   AV8100_AUDIO_I2SDELAYED_MODE;            // mode of the MSP
 	hdmi_audio_input_cmd.i2s_input_nb           =   1;                    // 0, 1 2 3 4
@@ -1835,57 +2101,84 @@ static void av8100_init_config_params(void)
 	hdmi_audio_input_cmd.audio_if_mode          =   AV8100_AUDIO_MASTER;
 	hdmi_audio_input_cmd.audio_mute             =   AV8100_AUDIO_MUTE_DISABLE;
 
+#endif /* if..else CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV */
 	// HDMI mode
-	hdmi_cmd.hdmi_mode = AV8100_HDMI_ON;
-
+	hdmi_cmd.hdmi_mode   = AV8100_HDMI_ON;
+	hdmi_cmd.hdmi_format = AV8100_HDMI;
 	return;
 }
 
 
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 static mcde_video_mode av8100_get_mcde_video_mode(av8100_output_CEA_VESA format)
 {
 	mcde_video_mode retval = VMODE_1280_720_60_P;
 
+#define PRNK_MODE(_m, _n) \
+        printk(KERN_DEBUG "AV8100 mapped mode: " #_m " on " #_n "\n");
+
 	switch(format) {
 	case AV8100_CEA1_640X480P_59_94HZ:
+		PRNK_MODE(AV8100_CEA1_640X480P_59_94HZ, VMODE_640_480_60_P);
 		retval = VMODE_640_480_60_P;
 		break;
 	case AV8100_CEA2_3_720X480P_59_94HZ:
+		PRNK_MODE(AV8100_CEA2_3_720X480P_59_94HZ, VMODE_720_480_60_P);
 		retval = VMODE_720_480_60_P;
 		break;
+	case AV8100_CEA5_1920X1080I_60HZ:
+		PRNK_MODE(AV8100_CEA5_1920X1080I_60HZ, VMODE_1920_1080_60_I);
+		retval = VMODE_1920_1080_60_I;
+		break;
+	case AV8100_CEA6_7_NTSC_60HZ:
+		PRNK_MODE(AV8100_CEA6_7_NTSC_60HZ, VMODE_720_480_60_I);
+		retval = VMODE_720_480_60_I;
+		break;
 	case AV8100_CEA4_1280X720P_60HZ:
+		PRNK_MODE(AV8100_CEA4_1280X720P_60HZ, VMODE_1280_720_60_P);
 		retval = VMODE_1280_720_60_P;
 		break;
 	case AV8100_CEA17_18_720X576P_50HZ:
+		PRNK_MODE(AV8100_CEA17_18_720X576P_50HZ, VMODE_720_576_50_P);
 		retval = VMODE_720_576_50_P;
 		break;
 	case AV8100_CEA19_1280X720P_50HZ:
+		PRNK_MODE(AV8100_CEA19_1280X720P_50HZ, VMODE_1280_720_50_P);
 		retval = VMODE_1280_720_50_P;
 		break;
+	case AV8100_CEA20_1920X1080I_50HZ:
+		PRNK_MODE(AV8100_CEA20_1920X1080I_50HZ, VMODE_1920_1080_50_I);
+		retval = VMODE_1920_1080_50_I;
+		break;
+	case AV8100_CEA21_22_576I_PAL_50HZ:
+		PRNK_MODE(AV8100_CEA21_22_576I_PAL_50HZ, VMODE_720_576_50_I);
+		retval = VMODE_720_576_50_I;
+		break;
 	case AV8100_CEA32_1920X1080P_24HZ:
+		PRNK_MODE(AV8100_CEA32_1920X1080P_24HZ, VMODE_1920_1080_24_P);
 		retval = VMODE_1920_1080_24_P;
 		break;
 	case AV8100_CEA33_1920X1080P_25HZ:
+		PRNK_MODE(AV8100_CEA33_1920X1080P_25HZ, VMODE_1920_1080_25_P);
 		retval = VMODE_1920_1080_25_P;
 		break;
 	case AV8100_CEA34_1920X1080P_30HZ:
+		PRNK_MODE(AV8100_CEA34_1920X1080P_30HZ, VMODE_1920_1080_30_P);
 		retval = VMODE_1920_1080_30_P;
 		break;
 	case AV8100_CEA60_1280X720P_24HZ:
+		PRNK_MODE(AV8100_CEA60_1280X720P_24HZ, VMODE_1280_720_24_P);
 		retval = VMODE_1280_720_24_P;
 		break;
 	case AV8100_CEA62_1280X720P_30HZ:
+		PRNK_MODE(AV8100_CEA62_1280X720P_30HZ, VMODE_1280_720_30_P);
 		retval = VMODE_1280_720_30_P;
 		break;
 
-	case AV8100_CEA5_1920X1080I_60HZ:
-	case AV8100_CEA6_7_NTSC_60HZ:
 	case AV8100_VESA9_800X600P_60_32HZ:
 	case AV8100_CEA14_15_480p_60HZ:
 	case AV8100_CEA16_1920X1080P_60HZ:
-	case AV8100_CEA20_1920X1080I_50HZ:
-	case AV8100_CEA21_22_576I_PAL_50HZ:
 	case AV8100_CEA29_30_576P_50HZ:
 	case AV8100_CEA31_1920x1080P_50Hz:
 	case AV8100_CEA61_1280X720P_25HZ:
@@ -1899,6 +2192,7 @@ static mcde_video_mode av8100_get_mcde_video_mode(av8100_output_CEA_VESA format)
 	case AV8100_VESA81_1366X768P_59_79HZ:
 	default:
 		/* TODO */
+		PRNK_MODE(AV8100_UNKNOWN_OR_TODO_MODE, VMODE_1280_720_60_P);
 		retval = VMODE_1280_720_60_P;
 		break;
 	}
@@ -1996,20 +2290,31 @@ static int av8100_probe(struct i2c_client *i2cClient,
 			const struct i2c_device_id *id)
 {
 	int ret= 0;
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 	mcde_video_mode mcde_mode;
 #endif
 
+#ifndef TEST_PATTERN_TEST
 	struct av8100_platform_data *pdata = i2cClient->dev.platform_data;
+#endif
 
 	//printk(KERN_INFO "av8100 probe\n");
 	//printk("av8100 probe\n");
 
+	PRNK_COL(PRNK_COL_GREEN);
+	printk(KERN_DEBUG "av8100_probe\n");
+	PRNK_COL(PRNK_COL_WHITE);
+
 	av8100_init_config_params();
 
 #ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 	mcde_mode = av8100_get_mcde_video_mode(hdmi_video_output_cmd.video_output_cea_vesa);
+	PRNK_COL(PRNK_COL_GREEN);
+	printk(KERN_DEBUG "av8100_probe: mcde_hdmi_display_init_command_mode\n");
+	PRNK_COL(PRNK_COL_WHITE);
 	mcde_hdmi_display_init_command_mode(mcde_mode);
 #endif
 #endif	/* CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT */
@@ -2057,6 +2362,7 @@ static int av8100_probe(struct i2c_client *i2cClient,
 
 		av8100_configure_hdmi(i2cClient);
 
+#ifndef TEST_PATTERN_TEST
 #ifdef AV8100_USE_KERNEL_THREAD
 		kernel_thread((void*)av8100_thread, NULL, CLONE_FS | CLONE_SIGHAND);
 #endif
@@ -2075,6 +2381,7 @@ static int av8100_probe(struct i2c_client *i2cClient,
 		}
 
 		av8100_hdmi_on(av8100Data);
+#endif /* TEST_PATTERN_TEST */
 	}
 	return ret;
 err:

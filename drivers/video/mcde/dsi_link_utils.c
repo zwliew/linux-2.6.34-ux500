@@ -462,7 +462,6 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 {
 	struct mcdefb_info *currentpar = info->par;
 	int timeout;
-	volatile u32 __iomem *mcde_dsi_clk;
 
 	if(currentpar->chid==MCDE_CH_C0) {
 		//currentpar->dsi_lnk_registers[DSI_LINK0]->mctl_main_data_ctl|=0x380;
@@ -539,10 +538,11 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 
 		mdelay(100); /** check for display to up ok ~ primary display */
 
-		dbgprintk(MCDE_ERROR_INFO, "\n>> TAAL Dispaly Initialisation done\n\n\n");
+		dbgprintk(MCDE_ERROR_INFO, "\n>> TAAL Display Initialisation done DSI_LINK0\n\n\n");
 	}
 
 	if(currentpar->chid==MCDE_CH_C1) {
+#if 0
 		if(currentpar->dsi_lnk_registers[DSI_LINK2]->mctl_main_en!=0x9) {
 			mcde_dsi_clk=(u32 *) ioremap(0xA0350EF0, (0xA0350EF0+3)-0xA0350EF0 + 1);
 			*mcde_dsi_clk =0xA1010C;
@@ -561,7 +561,82 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 	    }
 
 		mdelay(100);
+#endif
 
+		/* Link enable */
+		printk(KERN_ERR "mctl_main_data_ctl\n");
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_data_ctl=0x1;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_phy_ctl=0x5;
+
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_data_ctl|=0x380;
+
+		/* PLL start */
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_en=0x438;
+
+		mdelay(100);
+
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_pll_ctl=0x00000001;//0x10000;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_en=0x439;
+
+		/* wait for lanes ready */
+		timeout=0xFFFF;
+		while(!((currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_sts) & 0xE) && (timeout > 0))
+		{
+			timeout--;
+		}
+		if(timeout == 0) {
+			printk(KERN_INFO "DSI CLK LANE DAT1 DAT2 NOT READY\n");
+		}
+		else {
+			printk(KERN_INFO "DSI CLK LANE DAT1 DAT2 READY %x\n", timeout);
+		}
+
+		currentpar->dsi_lnk_registers[DSI_LINK1]->cmd_mode_ctl=0x3FF0040;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_dphy_static=0x300;//0x3c0;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_dphy_timeout=0xffffffff;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_ulpout_time=0x201;
+
+		mdelay(100);
+
+
+		/** send DSI commands to make display up */
+
+		/** Reset display (SW reset) */
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x01;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+		mdelay(200);
+
+		/** make the display up ~ send commands */
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x11;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+
+		mdelay(150); /** sleep for 150 ms */
+
+		/** send teaing command with low power mode */
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x35;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+
+		mdelay(100);
+
+		/** send color mode */
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x221500;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0xf73a;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+
+		mdelay(100);
+
+		/** send power on command */
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x210500;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0xF729;
+		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+
+		mdelay(100); /** check for display to up ok ~ secondary display */
+
+#if 0
+/* old code begin */
 		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_data_ctl|=0x380;
 
 		currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_data_ctl=0x1;
@@ -614,8 +689,10 @@ void mcde_dsi_taaldisplay_init(struct fb_info *info)
 		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
 
 		mdelay(100); /** check for display to up ok ~ secondary display */
+#endif
+/* old code end */
 
-		dbgprintk(MCDE_ERROR_INFO, "\n>> TAAL Dispaly Initialisation done\n\n\n");
+		dbgprintk(MCDE_ERROR_INFO, "\n>> TAAL Display Initialisation done DSI_LINK1\n\n\n");
 	}
 }
 

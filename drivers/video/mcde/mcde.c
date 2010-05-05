@@ -11,7 +11,6 @@
 #ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
 /* HW V1 */
 
-
 #define PRNK_COL_BLACK	30
 #define PRNK_COL_RED	31
 #define PRNK_COL_GREEN	32
@@ -34,6 +33,8 @@ extern "C" {
 
 /** Linux include files:charachter driver and memory functions  */
 
+#include <linux/errno.h>
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -54,6 +55,7 @@ extern "C" {
 #include <mach/tc35892.h>
 #include <mach/mcde_a0.h>
 
+#include <linux/clk.h>
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #endif
@@ -184,12 +186,12 @@ struct fb_videomode mcde_modedb[] = {
                 80, 56, 25, 1, 56, 3,
                 0, FB_VMODE_NONINTERLACED
         }, {
-				/* * 480x864 @ 60Hz  ~ VMODE_480_864_60_P*/
-				"WVGA_Portrait", 60, 480, 864, KHZ2PICOS(40000),
-				88, 40, 23, 1, 128, 4,
-				FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
+		/* * 480x864 @ 60Hz  ~ VMODE_480_864_60_P*/
+		"WVGA_Portrait", 60, 480, 864, KHZ2PICOS(40000),
+		88, 40, 23, 1, 128, 4,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		    /** 864x480 @ 60Hz  ~ VMODE_864_480_60_P*/
+		/** 864x480 @ 60Hz  ~ VMODE_864_480_60_P*/
                 "WVGA", 60, 864, 480, KHZ2PICOS(40000),
                 88, 40, 23, 1, 128, 4,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
@@ -204,7 +206,7 @@ struct fb_videomode mcde_modedb[] = {
                 88, 40, 23, 1, 128, 4,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		        /** 800x600 @ 72Hz  ~ VMODE_800_600_72_P*/
+		/** 800x600 @ 72Hz  ~ VMODE_800_600_72_P*/
                 NULL, 72, 800, 600, KHZ2PICOS(50000),
                 64, 56, 23, 37, 120, 6,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
@@ -219,7 +221,7 @@ struct fb_videomode mcde_modedb[] = {
                 152, 32, 27, 1, 64, 3,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		        /** 1024x768 @ 60Hz ~ VMODE_1024_768_60_P */
+		/** 1024x768 @ 60Hz ~ VMODE_1024_768_60_P */
                 NULL, 60, 1024, 768, KHZ2PICOS(65000),
                 160, 24, 29, 3, 136, 6,
                 0, FB_VMODE_NONINTERLACED
@@ -249,12 +251,12 @@ struct fb_videomode mcde_modedb[] = {
                 312, 96, 36, 1, 112, 3,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		    /** 1280x960 @ 85Hz ~ VMODE_1280_960_85_P*/
+		/** 1280x960 @ 85Hz ~ VMODE_1280_960_85_P*/
                 NULL, 85, 1280, 960, KHZ2PICOS(148500),
                 224, 64, 47, 1, 160, 3,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		        /** 1280x1024 @ 60Hz ~ VMODE_1280_1024_60_P*/
+		/** 1280x1024 @ 60Hz ~ VMODE_1280_1024_60_P*/
                 NULL, 60, 1280, 1024, KHZ2PICOS(108000),
                 248, 48, 38, 1, 112, 3,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
@@ -279,7 +281,7 @@ struct fb_videomode mcde_modedb[] = {
                 304, 64, 46, 1, 192, 3,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		        /** 1600x1200 @ 70Hz VMODE_1600_1200_70_P*/
+		/** 1600x1200 @ 70Hz VMODE_1600_1200_70_P*/
                 NULL, 70, 1600, 1200, KHZ2PICOS(189000),
                 304, 64, 46, 1, 192, 3,
                 FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
@@ -304,7 +306,7 @@ struct fb_videomode mcde_modedb[] = {
                 352, 96, 69, 1, 216, 3,
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         }, {
-		        /** 1856x1392 @ 60Hz VMODE_1856_1392_60_P */
+		/** 1856x1392 @ 60Hz VMODE_1856_1392_60_P */
                 NULL, 60, 1856, 1392, KHZ2PICOS(218250),
                 352, 96, 43, 1, 224, 3,
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
@@ -333,7 +335,10 @@ struct fb_videomode mcde_modedb[] = {
         {
                 /** 720x480 @ 60Hz VMODE_720_480_60_I */
                 "NTSC", 60, 720, 480, KHZ2PICOS(297000),
-                352, 144, 56, 1, 224, 3,
+                /* 352, 144, 56, 1, 224, 3, */
+                0, /* left margin */    0, /* right margin */
+                0, /* upper margin */   0, /* lower margin */
+                0, /* hsync_len */      0, /* vsync_len */
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
         {
@@ -345,7 +350,10 @@ struct fb_videomode mcde_modedb[] = {
         {
                 /** 720x576 @ 50Hz VMODE_720_576_50_I */
                 "PAL", 50, 720, 576, KHZ2PICOS(297000),
-                352, 144, 56, 1, 224, 3,
+                /* 352, 144, 56, 1, 224, 3, */
+                0, /* left margin */    0, /* right margin */
+                0, /* upper margin */   0, /* lower margin */
+                0, /* hsync_len */      0, /* vsync_len */
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
         {
@@ -356,7 +364,7 @@ struct fb_videomode mcde_modedb[] = {
         },
         {
                 /** 1280x720 @ 60Hz VMODE_1280_720_60_P */
-                NULL, 60, 1280, 720, KHZ2PICOS(297000),
+                "1280x720P60", 60, 1280, 720, KHZ2PICOS(297000),
                 0, // left margin
                 0, // right margin
                 0, // upper margin
@@ -367,14 +375,20 @@ struct fb_videomode mcde_modedb[] = {
         },
         {
                 /** 1920x1080 @ 50Hz  VMODE_1920_1080_50_I */
-                NULL, 50, 1920, 1080, KHZ2PICOS(297000),
-                352, 144, 56, 1, 224, 3,
+                "1920x1080I50", 50, 1920, 1080, KHZ2PICOS(297000),
+                /* 352, 144, 56, 1, 224, 3, */
+                0, /* left margin */    0, /* right margin */
+                0, /* upper margin */   0, /* lower margin */
+                0, /* hsync_len */      0, /* vsync_len */
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
         {
                 /** 1920x1080 @ 60Hz VMODE_1920_1080_60_I */
-                NULL, 60, 1920, 1080, KHZ2PICOS(297000),
-                352, 144, 56, 1, 224, 3,
+                "1920x1080I60", 60, 1920, 1080, KHZ2PICOS(297000),
+                /* 352, 144, 56, 1, 224, 3, */
+                0, /* left margin */    0, /* right margin */
+                0, /* upper margin */   0, /* lower margin */
+                0, /* hsync_len */      0, /* vsync_len */
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_INTERLACED
         },
         {
@@ -424,7 +438,7 @@ struct fb_videomode mcde_modedb[] = {
         },
         {
                 /** 1920x1080 @ 30Hz VMODE_1920_1080_30_P */
-                "HDMI C0", 30, 1920, 1080, KHZ2PICOS(297000),
+                "1920x1080P30", 30, 1920, 1080, KHZ2PICOS(297000),
                 352, 144, 56, 1, 224, 3,
                 FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
         },
@@ -474,8 +488,8 @@ struct mcde_ch_ids {
 static struct mcde_ch_ids mcde_ch_map[] = {
 	{
 		/* Index = MCDE_CH_A, */
-		.ext_src_id	= MCDE_EXT_SRC_0,
-		.ovl_id		= MCDE_OVERLAY_0,
+		.ext_src_id	= MCDE_EXT_SRC_3,
+		.ovl_id		= MCDE_OVERLAY_3,
 		.dsi_lnk_id	= DSI_LINK2,
 		.dsi_ch_id	= MCDE_DSI_CH_CMD2,
 	}, {
@@ -654,14 +668,14 @@ int debugfs_mcde_regdump(void)
 
 	for (index = 0; index < (sizeof(mcde_reg)/sizeof(mcde_reg_list)); index++)
 	{
-		printk(KERN_INFO "%s\n", mcde_reg[index].title);
+		printk(KERN_INFO "%s\n" KERN_INFO, mcde_reg[index].title);
 		offset = 0;
 		while (offset < mcde_reg[index].size) {
 			reg = (u32 *) ioremap(mcde_reg[index].base + offset, 0x4);
 			val = *reg;
-			printk(KERN_INFO "%08x " ,val);
+			printk("%08x " ,val);
 			if (((offset + 4) % 16) == 0) {
-				printk(KERN_INFO "\n");
+				printk("\n" KERN_INFO);
 			}
 			offset += 4;
 		}
@@ -686,6 +700,12 @@ static int mcde_blank(int blank_mode, struct fb_info *info);
 static int mcde_set_video_mode(struct fb_info *info, mcde_video_mode videoMode);
 void find_restype_from_video_mode(struct fb_info *info, mcde_video_mode videoMode);
 void mcde_change_video_mode(struct fb_info *info);
+
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI || \
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+static bool mcde_interlaced_video_mode(mcde_video_mode video_mode);
+#endif
+
 static void mcde_environment_setup(void);
 
 void u8500_mcde_tasklet_1(unsigned long);
@@ -855,14 +875,14 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 			break;
 		}
 	}
-	gpar[MCDE_CH_C0]->extsrc_regbase[0]->mcde_extsrc_a0 = gpar[MCDE_CH_C0]->clcd_event.base;
+	gpar[MCDE_CH_C0]->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_a0 = gpar[MCDE_CH_C0]->clcd_event.base;
 
 	//Mask the interrupt
-	gpar[MCDE_CH_C0]->regbase->mcde_imscpp = 0; //gpar[2]->regbase->mcde_imsc = 0x0;
+	gpar[MCDE_CH_C0]->regbase->mcde_imscpp &= ~gpar[MCDE_CH_C0]->vcomp_irq;
 	gpar[MCDE_CH_C0]->clcd_event.event=1;
 
 	/** send software sync */
-	gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG; //gpar[2]->ch_regbase1[2]->mcde_chsyn_sw = 0x1;
+	gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 
 #else
 	/* Switch buffer address (MCDE designer claims better to use buffer IDs than address)  FIXME */
@@ -877,54 +897,74 @@ void u8500_mcde_tasklet_1(unsigned long tasklet_data)
 
 void u8500_mcde_tasklet_2(unsigned long tasklet_data)
 {
+	int cnt;
+	mcde_ch_id pixel_pipeline = gpar[MCDE_CH_C1]->pixel_pipeline;
+	/* Temporary fix for FIFO overflow; avoid handling of the very first interrupt */
+#ifndef CONFIG_FB_MCDE_MULTIBUFFER
+	static int ignore_first = 1;
+#endif
 
 #ifndef CONFIG_FB_MCDE_MULTIBUFFER
-	   while(gpar[3]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts & 0x20);
+	if (ignore_first == 1) {
+		ignore_first = 0;
+		printk("u8500_mcde_tasklet_1: ignored\n");
+		return;
+	}
 
+	cnt = 0xffff;
+	while((gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts & 0x20) && (cnt > 0)) {
+		cnt--;
+	}
 
-	    /**  wait till tearing recieved */
+	if(cnt == 0) {
+		printk("u8500_mcde_tasklet_2 cnt = 0\n");
+	}
 
+	gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
 
-	   gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+	/**  wait till tearing recieved */
+	while ((gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts & 0x80)!=0)
+	{
+		if(gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts&0x22) {
+			break;
+		}
+	}
 
-       /**  wait till tearing recieved */
+	/** clear status flag */
+	gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts_clr=0xffffffff;
 
-	    while ((gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts & 0x80)!=0)
-	    {
-            if(gpar[3]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts&0x22)
-            {
-
-                 break;
-            }
-	    }
-
-       /** clear status flag */
-       gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts_clr=0xffffffff;
-#endif
-
-
-#ifdef CONFIG_FB_MCDE_MULTIBUFFER
-	/** send DSI command for RAMWR */
-	gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x43908;
-	gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x2c;
-	gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
-
-      while(gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts & 0x1);
-
-       gpar[3]->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0 = gpar[3]->clcd_event.base;
-	   //Mask the interrupt
-  gpar[3]->regbase->mcde_imscpp = 0; //gpar[3]->regbase->mcde_imsc = 0x0;
-	   gpar[3]->clcd_event.event=1;
-
-	   /** send software sync */
-  gpar[3]->ch_regbase1[3]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG; //gpar[3]->ch_regbase1[3]->mcde_chsyn_sw = 0x1;
-	   wake_up(&gpar[3]->clcd_event.wait);
+	gpar[MCDE_CH_C1]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 #else
-  gpar[3]->ch_regbase1[3]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG; //gpar[3]->ch_regbase1[3]->mcde_chsyn_sw = 0x1;
+	cnt = 0xffff;
+	while((gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts & 0x20) && (cnt > 0)) {
+		cnt--;
+	}
+
+	if(cnt == 0) {
+		printk(KERN_ERR "u8500_mcde_tasklet_2 cnt = 0\n");
+	}
+
+	/**  send tearing command */
+	//gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
+
+	/**  wait till tearing recieved */
+	/*while ((gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts & 0x80)!=0) {
+		if(gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts&0x22) {
+			break;
+		}
+	}*/
+	gpar[MCDE_CH_C1]->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0 = gpar[MCDE_CH_C1]->clcd_event.base;
+
+	//Mask the interrupt
+	gpar[MCDE_CH_C1]->regbase->mcde_imscpp &= ~gpar[MCDE_CH_C1]->vcomp_irq;
+	gpar[MCDE_CH_C1]->clcd_event.event=1;
+
+	/** send software sync */
+	gpar[MCDE_CH_C1]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+
+	wake_up(&gpar[MCDE_CH_C1]->clcd_event.wait);
 #endif
-
 }
-
 
 
 void u8500_mcde_tasklet_3(unsigned long tasklet_data)
@@ -944,87 +984,72 @@ static irqreturn_t u8500_mcde_interrupt_handler(int irq,void *dev_id)
 {
 
 /** for dual display both the channels need to be controlled */
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
+//#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
+#if 0
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-	if (gpar[2]->regbase->mcde_mispp & 0xC0) {
-	   gpar[2]->regbase->mcde_rispp &= 0xC0;
+	if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & (MCDE_MISPP_VSCC0MIS | MCDE_MISPP_VSCC1MIS)) {
+		gpar[MCDE_CH_C0]->regbase->mcde_rispp &= (MCDE_MISPP_VSCC0MIS | MCDE_MISPP_VSCC1MIS);
 
-	   while(gpar[2]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts & 0x20);
-	   while(gpar[3]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts & 0x20);
+		while(gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts & 0x20);
+		while(gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts & 0x20);
 
-	   while ((gpar[2]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_sts & 0x80)!=0)
-		   {
-		               if(gpar[2]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts&0x22)
-		               {
-		                    break;
-		               }
-	       }
-
-			while ((gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts & 0x80)!=0)
-			{
-				if(gpar[3]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts&0x22)
-				{
-					 break;
-				}
+		while ((gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_sts & 0x80)!=0) {
+			if(gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->cmd_mode_sts&0x22) {
+				break;
 			}
+		}
 
-			/** clear status flag */
-	        gpar[2]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_sts_clr=0xffffffff;
-	        /** clear status flag */
-            gpar[3]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts_clr=0xffffffff;
+		while ((gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts & 0x80)!=0) {
+			if(gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->cmd_mode_sts&0x22) {
+				break;
+			}
+		}
 
-            gpar[2]->ch_regbase1[2]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
-            gpar[3]->ch_regbase1[3]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+		/** clear status flag */
+		gpar[MCDE_CH_C0]->dsi_lnk_registers[DSI_LINK0]->direct_cmd_sts_clr=0xffffffff;
+		gpar[MCDE_CH_C1]->dsi_lnk_registers[DSI_LINK1]->direct_cmd_sts_clr=0xffffffff;
+
+		gpar[MCDE_CH_C0]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+		gpar[MCDE_CH_C1]->ch_regbase1[pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 	}
 #endif
-
 #else
-		/** check for null */
+	/** check for null */
 	if(gpar[MCDE_CH_C0]!=0) {
-    /* Channel C0 */
-		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & MCDE_MISPP_VSCC0MIS) //gpar[2]->regbase->mcde_mis & 0x10)
-		{
-			  /** vsync */
-			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= MCDE_RISPP_VSCC0RIS; //gpar[2]->regbase->mcde_ris &= 0x10;
+		/* Channel C0 */
+		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & MCDE_MISPP_VSCC0MIS) {
+			/** vsync */
+			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= MCDE_RISPP_VSCC0RIS;
 		}
 
-		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & gpar[MCDE_CH_C0]->vcomp_irq) //gpar[2]->regbase->mcde_mis & 0x40)
-		{
-			  /** vcomp */
-			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= gpar[MCDE_CH_C0]->vcomp_irq; //gpar[2]->regbase->mcde_ris &= 0x40;
+		if (gpar[MCDE_CH_C0]->regbase->mcde_mispp & gpar[MCDE_CH_C0]->vcomp_irq) {
+			/** vcomp */
+			gpar[MCDE_CH_C0]->regbase->mcde_rispp &= gpar[MCDE_CH_C0]->vcomp_irq;
 			u8500_mcde_tasklet_1(0);
 		}
 
-		if (gpar[MCDE_CH_C0]->regbase->mcde_imscchnl & MCDE_MISCHNL_CHNL_C0) {//regbase->mcde_mis & 0x1000
-//		if (gpar[MCDE_CH_C0]->regbase->mcde_mischnl & MCDE_MISCHNL_CHNL_C0) {//regbase->mcde_mis & 0x1000
+		if (gpar[MCDE_CH_C0]->regbase->mcde_imscchnl & MCDE_MISCHNL_CHNL_C0) {
+//		if (gpar[MCDE_CH_C0]->regbase->mcde_mischnl & MCDE_MISCHNL_CHNL_C0) {
 			/** read buffer end */
-			gpar[MCDE_CH_C0]->regbase->mcde_rischnl &= MCDE_MISCHNL_CHNL_C0;	//regbase->mcde_ris &= 0x1000;
-
-			//tasklet_schedule(&mcde_tasklet_1);
+			gpar[MCDE_CH_C0]->regbase->mcde_rischnl &= MCDE_MISCHNL_CHNL_C0;
 			u8500_mcde_tasklet_1(0);
 		}
 	}
 
-		/** check for null */
-		if(gpar[3]!=0)
-		{
-    /* Channel C1 */
-    if (gpar[3]->regbase->mcde_mispp & MCDE_MISPP_VSCC1MIS) //gpar[3]->regbase->mcde_mis & 0x20)
-			{
-			  /** vsync */
-      gpar[3]->regbase->mcde_rispp &= MCDE_RISPP_VSCC1RIS; //gpar[3]->regbase->mcde_ris &= 0x20;
-			}
-
-    if (gpar[3]->regbase->mcde_mispp & MCDE_MISPP_VCMPC1MIS) //gpar[3]->regbase->mcde_mis & 0x80)
-			{
-			  /** vcomp */
-      gpar[3]->regbase->mcde_rispp &= MCDE_RISPP_VCMPC1RIS; //gpar[3]->regbase->mcde_ris &= 0x80;
-
-			   /** tasklet  */
-			   //tasklet_schedule(&mcde_tasklet_2);
-			   u8500_mcde_tasklet_2(0);
+	/** check for null */
+	if(gpar[MCDE_CH_C1]!=0) {
+		/* Channel C1 */
+		if (gpar[MCDE_CH_C1]->regbase->mcde_mispp & MCDE_MISPP_VSCC1MIS) {
+			/** vsync */
+			gpar[MCDE_CH_C1]->regbase->mcde_rispp &= MCDE_RISPP_VSCC1RIS;
 		}
+
+		if (gpar[MCDE_CH_C1]->regbase->mcde_mispp & gpar[MCDE_CH_C1]->vcomp_irq) {
+			/** vcomp */
+			gpar[MCDE_CH_C1]->regbase->mcde_rispp &= gpar[MCDE_CH_C1]->vcomp_irq;
+			u8500_mcde_tasklet_2(0);
 		}
+	}
 #endif
 	/** check for null */
 	if(gpar[1]!=0) {
@@ -1500,7 +1525,7 @@ static int mcde_ioctl(struct fb_info *info,
 			}
 
 			break;
-        /*
+		/*
 		 *   MCDE_IOCTL_TV_PLUG_STATUS: This ioctl is used to get the TV plugin status.
 		 */
 		case MCDE_IOCTL_TV_PLUG_STATUS:
@@ -1516,9 +1541,9 @@ static int mcde_ioctl(struct fb_info *info,
 			}
 			break;
 
-	    /*
-	     *  MCDE_IOCTL_TV_CHANGE_MODE: This ioctl is used to change TV mode
-	     */
+		/*
+		 *  MCDE_IOCTL_TV_CHANGE_MODE: This ioctl is used to change TV mode
+		 */
 		case MCDE_IOCTL_TV_CHANGE_MODE:
 			if (copy_from_user(&rem_key, argp, sizeof(u32))) {
 				mcde_fb_unlock(info, __func__);
@@ -1529,9 +1554,9 @@ static int mcde_ioctl(struct fb_info *info,
 			switch_TV_mode(info, rem_key);
 			break;
 
-	    /*
-	     *  MCDE_IOCTL_TV_GET_MODE: This ioctl is used to get TV mode
-	     */
+		/*
+		 *  MCDE_IOCTL_TV_GET_MODE: This ioctl is used to get TV mode
+		 */
 		case MCDE_IOCTL_TV_GET_MODE:
                /* TODO: I don't agree with the interface:
                 *  1. From _GET and _SET one would expect the same paramter
@@ -1588,29 +1613,39 @@ void mcde_change_video_mode(struct fb_info *info)
                currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_ljinc =
                                (info->var.xres) *
                                (currentpar->chnl_info->inbpp/8);
-       }
-
+	}
 
 	if(currentpar->chid==MCDE_CH_C0)
 	{
-       currentpar->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
-       currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (info->var.yres << MCDE_OVLCONF_LPF_SHIFT) |
+		currentpar->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (info->var.yres << MCDE_OVLCONF_LPF_SHIFT) |
                                                                 (MCDE_EXT_SRC_0 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
                                                                 (info->var.xres);
-       currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=(info->var.xres)*(currentpar->chnl_info->inbpp/8);
-    }
+		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=(info->var.xres)*(currentpar->chnl_info->inbpp/8);
+	}
 
 	if(currentpar->chid==MCDE_CH_C1)
 	{
-
-       currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
-       currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf = (info->var.yres << MCDE_OVLCONF_LPF_SHIFT) |
+		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf = (info->var.yres << MCDE_OVLCONF_LPF_SHIFT) |
                                                                 (MCDE_EXT_SRC_1 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
                                                                 (info->var.xres);
-       currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_ljinc=(info->var.xres)*(currentpar->chnl_info->inbpp/8);
-    }
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_ljinc=(info->var.xres)*(currentpar->chnl_info->inbpp/8);
+	}
 }
 
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI || \
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+static bool mcde_interlaced_video_mode(mcde_video_mode video_mode)
+{
+	return (
+		video_mode == VMODE_720_480_60_I ||
+		video_mode == VMODE_720_576_50_I ||
+		video_mode == VMODE_1920_1080_50_I ||
+		video_mode == VMODE_1920_1080_60_I
+	);
+}
+#endif
 
 /**
  * mcde_hdmi_display_init_command_mode() - To initialize and powerup the HDMI device in command mode.
@@ -1623,7 +1658,8 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 #define GPIO1B_AFSLA_REG_OFFSET	0x20
 #define GPIO1B_AFSLB_REG_OFFSET	0x24
 
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI
+#if defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_HDMI || \
+	defined CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
 	int timeout;
 	volatile u32 __iomem *gpio_68_remap;
 	u32 dsi_pkt_div;
@@ -1651,6 +1687,15 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 //	if((currentpar->chid==MCDE_CH_A) && (!(currentpar->regbase->mcde_cr & MCDE_CR_DSICMD2_EN))) //DSI2 in CMD mode
 	if(currentpar->chid==MCDE_CH_A)
 	{
+		u32 ppl = g_info->var.xres;
+		u32 lpf = g_info->var.yres; /* lines per field (frame if P) */
+		u32 stride = ppl * (currentpar->chnl_info->inbpp >> 3);
+		/* seems we can use g_info->fix.line_length */
+		PRNK_COL(PRNK_COL_RED);
+		printk(KERN_DEBUG "line length: %d ?= %d (ref)\n",
+					g_info->fix.line_length, stride);
+		PRNK_COL(PRNK_COL_WHITE);
+
 		*(currentpar->prcm_mcde_clk) = 0x125; /** MCDE CLK = 160MHZ */
 		*(currentpar->prcm_hdmi_clk) = 0x145; /** HDMI CLK = 76.8MHZ */
 		*(currentpar->prcm_tv_clk) = 0x14E; /** HDMI CLK = 76.8MHZ */
@@ -1728,6 +1773,7 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 
 		/****************** MCDE CONFIGURATION ***************************/
 
+		printk("xres:%d   yres:%d\n", ppl, lpf);
 		/** disable MCDE first then configure */
 		currentpar->regbase->mcde_cr=(currentpar->regbase->mcde_cr & ~MCDE_ENABLE);
 
@@ -1736,16 +1782,55 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 		/** configure mcde external registers */
 		if (currentpar->chnl_info->inbpp==16)
 			currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_conf=
-					(MCDE_RGB565_16_BIT<<8)|(MCDE_BUFFER_USED_1<<2)|MCDE_BUFFER_ID_0;
+				(MCDE_RGB565_16_BIT<<8) | MCDE_BUFFER_ID_0;
 		if (currentpar->chnl_info->inbpp==32)
 			currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_conf=
-					(MCDE_ARGB_32_BIT<<8)|(MCDE_BUFFER_USED_1<<2)|MCDE_BUFFER_ID_0;
+				(MCDE_ARGB_32_BIT<<8) | MCDE_BUFFER_ID_0;
 		if (currentpar->chnl_info->inbpp==24)
 			currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_conf=
-					(MCDE_RGB_PACKED_24_BIT<<8)|(MCDE_BUFFER_USED_1<<2)|MCDE_BUFFER_ID_0;
+				(MCDE_RGB_PACKED_24_BIT<<8) | MCDE_BUFFER_ID_0;
 
 //		currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_cr=MCDE_BUFFER_SOFTWARE_SELECT;
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_cr = MCDE_BUFFER_AUTO_TOGGLE;
+		if (mcde_interlaced_video_mode(video_mode)) {
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->mcde_extsrc_a1 =
+				currentpar->buffaddr[
+						currentpar->mcde_cur_ovl_bmp
+					].dmaaddr + stride;
+
+			/* use 2 ext buffers (toggle is set above) */
+			MCDE_SET_REG_FIELD(
+				currentpar->extsrc_regbase[MCDE_EXT_SRC_3]
+							->mcde_extsrc_conf,
+				MCDE_EXTSRCCONF_BUF_NB, 2
+			);
+			currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_ljinc
+								= 2 * stride;
+			lpf /= 2;
+		} else {
+			currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_ljinc
+								= stride;
+			MCDE_SET_REG_FIELD(currentpar->extsrc_regbase[
+					MCDE_EXT_SRC_3]->mcde_extsrc_conf,
+				MCDE_EXTSRCCONF_BUF_NB, 1
+			);
+		}
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELA_DISPLAY_SDTV
+		if (video_mode == VMODE_720_576_50_I) {
+			/*
+			 * swap ext src a0 and ext src a1
+			 * otherwise the fields are swapped.
+			 */
+			u32 h = currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->
+								mcde_extsrc_a1;
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->
+							mcde_extsrc_a1 =
+				currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->
+								mcde_extsrc_a0;
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_3]->
+							mcde_extsrc_a0 = h;
+		}
+#endif
 
 		/** configure mcde base registers */
 		/* IFIFOCTRLWTRMRKLVL = 5
@@ -1753,20 +1838,21 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 		MCDE_SET_REG_FIELD(currentpar->regbase->mcde_conf0,
 					MCDE_CONF0_IFIFOCTRLWTRMRKLVL, 5);
 
-		printk("xres:%d   yres:%d\n", g_info->var.xres, g_info->var.yres);
-
 		/** configure mcde overlay registers */
 		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_cr=0x23B00001;
-		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_conf = (g_info->var.yres << MCDE_OVLCONF_LPF_SHIFT) |
-				(MCDE_EXT_SRC_3 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
-				(g_info->var.xres);
-		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_ljinc=(g_info->var.xres)*(currentpar->chnl_info->inbpp/8);
+		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_conf =
+				(lpf << MCDE_OVLCONF_LPF_SHIFT)
+				|
+				(MCDE_EXT_SRC_3 << MCDE_OVLCONF_EXTSRC_ID_SHIFT)
+				|
+				(ppl);
 		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_comp = (MCDE_CH_A << MCDE_OVLCOMP_CH_ID_SHIFT);
 
 		/** configure mcde channel config registers */
 		/* LPF,	PPL */
-		currentpar->ch_regbase1[MCDE_CH_A]->mcde_chnl_conf = ((g_info->var.yres - 1) << MCDE_CHNLCONF_LPF_SHIFT) |
-				((g_info->var.xres - 1) << MCDE_CHNLCONF_PPL_SHIFT);
+		currentpar->ch_regbase1[MCDE_CH_A]->mcde_chnl_conf =
+				((lpf - 1) << MCDE_CHNLCONF_LPF_SHIFT) |
+				((ppl - 1) << MCDE_CHNLCONF_PPL_SHIFT);
 
 		/* OUT_SYNCH_SRC, SRC_SYNCH: HW trigger for MCDE */
 		currentpar->ch_regbase1[MCDE_CH_A]->mcde_chnl_synchmod =
@@ -1796,7 +1882,7 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 //		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_conf2 =
 //				(g_info->var.xres * currentpar->chnl_info->inbpp / 8) << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
 		currentpar->ovl_regbase[MCDE_OVERLAY_3]->mcde_ovl_conf2 =
-				(32 / currentpar->chnl_info->inbpp * 8) << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
+				/*stride*/ 128 << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
 
 		switch(video_mode) {
 		case VMODE_640_480_60_P:
@@ -1808,6 +1894,16 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 		case VMODE_1280_720_60_P:
 			dsi_pkt_div = 2;
 			dsi_delay = 0xDE3;
+			break;
+
+		case VMODE_720_480_60_I:
+			dsi_pkt_div = 1;
+			dsi_delay   = 0x27AC;
+			break;
+
+		case VMODE_720_576_50_I:
+			dsi_pkt_div = 1;
+			dsi_delay   = 0x2800;
 			break;
 
 		case VMODE_720_576_50_P:
@@ -1825,11 +1921,13 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 			dsi_delay = 0x1726;
 			break;
 
+		case VMODE_1920_1080_50_I:
 		case VMODE_1920_1080_25_P:
 			dsi_pkt_div = 3;
 			dsi_delay = 0x1638;
 			break;
 
+		case VMODE_1920_1080_60_I:
 		case VMODE_1920_1080_30_P:
 			dsi_pkt_div = 3;
 			dsi_delay = 0x1285;
@@ -1853,10 +1951,10 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 		}
 
 		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD2]->mcde_dsi_frame =
-				(g_info->var.xres * currentpar->chnl_info->inbpp / 8 / dsi_pkt_div + 1) * g_info->var.yres;
+				(stride / dsi_pkt_div + 1) * lpf;
 
 		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD2]->mcde_dsi_pkt =
-				g_info->var.xres * currentpar->chnl_info->inbpp / 8 / dsi_pkt_div + 1;
+				stride / dsi_pkt_div + 1;
 
 		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD2]->mcde_dsi_delay0 = dsi_delay / dsi_pkt_div;
 
@@ -1904,7 +2002,6 @@ void mcde_hdmi_display_init_command_mode(mcde_video_mode video_mode)
 	return;
 }
 EXPORT_SYMBOL(mcde_hdmi_display_init_command_mode);
-
 
 /**
  * mcde_hdmi_display_init_video_mode() - To initialize and powerup the HDMI device in command mode.
@@ -2025,49 +2122,49 @@ void mcde_hdmi_display_init_video_mode(void)
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting2 = 0x0;
 		}
 
-        if(currentpar->video_mode == VMODE_1280_720_60_P)
+		if(currentpar->video_mode == VMODE_1280_720_60_P)
 		{
 			/* VACT_LENGTH = 0x2D0
 			* VFP_LENGTH  = 0x5
 			* VBP_LENGTH  = 0x14
 			* VSA_LENGTH  = 0x5
 			*/
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vsize = 0x2D005505;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vsize = 0x2D005505;
 
 			/* HFP_LENGTH = 0xE4
 			* HBP_LENGTH = 0x72
 			* HSA_LENGTH = 0x27
 			*/
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize1 = 0xE41C827;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize1 = 0xE41C827;
 
 			/* RGB_SIZE = 0xA00 */
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize2 = 0xA00;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize2 = 0xA00;
 
 			/* REG_WAKEUP_TIME   = 0x1
 			* REG_LINE_DURATION = 0x6AA
 			*/
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_dphy_time = 0x26AA;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_dphy_time = 0x26AA;
 
 			/* BLKEOL_PCK        = 0x0
 			* BLKLINE_EVENT_PCK = 0xD7
 			*/
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize1 = 0xD7;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize1 = 0xD7;
 
 			/* BLKLINE_PULSE_PCK = 0x0 */
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize2 = 0x0;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize2 = 0x0;
 
 			/* BLKEOL_DURATION = 0xA4 */
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_pck_time = 0xA4;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_pck_time = 0xA4;
 
 			/* BURST_LP        = 0x1
 			* MAX_BURST_LIMIT = 0
 			*/
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting1 = 0x10000;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting1 = 0x10000;
 
 			/* MAX_LINE_LIMIT    = 0
 			* exact-burst-limit = 0
 			*/
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting2 = 0x0;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting2 = 0x0;
 		}
 
 		if(currentpar->video_mode == VMODE_720_480_60_P)
@@ -2076,8 +2173,8 @@ void mcde_hdmi_display_init_video_mode(void)
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize1 = 0x8008882;
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize2 = 0x5A0;
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_dphy_time = 0x2724;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize1 = 0x0;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize2 = 0x0;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize1 = 0x0;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize2 = 0x0;
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_pck_time = 0x3C0;
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting1 = 0x10000;
 			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting2 = 0x0;
@@ -2085,19 +2182,21 @@ void mcde_hdmi_display_init_video_mode(void)
 
 		if (currentpar->video_mode == VMODE_1920_1080_30_P)
 		{
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vsize = 0x43804905;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize1 = 0x09916C2C;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize2 = 0xF00;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_dphy_time = 0x28E3;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize1 = 0xD7;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize2 = 0x0;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_pck_time = 0xAB;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting1 = 0x10000;
-		currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting2 = 0x0;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vsize = 0x43804905;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize1 = 0x09916C2C;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_hsize2 = 0xF00;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_dphy_time = 0x28E3;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize1 = 0xD7;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_blksize2 = 0x0;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_pck_time = 0xAB;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting1 = 0x10000;
+			currentpar->dsi_lnk_registers[DSI_LINK2]->vid_vca_setting2 = 0x0;
 		}
 
 		/****************** MCDE CONFIGURATION ***************************/
 
+		mcde_ch_map[MCDE_CH_A].ext_src_id	= MCDE_EXT_SRC_0;
+		mcde_ch_map[MCDE_CH_A].ovl_id		= MCDE_OVERLAY_0;
 
 		/** disable MCDE first then configure */
 		currentpar->regbase->mcde_cr=(currentpar->regbase->mcde_cr & ~MCDE_ENABLE);
@@ -2161,9 +2260,9 @@ void mcde_hdmi_display_init_video_mode(void)
 			* POWEREN
 			* FLOEN
 			*/
-            currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
-            mdelay(100);
-            currentpar->ch_c_reg->mcde_crc = 0x3D790007;
+			currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
+			mdelay(100);
+			currentpar->ch_c_reg->mcde_crc = 0x3D790007;
 
 			/** configure mcde DSI formatter */
 			/* DCSVID_NOTGEN 1, t as video or dcs CMD
@@ -2178,7 +2277,7 @@ void mcde_hdmi_display_init_video_mode(void)
 			/* PACKET = 0xA00 */
 			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_pkt = 0xA00;
 
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x3;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x3;
 			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_cmdw = 0x002C003C;
 		}
 
@@ -2187,29 +2286,29 @@ void mcde_hdmi_display_init_video_mode(void)
 			printk(KERN_INFO "VMODE_640_480_CRT_60_P\n");
 
 			/** configure mcde overlay registers */
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x23CF0001; //0x22b00001;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=0x1E00280;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2=0x5000000;//0xA000000;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=0x500;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp=0x1000;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x23CF0001; //0x22b00001;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=0x1E00280;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2=0x5000000;//0xA000000;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=0x500;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp=0x1000;
 
-            /** configure mcde channel config registers */
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_conf = 0x1DF027F;
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchmod=0; // To be check if pb
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_bckgndcol=0xFF00; // Background color
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_prio=0x0;
+			/** configure mcde channel config registers */
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_conf = 0x1DF027F;
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchmod=0; // To be check if pb
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_bckgndcol=0xFF00; // Background color
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_prio=0x0;
 
-            /** configure channel C0 register */
-            currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
-            mdelay(100);
-            currentpar->ch_c_reg->mcde_crc = 0x3D790007;
+			/** configure channel C0 register */
+			currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
+			mdelay(100);
+			currentpar->ch_c_reg->mcde_crc = 0x3D790007;
 
-            /** configure mcde DSI formatter */
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_conf0=0x43000;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_frame=0x96000;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_pkt=0x500;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x3;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_cmdw = 0x002C003C;
+			/** configure mcde DSI formatter */
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_conf0=0x43000;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_frame=0x96000;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_pkt=0x500;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x3;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_cmdw = 0x002C003C;
 		}
 
 		if(currentpar->video_mode == VMODE_720_480_60_P)
@@ -2217,29 +2316,29 @@ void mcde_hdmi_display_init_video_mode(void)
 			printk(KERN_INFO "VMODE_720_480_60_P\n");
 
 			/** configure mcde overlay registers */
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x23CF0001; //0x22b00001;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=0x1E002D0;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2=0x5A00000;//0xA000000;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=0x5A0;
-            currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp=0x1000;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x23CF0001; //0x22b00001;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf=0x1E002D0;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2=0x5A00000;//0xA000000;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_ljinc=0x5A0;
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp=0x1000;
 
-            /** configure mcde channel config registers */
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_conf = 0x1DF02CF;
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchmod=0; // To be check if pb
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_bckgndcol=0xFF; // Background color
-            currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_prio=0x0;
+			/** configure mcde channel config registers */
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_conf = 0x1DF02CF;
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchmod=0; // To be check if pb
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_bckgndcol=0xFF; // Background color
+			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_prio=0x0;
 
-            /** configure channel C0 register */
-            currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
-		mdelay(100);
-            currentpar->ch_c_reg->mcde_crc = 0x3D790007;
+			/** configure channel C0 register */
+			currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
+			mdelay(100);
+			currentpar->ch_c_reg->mcde_crc = 0x3D790007;
 
-            /** configure mcde DSI formatter */
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_conf0=0x43000;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_frame=0xA8C00;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_pkt=0x5A0;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x0;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_cmdw = 0x002C003C;
+			/** configure mcde DSI formatter */
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_conf0=0x43000;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_frame=0xA8C00;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_pkt=0x5A0;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x0;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_cmdw = 0x002C003C;
 		}
 
 		if(currentpar->video_mode == VMODE_1920_1080_30_P)
@@ -2254,15 +2353,15 @@ void mcde_hdmi_display_init_video_mode(void)
 			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_synchmod = 0; // To be check if pb
 			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_bckgndcol = 0xFF;
 			currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chnl_prio = 0x0;
-            currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
-            mdelay(100);
-            currentpar->ch_c_reg->mcde_crc = 0x3D790007;
+			currentpar->ch_c_reg->mcde_crc = 0x3FF80000;
+			mdelay(100);
+			currentpar->ch_c_reg->mcde_crc = 0x3D790007;
 			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_conf0 = 0x43000;
 			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_frame = 0x003F4800;
 			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_pkt = 0xF00;
-            currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x3;
+			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_sync=0x3;
 			currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_VID2]->mcde_dsi_cmdw = 0x002C003C;
-	}
+		}
 
 		/******************  END OF MCDE CONFIGURATION ***************************/
 
@@ -2297,39 +2396,38 @@ EXPORT_SYMBOL(mcde_hdmi_display_init_video_mode);
  */
 void mcde_hdmi_test_directcommand_mode_highspeed(void)
 {
-  struct mcdefb_info *currentpar = g_info->par;
-  int temp;
-  unsigned char PixelRed;
-  unsigned char PixelGreen;
-  unsigned char PixelBlue;
-  int pixel_nb ;
-  u32 value = 0;
+	struct mcdefb_info *currentpar = g_info->par;
+	int temp;
+	unsigned char PixelRed;
+	unsigned char PixelGreen;
+	unsigned char PixelBlue;
+	int pixel_nb ;
+	u32 value = 0;
 
-  PixelRed=0x00;
-  PixelGreen=0x1F;
-  PixelBlue=0x00;
-  pixel_nb = (g_info->var.xres*g_info->var.yres)*(currentpar->chnl_info->inbpp/8);//info->var.xres*info->var.yres;
+	PixelRed=0x00;
+	PixelGreen=0x1F;
+	PixelBlue=0x00;
+	pixel_nb = (g_info->var.xres*g_info->var.yres)*(currentpar->chnl_info->inbpp/8);//info->var.xres*info->var.yres;
 	for (temp=0; temp< (pixel_nb) ;temp= temp + 15)
 	{
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_main_settings=0x103908;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat0=0xAAAAAA2c;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat1=0xAAAAAAAA;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat2=0xAAAAAAAA;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat3=0xAAAAAAAA;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_send=0x1;
-	//mdelay(1);
-	value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
-	while(value != 0x2)
-	{
-		printk("Write data is not completed: value:%x\n", value);
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_main_settings=0x103908;
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat0=0xAAAAAA2c;
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat1=0xAAAAAAAA;
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat2=0xAAAAAAAA;
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat3=0xAAAAAAAA;
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_send=0x1;
+		//mdelay(1);
 		value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
-	};
-	//printk("Write data : value:%x\n", value);
-	value = 0;
-	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts_clr = 0x2;
+		while(value != 0x2)
+		{
+			printk("Write data is not completed: value:%x\n", value);
+			value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
+		}
+		//printk("Write data : value:%x\n", value);
+		value = 0;
+		currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts_clr = 0x2;
 		//isReady = 0;
-     }
-//return retVal;
+	}
 }
 EXPORT_SYMBOL(mcde_hdmi_test_directcommand_mode_highspeed);
 
@@ -2344,14 +2442,14 @@ void mcde_send_hdmi_cmd_data(char* buf,int length, int dsicommand)
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat2=buf[10] << 24 | buf[9] << 16 | buf[8] << 8 | buf[7];
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat3=buf[14] << 24 | buf[13] << 16 | buf[12] << 8 | buf[11];
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_send=0x1;
-		//mdelay(1);
+	//mdelay(1);
 	value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
 	while(!(value & 0x2))
 	{
 		//printk("mcde_send_hdmi_cmd_data:Write data is not completed: value:%x\n", value);
 		value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
-	};
-		printk("mcde_send_hdmi_cmd_data:Write data : buf[0]:%x,buf[1]:%x,buf[2]:%x,dsicommand:%x, length:%x\n", buf[0], buf[1], buf[2],dsicommand, length);
+	}
+	printk("mcde_send_hdmi_cmd_data:Write data : buf[0]:%x,buf[1]:%x,buf[2]:%x,dsicommand:%x, length:%x\n", buf[0], buf[1], buf[2],dsicommand, length);
 	value = 0;
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts_clr = 0x2;
 }
@@ -2365,15 +2463,15 @@ void mcde_send_hdmi_cmd(char* buf,int length, int dsicommand)
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_main_settings=length << 16 | 0x3908;//0x103908;
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_wrdat0= buf[0] << 8 | dsicommand;
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_send=0x1;
-		//mdelay(1);
+	//mdelay(1);
 	value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
 	printk("mcde_send_hdmi_cmd:Write data : buf[0]:%x,dsicommand:%x, length:%x\n", buf[0],dsicommand, length);
 	while(!(value & 0x2))
 	{
 		//printk("mcde_send_hdmi_cmd:Write data is not completed: value:%x\n", value);
 		value = currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts;
-	};
-		printk("Write data : value:%x\n", value);
+	}
+	printk("Write data : value:%x\n", value);
 	value = 0;
 	currentpar->dsi_lnk_registers[DSI_LINK2]->direct_cmd_sts_clr = 0x2;
 }
@@ -2388,21 +2486,29 @@ EXPORT_SYMBOL(mcde_send_hdmi_cmd);
  */
 static void mcde_conf_video_mode(struct fb_info *info)
 {
+#if defined CONFIG_FB_U8500_MCDE_CHANNELB ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELC0 ||\
+	defined CONFIG_FB_U8500_MCDE_CHANNELC1
 	struct mcdefb_info *currentpar = (struct mcdefb_info *)info->par;
+#endif
+#if defined CONFIG_FB_U8500_MCDE_CHANNELC0 && defined CONFIG_FB_U8500_MCDE_CHANNELC1
+	static mcde_ch_id	c0_pixel_pipeline = MCDE_CH_B;
+	static u32 			c0_vcomp_irq = 0;
+#endif
 
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELB
 #ifndef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
-    /** use channel B for tvout & do nothing if it already enabled */
+	/** use channel B for tvout & do nothing if it already enabled */
 	if((currentpar->chid == MCDE_CH_B) && (!(currentpar->regbase->mcde_cr & MCDE_CR_DPIB_EN))) {
-      /** disable MCDE first then configure */
-      currentpar->regbase->mcde_cr = (currentpar->regbase->mcde_cr & ~MCDE_CR_MCDEEN);
+	/** disable MCDE first then configure */
+	currentpar->regbase->mcde_cr = (currentpar->regbase->mcde_cr & ~MCDE_CR_MCDEEN);
 
-		  /** configure mcde external registers */
+	/** configure mcde external registers */
 		  currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_a0 = currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
 
-		switch(currentpar->chnl_info->inbpp)
-		{
-		case 16:
+	switch(currentpar->chnl_info->inbpp)
+	{
+	case 16:
 		default:
 			/*RGB565*/
 			currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf =
@@ -2444,7 +2550,7 @@ static void mcde_conf_video_mode(struct fb_info *info)
 			((MCDE_OVLCONF_PPL_MASK & info->var.xres)
 						<< MCDE_OVLCONF_PPL_SHIFT);
 		/** rgb888 24 bit format packed data 3 bytes limited to 480 X 682 */
-               /* Why change LPF and PPL for another BPP ??
+		/* Why change LPF and PPL for another BPP ??
                 * TODO: test and check if correct
                 *       and use info->var.xres and info->var.yres		if (currentpar->chnl_info->inbpp==24)
 		  currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_2<<11)|(0x2AA);
@@ -2538,44 +2644,30 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		if (currentpar->chnl_info->inbpp==24)
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_conf=0x800|1<<12;
 
-
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_2]->mcde_extsrc_cr= 0x6;
 
-
-        /** configure mcde overlay registers */
-
+		/** configure mcde overlay registers */
 		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_cr=0x02300301;
 
 		/** WVGA size  800 X 600 */
-
 		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf=(0x258<<16)|(MCDE_EXT_SRC_2<<11)|(0x31F);
 
-
 		/** rgb888 24 bit format packed data 3 bytes limited to 480 X 682 */
-
 		if (currentpar->chnl_info->inbpp==24)
-
-		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_2<<11)|(0x2AA);
+			currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_2<<11)|(0x2AA);
 
 		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_conf2=0x006003FF;
-
 		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_ljinc=(0x320)*(currentpar->chnl_info->inbpp/8);
-
 		currentpar->ovl_regbase[MCDE_OVERLAY_2]->mcde_ovl_comp=(0<<16)|(MCDE_CH_B<<11)|0;
 
 
 		/** configure mcde channel config registers */
-
 		currentpar->ch_regbase1[MCDE_CH_B]->mcde_ch_conf=0x0257031F;
-
 		currentpar->ch_regbase1[MCDE_CH_B]->mcde_chsyn_mod=0x00000004;
-
 		currentpar->ch_regbase1[MCDE_CH_B]->mcde_chsyn_bck=0x00000000;
 
-
-       /** Configure Channel B registers for VGA display */
-
-        currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_cr0=0x0;
+		/** Configure Channel B registers for VGA display */
+		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_cr0=0x0;
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_cr1=0x6E006000;
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_tvcr=0x02580018;
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_tvbl1=0x00020007;
@@ -2584,28 +2676,18 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_tvbalw=0x004E001E;
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_lcdtim1=0x00400000;
 
-
-        /** configure mcde base registers */
-
+		/** configure mcde base registers */
 		currentpar->regbase->mcde_imsc |=0x8;
-
 		currentpar->regbase->mcde_cfg0 |=0x59237007;
-
 		currentpar->regbase->mcde_cr |=0x80000100;
-
 
 		mdelay(100);
 
 		/** enable channel flow now */
-
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_cr0=0x1;
-
 		mdelay(100);
-
 		currentpar->ch_regbase2[MCDE_CH_B]->mcde_ch_cr0=0x3;
-
 		mdelay(100);
-
 	}
 #endif /** CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA */
 #endif /** CONFIG_FB_U8500_MCDE_CHANNELB */
@@ -2618,7 +2700,6 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->regbase->mcde_cr = currentpar->regbase->mcde_cr & ~MCDE_CR_MCDEEN;
 
 		/** configure mcde external registers */
-
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_0]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
 
 		switch(currentpar->chnl_info->inbpp) {
@@ -2664,7 +2745,7 @@ static void mcde_conf_video_mode(struct fb_info *info)
 
 		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_comp = currentpar->pixel_pipeline << MCDE_OVLCOMP_CH_ID_SHIFT;
 		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf2 =
-				(32 / currentpar->chnl_info->inbpp * 8) << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
+				/*(32 / currentpar->chnl_info->inbpp * 8)*/ 16 << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
 
 		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_synchmod = 0x2 << MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT; /* MCDE_SYNCHRO_SOFTWARE; */
 		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_bckgndcol = 0xff << MCDE_CHNLBCKGNDCOL_B_SHIFT; /* blue */
@@ -2691,7 +2772,7 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr1 = (1 << 29) | (0x7 << 25) | (0x5 << 10);
 
 		currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_cr=0x22b00001;
-#endif
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT */
 
 		/* Configure channel C0 register */
 		currentpar->ch_c_reg->mcde_crc = MCDE_CRC_FLOEN | MCDE_CRC_POWEREN | MCDE_CRC_C1EN | MCDE_CRC_WMLVL2 | MCDE_CRC_CS1EN | MCDE_CRC_CS2EN |
@@ -2730,141 +2811,149 @@ static void mcde_conf_video_mode(struct fb_info *info)
 		/* Do a software sync */
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
 		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
-#endif
+#else
+		c0_pixel_pipeline = currentpar->pixel_pipeline;
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELC1 */
 
 #ifndef CONFIG_FB_MCDE_MULTIBUFFER
 #ifndef CONFIG_FB_U8500_MCDE_CHANNELC1
 		currentpar->regbase->mcde_imscpp |= gpar[MCDE_CH_C0]->vcomp_irq;
-#endif
-#endif
+#else
+		c0_vcomp_irq = gpar[MCDE_CH_C0]->vcomp_irq;
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELC1 */
+#endif /* CONFIG_FB_MCDE_MULTIBUFFER */
 
 		mdelay(100);
 	}
 #endif  /** CONFIG_FB_U8500_MCDE_CHANNELC0 */
 
-
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
-
-	if((currentpar->chid==MCDE_CH_C1)&&(!(currentpar->regbase->mcde_cr&0x2)))
+	if((currentpar->chid == MCDE_CH_C1) && (!(currentpar->regbase->mcde_cr & currentpar->dsi_formatter)))
 	{
-
 		/** disable MCDE first then configure */
-        currentpar->regbase->mcde_cr=(currentpar->regbase->mcde_cr & ~ MCDE_ENABLE);
-
+		currentpar->regbase->mcde_cr = currentpar->regbase->mcde_cr & ~MCDE_CR_MCDEEN;
 
 		/** configure mcde external registers */
-
 		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0=currentpar->buffaddr[currentpar->mcde_cur_ovl_bmp].dmaaddr;
 
-		if (currentpar->chnl_info->inbpp==16)
-		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_conf=(MCDE_RGB565_16_BIT<<8)|(MCDE_BUFFER_USED_1<<2)|MCDE_BUFFER_ID_0;
-		if (currentpar->chnl_info->inbpp==32)
-		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_conf=(MCDE_ARGB_32_BIT<<8)|(MCDE_BUFFER_USED_1<<2)|MCDE_BUFFER_ID_0;
-		if (currentpar->chnl_info->inbpp==24)
-		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_conf=(MCDE_RGB_PACKED_24_BIT<<8)|(MCDE_BUFFER_USED_1<<2)|MCDE_BUFFER_ID_0|1<<12;
+		switch(currentpar->chnl_info->inbpp) {
+		case 16:
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_conf = (MCDE_RGB565_16_BIT << MCDE_EXTSRCCONF_BPP_SHIFT) |
+				(MCDE_BUFFER_USED_1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT) |
+				(MCDE_BUFFER_ID_0 << MCDE_EXTSRCCONF_BUF_ID_SHIFT);
+			break;
 
-		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_cr=(MCDE_FS_FREQ_DIV_DISABLE<<3)|MCDE_BUFFER_SOFTWARE_SELECT;
+		case 32:
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_conf = (MCDE_ARGB_32_BIT << MCDE_EXTSRCCONF_BPP_SHIFT) |
+				(MCDE_BUFFER_USED_1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT) |
+				(MCDE_BUFFER_ID_0 << MCDE_EXTSRCCONF_BUF_ID_SHIFT);
+			break;
 
+		case 24:
+			currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_conf = (MCDE_RGB_PACKED_24_BIT << MCDE_EXTSRCCONF_BPP_SHIFT) |
+				(MCDE_BUFFER_USED_1 << MCDE_EXTSRCCONF_BUF_NB_SHIFT) |
+				(MCDE_BUFFER_ID_0 << MCDE_EXTSRCCONF_BUF_ID_SHIFT);
+			break;
+
+		default:
+			printk(KERN_ERR "mcde_conf_video_mode: Unsupported bit depth: %d\n", currentpar->chnl_info->inbpp);
+			break;
+		}
+
+		currentpar->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_cr = MCDE_EXTSRCCR_FS_DIV_DISABLE | (0x2 << MCDE_EXTSRCCR_SEL_MOD_SHIFT); /* Software selection */
 
 		/** configure mcde overlay registers */
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_cr = (0xB << MCDE_OVLCR_ROTBURSTSIZE_SHIFT) |
+			(0x2 << MCDE_OVLCR_MAXOUTSTANDING_SHIFT) |
+			(0xB << MCDE_OVLCR_BURSTSIZE_SHIFT) |
+			MCDE_OVLCR_OVLEN; // 0x22b00001;
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_cr=0x22b00001;
-
-		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_1<<11)|(0x360);
-
-		//currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf=(0x100<<16)|(MCDE_EXT_SRC_1<<11)|(0x100);
 
 		/** rgb888 24 bit format packed data 3 bytes limited to 480 X 682 */
-
+		/* This issue is supposed to be fixed on V1. Verify and remove me!
 		if(currentpar->chnl_info->inbpp==24)
+			currentpar->ovl_regbase[MCDE_OVERLAY_0]->mcde_ovl_conf = (480 << MCDE_OVLCONF_LPF_SHIFT) |
+				(MCDE_EXT_SRC_0 << MCDE_OVLCONF_EXTSRC_ID_SHIFT) |
+				(682 << MCDE_OVLCONF_PPL_SHIFT);
+		*/
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf=(0x1E0<<16)|(MCDE_EXT_SRC_1<<11)|(0x2AA);
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_comp = currentpar->pixel_pipeline << MCDE_OVLCOMP_CH_ID_SHIFT;
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf2 = /*(32 / currentpar->chnl_info->inbpp * 8)*/ 128 << MCDE_OVLCONF2_PIXELFETCHWATERMARKLEVEL_SHIFT;
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf2=0xa200000;
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_synchmod = 0x2 << MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT; /* MCDE_SYNCHRO_SOFTWARE; */
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_bckgndcol = 0xff << MCDE_CHNLBCKGNDCOL_B_SHIFT; /* blue */
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_ljinc=(0x360)*(currentpar->chnl_info->inbpp/8);
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1_DISPLAY_WVGA_PORTRAIT
 
-		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_comp=(MCDE_CH_C1<<11);
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf = (0x360 << 16) | (MCDE_EXT_SRC_1 << 11) | (0x1E0);
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_ljinc = 0x1E0 * (currentpar->chnl_info->inbpp / 8);
 
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_conf = (863 << MCDE_CHNLCONF_LPF_SHIFT) | (479 << MCDE_CHNLCONF_PPL_SHIFT); /* screen parameters */
 
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rotadd0 = U8500_ESRAM_BASE + 0x20000 * 4;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rotadd1 = U8500_ESRAM_BASE + 0x20000 * 4 + 0x10000;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr0 = (0xB << 25) | (1 << 24) | (1 << 1) | 1;
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_cr1 = (1 << 29) | (0x9 << 25) | (0x5 << 10);
+		currentpar->ch_regbase2[currentpar->pixel_pipeline]->mcde_rot_conf = (0x1 << 8) | (1 << 3) | (0x7);
 
-        /** configure mcde channel config registers */
-
-		currentpar->ch_regbase1[MCDE_CH_C1]->mcde_ch_conf=0x1df035f; /** screen parameters */
-
-		currentpar->ch_regbase1[MCDE_CH_C1]->mcde_chsyn_mod=MCDE_SYNCHRO_SOFTWARE;
-
-		currentpar->ch_regbase1[MCDE_CH_C1]->mcde_chsyn_bck=0xff;
-
-
-        /** configure channel C1 register */
-
-		currentpar->ch_c_reg->mcde_crc |= 0x387B002b;
-
-
-        /** configure mcde base registers */
-
-#ifndef CONFIG_FB_U8500_MCDE_CHANNELC0
-
-		currentpar->regbase->mcde_imsc |=0x80;
 #else
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_ljinc = 0x360 * (currentpar->chnl_info->inbpp/8);
 
-        currentpar->regbase->mcde_imsc |=0xC0;
-#endif
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_conf = (0x1E0<<16)|(MCDE_EXT_SRC_1<<11)|(0x360);
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_conf = 0x1df035f; /** screen parameters */
 
+		currentpar->ovl_regbase[MCDE_OVERLAY_1]->mcde_ovl_cr=0x22b00001;
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELC1_DISPLAY_WVGA_PORTRAIT */
 
+		/* Configure channel C1 register */
+		currentpar->ch_c_reg->mcde_crc = MCDE_CRC_FLOEN | MCDE_CRC_POWEREN | MCDE_CRC_C2EN | MCDE_CRC_C1EN | MCDE_CRC_WMLVL2 | MCDE_CRC_CS1EN | MCDE_CRC_CS2EN |
+			MCDE_CRC_CS1POL | MCDE_CRC_CS2POL | MCDE_CRC_CD1POL | MCDE_CRC_CD2POL | MCDE_CRC_RES1POL | MCDE_CRC_RES2POL |
+			(0x1 << MCDE_CRC_SYNCCTRL_SHIFT); // 0x387B0027; TODO: Clean up! Some of these bits are probably not needed
 
-		currentpar->regbase->mcde_cfg0 |=0x5E145001;
+		/** Patch for HW TRIG MCDE **/
+		currentpar->ch_c_reg->mcde_crc |= 0x180;
+		currentpar->ch_c_reg->mcde_vscrc[0] = 0xFF001;
+		currentpar->ch_c_reg->mcde_ctrlc[0] = 0xA0;
+		currentpar->ch_c_reg->mcde_ctrlc[1] = 0xA0;
 
-		currentpar->regbase->mcde_cr |=0x80000002;
+		/** configure mcde base registers */
+		currentpar->regbase->mcde_conf0 |= MCDE_CONF0_SYNCMUX0 |
+					(0x7 << MCDE_CONF0_IFIFOCTRLWTRMRKLVL_SHIFT |
+					currentpar->swap);
 
-
-		mdelay(100);
-
-
-
-        /** configure mcde DSI formatter */
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD1]->mcde_dsi_conf0=(0x2<<20)|(0x1<<18)|(0x1<<13);
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD1]->mcde_dsi_frame=(1+(864*24/8))*480;
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD1]->mcde_dsi_pkt=1+(864*24/8);
-
-		currentpar->mcde_dsi_channel_reg[MCDE_DSI_CH_CMD1]->mcde_dsi_cmd=(0x3<<4)|MCDE_DSI_VID_MODE_SHIFT;
-
-		mdelay(100);
-
-
-		/** send DSI command for RAMWR */
-
-		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings=0x43908;
-		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_wrdat0=0x2c;
-		currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_send=0x1;
-
-
+		currentpar->regbase->mcde_cr |= MCDE_CR_MCDEEN | currentpar->dsi_formatter;
 
 		mdelay(100);
 
-        currentpar->dsi_lnk_registers[DSI_LINK1]->direct_cmd_main_settings|=0x200004;
+		// TODO!
+		if(currentpar->swap == MCDE_CONF0_SWAP_B_C1) {
+			currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_en &= ~0x400; /* Disable IF2_EN */
+			currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_en |= 0x200; /* Enable IF1_EN */
+			currentpar->dsi_lnk_registers[DSI_LINK1]->mctl_main_data_ctl &= ~0x2; /* Set interface 1 to video mode */
+		}
 
+		/** configure mcde DSI formatter */
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_conf0 = (0x2<<20) | (0x1<<18) | (0x1<<13);
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_frame = (1 + (864 * 24 / 8)) * 480;
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_pkt   = 1 + (864 * 24 / 8);
+		currentpar->mcde_dsi_channel_reg[currentpar->dsi_mode]->mcde_dsi_cmdw  = 0x2c003c;
+
+		mdelay(100);
+
+		/* Do a software sync */
 #ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
+		currentpar->ch_regbase1[c0_pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
+#endif /* CONFIG_FB_MCDE_MULTIBUFFER */
+		currentpar->ch_regbase1[currentpar->pixel_pipeline]->mcde_chnl_synchsw = MCDE_CHNLSYNCHSW_SW_TRIG;
 
-        currentpar->ch_regbase1[MCDE_CH_C0]->mcde_chsyn_sw=MCDE_NEW_FRAME_SYNCHRO;
-
-#endif
-
-		/** do a software sync */
-		currentpar->ch_regbase1[MCDE_CH_C1]->mcde_chsyn_sw=MCDE_NEW_FRAME_SYNCHRO;
+#ifndef CONFIG_FB_MCDE_MULTIBUFFER
+		currentpar->regbase->mcde_imscpp |= (gpar[MCDE_CH_C1]->vcomp_irq | c0_vcomp_irq);
+#endif /* CONFIG_FB_MCDE_MULTIBUFFER */
 
 		mdelay(100);
-
-
 	}
-
-#endif /** CONFIG_FB_U8500_MCDE_CHANNELC1 */
+#endif /* CONFIG_FB_U8500_MCDE_CHANNELC1 */
 }
-
 
 /**
  * mcde_blank() - To disable/enable the device (primary/secondary/HDMI/TVOUT).
@@ -2928,7 +3017,7 @@ static int mcde_set_par(struct fb_info *info)
 	mcde_set_par_internal(info);
 	mcde_fb_unlock(info, __func__);
 
-  return 0;
+	return 0;
 }
 
 /**
@@ -3007,34 +3096,45 @@ static int mcde_setcolreg(u_int regno, u_int red, u_int green,
 static int mcde_pan_display(struct fb_var_screeninfo *var,
    struct fb_info *info)
 {
-   struct mcdefb_info *currentpar = info->par;
+	struct mcdefb_info *currentpar = info->par;
 
-   if(currentpar==0) return -1;
+	if(currentpar==0) return -1;
 
-   if (var->vmode & FB_VMODE_YWRAP) {
-	   if (var->yoffset >= info->var.yres_virtual
+	if (var->vmode & FB_VMODE_YWRAP) {
+		if (var->yoffset >= info->var.yres_virtual
 			   || var->xoffset)
 		   return -EINVAL;
-   } else {
-	   if (var->xoffset + var->xres > info->var.xres_virtual ||
+	} else {
+		if (var->xoffset + var->xres > info->var.xres_virtual ||
 			   var->yoffset + var->yres > info->var.yres_virtual)
 		   return -EINVAL;
-   }
+	}
 
-   mcde_fb_lock(info, __func__);
+	mcde_fb_lock(info, __func__);
 
-   info->var.xoffset = var->xoffset;
-   info->var.yoffset = var->yoffset;
+	info->var.xoffset = var->xoffset;
+	info->var.yoffset = var->yoffset;
 
-   if (var->vmode & FB_VMODE_YWRAP)
-	   info->var.vmode |= FB_VMODE_YWRAP;
-   else
-	   info->var.vmode &= ~FB_VMODE_YWRAP;
+	if (var->vmode & FB_VMODE_YWRAP)
+		info->var.vmode |= FB_VMODE_YWRAP;
+	else
+		info->var.vmode &= ~FB_VMODE_YWRAP;
 
 	printk(KERN_DEBUG "MCDE pan_display: channel id = %d\n",
 						currentpar->chid);
 #ifdef CONFIG_FB_MCDE_MULTIBUFFER
 	currentpar->clcd_event.base = info->fix.smem_start + (var->yoffset * info->fix.line_length);
+
+	{
+		/* Force on TVclk */
+		u32 *reg = (u32*) ioremap(U8500_PRCMU_BASE + 0x07c, 4);
+		*reg = 0x0000014E;
+		iounmap(reg);
+		/* Force on SRAM bank 4 */
+		reg = (u32*) ioremap(U8500_PRCMU_BASE + 0x254, 0x4);
+		*reg = 0x2 << 24;
+		iounmap(reg);
+	}
 
 	if(currentpar->chid==MCDE_CH_A) {
 		if(av8100_started==1) {
@@ -3064,7 +3164,7 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 		if(gpar[MCDE_CH_C1]!=0)
 		{
 			gpar[MCDE_CH_C1]->extsrc_regbase[MCDE_EXT_SRC_1]->mcde_extsrc_a0 = currentpar->clcd_event.base;
-			gpar[MCDE_CH_C1]->regbase->mcde_imscpp |= MCDE_IMSCPP_VCMPC1IM;
+			gpar[MCDE_CH_C1]->regbase->mcde_imscpp |= gpar[MCDE_CH_C1]->vcomp_irq;
 			mcde_fb_unlock(info, __func__);
 			/* avoid hanging when called first time from register_framebuffer */
 			if(currentpar->started == 1) {
@@ -3167,9 +3267,7 @@ static int mcde_check_var(struct fb_var_screeninfo *var,
 	 * mode passed in might not work but slight changes to it might make it
 	 * work. This way we let the user know what is acceptable.
 	 */
-
 	memset(&(var->transp),0,sizeof(var->transp));
-
 
 	switch (var->bits_per_pixel) {
 		case MCDE_U8500_PANEL_8BPP:
@@ -3222,7 +3320,7 @@ static int mcde_check_var(struct fb_var_screeninfo *var,
 					break;
 
 				case MCDE_U8500_PANEL_16BPP_RGB: /** RGB 565 */
-          /* Intentional fallthrough */
+				/* Intentional fallthrough */
 				default:
 					var->red.offset = 11;
 					var->red.length = 5;
@@ -3280,7 +3378,6 @@ static int mcde_check_var(struct fb_var_screeninfo *var,
 			ret = -EINVAL;
 			break;
 	}
-
 
 	var->red.msb_right = 0;
 	var->green.msb_right = 0;
@@ -3342,16 +3439,20 @@ void find_video_mode(struct fb_info *info)
 		currentpar->video_mode = VMODE_480_864_60_P;
 	else if (strcmp(currentpar->chnl_info->restype,"WVGA")==0)
 		currentpar->video_mode = VMODE_864_480_60_P;
-	else if (strcmp(currentpar->chnl_info->restype,"HDTV")==0)
-		currentpar->video_mode = VMODE_1920_1080_50_I;
 	else if (strcmp(currentpar->chnl_info->restype,"QVGA_Portrait")==0)
 		currentpar->video_mode = VMODE_240_320_60_P;
 	else if (strcmp(currentpar->chnl_info->restype,"QVGA_Landscape")==0)
 		currentpar->video_mode = VMODE_320_240_60_P;
 	else if (strcmp(currentpar->chnl_info->restype,"VUIB WVGA")==0)
 		currentpar->video_mode = VMODE_800_600_56_P;
-	else if (strcmp(currentpar->chnl_info->restype,"HDMI C0")==0)
+	else if (strcmp(currentpar->chnl_info->restype,"1280x720P60")==0)
+		currentpar->video_mode = VMODE_1280_720_60_P;
+	else if (strcmp(currentpar->chnl_info->restype,"1920x1080P30")==0)
 		currentpar->video_mode = VMODE_1920_1080_30_P;
+	else if (strcmp(currentpar->chnl_info->restype,"1920x1080I50")==0)
+		currentpar->video_mode = VMODE_1920_1080_50_I;
+	else if (strcmp(currentpar->chnl_info->restype,"1920x1080I60")==0)
+		currentpar->video_mode = VMODE_1920_1080_60_I;
 	else if (strcmp(currentpar->chnl_info->restype,"NTSC")==0)
 		currentpar->video_mode = VMODE_720_480_60_I;
 	else
@@ -3386,9 +3487,6 @@ void find_restype_from_video_mode(struct fb_info *info, mcde_video_mode videoMod
 	case VMODE_864_480_60_P:
 		currentpar->chnl_info->restype = "WVGA";
 		break;
-	case VMODE_1920_1080_50_I:
-		currentpar->chnl_info->restype = "HDTV";
-		break;
 	case VMODE_240_320_60_P:
 		currentpar->chnl_info->restype = "QVGA_Portrait";
 		break;
@@ -3398,8 +3496,17 @@ void find_restype_from_video_mode(struct fb_info *info, mcde_video_mode videoMod
 	case VMODE_800_600_56_P:
 		currentpar->chnl_info->restype = "VUIB WVGA";
 		break;
+	case VMODE_1280_720_60_P:
+		currentpar->chnl_info->restype = "1280x720P60";
+		break;
 	case VMODE_1920_1080_30_P:
-		currentpar->chnl_info->restype = "HDMI C0";
+		currentpar->chnl_info->restype = "1920x1080P30";
+		break;
+	case VMODE_1920_1080_50_I:
+		currentpar->chnl_info->restype = "1920x1080I50";
+		break;
+	case VMODE_1920_1080_60_I:
+		currentpar->chnl_info->restype = "1920x1080I60";
 		break;
 	default:
 		currentpar->chnl_info->restype = NULL;
@@ -3562,16 +3669,16 @@ static int mcde_dsi_set_params(struct fb_info *info)
 		{
 			currentpar->dsi_lnk_no = 2;
 			currentpar->dsi_lnk_context.dsi_if_mode = DSI_COMMAND_MODE;
-		    currentpar->dsi_lnk_context.dsiInterface = DSI_INTERFACE_2;
-		    currentpar->dsi_lnk_context.if_mode_type = DSI_CLK_LANE_HSM;
-		    currentpar->dsi_lnk_conf.dsiInterface = currentpar->dsi_lnk_context.dsiInterface;
-		    currentpar->dsi_lnk_conf.clockContiniousMode = DSI_CLK_CONTINIOUS_HS_DISABLE;
-		    currentpar->dsi_lnk_conf.dsiLinkState = DSI_ENABLE;
-		    currentpar->dsi_lnk_conf.clockLaneMode = DSI_LANE_ENABLE;
-		    currentpar->dsi_lnk_conf.dataLane1Mode = DSI_LANE_ENABLE;
-		    currentpar->dsi_lnk_conf.dataLane2Mode = DSI_LANE_ENABLE;
-		    currentpar->dsi_lnk_conf.dsiInterfaceMode = currentpar->dsi_lnk_context.dsi_if_mode;
-		    currentpar->dsi_lnk_conf.commandModeType = currentpar->dsi_lnk_context.if_mode_type;
+			currentpar->dsi_lnk_context.dsiInterface = DSI_INTERFACE_2;
+			currentpar->dsi_lnk_context.if_mode_type = DSI_CLK_LANE_HSM;
+			currentpar->dsi_lnk_conf.dsiInterface = currentpar->dsi_lnk_context.dsiInterface;
+			currentpar->dsi_lnk_conf.clockContiniousMode = DSI_CLK_CONTINIOUS_HS_DISABLE;
+			currentpar->dsi_lnk_conf.dsiLinkState = DSI_ENABLE;
+			currentpar->dsi_lnk_conf.clockLaneMode = DSI_LANE_ENABLE;
+			currentpar->dsi_lnk_conf.dataLane1Mode = DSI_LANE_ENABLE;
+			currentpar->dsi_lnk_conf.dataLane2Mode = DSI_LANE_ENABLE;
+			currentpar->dsi_lnk_conf.dsiInterfaceMode = currentpar->dsi_lnk_context.dsi_if_mode;
+			currentpar->dsi_lnk_conf.commandModeType = currentpar->dsi_lnk_context.if_mode_type;
 		}
 		break;
 
@@ -3625,9 +3732,6 @@ static int mcde_dsi_set_params(struct fb_info *info)
 		currentpar->mcdeDsiChnl = MCDE_DSI_CH_VID2;
 		currentpar->output_conf = MCDE_CONF_DSI;
 		currentpar->video_mode = VMODE_1920_1080_30_P;
-		//currentpar->video_mode = VMODE_1280_720_60_P;
-		//currentpar->video_mode = VMODE_640_480_CRT_60_P; // VGA 60FPS
-		//currentpar->video_mode =VMODE_720_480_60_P; //480p 60FPS
 
 		if ((currentpar->fifoOutput >= MCDE_DSI_VID0) && (currentpar->fifoOutput <= MCDE_DSI_CMD2))
 		{
@@ -3652,12 +3756,12 @@ static int mcde_dsi_set_params(struct fb_info *info)
 		break;
 
 	case CHANNEL_C1:
-		currentpar->fifoOutput = MCDE_DSI_CMD0;
-		currentpar->mcdeDsiChnl = MCDE_DSI_CH_CMD0;
+		currentpar->fifoOutput = MCDE_DSI_CMD1;
+		currentpar->mcdeDsiChnl = MCDE_DSI_CH_CMD1;
 		currentpar->output_conf = MCDE_CONF_DSI;
 		if ((currentpar->fifoOutput >= MCDE_DSI_VID0) && (currentpar->fifoOutput <= MCDE_DSI_CMD2))
 		{
-			currentpar->dsi_lnk_no = 2;
+			currentpar->dsi_lnk_no = 1;
 			currentpar->dsi_lnk_context.dsi_if_mode = DSI_COMMAND_MODE;
 			currentpar->dsi_lnk_context.dsiInterface = DSI_INTERFACE_2;
 			currentpar->dsi_lnk_context.if_mode_type = DSI_CLK_LANE_HSM;
@@ -3673,7 +3777,7 @@ static int mcde_dsi_set_params(struct fb_info *info)
 			currentpar->dsi_lnk_conf.displayEotGenMode = DSI_EOT_GEN_ENABLE;
 		}
 		break;
-    }
+	}
 
 	if ((currentpar->fifoOutput >= MCDE_DSI_VID0) && (currentpar->fifoOutput <= MCDE_DSI_CMD2))
 	{
@@ -4655,7 +4759,6 @@ static int __init mcde_probe(struct platform_device *pdev)
 	u32 framesize = (MAX_LPF * MAX_PPL * 4);
 #endif
 
-
 	dev = &pdev->dev;
 	channel_info = (struct mcde_channel_data *) dev->platform_data;
 
@@ -4677,10 +4780,11 @@ static int __init mcde_probe(struct platform_device *pdev)
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, 0x7);
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, 0xFF);
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, 0x03);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG, 0xFF);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG, 0x03);
 
 	PRNK_COL(PRNK_COL_GREEN);
-	printk(KERN_INFO "MCDE probe: channel id = %d\n",
-						channel_info->channelid);
+	printk(KERN_INFO "MCDE probe: channel id = %d\n", channel_info->channelid);
 	/** To be removed I2C */
 	if(!i2c_init_done)
 	{
@@ -4699,33 +4803,28 @@ static int __init mcde_probe(struct platform_device *pdev)
 				return retVal;
 			}
 
-			/** why set directtion is not working ~ FIXME */
-//			gpio_direction_output(EGPIO_PIN_14,1);
-//			gpio_direction_output(EGPIO_PIN_15,1);
-// Removed EDtoV1
 			gpio_set_value(EGPIO_PIN_14, 0);
 			gpio_set_value(EGPIO_PIN_15, 0);
 		}
 
 		if(platform_id==1)
 		{
-// Removed EDtoV1
-			retVal = gpio_request(282, "mcde_egpio_282");
+			retVal = gpio_request(EGPIO_PIN_14, "mcde_egpio_14");
 			if (retVal) {
-				dev_err(&pdev->dev, "Unable to request gpio 282");
+				dev_err(&pdev->dev, "Unable to request gpio 14");
 				return retVal;
 			}
-			retVal = gpio_request(283, "mcde_egpio_283");
+			retVal = gpio_request(EGPIO_PIN_15, "mcde_egpio_15");
 			if (retVal) {
-				gpio_free(282);
-				dev_err(&pdev->dev, "Unable to request gpio 283");
+				gpio_free(EGPIO_PIN_14);
+				dev_err(&pdev->dev, "Unable to request gpio 15");
 				return retVal;
 			}
 
-			gpio_direction_output(282,1);
-			gpio_direction_output(283,1);
-			gpio_set_value(282,0);
-			gpio_set_value(283,0);
+			gpio_direction_output(EGPIO_PIN_14, 1);
+			gpio_direction_output(EGPIO_PIN_15, 1);
+			gpio_set_value(EGPIO_PIN_14, 0);
+			gpio_set_value(EGPIO_PIN_15, 0);
 		}
 
 		mdelay(1); /** let the low value settle  */
@@ -4736,21 +4835,16 @@ static int __init mcde_probe(struct platform_device *pdev)
 		/** Make display reset to high */
 		if(platform_id==0)
 		{
-			/** why set directtion is not working ~ FIXME */
-//			gpio_direction_output(EGPIO_PIN_14,1);
-//			gpio_direction_output(EGPIO_PIN_15,1);
-// Removed EDtoV1
 			gpio_set_value(EGPIO_PIN_14, 1);
 			gpio_set_value(EGPIO_PIN_15, 1);
 		}
 
 		if(platform_id==1)
 		{
-// Removed EDtoV1
-			gpio_direction_output(282,1);
-			gpio_direction_output(283,1);
-			gpio_set_value(282,1);
-			gpio_set_value(283,1);
+			gpio_direction_output(EGPIO_PIN_14,1);
+			gpio_direction_output(EGPIO_PIN_15,1);
+			gpio_set_value(EGPIO_PIN_14,1);
+			gpio_set_value(EGPIO_PIN_15,1);
 		}
 
 		mdelay(1); /** let the high value settle  */
@@ -4804,17 +4898,27 @@ static int __init mcde_probe(struct platform_device *pdev)
 		currentpar->dsi_mode = MCDE_DSI_CH_CMD0;
 		currentpar->swap = MCDE_CONF0_SWAP_B_C1;
 #endif
+	}
+#endif
 
-		/* not used */
-		/* HDMI if configured:	ChannelA - FIFOA - CMD2 */
-		/* Main display:		ChannelB - FIFOA - VID0 */
-		/*
-		currentpar->pixel_pipeline = MCDE_CH_B; // Channel A used by HDMI
-		currentpar->vcomp_irq = MCDE_IMSCPP_VCMPBIM;
-		currentpar->dsi_formatter = MCDE_CR_DSIVID0_EN | MCDE_CR_FABMUX;
-		currentpar->dsi_mode = MCDE_DSI_CH_VID0;
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
+	if (currentpar->chid == CHANNEL_C1) {
+#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
+		/* Sub display:	ChannelC1 - FIFOC1 - CMD1 */
+		/* TV-out: 		ChannelB */
+		currentpar->pixel_pipeline = MCDE_CH_C1;
+		currentpar->vcomp_irq = MCDE_IMSCPP_VCMPC1IM;
+		currentpar->dsi_formatter = MCDE_CR_DSICMD1_EN;
+		currentpar->dsi_mode = MCDE_DSI_CH_CMD1;
 		currentpar->swap = 0;
-		*/
+#else
+		/* Sub display:		ChannelC1 - FIFOB - VID1 */
+		currentpar->pixel_pipeline = MCDE_CH_C1;
+		currentpar->vcomp_irq = MCDE_IMSCPP_VCMPC1IM;
+		currentpar->dsi_formatter = MCDE_CR_DSIVID1_EN;
+		currentpar->dsi_mode = MCDE_DSI_CH_VID1;
+		currentpar->swap = MCDE_CONF0_SWAP_B_C1;
+#endif
 	}
 #endif
 
@@ -4886,7 +4990,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 		if (currentpar->ch_c_reg == NULL)
 			goto out_unmap4;
 
-		if (currentpar->chid == CHANNEL_C0) {
+		if ((currentpar->chid == CHANNEL_C0) || (currentpar->chid == CHANNEL_C1)) {
 			/* Also map channel A and B! */
 			res = platform_get_resource(pdev, IORESOURCE_MEM, 10);
 			currentpar->ch_regbase2[MCDE_CH_A] = (struct mcde_chAB_reg *) ioremap(res->start, res->end - res->start + 1);
@@ -5088,7 +5192,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 #ifndef PEPS_PLATFORM
 	/** Make the screen up first */
 	if (/*mcde_dsi_read_reg(info, 0x05, &errors_on_dsi) >= 0 ||*/
-	    currentpar->chid == CHANNEL_C0)
+	    (currentpar->chid == CHANNEL_C0) || (currentpar->chid == CHANNEL_C1))
 	{
 		do
 		{
@@ -5261,10 +5365,10 @@ out_unmap7:
 		iounmap(currentpar->ch_c_reg);
 	}
 out_unmap6:
-  if (currentpar->chid == CHANNEL_C0)
+  if ((currentpar->chid == CHANNEL_C0) || (currentpar->chid == CHANNEL_C1))
     iounmap(currentpar->ch_regbase2[MCDE_CH_B]);
 out_unmap5:
-  if (currentpar->chid == CHANNEL_C0)
+  if ((currentpar->chid == CHANNEL_C0) || (currentpar->chid == CHANNEL_C1))
     iounmap(currentpar->ch_regbase2[MCDE_CH_A]);
 out_unmap4:
 	iounmap(currentpar->ch_regbase1[0]);
@@ -5292,13 +5396,13 @@ void  mcde_test(struct fb_info *info)
 
 	mcde_fb_lock(info, __func__);
 
-	gpio_set_value(268, 0);
-	gpio_set_value(269, 0);
+	gpio_set_value(EGPIO_PIN_0, 0);
+	gpio_set_value(EGPIO_PIN_1, 0);
 
 	mdelay(10);
 
-	gpio_set_value(268, 1);
-	gpio_set_value(269, 1);
+	gpio_set_value(EGPIO_PIN_0, 1);
+	gpio_set_value(EGPIO_PIN_1, 1);
 
 	mdelay(10); /** let the high value settle  */
 
@@ -5367,6 +5471,7 @@ void  mcde_test(struct fb_info *info)
 
 	mcde_fb_unlock(info, __func__);
 }
+
 /**
  * mcde_remove() - This routine de-initializes and de-register the FB device.
  * @pdev: platform device.
@@ -5450,10 +5555,10 @@ int mcde_remove(struct platform_device *pdev)
 static void mcde_environment_setup(void)
 {
 #define MCDE_SSP_ENABLE_ALTA		0x120
-#define MCDE_SSP_CR0				0x00
-#define MCDE_SSP_CR1				0x04
-#define MCDE_SSP_DR					0x08
-#define MCDE_SSP_CPSR				0x10
+#define MCDE_SSP_CR0			0x00
+#define MCDE_SSP_CR1			0x04
+#define MCDE_SSP_DR			0x08
+#define MCDE_SSP_CPSR			0x10
 #define MCDE_PRCM_MMIP_LS_CLAMP_SET	0x420
 #define MCDE_PRCM_APE_RESETN_CLR	0x1E8
 #define MCDE_PRCM_EPOD_C_SET		0x410
@@ -5463,13 +5568,14 @@ static void mcde_environment_setup(void)
 #define MCDE_PRCM_LCDCLK_MGT		0x044
 #define MCDE_PRCM_MCDECLK_MGT		0x064
 #define MCDE_PRCM_HDMICLK_MGT		0x058
-#define MCDE_PRCM_TVCLK_MGT			0x07c
+#define MCDE_PRCM_TVCLK_MGT		0x07c
 #define MCDE_PRCM_PLLDSI_FREQ		0x500
 #define MCDE_PRCM_PLLDSI_ENABLE		0x504
 #define MCDE_PRCM_APE_RESETN_SET	0x1E4
 #define MCDE_PRCM_DSI_PLLOUT_SEL	0x530
 #define MCDE_PRCM_DSITVCLK_DIV		0x52C
 #define MCDE_PRCM_DSI_SW_RESET		0x324
+#define MCDE_PRCM_YYCLKEN0_MGT_SET	0x510
 
 	typedef struct
 	{
@@ -5484,34 +5590,30 @@ static void mcde_environment_setup(void)
 	mcde_reg_set mcde_reg[] = {
 			//PRCMU SETUP FOR MCDE DSI
 			{U8500_PRCMU_BASE + MCDE_PRCM_MMIP_LS_CLAMP_SET,	0x00400C00,		1},//Clamp the DSS output
-//			{U8500_PRCMU_BASE + MCDE_PRCM_MMIP_LS_CLAMP_SET,	0x00600C00,		1},//Clamp the DSS output
 			{U8500_PRCMU_BASE + MCDE_PRCM_APE_RESETN_CLR,		0x0000000C,		1},//Put the DSS MEM & logic in reset
-			{U8500_PRCMU_BASE + MCDE_PRCM_EPOD_C_SET,			0x00200000,		1},//EPOD DSS MEM Supply
-			{U8500_PRCMU_BASE + MCDE_PRCM_EPOD_C_SET,			0x00100000,		1},//EPOD DSS logic Supply
+			{U8500_PRCMU_BASE + MCDE_PRCM_EPOD_C_SET,		0x00200000,		1},//EPOD DSS MEM Supply
+			{U8500_PRCMU_BASE + MCDE_PRCM_EPOD_C_SET,		0x00100000,		1},//EPOD DSS logic Supply
 			{U8500_PRCMU_BASE + MCDE_PRCM_SRAM_LS_SLEEP,		0x30000155,		1},//Sleep exit for DSS
 			{U8500_PRCMU_BASE + MCDE_PRCM_MMIP_LS_CLAMP_CLR,	0x00400C00,		1},//Clear the DSS o/p Clamp
-//			{U8500_PRCMU_BASE + MCDE_PRCM_MMIP_LS_CLAMP_CLR,	0x00600C00,		1},//Clear the DSS o/p Clamp
 			{U8500_PRCMU_BASE + MCDE_PRCM_POWER_STATE_SET,		0x00008000,		1},//PRCM_POWER_STATE_SET set dsi-csi on
-			{U8500_PRCMU_BASE + MCDE_PRCM_LCDCLK_MGT,			0x00000148,		1},//enable LCD clk(@ 48MHZ)
-			{U8500_PRCMU_BASE + MCDE_PRCM_MCDECLK_MGT,			0x00000125,		1},//enable MCDE Clk (@ 160 MHz)
-			{U8500_PRCMU_BASE + MCDE_PRCM_HDMICLK_MGT,			0x00000145,		1},//enable HDMI Clk (@ 76.8 MHz)
-			{U8500_PRCMU_BASE + MCDE_PRCM_TVCLK_MGT,			0x00000148,		1},//enable TV Clk (@ 48 MHz)
+			{U8500_PRCMU_BASE + MCDE_PRCM_LCDCLK_MGT,		0x00000148,		1},//enable LCD clk(@ 48MHZ)
+			{U8500_PRCMU_BASE + MCDE_PRCM_MCDECLK_MGT,		0x00000125,		1},//enable MCDE Clk (@ 160 MHz)
+			{U8500_PRCMU_BASE + MCDE_PRCM_HDMICLK_MGT,		0x00000145,		1},//enable HDMI Clk (@ 76.8 MHz)
+			{U8500_PRCMU_BASE + MCDE_PRCM_TVCLK_MGT,		0x0000014E,		1},//enable TV Clk (@ 48 MHz)
 
 			//Program the dsi PLL
-            {U8500_PRCMU_BASE + MCDE_PRCM_PLLDSI_FREQ,			0x00040120,		0},//set PLL config
-            {U8500_PRCMU_BASE + MCDE_PRCM_PLLDSI_ENABLE,		0x00000001,		1},//PRCM_PLLDSI_ENABLE
+			{U8500_PRCMU_BASE + MCDE_PRCM_PLLDSI_FREQ,		0x00040120,		0},//set PLL config
+			{U8500_PRCMU_BASE + MCDE_PRCM_PLLDSI_ENABLE,		0x00000001,		1},//PRCM_PLLDSI_ENABLE
 			{U8500_PRCMU_BASE + MCDE_PRCM_APE_RESETN_SET,		0x0000400C,		1},//Release DSS MEM & logic and DSI PLL reset
 			{U8500_PRCMU_BASE + MCDE_PRCM_DSI_PLLOUT_SEL,		0x00000202,		1},//PLL out selectect for dsi012
-			{U8500_PRCMU_BASE + MCDE_PRCM_DSITVCLK_DIV,			0x07030808,		0},//PRCM_DSITVCLK_DIV and escape clk enable
-			{U8500_PRCMU_BASE + MCDE_PRCM_DSI_SW_RESET,			0x00000007,		1},//PRCM_DSI_SW_RESET
+			{U8500_PRCMU_BASE + MCDE_PRCM_DSITVCLK_DIV,		0x07030808,		0},//PRCM_DSITVCLK_DIV and escape clk enable
+			{U8500_PRCMU_BASE + MCDE_PRCM_DSI_SW_RESET,		0x00000007,		1},//PRCM_DSI_SW_RESET
 	};
 
 	for (index = 0; index < (sizeof(mcde_reg)/sizeof(mcde_reg_set)); index++)
 	{
 		reg = (u32 *) ioremap(mcde_reg[index].base, 0x4);
 		*reg = mcde_reg[index].value;
-
-//		printk(KERN_ERR "0x%08x 0x%08x\n", mcde_reg[index].base, mcde_reg[index].value);
 
 		switch (mcde_reg[index].post_process) {
 		case 0:
@@ -5526,7 +5628,6 @@ static void mcde_environment_setup(void)
 		iounmap(reg);
 	}
 }
-
 
 #ifdef CONFIG_PM
 /**
@@ -8623,16 +8724,16 @@ static int __init mcde_probe(struct platform_device *pdev)
 			/** why set directtion is not working ~ FIXME */
 			//gpio_direction_output(268,1);
 			//gpio_direction_output(269,1);
-			gpio_set_value(268, 0);
-			gpio_set_value(269, 0);
+			gpio_set_value(EGPIO_PIN_0, 0);
+			gpio_set_value(EGPIO_PIN_1, 0);
 		}
 
 		if(platform_id==1)
 		{
-			gpio_direction_output(282,1);
-			gpio_direction_output(283,1);
-			gpio_set_value(282,0);
-			gpio_set_value(283,0);
+			gpio_direction_output(EGPIO_PIN_14,1);
+			gpio_direction_output(EGPIO_PIN_15,1);
+			gpio_set_value(EGPIO_PIN_14,0);
+			gpio_set_value(EGPIO_PIN_15,0);
 		}
 
           mdelay(1); /** let the low value settle  */
@@ -8663,16 +8764,16 @@ static int __init mcde_probe(struct platform_device *pdev)
 			/** why set directtion is not working ~ FIXME */
 			//gpio_direction_output(268,1);
 			//gpio_direction_output(269,1);
-			gpio_set_value(268, 1);
-			gpio_set_value(269, 1);
+			gpio_set_value(EGPIO_PIN_0, 1);
+			gpio_set_value(EGPIO_PIN_1, 1);
 		}
 
 		if(platform_id==1)
 		{
-			gpio_direction_output(282,1);
-			gpio_direction_output(283,1);
-			gpio_set_value(282,1);
-			gpio_set_value(283,1);
+			gpio_direction_output(EGPIO_PIN_14,1);
+			gpio_direction_output(EGPIO_PIN_15,1);
+			gpio_set_value(EGPIO_PIN_14,1);
+			gpio_set_value(EGPIO_PIN_15,1);
 		}
 
 		mdelay(1); /** let the high value settle  */
@@ -9102,13 +9203,13 @@ void  mcde_test(struct fb_info *info)
 
 	mcde_fb_lock(info, __func__);
 
-	gpio_set_value(268, 0);
-	gpio_set_value(269, 0);
+	gpio_set_value(EGPIO_PIN_0, 0);
+	gpio_set_value(EGPIO_PIN_1, 0);
 
 	mdelay(10);
 
-	gpio_set_value(268, 1);
-	gpio_set_value(269, 1);
+	gpio_set_value(EGPIO_PIN_0, 1);
+	gpio_set_value(EGPIO_PIN_1, 1);
 
 	mdelay(10); /** let the high value settle  */
 

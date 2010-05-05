@@ -100,7 +100,7 @@ typedef enum
 	AV8100_COMMAND_COLORSPACECONVERSION_SIZE = 0x21,
 	AV8100_COMMAND_CEC_MESSAGEWRITE_SIZE = 0x14,
 	AV8100_COMMAND_CEC_MESSAGEREAD_BACK_SIZE = 0x14,
-	AV8100_COMMAND_DENC_SIZE = 0x5,
+	AV8100_COMMAND_DENC_SIZE = 0x7,
 	AV8100_COMMAND_HDMI_SIZE = 0x4,
 	AV8100_COMMAND_HDCP_SENDKEY_SIZE = 0x9,
 	AV8100_COMMAND_HDCP_MANAGEMENT_SIZE = 0x4,
@@ -245,16 +245,6 @@ struct av8100_CEC_message_readback_command
 	volatile char Identifier;
 };
 
-/** AV8100 Video DENC Command */
-struct av8100_DENC_command
-{
-	volatile char Identifier;
-	volatile char CVBSvideoformatoutputchoice	;
-	volatile char Standardselection;
-	volatile char ON_OFF;
-	volatile char Macrovision_ON_OFF;
-};
-
 /** AV8100 Video HDMI Command */
 struct av8100_HDMI_command
 {
@@ -397,6 +387,38 @@ typedef enum{
 	AV8100_DVI_CTRL_CTL1,
 	AV8100_DVI_CTRL_CTL2
 } av8100_DVI_format;
+
+typedef enum{
+	AV8100_TV_LINES_625 = 0,
+	AV8100_TV_LINES_525
+} av8100_TV_lines;
+
+typedef enum{
+	AV8100_TV_STD_PALBDGHI = 0,
+	AV8100_TV_STD_PALN,
+	AV8100_TV_STD_NTSCM,
+	AV8100_TV_STD_PALM
+} av8100_TV_std;
+
+typedef enum{
+	AV8100_DENC_OFF = 0,
+	AV8100_DENC_ON
+} av8100_DENC_State;
+
+typedef enum{
+	AV8100_MACROVISION_OFF = 0,
+	AV8100_MACROVISION_ON
+} av8100_macrovision_state;
+
+typedef enum{
+	AV8100_INTERNAL_GENERATOR_OFF = 0,
+	AV8100_INTERNAL_GENERATOR_ON
+} av8100_internal_generator_state;
+
+typedef enum{
+	AV8100_CHROMA_CWS_CAPTURE_OFF = 0,
+	AV8100_CHROMA_CWS_CAPTURE_ON
+} av8100_chroma_cws_capture_state;
 
 typedef enum{
 	AV8100_SYNC_POSITIVE,
