@@ -32,6 +32,12 @@ static char is_earlydrop;
 static char shrm_rx_state = SHRM_SLEEP_STATE;
 static char shrm_tx_state = SHRM_SLEEP_STATE;
 
+/* state of ca_wake_req
+ * ca_wake_req_state = 1 indicates ca_wake_req is high
+ * ca_wake_req_state = 0 indicates ca_wake_req is low
+ */
+static int ca_wake_req_state;
+
 /** Spin lock and tasklet declaration */
 DECLARE_TASKLET(shm_ca_0_tasklet, shm_ca_msgpending_0_tasklet, 0);
 DECLARE_TASKLET(shm_ca_1_tasklet, shm_ca_msgpending_1_tasklet, 0);
@@ -41,6 +47,7 @@ DECLARE_TASKLET(shm_ca_wake_tasklet, shm_ca_wake_req_tasklet, 0);
 
 spinlock_t ca_common_lock ;
 spinlock_t ca_audio_lock ;
+spinlock_t ca_wake_req_lock;
 
 static enum hrtimer_restart callback(struct hrtimer *timer)
 {
@@ -260,6 +267,7 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 	p_audio_rx_handler = audio_rx_handler;
 	spin_lock_init(&ca_common_lock);
 	spin_lock_init(&ca_audio_lock);
+	spin_lock_init(&ca_wake_req_lock);
 	is_earlydrop = u8500_is_earlydrop();
 	if (is_earlydrop != 0x01) {
 		hrtimer_init(&timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -300,6 +308,13 @@ void shrm_cawake_req_callback(u8 ca_wake_state)
 			BUG_ON(1);
 		}
 
+		/* update ca_wake_req_state to prevent system to go into
+		 * suspend
+		 */
+		spin_lock(&ca_wake_req_lock);
+		ca_wake_req_state = 1;
+		spin_unlock(&ca_wake_req_lock);
+
 		prcmu_ac_wake_req();
 
 		/*send ca_wake_ack_interrupt to CMU*/
@@ -310,6 +325,13 @@ void shrm_cawake_req_callback(u8 ca_wake_state)
 	} else {
 
 			dbgprintk(KERN_ALERT "shrm_cawake_req_callback slep\n");
+			/* update ca_wake_req_state to allow system to go into
+			 * suspend
+			 */
+			spin_lock(&ca_wake_req_lock);
+			ca_wake_req_state = 0;
+			spin_unlock(&ca_wake_req_lock);
+
 			prcmu_ac_sleep_req();
 			shrm_tx_state = SHRM_SLEEP_STATE;
 
@@ -317,6 +339,10 @@ void shrm_cawake_req_callback(u8 ca_wake_state)
 
 }
 
+int get_ca_wake_req_state(void)
+{
+	return ca_wake_req_state;
+}
 
 /** This function is called when Cawake req occurs*/
 

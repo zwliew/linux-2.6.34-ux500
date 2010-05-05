@@ -1315,6 +1315,58 @@ static int __exit shrm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+/**
+ * u8500_shrm_suspend() - This routine puts the SHRM in to sustend state.
+ * @pdev: platform device.
+ *
+ * This routine checks the current ongoing communication with Modem by
+ * examining the ca_wake state and prevents suspend if modem communication
+ * is on-going.
+ * If ca_wake = 1 (high), modem comm. is on-going; don't suspend
+ * If ca_wake = 0 (low), no comm. with modem on-going.Allow suspend
+ */
+int u8500_shrm_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	dbgprintk("\n u8500_shrm_suspend: called...\n");
+	dbgprintk("\n ca_wake_req_state = %x\n", get_ca_wake_req_state());
+
+	/* if ca_wake_req is high, prevent system suspend */
+	if (get_ca_wake_req_state())
+		return -EBUSY;
+	else
+		return 0;
+}
+
+/**
+ * u8500_shrm_resume() - This routine resumes the SHRM from sustend state.
+ * @pdev: platform device.
+ *
+ * This routine restore back the current state of the SHRM
+ */
+int u8500_shrm_resume(struct platform_device *pdev)
+{
+	dbgprintk("\n u8500_shrm_resume: called...\n");
+
+	/* TODO:
+	 * As of now, no state save takes place in suspend.
+	 * So, nothing to restore in resume.
+	 * Simply return as of now.
+	 * State saved in suspend should be restored here.
+	 */
+
+	return 0;
+}
+
+#else
+
+#define u8500_shrm_suspend NULL
+#define u8500_shrm_resume NULL
+
+#endif
+
+
+
 /*
  * struct shrm_driver: SHRM platform structure
  * @probe:	The probe funtion to be called
@@ -1328,7 +1380,11 @@ static struct platform_driver shrm_driver = {
 	.driver = {
 		.name = "u8500_shrm",
 		.owner = THIS_MODULE,
-	}
+	},
+#ifdef CONFIG_PM
+	.suspend = u8500_shrm_suspend,
+	.resume = u8500_shrm_resume,
+#endif
 };
 
 static int __init shrm_driver_init(void)

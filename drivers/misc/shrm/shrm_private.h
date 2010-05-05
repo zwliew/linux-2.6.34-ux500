@@ -150,5 +150,7 @@ void shm_ca_wake_req_tasklet(unsigned long);
 
 unsigned char get_boot_state(void);
 
+int get_ca_wake_req_state(void);
+
 #endif
 
