@@ -1,17 +1,16 @@
 /*
- * file ste_conn_ccd.c
+ * drivers/mfd/ste_conn/ste_conn_ccd.c
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
  * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
  */
 
 #include <linux/module.h>
@@ -35,7 +34,7 @@
 #include "ste_conn_debug.h"
 #include "ste_conn_ccd.h"
 
-#define VERSION "0.2"
+#define VERSION "1.0"
 
 /* Device names */
 #define STE_CONN_CDEV_NAME			"ste_conn_ccd_test"
@@ -45,6 +44,15 @@
 /* Workqueues' names */
 #define STE_CONN_UART_TX_WQ_NAME		"ste_conn_uart_tx_wq\0"
 #define STE_CONN_CCD_WQ_NAME			"ste_conn_ccd_wq\0"
+
+/* Standardized Bluetooth command channels */
+#define HCI_BT_CMD_H4_CHANNEL			0x01
+#define HCI_BT_ACL_H4_CHANNEL			0x02
+#define HCI_BT_EVT_H4_CHANNEL			0x04
+
+/* Default H4 channels which may change depending on connected controller */
+#define HCI_FM_RADIO_H4_CHANNEL			0x08
+#define HCI_GNSS_H4_CHANNEL			0x09
 
 /* Different supported transports */
 enum ccd_transport {
@@ -279,8 +287,19 @@ static enum ccd_transport ste_conn_transport = CCD_TRANSPORT_UNKNOWN;
 static int uart_default_baud = CCD_DEFAULT_BAUD_RATE;
 static int uart_high_baud = CCD_HIGH_BAUD_RATE;
 int ste_debug_level = STE_CONN_DEFAULT_DEBUG_LEVEL;
+EXPORT_SYMBOL(ste_debug_level);
 uint8_t ste_conn_bd_address[] = {0x00, 0x80, 0xDE, 0xAD, 0xBE, 0xEF};
+EXPORT_SYMBOL(ste_conn_bd_address);
 int bd_addr_count = BT_BDADDR_SIZE;
+
+/* Setting default values to ST-E STLC2690 */
+int ste_conn_default_manufacturer = 0x30;
+EXPORT_SYMBOL(ste_conn_default_manufacturer);
+int ste_conn_default_hci_revision = 0x0700;
+EXPORT_SYMBOL(ste_conn_default_hci_revision);
+int ste_conn_default_sub_version = 0x0011;
+EXPORT_SYMBOL(ste_conn_default_sub_version);
+
 /* Global parameter set to NULL by default */
 static int use_sleep_timeout;
 /* Global parameter set to NULL by default */
@@ -337,8 +356,8 @@ static ssize_t		test_char_dev_read(struct file *filp, char __user *buf, size_t c
 static ssize_t		test_char_dev_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos);
 static unsigned int	test_char_dev_poll(struct file *filp, poll_table *wait);
 static void		test_char_dev_tx_received(struct sk_buff_head *rx_queue, struct sk_buff *skb);
-static int __init	ste_conn_init(void);
-static void __exit	ste_conn_exit(void);
+static int __init ste_conn_init(void);
+static void __exit ste_conn_exit(void);
 static struct sk_buff *alloc_set_baud_rate_cmd(int baud);
 
 /*
@@ -369,7 +388,7 @@ int ste_conn_ccd_open(void)
 			struct tty_struct *tty = NULL;
 			int bytes_written;
 
-			/* Chip has just been started up. It has an system to autodetect
+			/* Chip has just been started up. It has a system to autodetect
 			 * exact baud rate and transport to use. There are only a few commands
 			 * it will recognize and HCI Reset is one of them.
 			 * We therefore start with sending that before actually changing baud rate.
@@ -388,6 +407,7 @@ int ste_conn_ccd_open(void)
 			bytes_written = tty->ops->write(tty, data, CCD_HCI_RESET_LEN + CCD_H4_HEADER_LEN);
 			if (bytes_written != CCD_HCI_RESET_LEN + CCD_H4_HEADER_LEN) {
 				STE_CONN_ERR("Only wrote %d bytes", bytes_written);
+				ccd_info->baud_rate_state = BAUD_IDLE;
 				err = -EACCES;
 				goto finished;
 			}
@@ -398,6 +418,7 @@ int ste_conn_ccd_open(void)
 						timeval_to_jiffies(&time_500ms));
 			if (BAUD_IDLE != ccd_info->baud_rate_state) {
 				STE_CONN_ERR("Failed to send HCI Reset");
+				ccd_info->baud_rate_state = BAUD_IDLE;
 				err = -EIO;
 				goto finished;
 			}
@@ -446,7 +467,7 @@ void ste_conn_ccd_close(void)
 
 void ste_conn_ccd_set_chip_power(bool chip_on)
 {
-	STE_CONN_INFO("ste_conn_ccd_set_chip_power: %s", (chip_on?"ENABLE":"DISABLE"));
+	STE_CONN_INFO("ste_conn_ccd_set_chip_power: %s", (chip_on ? "ENABLE" : "DISABLE"));
 
 	switch (ste_conn_transport) {
 	case CCD_TRANSPORT_UART:
@@ -469,7 +490,7 @@ void ste_conn_ccd_set_chip_power(bool chip_on)
 				return;
 			}
 
-			old_termios = kzalloc(sizeof(*old_termios), GFP_KERNEL);
+			old_termios = kzalloc(sizeof(*old_termios), GFP_ATOMIC);
 			if (!old_termios) {
 				STE_CONN_ERR("Could not allocate termios");
 				return;
@@ -512,6 +533,10 @@ int ste_conn_ccd_write(struct sk_buff *skb)
 
 	/* (Re)start sleep timer. */
 	update_timer();
+
+	STE_CONN_DBG_DATA_CONTENT("Length: %d Data: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X", skb->len,
+					skb->data[0], skb->data[1], skb->data[2], skb->data[3], skb->data[4],
+					skb->data[5], skb->data[6], skb->data[7], skb->data[8], skb->data[9]);
 
 	/* Pass the buffer to physical transport. */
 	switch (ste_conn_transport) {
@@ -637,7 +662,7 @@ static struct sk_buff *alloc_set_baud_rate_cmd(int baud)
 	uint8_t data[CCD_SET_BAUD_RATE_LEN];
 	uint8_t *h4;
 
-	skb = ste_conn_alloc_skb(CCD_SET_BAUD_RATE_LEN, GFP_KERNEL);
+	skb = ste_conn_alloc_skb(CCD_SET_BAUD_RATE_LEN, GFP_ATOMIC);
 	if (skb) {
 		/* Create the Hci_Cmd_ST_Set_Uart_Baud_Rate packet */
 		data[0] = CCD_SET_BAUD_RATE_LSB;
@@ -932,7 +957,7 @@ static void uart_finish_setting_baud_rate(struct tty_struct *tty)
 	 */
 	schedule_timeout_interruptible(timeval_to_jiffies(&time_100ms));
 
-	old_termios = kzalloc(sizeof(*old_termios), GFP_KERNEL);
+	old_termios = kmalloc(sizeof(*old_termios), GFP_ATOMIC);
 	if (!old_termios) {
 		STE_CONN_ERR("Could not allocate termios");
 		return;
@@ -983,7 +1008,7 @@ static int uart_tty_open(struct tty_struct *tty)
 	}
 
 	/* Allocate the CCD UART structure */
-	c_uart = kzalloc(sizeof(*c_uart), GFP_KERNEL);
+	c_uart = kzalloc(sizeof(*c_uart), GFP_ATOMIC);
 	if (!c_uart) {
 		STE_CONN_ERR("Can't allocate control structure");
 		err = -ENOMEM;
@@ -1386,6 +1411,28 @@ static void ccd_work_hw_registered(struct work_struct *work)
 
 	ste_conn_cpd_hw_registered();
 
+	/* Now the channels should be updated from the controller */
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_BT_CMD,
+					&(ccd_info->h4_channels.bt_cmd_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_BT_ACL,
+					&(ccd_info->h4_channels.bt_acl_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_BT_EVT,
+					&(ccd_info->h4_channels.bt_evt_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_GNSS,
+					&(ccd_info->h4_channels.gnss_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_FM_RADIO,
+					&(ccd_info->h4_channels.fm_radio_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_DEBUG,
+					&(ccd_info->h4_channels.debug_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_STE_TOOLS,
+					&(ccd_info->h4_channels.ste_tools_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_HCI_LOGGER,
+					&(ccd_info->h4_channels.hci_logger_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_US_CTRL,
+					&(ccd_info->h4_channels.us_ctrl_channel));
+	ste_conn_cpd_get_h4_channel(STE_CONN_DEVICES_CORE,
+					&(ccd_info->h4_channels.core_channel));
+
 	kfree(current_work);
 }
 
@@ -1446,7 +1493,7 @@ static int ccd_create_work_item(struct workqueue_struct *wq, work_func_t work_fu
 	int wq_err;
 	int err = 0;
 
-	new_work = kmalloc(sizeof(*new_work), GFP_KERNEL);
+	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
 
 	if (new_work) {
 		new_work->data = data;
@@ -1625,7 +1672,7 @@ finished:
  */
 static void test_char_device_destroy(void)
 {
-	int err=0;
+	int err = 0;
 
 	if (ccd_info && ccd_info->char_test_dev && (ste_conn_transport == CCD_TRANSPORT_CHAR_DEV)) {
 		err = misc_deregister(&ccd_info->char_test_dev->test_miscdev);
@@ -1668,6 +1715,12 @@ static ssize_t test_char_dev_read(struct file *filp, char __user *buf, size_t co
 
 	skb = skb_dequeue(rx_queue);
 
+	if (!skb) {
+		STE_CONN_INFO("skb queue is empty - return with zero bytes");
+		bytes_to_copy = 0;
+		goto finished;
+	}
+
 	bytes_to_copy = min(count, skb->len);
 	err = copy_to_user(buf, skb->data, bytes_to_copy);
 	if (err) {
@@ -1681,6 +1734,8 @@ static ssize_t test_char_dev_read(struct file *filp, char __user *buf, size_t co
 	} else {
 		kfree_skb(skb);
 	}
+
+finished:
 	return bytes_to_copy;
 }
 
@@ -1703,7 +1758,7 @@ static ssize_t test_char_dev_write(struct file *filp, const char __user *buf, si
 
 	STE_CONN_INFO("test_char_dev_write count %d", count);
 
-	skb = alloc_rx_skb(count, GFP_KERNEL);
+	skb = alloc_rx_skb(count, GFP_ATOMIC);
 	if (skb) {
 		if (copy_from_user(skb_put(skb, count), buf, count)) {
 			kfree_skb(skb);
@@ -1815,34 +1870,19 @@ static int __init ste_conn_init(void)
 	ccd_info->sleep_state = CHIP_AWAKE;
 	skb_queue_head_init(&ccd_info->tx_queue);
 
+	/* Get the H4 channel ID for all channels */
+	ccd_info->h4_channels.bt_cmd_channel = HCI_BT_CMD_H4_CHANNEL;
+	ccd_info->h4_channels.bt_acl_channel = HCI_BT_ACL_H4_CHANNEL;
+	ccd_info->h4_channels.bt_evt_channel = HCI_BT_EVT_H4_CHANNEL;
+	ccd_info->h4_channels.gnss_channel = HCI_FM_RADIO_H4_CHANNEL;
+	ccd_info->h4_channels.fm_radio_channel = HCI_GNSS_H4_CHANNEL;
+
 	ccd_info->wq = create_singlethread_workqueue(STE_CONN_CCD_WQ_NAME);
 	if (!ccd_info->wq) {
 		STE_CONN_ERR("Could not create workqueue");
 		err = -ENOMEM;
 		goto error_handling;
 	}
-
-	/* Get the H4 channel ID for all channels */
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_CMD,
-					&(ccd_info->h4_channels.bt_cmd_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_ACL,
-					&(ccd_info->h4_channels.bt_acl_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_BT_EVT,
-					&(ccd_info->h4_channels.bt_evt_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_GNSS,
-					&(ccd_info->h4_channels.gnss_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_FM_RADIO,
-					&(ccd_info->h4_channels.fm_radio_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_DEBUG,
-					&(ccd_info->h4_channels.debug_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_STE_TOOLS,
-					&(ccd_info->h4_channels.ste_tools_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_HCI_LOGGER,
-					&(ccd_info->h4_channels.hci_logger_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_US_CTRL,
-					&(ccd_info->h4_channels.us_ctrl_channel));
-	ste_conn_devices_get_h4_channel(STE_CONN_DEVICES_CORE,
-					&(ccd_info->h4_channels.core_channel));
 
 	/* Convert the time to jiffies and setup the timer structure */
 	ccd_timeout_jiffies = timeval_to_jiffies(&time_50ms);
@@ -1874,8 +1914,8 @@ static int __init ste_conn_init(void)
 	}
 
 	ccd_info->dev = device_create(ccd_info->ccd_class, NULL, temp_devt,
-					dev_data, STE_CONN_DEVICE_NAME "%d",
-					dev_data->next_free_minor);
+			dev_data, STE_CONN_DEVICE_NAME "%d",
+			dev_data->next_free_minor);
 	if (IS_ERR(ccd_info->dev)) {
 		STE_CONN_ERR("Error creating main device");
 		err = (int)ccd_info->dev;
@@ -2018,13 +2058,16 @@ MODULE_PARM_DESC(ste_debug_level, "Debug level. Default 1. Possible values:\n \
 				25 = Data info, i.e. prints when data is transferred\n \
 				30 = Data content, i.e. contents of the transferred data");
 
-
-EXPORT_SYMBOL(ste_debug_level);
-
 module_param_array(ste_conn_bd_address, byte, &bd_addr_count, S_IRUGO | S_IWUSR | S_IWGRP);
 MODULE_PARM_DESC(ste_conn_bd_address, "Bluetooth Device address. Default 0x00 0x80 0xDE 0xAD 0xBE 0xEF. \
 Enter as comma separated value.");
 
+module_param(ste_conn_default_hci_revision, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(ste_conn_default_hci_revision, "Default HCI revision according to Bluetooth Assigned Numbers.");
 
-EXPORT_SYMBOL(ste_conn_bd_address);
+module_param(ste_conn_default_manufacturer, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(ste_conn_default_manufacturer, "Default Manfacturer according to Bluetooth Assigned Numbers.");
+
+module_param(ste_conn_default_sub_version, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(ste_conn_default_sub_version, "Default HCI sub-version according to Bluetooth Assigned Numbers.");
 

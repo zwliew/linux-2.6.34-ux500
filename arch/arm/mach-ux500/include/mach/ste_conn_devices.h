@@ -1,18 +1,17 @@
 /*
- * file ste_conn_devices.h
+ * arch/arm/mach-ux500/include/mach/ste_conn_devices.h
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Board specific device support for the Linux Bluetooth HCI H4 Driver
- * for ST-Ericsson connectivity controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
  * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Board specific device support for the Linux Bluetooth HCI H4 Driver
+ * for ST-Ericsson connectivity controller.
  */
 
 #ifndef _STE_CONN_DEVICES_H_
@@ -22,6 +21,13 @@
 #include <linux/skbuff.h>
 
 #define STE_CONN_MAX_NAME_SIZE 30
+
+
+
+
+/*
+ * Channel names to use when registering to STE_CONN
+ */
 
 /** STE_CONN_DEVICES_BT_CMD - Bluetooth HCI H4 channel for Bluetooth commands in the ST-Ericsson connectivity controller.
  */
@@ -51,32 +57,40 @@
  */
 #define STE_CONN_DEVICES_STE_TOOLS	"ste_conn_ste_tools\0"
 
-/** STE_CONN_DEVICES_HCI_LOGGER - Bluetooth HCI H4 channel for logging all transmitted H4 packets (on all channels).
+/** STE_CONN_DEVICES_HCI_LOGGER - Bluetooth channel for logging all transmitted H4 packets (on all channels).
+ *  Data read is copy of all data transferred on the other channels.
+ *  Only write allowed is configuration of the HCI Logger.
  */
 #define STE_CONN_DEVICES_HCI_LOGGER	"ste_conn_hci_logger\0"
 
-/** STE_CONN_DEVICES_US_CTRL - Bluetooth HCI H:4 channel
- * for user space initialization and control of the ST-Ericsson connectivity controller.
+/** STE_CONN_DEVICES_US_CTRL - Channel for user space initialization and control of the ST-Ericsson connectivity controller.
  */
 #define STE_CONN_DEVICES_US_CTRL	"ste_conn_us_ctrl\0"
 
-/** STE_CONN_DEVICES_BT_AUDIO - Bluetooth HCI H:4 channel
- * for Bluetooth audio configuration related commands in the ST-Ericsson connectivity controller.
+/** STE_CONN_DEVICES_BT_AUDIO - HCI Channel for Bluetooth audio configuration related commands in the ST-Ericsson connectivity controller.
+ *  Maps to Bluetooth command and event channels.
  */
 #define STE_CONN_DEVICES_BT_AUDIO	"ste_conn_bt_audio\0"
 
-/** STE_CONN_DEVICES_FM_RADIO_AUDIO - HCI H:4 channel
- * for FM audio configuration related commands in the ST-Ericsson connectivity controller.
+/** STE_CONN_DEVICES_FM_RADIO_AUDIO - HCI channel for FM audio configuration related commands in the ST-Ericsson connectivity controller.
+ *  Maps to FM Radio channel.
  */
 #define STE_CONN_DEVICES_FM_RADIO_AUDIO	"ste_conn_fm_audio\0"
 
-/** STE_CONN_DEVICES_CORE- HCI H:4 channel
- * for core configuration related commands in the ST-Ericsson connectivity controller.
+/** STE_CONN_DEVICES_CORE- Channel for keeping ST-Ericsson connectivity controller enabled.
+ *  Opening this channel forces the chip to stay powered.
+ *  No data can be written to or read from this channel.
  */
-#define STE_CONN_DEVICES_CORE	"ste_conn_core\0"
+#define STE_CONN_DEVICES_CORE		"ste_conn_core\0"
 
-/** STE_CONN_NO_CHAR_DEV - Module parameter for
- * no character devices to be initiated.
+
+
+
+/*
+ * Char device bits to use in bitmask when starting module
+ */
+
+/** STE_CONN_NO_CHAR_DEV - Module parameter for no character devices to be initiated.
  */
 #define STE_CONN_NO_CHAR_DEV			0x00000000
 
@@ -106,10 +120,9 @@
 
 /** STE_CONN_CHAR_DEV_HCI_LOGGER - Module parameter for character device HCI logger.
  */
-#define STE_CONN_CHAR_DEV_HCI_LOGGER	0x00000040
+#define STE_CONN_CHAR_DEV_HCI_LOGGER		0x00000040
 
-/** STE_CONN_CHAR_DEV_US_CTRL - Module parameter for
- * character device user space control.
+/** STE_CONN_CHAR_DEV_US_CTRL - Module parameter for character device user space control.
  */
 #define STE_CONN_CHAR_DEV_US_CTRL		0x00000080
 
@@ -123,7 +136,7 @@
 
 /** STE_CONN_CHAR_DEV_FM_RADIO_AUDIO - Module parameter for character device FM audio application.
  */
-#define STE_CONN_CHAR_DEV_FM_RADIO_AUDIO			0x00000400
+#define STE_CONN_CHAR_DEV_FM_RADIO_AUDIO	0x00000400
 
 /** STE_CONN_CHAR_DEV_CORE - Module parameter for character device core.
  */
@@ -132,17 +145,6 @@
 /** STE_CONN_CHAR_TEST_DEV - Module parameter for all character devices to be initiated.
  */
 #define STE_CONN_ALL_CHAR_DEVS			0xFFFFFFFF
-
-/**
- * ste_conn_devices_get_h4_channel() - Get H4 channel by name.
- * @name:       Name of connectivity user.
- * @h4_channel: HCI H4 channel to register to.
- *
- * Returns:
- *   0 if there is no error.
- *   -ENXIO if channel was not found.
- */
-extern int ste_conn_devices_get_h4_channel(char *name, int *h4_channel);
 
 /**
  * ste_conn_devices_enable_chip() - Enable the controller.
@@ -169,19 +171,6 @@ extern void ste_conn_devices_set_hci_revision(uint8_t hci_version,
 					uint8_t lmp_version,
 					uint8_t lmp_subversion,
 					uint16_t manufacturer);
-
-/**
- * ste_conn_devices_get_reset_cmd() - Get HCI reset command to use based on connected connectivity controller.
- * @op_lsb: LSB of HCI opcode in generated packet. NULL if not needed.
- * @op_msb: MSB of HCI opcode in generated packet. NULL if not needed.
- *
- * This command does not add the H4 channel header in front of the message.
- *
- * Returns:
- *   NULL      if no command shall be sent,
- *   sk_buffer with command otherwise.
- */
-extern struct sk_buff *ste_conn_devices_get_reset_cmd(uint8_t *op_lsb, uint8_t *op_msb);
 
 /**
  * ste_conn_devices_get_power_switch_off_cmd() - Get HCI power switch off command to use based on connected connectivity controller.

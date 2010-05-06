@@ -1,17 +1,16 @@
 /*
- * file ste_conn_ccd.h
+ * drivers/mfd/ste_conn/ste_conn_ccd.h
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
  * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
  */
 
 #ifndef _STE_CONN_CCD_H_
@@ -40,6 +39,9 @@ struct ste_conn_ccd_driver_data {
 
 /* module_param declared in ste_conn_ccd.c */
 extern uint8_t ste_conn_bd_address[BT_BDADDR_SIZE];
+extern int ste_conn_default_manufacturer;
+extern int ste_conn_default_hci_revision;
+extern int ste_conn_default_sub_version;
 
 /**
  * ste_conn_ccd_open() - Open the ste_conn CCD for data transfers.

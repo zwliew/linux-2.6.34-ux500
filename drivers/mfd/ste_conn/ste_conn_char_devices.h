@@ -1,17 +1,16 @@
 /*
- * file ste_conn_char_devices.h
+ * drivers/mfd/ste_conn/ste_conn_char_devices.h
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Linux Bluetooth HCI H:4 Driver for ST-Ericsson Connectivity controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
  * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
  */
 
 #ifndef _STE_CONN_CHAR_DEVICES_H_

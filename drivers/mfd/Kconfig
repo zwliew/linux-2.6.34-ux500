@@ -176,13 +176,30 @@ config MFD_TC6387XB
 
 config MFD_STE_CONN
        tristate "Support ST-Ericsson Connectivity controller"
-       depends on ARM && RFKILL
        help
          Support for ST-Ericsson Connectivity controller, e.g. CG2900
 
+config MFD_STE_CONN_CG2900
+        tristate "Support CG2900 Connectivity controller"
+	depends on MFD_STE_CONN
+        help
+         Support for ST-Ericsson CG2900 Connectivity Controller
+
+config MFD_STE_CONN_STLC2690
+        tristate "Support STLC2690 Connectivity controller"
+	depends on MFD_STE_CONN
+        help
+         Support for ST-Ericsson STLC2690 Connectivity Controller
+
+config MFD_STE_CG29XX_AUDIO
+        tristate "Support CG29XX audio interface"
+	depends on MFD_STE_CONN
+        help
+         Support for ST-Ericsson Connectivity audio interface, e.g. CG29XX
+
 config MFD_STE_CONN_BLUEZ
        tristate "Use BlueZ as Bluetooth stack with ST-Ericsson Connectivity controller"
-       depends on ARM && MFD_STE_CONN && BT
+       depends on MFD_STE_CONN && BT && RFKILL
        help
          Select if BlueZ shall be used as Bluetooth stack with
          ST-Ericsson Connectivity controller, e.g. CG2900

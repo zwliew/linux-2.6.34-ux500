@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
 	"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" []>
 
@@ -28,7 +29,7 @@
 
   <copyright>
    <year>2010</year>
-   <holder>ST-Ericsson AB</holder>
+   <holder>ST-Ericsson SA</holder>
   </copyright>
 
   <subjectset>
@@ -104,7 +105,7 @@
       <listitem><para>ste_conn_devices.c</para></listitem>
       <listitem><para>include/mach/ste_conn_devices.h</para></listitem>
     </itemizedlist>
-    must exist inside the corresponding Board configuration folder, e.g. arch/arm/mach-ux500.
+    must exist inside the corresponding Board configuration folder.
   </para>
 
   <!-- TODO: If the driver needs preparations to be used
@@ -256,7 +257,7 @@
            When a stack (Bluetooth, FM, or GNSS) wants to send a packet it shall perform a write operation.
            The packet shall not contain the H:4 header since this is added by the ST-E connectivity driver.
            All other data in the packet shall however exist in the packet in the format correct for that HCI channel.
-           The ST-E connectivity driver does not perform any flow control over the H:4 channel so any ticket handling
+           The ST-E connectivity users need to perform flow control over channels so any ticket handling
            or similar must be handled by respective stack.
 
            <variablelist>
@@ -285,6 +286,18 @@
                  the corresponding file to perform a transmit operation. After function returns the data has been
                  copied and is considered sent.
                  The caller does not need to preserve the data.
+               </para>
+               </listitem>
+             </varlistentry>
+           </variablelist>
+
+           <variablelist>
+             <varlistentry>
+               <term>Writing to FM_Radio and FM_Audio channel</term>
+               <listitem>
+               <para>
+		Ste_conn driver only supports FM legacy commands. The reason is that the FM_Radio and FM_Audio uses the same H4 channel aginst the chip,
+		in order to multiplex the FM user commands the data pakets are parsed by the ste_conn driver.
                </para>
                </listitem>
              </varlistentry>
@@ -716,6 +729,37 @@
        </varlistentry>
 
        <varlistentry>
+         <term>ste_conn_bd_address</term>
+         <listitem>
+         <para>
+           <variablelist>
+             <varlistentry>
+               <term>Parameter type</term>
+               <listitem><synopsis><type>array (Entered as comma separated value)</type></synopsis></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Default value</term>
+               <listitem><para>0x00 0x80 0xDE 0xAD 0xBE 0xEF</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Runtime readable/modifiable</term>
+               <listitem><para>Modifiable</para></listitem>
+             </varlistentry>
+             <varlistentry>
+               <term>Description</term>
+               <listitem>
+               <para>
+                 The parameter ste_conn_bd_address in ste_conn_ccd.c defines the Bluetooth device address to use for the current device.
+                 The value is an array of 6 bytes and shall be entered as a comma separated value.
+               </para>
+               </listitem>
+             </varlistentry>
+           </variablelist>
+         </para>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
          <term>ste_debug_level</term>
          <listitem>
          <para>
@@ -805,39 +849,6 @@
        </varlistentry>
 
        <varlistentry>
-         <term><constant>STE_CONN_CHAR_DEV_IOCTL_WAIT4RESET</constant></term>
-         <listitem>
-         <variablelist>
-           <varlistentry>
-             <term>Direction</term>
-             <listitem><para>Get</para></listitem>
-           </varlistentry>
-           <varlistentry>
-             <term>Parameter</term>
-             <listitem><synopsis><type>void</type></synopsis></listitem>
-           </varlistentry>
-           <varlistentry>
-             <term>Description</term>
-             <listitem>
-               <para>
-                 The <constant>STE_CONN_CHAR_DEV_IOCTL_WAIT4RESET</constant> IOCTL tells the IOCTL functions to wait
-                 until a reset has occurred or the character device is closed.
-               </para><para>
-                 IOCTL value created using <constant>_IOW('U', 211, int)</constant>.
-               </para><para>
-                 Returned values are:
-                 <itemizedlist>
-                   <listitem><para>If reset has occurred or device has been closed the IOCTL function will return 0.</para></listitem>
-                   <listitem><para>A negative value will indicate error.</para></listitem>
-                 </itemizedlist>
-               </para>
-             </listitem>
-           </varlistentry>
-         </variablelist>
-         </listitem>
-       </varlistentry>
-
-       <varlistentry>
          <term><constant>STE_CONN_CHAR_DEV_IOCTL_CHECK4RESET</constant></term>
          <listitem>
          <variablelist>
@@ -856,7 +867,7 @@
                  The <constant>STE_CONN_CHAR_DEV_IOCTL_CHECK4RESET</constant> IOCTL checks if a reset
                  has been performed on a device.
                </para><para>
-                 IOCTL value created using <constant>_IOW('U', 212, int)</constant>.
+                 IOCTL value created using <constant>_IOR('U', 212, int)</constant>.
                </para><para>
                  Returned values are:
                  <itemizedlist>
@@ -871,6 +882,69 @@
          </variablelist>
          </listitem>
        </varlistentry>
+
+       <varlistentry>
+         <term><constant>STE_CONN_CHAR_DEV_IOCTL_GET_REVISION</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Query</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>void</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+               <para>
+                 The <constant>STE_CONN_CHAR_DEV_IOCTL_GET_REVISION</constant> IOCTL returns the revision value
+                 of the local connectivity controller if such information is available.
+               </para><para>
+                 IOCTL value created using <constant>_IOR('U', 213, int)</constant>.
+               </para><para>
+                 Returned values are according to information that may be retrieved from chip manufacturer.
+                 It is however possible to get indications of the value by looking in the file
+                 <constant>firmware/ste_conn_patch_info.fw.org</constant>.
+               </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>STE_CONN_CHAR_DEV_IOCTL_GET_SUB_VER</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Query</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>void</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+               <para>
+                 The <constant>STE_CONN_CHAR_DEV_IOCTL_GET_SUB_VER</constant> IOCTL returns the sub-version value
+                 of the local connectivity controller if such information is available.
+               </para><para>
+                 IOCTL value created using <constant>_IOR('U', 214, int)</constant>.
+               </para><para>
+                 Returned values are according to information that may be retrieved from chip manufacturer.
+                 It is however possible to get indications of the value by looking in the file
+                 <constant>firmware/ste_conn_patch_info.fw.org</constant>.
+               </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
      </variablelist>
    </section>
 
@@ -1166,6 +1240,51 @@
        </listitem>
      </varlistentry>
 
+     <varlistentry>
+       <term>CG29XX Audio</term>
+       <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>File</term>
+             <listitem><para><filename>/dev/ste_cg29xx_audio</filename></para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The ste_cg29xx_audio is a device for testing the CG29XX Audio driver from User space.
+               It replicates the normal CG29XX Audio interface through <constant>write/read</constant> operations.
+               The <constant>write</constant> command is used as following:
+               <itemizedlist>
+                 <listitem><para>4 byte op code (see below)</para></listitem>
+                 <listitem><para>Data field according to respective CG29XX Audio function (no session ID needed)</para></listitem>
+               </itemizedlist>
+               If the operation fails the <constant>write</constant> command operation will return the error.
+               Op codes are (4 bytes size):
+               <itemizedlist>
+                 <listitem><para>0x00000001 = CHAR_DEV_OP_CODE_SET_DAI_CONF</para></listitem>
+                 <listitem><para>0x00000002 = CHAR_DEV_OP_CODE_GET_DAI_CONF</para></listitem>
+                 <listitem><para>0x00000003 = CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT</para></listitem>
+                 <listitem><para>0x00000004 = CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM</para></listitem>
+                 <listitem><para>0x00000005 = CHAR_DEV_OP_CODE_STOP_STREAM</para></listitem>
+               </itemizedlist>
+
+               The <constant>read</constant> command is used for the commands <constant>CHAR_DEV_OP_CODE_GET_DAI_CONF</constant>
+               and <constant>CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM</constant> if the corresponding commands are successful.
+               The returned data will be formatted accordingly:
+               <itemizedlist>
+                 <listitem><para>4 byte op code (see below)</para></listitem>
+                 <listitem><para>Data field according to normal CG29XX Audio functions, e.g. stream handle or configuration</para></listitem>
+               </itemizedlist>
+               The <constant>CHAR_DEV_OP_CODE_GET_DAI_CONF</constant> is a bit special since it require an endpoint in-parameter
+               (when calling <constant>write</constant>) to return the corresponding DAI configuration when calling <constant>read</constant>.
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+       </listitem>
+     </varlistentry>
+
     </variablelist>
   </section>
 
@@ -1215,6 +1334,11 @@
 !Einclude/linux/mfd/ste_conn.h
 !Iinclude/linux/mfd/ste_conn.h
   </section>
+  <section id="ste_cg29xx_audio.h">
+    <title>ste_cg29xx_audio.h</title>
+!Einclude/linux/mfd/ste_cg29xx_audio.h
+!Iinclude/linux/mfd/ste_cg29xx_audio.h
+  </section>
 
 </chapter>
 
@@ -1258,14 +1382,13 @@
     <title>ste_conn_hci_driver.c</title>
 !Idrivers/mfd/ste_conn/ste_conn_hci_driver.c
   </section>
-  <section id="ste_conn_devices.h">
-    <title>ste_conn_devices.h</title>
-!Earch/arm/mach-ux500/include/mach/ste_conn_devices.h
+  <section id="ste_cg29xx_audio.c">
+    <title>ste_cg29xx_audio.c</title>
+!Idrivers/mfd/ste_conn/ste_cg29xx_audio.c
   </section>
-  <section id="ste_conn_devices.c">
-    <title>ste_conn_devices.c</title>
-!Iarch/arm/mach-ux500/ste_conn_devices.c
+    <section id="ste_conn_devices.h">
+    <title>ste_conn_devices.h</title>
+!Iarch/arm/mach-ux500/include/mach/ste_conn_devices.h
   </section>
 </chapter>
-
 </book>

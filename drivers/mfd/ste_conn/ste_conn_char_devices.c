@@ -1,17 +1,16 @@
 /*
- * file ste_conn_char_devices.c
+ * drivers/mfd/ste_conn/ste_conn_char_devices.c
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Linux Bluetooth HCI H:4 Driver for ST-Ericsson Connectivity Controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
  * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
  */
 
 #include <linux/kernel.h>
@@ -36,6 +35,8 @@
 /* Ioctls */
 #define STE_CONN_CHAR_DEV_IOCTL_RESET		_IOW('U', 210, int)
 #define STE_CONN_CHAR_DEV_IOCTL_CHECK4RESET	_IOR('U', 212, int)
+#define STE_CONN_CHAR_DEV_IOCTL_GET_REVISION	_IOR('U', 213, int)
+#define STE_CONN_CHAR_DEV_IOCTL_GET_SUB_VER	_IOR('U', 214, int)
 
 #define STE_CONN_CHAR_DEV_IOCTL_EVENT_RESET  1
 #define STE_CONN_CHAR_DEV_IOCTL_EVENT_CLOSED 2
@@ -46,12 +47,10 @@
   * enum ste_conn_char_reset_state - Reset state.
   * @STE_CONN_CHAR_IDLE:	Idle state.
   * @STE_CONN_CHAR_RESET:	Reset state.
-  * @STE_CONN_CHAR_WAIT4RESET:	Wait for reset state.
   */
 enum ste_conn_char_reset_state {
 	STE_CONN_CHAR_IDLE,
-	STE_CONN_CHAR_RESET,
-	STE_CONN_CHAR_WAIT4RESET
+	STE_CONN_CHAR_RESET
 };
 
 /**
@@ -95,7 +94,7 @@ struct ste_conn_char_dev_user {
   * @us_ctrl_user:		User space control channel user.
   * @bt_audio_user:		BT audio command channel user.
   * @fm_audio_user:		FM audio command channel user.
-  * @core_user:		Core user.
+  * @core_user:			Core user.
   * @open_mutex:		Open mutex (used for both open and release).
   */
 struct ste_conn_char_info {
@@ -207,7 +206,7 @@ static void ste_conn_char_cpd_read_cb(struct ste_conn_device *dev,
 
 /**
  * ste_conn_char_cpd_reset_cb() - handle reset from controller.
- * @dev: device reseting.
+ * @dev: device resetting.
  *
  * The ste_conn_char_cpd_reset_cb() function handles reset from
  * connectivity protocol driver.
@@ -447,7 +446,7 @@ static ssize_t ste_conn_char_device_write(struct file *filp,
 		goto error_handling;
 	}
 
-	skb = ste_conn_alloc_skb(count, GFP_KERNEL);
+	skb = ste_conn_alloc_skb(count, GFP_ATOMIC);
 	if (skb) {
 		if (copy_from_user(skb_put(skb, count), buf, count)) {
 			kfree_skb(skb);
@@ -487,6 +486,7 @@ static long ste_conn_char_device_unlocked_ioctl(struct file *filp,
 {
 	struct ste_conn_char_dev_user *dev =
 		(struct ste_conn_char_dev_user *)filp->private_data;
+	struct ste_conn_revision_data rev_data;
 	int err = 0;
 
 	switch (cmd) {
@@ -510,8 +510,33 @@ static long ste_conn_char_device_unlocked_ioctl(struct file *filp,
 			err = STE_CONN_CHAR_DEV_IOCTL_EVENT_RESET;
 		}
 		break;
+
+	case STE_CONN_CHAR_DEV_IOCTL_GET_REVISION:
+		STE_CONN_INFO("ioctl check for local revision info");
+		if (ste_conn_get_local_revision(&rev_data)) {
+			STE_CONN_DBG("Read revision data revision %d sub_version %d",
+					rev_data.revision, rev_data.sub_version);
+			err = rev_data.revision;
+		} else {
+			STE_CONN_DBG("No revision data available");
+			err = -EIO;
+		}
+		break;
+
+	case STE_CONN_CHAR_DEV_IOCTL_GET_SUB_VER:
+		STE_CONN_INFO("ioctl check for local sub-version info");
+		if (ste_conn_get_local_revision(&rev_data)) {
+			STE_CONN_DBG("Read revision data revision %d sub_version %d",
+					rev_data.revision, rev_data.sub_version);
+			err = rev_data.sub_version;
+		} else {
+			STE_CONN_DBG("No revision data available");
+			err = -EIO;
+		}
+		break;
+
 	default:
-		STE_CONN_ERR("Unknown ioctl command");
+		STE_CONN_ERR("Unknown ioctl command %08X", cmd);
 		err = -EINVAL;
 		break;
 	};
@@ -690,7 +715,7 @@ void ste_conn_char_devices_init(int char_dev_usage, struct device *dev)
 	}
 
 	/* Initialize private data. */
-	char_info = kzalloc(sizeof(*char_info), GFP_KERNEL);
+	char_info = kzalloc(sizeof(*char_info), GFP_ATOMIC);
 	if (!char_info) {
 		STE_CONN_ERR("Could not alloc ste_conn_char_info struct.");
 		return;

@@ -1,17 +1,15 @@
 /*
- * file ste_conn.h
+ * include/linux/mfd/ste_conn.h
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
- * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson. * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
  */
 
 #ifndef _STE_CONN_H_
@@ -50,6 +48,18 @@ struct ste_conn_device {
 struct ste_conn_callbacks {
   void (*read_cb) (struct ste_conn_device *dev, struct sk_buff *skb);
   void (*reset_cb) (struct ste_conn_device *dev);
+};
+
+/**
+  * struct ste_conn_revision_data - Contains revision data for the local controller.
+  * @revision:  Revision of the controller, e.g. to indicate that it is a CG2900 controller.
+  * @sub_version: Subversion of the controller, e.g. to indicate a certain tape-out of the controller.
+  *
+  * The values to match retrieved values to each controller may be retrieved from the manufacturer.
+  */
+struct ste_conn_revision_data {
+	int revision;
+	int sub_version;
 };
 
 /**
@@ -113,5 +123,19 @@ extern struct sk_buff *ste_conn_alloc_skb(unsigned int size, gfp_t priority);
  *   Error codes returned from cpd_enable_hci_logger.
  */
 extern int ste_conn_write(struct ste_conn_device *dev, struct sk_buff *skb);
+
+/**
+ * ste_conn_get_local_revision() - Read revision of the controller connected to this driver.
+ * @rev_data: Revision data structure to fill. Must be allocated by caller.
+ *
+ * The ste_conn_get_local_revision() function returns the revision data of the
+ * local controller if available. If data is not available, e.g. because the
+ * controller has not yet been started this function will return false.
+ *
+ * Returns:
+ *   true if revision data is available.
+ *   false if no revision data is available.
+ */
+extern bool ste_conn_get_local_revision(struct ste_conn_revision_data *rev_data);
 
 #endif /* _STE_CONN_H_ */

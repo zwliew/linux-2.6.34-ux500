@@ -1,17 +1,15 @@
 /*
- * file ste_conn_debug.h
+ * drivers/mfd/ste_conn/ste_conn_debug.h
  *
- * Copyright (C) ST-Ericsson AB 2010
- *
- * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
- * License terms: GNU General Public License (GPL), version 2
- *
+ * Copyright (C) ST-Ericsson SA 2010
  * Authors:
- * Pär-Gunnar Hjälmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
+ * Par-Gunnar Hjalmdahl (par-gunnar.p.hjalmdahl@stericsson.com) for ST-Ericsson.
  * Henrik Possung (henrik.possung@stericsson.com) for ST-Ericsson.
  * Josef Kindberg (josef.kindberg@stericsson.com) for ST-Ericsson.
  * Dariusz Szymszak (dariusz.xd.szymczak@stericsson.com) for ST-Ericsson.
- * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson.
+ * Kjell Andersson (kjell.k.andersson@stericsson.com) for ST-Ericsson. * License terms:  GNU General Public License (GPL), version 2
+ *
+ * Linux Bluetooth HCI H:4 Driver for ST-Ericsson connectivity controller.
  */
 
 #ifndef _STE_CONN_DEBUG_H_
@@ -31,36 +29,42 @@ extern int ste_debug_level;
 	#define STE_CONN_DBG(fmt, arg...)
 	#define STE_CONN_INFO(fmt, arg...)
 	#define STE_CONN_ERR(fmt, arg...)
+	#define STE_CONN_ENTER(fmt, arg...)
+	#define STE_CONN_EXIT(fmt, arg...)
 #else
 	#define STE_CONN_DBG_DATA_CONTENT(fmt, arg...)					\
-	if (ste_debug_level >= 30)							\
-	{										\
+	if (ste_debug_level >= 30) {							\
 		printk(KERN_DEBUG "STE_CONN %s: " fmt "\n" , __func__ , ## arg);	\
 	}
 
 	#define STE_CONN_DBG_DATA(fmt, arg...)						\
-	if (ste_debug_level >= 25)							\
-	{										\
+	if (ste_debug_level >= 25) {							\
 		printk(KERN_DEBUG "STE_CONN %s: " fmt "\n" , __func__ , ## arg);	\
 	}
 
 	#define STE_CONN_DBG(fmt, arg...)						\
-	if (ste_debug_level >= 20)							\
-	{										\
+	if (ste_debug_level >= 20) {							\
 		printk(KERN_DEBUG "STE_CONN %s: " fmt "\n" , __func__ , ## arg);	\
 	}
 
 	#define STE_CONN_INFO(fmt, arg...)				\
-	if (ste_debug_level >= 10)					\
-	{								\
+	if (ste_debug_level >= 10) {					\
 		printk(KERN_INFO "STE_CONN: " fmt "\n" , ## arg);	\
 	}
 
-
 	#define STE_CONN_ERR(fmt, arg...)					\
-	if (ste_debug_level >= 1)						\
-	{									\
+	if (ste_debug_level >= 1) {						\
 		printk(KERN_ERR  "STE_CONN %s: " fmt "\n" , __func__ , ## arg);	\
+	}
+
+	#define STE_CONN_ENTER\
+	if (ste_debug_level >= 25) {					\
+		printk(KERN_DEBUG "STE_CONN_ENTER: %s \n" , __func__);	\
+	}
+
+	#define STE_CONN_EXIT\
+	if (ste_debug_level >= 25) {					\
+		printk(KERN_DEBUG "STE_CONN_EXIT: %s \n" , __func__);	\
 	}
 
 #endif /* NDEBUG */

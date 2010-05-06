@@ -8,3 +8,8 @@ ste_conn-objs                    := ste_conn_ccd.o ste_conn_cpd.o ste_conn_char_
 export-objs                      := ste_conn_cpd.o
 
 obj-$(CONFIG_MFD_STE_CONN_BLUEZ) += ste_conn_hci_driver.o
+
+obj-$(CONFIG_MFD_STE_CG29XX_AUDIO) += ste_cg29xx_audio.o
+
+obj-$(CONFIG_MFD_STE_CONN_CG2900) += ste_cg2900.o
+obj-$(CONFIG_MFD_STE_CONN_STLC2690) += ste_stlc2690.o
