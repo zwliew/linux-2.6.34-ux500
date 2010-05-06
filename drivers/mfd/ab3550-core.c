@@ -1,115 +1,110 @@
 /*
- * Copyright (C) 2007-2009 ST-Ericsson
- * License terms: GNU General Public License (GPL) version 2
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License Terms: GNU General Public License v2
+ * Author: Bengt Jonsson <bengt.g.jonsson@stericsson.com>
+ * Author: Mattias Nilsson <mattias.i.nilsson@stericsson.com>
+ * Author: Mattias Wallin <mattias.wallin@stericsson.com>
+ * Author: Rickard Andersson <rickard.andersson@stericsson.com>
+ *
  * Low-level core for exclusive access to the AB3550 IC on the I2C bus
  * and some basic chip-configuration.
- * Author: Bengt Jönsson <bengt.g.jonsson@stericsson.com>
- * Author: Mattias Nilsson <mattias.i.nilsson@stericsson.com>
  */
 
 #include <linux/i2c.h>
 #include <linux/mutex.h>
-#include <linux/notifier.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
-#include <linux/device.h>
 #include <linux/slab.h>
+#include <linux/device.h>
+#include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/random.h>
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
-#include <linux/mfd/abx.h>
+#include <linux/mfd/abx500.h>
+#include <linux/list.h>
+#include <linux/bitops.h>
+#include <linux/spinlock.h>
+#include <linux/mfd/core.h>
+#include <linux/version.h>
 
-/* */
-#define ABX_NAME_STRING "ab3550"
-#define ABX_ID_FORMAT_STRING "AB3550 %s"
+#define AB3550_NAME_STRING "ab3550"
+#define AB3550_ID_FORMAT_STRING "AB3550 %s"
+#define AB3550_NUM_BANKS 2
+#define AB3550_NUM_EVENT_REG 5
 
 /* These are the only registers inside AB3550 used in this main file */
 
 /* Chip ID register */
-#define ABX_CID_BANK          0
-#define ABX_CID_REG           0x20
+#define AB3550_CID_REG           0x20
 
 /* Interrupt event registers */
-#define ABX_EVENT_BANK        0
-#define ABX_EVENT_REG         0x22
-
-/* Interrupt mask registers */
-#define AB3550_IMR3 0x2b
+#define AB3550_EVENT_BANK        0
+#define AB3550_EVENT_REG         0x22
 
 /* Read/write operation values. */
-#define ABX_PERM_RD (0x01)
-#define ABX_PERM_WR (0x02)
+#define AB3550_PERM_RD (0x01)
+#define AB3550_PERM_WR (0x02)
 
 /* Read/write permissions. */
-#define ABX_PERM_RO (ABX_PERM_RD)
-#define ABX_PERM_RW (ABX_PERM_RD | ABX_PERM_WR)
+#define AB3550_PERM_RO (AB3550_PERM_RD)
+#define AB3550_PERM_RW (AB3550_PERM_RD | AB3550_PERM_WR)
 
 /**
- * struct abx
- * @access_mutex: lock out concurrent accesses to the ABX registers
- * @dev: pointer to the containing device
+ * struct ab3550
+ * @access_mutex: lock out concurrent accesses to the AB registers
  * @i2c_client: I2C client for this chip
- * @testreg_client: secondary client for test registers
  * @chip_name: name of this chip variant
  * @chip_id: 8 bit chip ID for this chip variant
- * @work: an event handling worker
- * @event_subscribers: event subscribers are listed here
- * @events: current events, owned by the interrupt handler and worker
+ * @mask_work: a worker for writing to mask registers
+ * @event_lock: a lock to protect the event_mask
+ * @event_mask: a local copy of the mask event registers
  * @startup_events: a copy of the first reading of the event registers
  * @startup_events_read: whether the first events have been read
- * @devlist: a list of handles for the subdevices
- *
- * This struct is PRIVATE and devices using it should NOT
- * access ANY fields.
  */
-struct abx {
+struct ab3550 {
 	struct mutex access_mutex;
-	struct device *dev;
-	struct i2c_client *i2c_client[ABX_NUM_BANKS];
+	struct i2c_client *i2c_client[AB3550_NUM_BANKS];
 	char chip_name[32];
 	u8 chip_id;
-	struct work_struct work;
-	struct blocking_notifier_head event_subscribers;
-	u8 events[ABX_NUM_EVENT_REG];
-	u8 startup_events[ABX_NUM_EVENT_REG];
+	struct work_struct mask_work;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+	struct work_struct irq_work;
+#endif
+	spinlock_t event_lock;
+	u8 event_mask[AB3550_NUM_EVENT_REG];
+	u8 startup_events[AB3550_NUM_EVENT_REG];
 	bool startup_events_read;
-	struct abx_dev *devlist;
+#ifdef CONFIG_DEBUG_FS
+	unsigned int debug_bank;
+	unsigned int debug_address;
+#endif
 };
 
 /**
- * struct abx_reg_range
+ * struct ab3550_reg_range
  * @first: the first address of the range
  * @last: the last address of the range
  * @perm: access permissions for the range
  */
-struct abx_reg_range {
+struct ab3550_reg_range {
 	u8 first;
 	u8 last;
 	u8 perm;
 };
 
 /**
- * struct abx_reg_ranges
+ * struct ab3550_reg_ranges
  * @count: the number of ranges in the list
  * @range: the list of register ranges
  */
-struct abx_reg_ranges {
+struct ab3550_reg_ranges {
 	u8 count;
-	const struct abx_reg_range *range;
+	const struct ab3550_reg_range *range;
 };
-
-/**
- * struct abx_devinfo
- * @pdev: a platform device structure for the subdevice
- * @reg_ranges: a list of register access permissions for the subdevice
- */
-struct abx_devinfo {
-	struct platform_device pdev;
-	const struct abx_reg_ranges reg_ranges[ABX_NUM_BANKS];
-};
-
 
 /*
  * Permissible register ranges for reading and writing per device and bank.
@@ -118,452 +113,422 @@ struct abx_devinfo {
  * allowed. It is assumed that write permission implies read permission
  * (i.e. only RO and RW permissions should be used).  Ranges with write
  * permission must not be split up.
- *
- * TODO:These lists will have to be updated when more is known about Petronella.
  */
 
 #define NO_RANGE {.count = 0, .range = NULL,}
 
-static struct abx_devinfo ab3550_devs[] = {
-	{
-		.pdev = {
-			.name = "ab3550-dac",
-			.id = -1,
+static struct
+ab3550_reg_ranges ab3550_reg_ranges[AB3550_NUM_DEVICES][AB3550_NUM_BANKS] = {
+	[AB3550_DEVID_DAC] = {
+		NO_RANGE,
+		{
+			.count = 2,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0xb0,
+					.last = 0xba,
+					.perm = AB3550_PERM_RW,
+				},
+				{
+					.first = 0xbc,
+					.last = 0xc3,
+					.perm = AB3550_PERM_RW,
+				},
+			},
 		},
-		.reg_ranges = {
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
+	},
+	[AB3550_DEVID_LEDS] = {
+		NO_RANGE,
+		{
+			.count = 2,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x5a,
+					.last = 0x88,
+					.perm = AB3550_PERM_RW,
+				},
+				{
+					.first = 0x8a,
+					.last = 0xad,
+					.perm = AB3550_PERM_RW,
+				},
+			}
+		},
+	},
+	[AB3550_DEVID_POWER] = {
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x21,
+					.last = 0x21,
+					.perm = AB3550_PERM_RO,
+				},
+			}
+		},
+		NO_RANGE,
+	},
+	[AB3550_DEVID_REGULATORS] = {
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x69,
+					.last = 0xa3,
+					.perm = AB3550_PERM_RW,
+				},
+			}
+		},
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x14,
+					.last = 0x16,
+					.perm = AB3550_PERM_RW,
+				},
+			}
+		},
+	},
+	[AB3550_DEVID_SIM] = {
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x21,
+					.last = 0x21,
+					.perm = AB3550_PERM_RO,
+				},
+			}
+		},
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x14,
+					.last = 0x17,
+					.perm = AB3550_PERM_RW,
+				},
+			}
 
-			},
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0xb0,
-						.last = 0xc3,
-						.perm = ABX_PERM_RW,
-					},
-				}
+		},
+	},
+	[AB3550_DEVID_UART] = {
+		NO_RANGE,
+		NO_RANGE,
+	},
+	[AB3550_DEVID_RTC] = {
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x00,
+					.last = 0x0c,
+					.perm = AB3550_PERM_RW,
+				},
+			}
+		},
+		NO_RANGE,
+	},
+	[AB3550_DEVID_CHARGER] = {
+		{
+			.count = 2,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x10,
+					.last = 0x1a,
+					.perm = AB3550_PERM_RW,
+				},
+				{
+					.first = 0x21,
+					.last = 0x21,
+					.perm = AB3550_PERM_RO,
+				},
+			}
+		},
+		NO_RANGE,
+	},
+	[AB3550_DEVID_ADC] = {
+		NO_RANGE,
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x20,
+					.last = 0x56,
+					.perm = AB3550_PERM_RW,
+				},
 
-			},
+			}
 		},
 	},
-	{
-		.pdev = {
-			.name = "ab3550-leds",
-			.id = -1,
+	[AB3550_DEVID_FUELGAUGE] = {
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x21,
+					.last = 0x21,
+					.perm = AB3550_PERM_RO,
+				},
+			}
 		},
-		.reg_ranges = {
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x00,
+					.last = 0x0e,
+					.perm = AB3550_PERM_RW,
+				},
+			}
+		},
+	},
+	[AB3550_DEVID_VIBRATOR] = {
+		NO_RANGE,
+		{
+			.count = 1,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x10,
+					.last = 0x13,
+					.perm = AB3550_PERM_RW,
+				},
 
-			},
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x5a,
-						.last = 0xad,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
+			}
 		},
 	},
-	{
-		.pdev = {
-			.name = "ab3550-power",
-			.id = -1,
+	[AB3550_DEVID_CODEC] = {
+		{
+			.count = 2,
+			.range = (struct ab3550_reg_range[]) {
+				{
+					.first = 0x31,
+					.last = 0x63,
+					.perm = AB3550_PERM_RW,
+				},
+				{
+					.first = 0x65,
+					.last = 0x68,
+					.perm = AB3550_PERM_RW,
+				},
+			}
 		},
-		.reg_ranges = {
-			{
-				.count = 2,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x21,
-						.last = 0x21,
-						.perm = ABX_PERM_RO,
-					},
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-
-				}
-
-			},
-			NO_RANGE,
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-regulators",
-			.id = -1,
-		},
-		.reg_ranges = {
-
-			{
-				.count = 2,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-					{
-						.first = 0x69,
-						.last = 0xa4,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			NO_RANGE,
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-sim",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 2,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x21,
-						.last = 0x21,
-						.perm = ABX_PERM_RO,
-					},
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x14,
-						.last = 0x18,
-						.perm = ABX_PERM_RW,
-					},
-				}
-
-			},
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-uart",
-			.id = -1,
-		},
-		.reg_ranges = {
-			NO_RANGE,
-			NO_RANGE,
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-rtc",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 2,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x00,
-						.last = 0x0c,
-						.perm = ABX_PERM_RW,
-					},
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			NO_RANGE,
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-charger",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 3,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x10,
-						.last = 0x1c,
-						.perm = ABX_PERM_RW,
-					},
-					{
-						.first = 0x21,
-						.last = 0x21,
-						.perm = ABX_PERM_RO,
-					},
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			NO_RANGE,
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-adc",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-
-				}
-			},
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x20,
-						.last = 0x57,
-						.perm = ABX_PERM_RW,
-					},
-
-				}
-			},
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-fuelgauge",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 2,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x21,
-						.last = 0x21,
-						.perm = ABX_PERM_RO,
-					},
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x00,
-						.last = 0x0f,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-		},
-	},
-	{
-		.pdev = {
-			.name = "ab3550-vibrator",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			{
-				.count = 1,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x10,
-						.last = 0x13,
-						.perm = ABX_PERM_RW,
-					},
-
-				}
-			},
-		},
-	},
-	{
-		/* The codec entry must be the last one as long as the function
-		 * get_u300_codec_device (defined below) exists.
-		 */
-		.pdev = {
-			.name = "ab3550-codec",
-			.id = -1,
-		},
-		.reg_ranges = {
-			{
-				.count = 2,
-				.range = (struct abx_reg_range[]) {
-					{
-						.first = 0x29,
-						.last = 0x2d,
-						.perm = ABX_PERM_RW,
-					},
-					{
-						.first = 0x31,
-						.last = 0x68,
-						.perm = ABX_PERM_RW,
-					},
-				}
-			},
-			NO_RANGE,
-		},
+		NO_RANGE,
 	},
 };
 
-u8 abx_get_chip_type(struct abx_dev *abx_dev)
-{
-	u8 chip = ABUNKNOWN;
-
-	switch (abx_dev->abx->chip_id & 0xf0) {
-	case 0xa0:
-		chip = AB3000;
-		break;
-	case 0xc0:
-		chip = AB3100;
-		break;
-	case 0x10:
-		chip = AB3550;
-		break;
-	}
-	return chip;
-}
-EXPORT_SYMBOL(abx_get_chip_type);
+static struct mfd_cell ab3550_devs[AB3550_NUM_DEVICES] = {
+	[AB3550_DEVID_DAC] = {
+		.name = "ab3550-dac",
+		.id = AB3550_DEVID_DAC,
+		.num_resources = 0,
+	},
+	[AB3550_DEVID_LEDS] = {
+		.name = "ab3550-leds",
+		.id = AB3550_DEVID_LEDS,
+	},
+	[AB3550_DEVID_POWER] = {
+		.name = "ab3550-power",
+		.id = AB3550_DEVID_POWER,
+	},
+	[AB3550_DEVID_REGULATORS] = {
+		.name = "ab3550-regulators",
+		.id = AB3550_DEVID_REGULATORS,
+	},
+	[AB3550_DEVID_SIM] = {
+		.name = "ab3550-sim",
+		.id = AB3550_DEVID_SIM,
+	},
+	[AB3550_DEVID_UART] = {
+		.name = "ab3550-uart",
+		.id = AB3550_DEVID_UART,
+	},
+	[AB3550_DEVID_RTC] = {
+		.name = "ab3550-rtc",
+		.id = AB3550_DEVID_RTC,
+	},
+	[AB3550_DEVID_CHARGER] = {
+		.name = "ab3550-charger",
+		.id = AB3550_DEVID_CHARGER,
+	},
+	[AB3550_DEVID_ADC] = {
+		.name = "ab3550-adc",
+		.id = AB3550_DEVID_ADC,
+		.num_resources = 10,
+		.resources = (struct resource[]) {
+			{
+				.name = "TRIGGER-0",
+				.flags = IORESOURCE_IRQ,
+				.start = 16,
+				.end = 16,
+			},
+			{
+				.name = "TRIGGER-1",
+				.flags = IORESOURCE_IRQ,
+				.start = 17,
+				.end = 17,
+			},
+			{
+				.name = "TRIGGER-2",
+				.flags = IORESOURCE_IRQ,
+				.start = 18,
+				.end = 18,
+			},
+			{
+				.name = "TRIGGER-3",
+				.flags = IORESOURCE_IRQ,
+				.start = 19,
+				.end = 19,
+			},
+			{
+				.name = "TRIGGER-4",
+				.flags = IORESOURCE_IRQ,
+				.start = 20,
+				.end = 20,
+			},
+			{
+				.name = "TRIGGER-5",
+				.flags = IORESOURCE_IRQ,
+				.start = 21,
+				.end = 21,
+			},
+			{
+				.name = "TRIGGER-6",
+				.flags = IORESOURCE_IRQ,
+				.start = 22,
+				.end = 22,
+			},
+			{
+				.name = "TRIGGER-7",
+				.flags = IORESOURCE_IRQ,
+				.start = 23,
+				.end = 23,
+			},
+			{
+				.name = "TRIGGER-VBAT-TXON",
+				.flags = IORESOURCE_IRQ,
+				.start = 13,
+				.end = 13,
+			},
+			{
+				.name = "TRIGGER-VBAT",
+				.flags = IORESOURCE_IRQ,
+				.start = 12,
+				.end = 12,
+			},
+		},
+	},
+	[AB3550_DEVID_FUELGAUGE] = {
+		.name = "ab3550-fuelgauge",
+		.id = AB3550_DEVID_FUELGAUGE,
+	},
+	[AB3550_DEVID_VIBRATOR] = {
+		.name = "ab3550-vibrator",
+		.id = AB3550_DEVID_VIBRATOR,
+	},
+	[AB3550_DEVID_CODEC] = {
+		.name = "ab3550-codec",
+		.id = AB3550_DEVID_CODEC,
+	},
+};
 
 /*
  * I2C transactions with error messages.
  */
-static int abx_i2c_master_send(struct abx *abx, u8 bank, u8 *data, u8 count)
+static int ab3550_i2c_master_send(struct ab3550 *ab, u8 bank, u8 *data,
+	u8 count)
 {
 	int err;
 
-	err = i2c_master_send(abx->i2c_client[bank], data, count);
-	if (err < 0)
-		dev_err(abx->dev, "send error: %d\n", err);
-	else
-		err = 0;
-	return err;
+	err = i2c_master_send(ab->i2c_client[bank], data, count);
+	if (err < 0) {
+		dev_err(&ab->i2c_client[0]->dev, "send error: %d\n", err);
+		return err;
+	}
+	return 0;
 }
 
-static int abx_i2c_master_recv(struct abx *abx, u8 bank, u8 reg, u8 *data)
+static int ab3550_i2c_master_recv(struct ab3550 *ab, u8 bank, u8 *data,
+	u8 count)
 {
 	int err;
-	struct i2c_msg msg[2];
 
-	msg[0].addr = abx->i2c_client[bank]->addr;
-	msg[0].flags = 0x0;
-	msg[0].len = 1;
-	msg[0].buf = &reg;
-
-	msg[1].addr = abx->i2c_client[bank]->addr;
-	msg[1].flags = I2C_M_RD;
-	msg[1].len = 1;
-	msg[1].buf = data;
-
-	err = i2c_transfer(abx->i2c_client[bank]->adapter, msg, 2);
-	if (err < 0)
-		dev_err(abx->dev, "receive error: %d\n", err);
-	else
-		err = 0;
-	return err;
+	err = i2c_master_recv(ab->i2c_client[bank], data, count);
+	if (err < 0) {
+		dev_err(&ab->i2c_client[0]->dev, "receive error: %d\n", err);
+		return err;
+	}
+	return 0;
 }
 
 /*
- * Functionality for getting/setting mixed signal registers
+ * Functionality for getting/setting register values.
  */
-static int get_register_interruptible(struct abx *abx, u8 bank, u8 reg,
-		u8 *value)
+static int get_register_interruptible(struct ab3550 *ab, u8 bank, u8 reg,
+	u8 *value)
 {
 	int err;
 
-	err = mutex_lock_interruptible(&abx->access_mutex);
+	err = mutex_lock_interruptible(&ab->access_mutex);
 	if (err)
 		return err;
-	err = abx_i2c_master_recv(abx, bank, reg, value);
-	mutex_unlock(&abx->access_mutex);
+
+	err = ab3550_i2c_master_send(ab, bank, &reg, 1);
+	if (!err)
+		err = ab3550_i2c_master_recv(ab, bank, value, 1);
+
+	mutex_unlock(&ab->access_mutex);
 	return err;
 }
 
-static int get_register_page_interruptible(struct abx *abx, u8 bank,
-		u8 first_reg, u8 *regvals, u8 numregs)
+static int get_register_page_interruptible(struct ab3550 *ab, u8 bank,
+	u8 first_reg, u8 *regvals, u8 numregs)
 {
-	BUG();
-	return -EINVAL;
+	int err;
+
+	err = mutex_lock_interruptible(&ab->access_mutex);
+	if (err)
+		return err;
+
+	err = ab3550_i2c_master_send(ab, bank, &first_reg, 1);
+	if (!err)
+		err = ab3550_i2c_master_recv(ab, bank, regvals, numregs);
+
+	mutex_unlock(&ab->access_mutex);
+	return err;
 }
 
-static int mask_and_set_register_interruptible(struct abx *abx, u8 bank,
-	       u8 reg, u8 bitmask, u8 bitvalues)
+static int mask_and_set_register_interruptible(struct ab3550 *ab, u8 bank,
+	u8 reg, u8 bitmask, u8 bitvalues)
 {
 	int err = 0;
 
-	if (likely(bitmask)) {
+	if (bitmask) {
 		u8 reg_bits[2] = {reg, 0};
 
-		err = mutex_lock_interruptible(&abx->access_mutex);
+		err = mutex_lock_interruptible(&ab->access_mutex);
 		if (err)
 			return err;
 
-		if (bitmask == 0xFF) /* No need to read in this case */
+		if (bitmask == 0xFF) /* No need to read in this case. */
 			reg_bits[1] = bitvalues;
-		else {
+		else { /* Read and modify the register value. */
 			u8 bits;
 
-			/* First read out the target register. */
-			err = abx_i2c_master_recv(abx, bank, reg, &bits);
+			err = ab3550_i2c_master_send(ab, bank, &reg, 1);
 			if (err)
 				goto unlock_and_return;
-
-			/* Modify the bits. */
+			err = ab3550_i2c_master_recv(ab, bank, &bits, 1);
+			if (err)
+				goto unlock_and_return;
 			reg_bits[1] = ((~bitmask & bits) |
-				       (bitmask & bitvalues));
+				(bitmask & bitvalues));
 		}
-		/* Write the register */
-		err = abx_i2c_master_send(abx, bank, reg_bits, 2);
-
+		/* Write the new value. */
+		err = ab3550_i2c_master_send(ab, bank, reg_bits, 2);
 unlock_and_return:
-		mutex_unlock(&abx->access_mutex);
+		mutex_unlock(&ab->access_mutex);
 	}
 	return err;
 }
@@ -571,30 +536,31 @@ unlock_and_return:
 /*
  * Read/write permission checking functions.
  */
-static bool page_write_allowed(const struct abx_reg_ranges *ranges,
+static bool page_write_allowed(const struct ab3550_reg_ranges *ranges,
 	u8 first_reg, u8 last_reg)
 {
 	u8 i;
 
 	if (last_reg < first_reg)
 		return false;
+
 	for (i = 0; i < ranges->count; i++) {
 		if (first_reg < ranges->range[i].first)
 			break;
 		if ((last_reg <= ranges->range[i].last) &&
-			(ranges->range[i].perm & ABX_PERM_WR))
+			(ranges->range[i].perm & AB3550_PERM_WR))
 			return true;
 	}
 	return false;
 }
 
-static bool reg_write_allowed(const struct abx_reg_ranges *ranges, u8 reg)
+static bool reg_write_allowed(const struct ab3550_reg_ranges *ranges, u8 reg)
 {
 	return page_write_allowed(ranges, reg, reg);
 }
 
-static bool page_read_allowed(const struct abx_reg_ranges *ranges, u8 first_reg,
-		u8 last_reg)
+static bool page_read_allowed(const struct ab3550_reg_ranges *ranges,
+	u8 first_reg, u8 last_reg)
 {
 	u8 i;
 
@@ -610,19 +576,20 @@ static bool page_read_allowed(const struct abx_reg_ranges *ranges, u8 first_reg,
 	/* Make sure that the entire range up to and including last_reg is
 	 * readable. This may span several of the ranges in the list.
 	 */
-	while ((i < ranges->count) && (ranges->range[i].perm & ABX_PERM_RD)) {
+	while ((i < ranges->count) &&
+		(ranges->range[i].perm & AB3550_PERM_RD)) {
 		if (last_reg <= ranges->range[i].last)
 			return true;
 		if ((++i >= ranges->count) ||
 			(ranges->range[i].first !=
-				(ranges->range[i - 1].last + 1))) {
+			 (ranges->range[i - 1].last + 1))) {
 			break;
 		}
 	}
 	return false;
 }
 
-static bool reg_read_allowed(const struct abx_reg_ranges *ranges, u8 reg)
+static bool reg_read_allowed(const struct ab3550_reg_ranges *ranges, u8 reg)
 {
 	return page_read_allowed(ranges, reg, reg);
 }
@@ -630,125 +597,252 @@ static bool reg_read_allowed(const struct abx_reg_ranges *ranges, u8 reg)
 /*
  * The exported register access functionality.
  */
-int abx_set_register_interruptible(struct abx_dev *abx_dev, u8 bank, u8 reg,
-	u8 value)
+int ab3550_get_chip_id(struct device *dev)
 {
-	return abx_mask_and_set_register_interruptible(abx_dev, bank, reg,
-						       0xFF, value);
+	struct ab3550 *ab = dev_get_drvdata(dev->parent);
+	return (int)ab->chip_id;
 }
-EXPORT_SYMBOL(abx_set_register_interruptible);
 
-int abx_get_register_interruptible(struct abx_dev *abx_dev, u8 bank, u8 reg,
-	 u8 *value)
+int ab3550_mask_and_set_register_interruptible(struct device *dev, u8 bank,
+	u8 reg, u8 bitmask, u8 bitvalues)
 {
-	if ((ABX_NUM_BANKS <= bank) ||
-		!reg_read_allowed(&abx_dev->devinfo->reg_ranges[bank], reg))
+	struct ab3550 *ab;
+	struct platform_device *pdev = to_platform_device(dev);
+
+	if ((AB3550_NUM_BANKS <= bank) ||
+		!reg_write_allowed(&ab3550_reg_ranges[pdev->id][bank], reg))
 		return -EINVAL;
 
-	return get_register_interruptible(abx_dev->abx, bank, reg, value);
+	ab = dev_get_drvdata(dev->parent);
+	return mask_and_set_register_interruptible(ab, bank, reg,
+		bitmask, bitvalues);
 }
-EXPORT_SYMBOL(abx_get_register_interruptible);
 
-int abx_get_register_page_interruptible(struct abx_dev *abx_dev, u8 bank,
+int ab3550_set_register_interruptible(struct device *dev, u8 bank, u8 reg,
+	u8 value)
+{
+	return ab3550_mask_and_set_register_interruptible(dev, bank, reg, 0xFF,
+		value);
+}
+
+int ab3550_get_register_interruptible(struct device *dev, u8 bank, u8 reg,
+	u8 *value)
+{
+	struct ab3550 *ab;
+	struct platform_device *pdev = to_platform_device(dev);
+
+	if ((AB3550_NUM_BANKS <= bank) ||
+		!reg_read_allowed(&ab3550_reg_ranges[pdev->id][bank], reg))
+		return -EINVAL;
+
+	ab = dev_get_drvdata(dev->parent);
+	return get_register_interruptible(ab, bank, reg, value);
+}
+
+int ab3550_get_register_page_interruptible(struct device *dev, u8 bank,
 	u8 first_reg, u8 *regvals, u8 numregs)
 {
-	if ((ABX_NUM_BANKS <= bank) ||
-		!page_read_allowed(&abx_dev->devinfo->reg_ranges[bank],
+	struct ab3550 *ab;
+	struct platform_device *pdev = to_platform_device(dev);
+
+	if ((AB3550_NUM_BANKS <= bank) ||
+		!page_read_allowed(&ab3550_reg_ranges[pdev->id][bank],
 			first_reg, (first_reg + numregs - 1)))
 		return -EINVAL;
 
-	return get_register_page_interruptible(abx_dev->abx, bank, first_reg,
-		regvals, numregs);
+	ab = dev_get_drvdata(dev->parent);
+	return get_register_page_interruptible(ab, bank, first_reg, regvals,
+		numregs);
 }
-EXPORT_SYMBOL(abx_get_register_page_interruptible);
 
-int abx_mask_and_set_register_interruptible(struct abx_dev *abx_dev, u8 bank,
-	 u8 reg, u8 bitmask, u8 bitvalues)
+int ab3550_event_registers_startup_state_get(struct device *dev, u8 *event)
 {
-	if ((ABX_NUM_BANKS <= bank) ||
-		!reg_write_allowed(&abx_dev->devinfo->reg_ranges[bank], reg))
-		return -EINVAL;
+	struct ab3550 *ab;
 
-	return mask_and_set_register_interruptible(abx_dev->abx, bank, reg,
-		 bitmask, bitvalues);
-}
-EXPORT_SYMBOL(abx_mask_and_set_register_interruptible);
-
-/*
- * Register a simple callback for handling any AB3550 events.
- */
-int abx_event_register(struct abx_dev *abx_dev, struct notifier_block *nb)
-{
-	return blocking_notifier_chain_register(
-			&abx_dev->abx->event_subscribers, nb);
-}
-EXPORT_SYMBOL(abx_event_register);
-
-/*
- * Remove a previously registered callback.
- */
-int abx_event_unregister(struct abx_dev *abx_dev, struct notifier_block *nb)
-{
-	return blocking_notifier_chain_unregister(
-			&abx_dev->abx->event_subscribers, nb);
-}
-EXPORT_SYMBOL(abx_event_unregister);
-
-int abx_event_registers_startup_state_get(struct abx_dev *abx_dev, u8 *event)
-{
-	if (!abx_dev->abx->startup_events_read)
+	ab = dev_get_drvdata(dev->parent);
+	if (!ab->startup_events_read)
 		return -EAGAIN; /* Try again later */
-	memcpy(event, abx_dev->abx->startup_events, ABX_NUM_EVENT_REG);
+
+	memcpy(event, ab->startup_events, AB3550_NUM_EVENT_REG);
 	return 0;
 }
-EXPORT_SYMBOL(abx_event_registers_startup_state_get);
 
-/* Interrupt handling worker */
-static void abx_work(struct work_struct *work)
+int ab3550_startup_irq_enabled(struct device *dev, unsigned int irq)
 {
-	struct abx *abx = container_of(work, struct abx, work);
-	int err;
-	int i;
+	struct ab3550 *ab;
+	struct ab3550_platform_data *plf_data;
+	bool val;
 
-	err = get_register_page_interruptible(abx, ABX_EVENT_BANK,
-		ABX_EVENT_REG, abx->events, ABX_NUM_EVENT_REG);
+	ab = get_irq_chip_data(irq);
+	plf_data = ab->i2c_client[0]->dev.platform_data;
+	irq -= plf_data->irq.base;
+	val = ((ab->startup_events[irq / 8] & BIT(irq % 8)) != 0);
+
+	return val;
+}
+
+static struct abx500_ops ab3550_ops = {
+	.get_chip_id = ab3550_get_chip_id,
+	.get_register = ab3550_get_register_interruptible,
+	.set_register = ab3550_set_register_interruptible,
+	.get_register_page = ab3550_get_register_page_interruptible,
+	.set_register_page = NULL,
+	.mask_and_set_register = ab3550_mask_and_set_register_interruptible,
+	.event_registers_startup_state_get =
+		ab3550_event_registers_startup_state_get,
+	.startup_irq_enabled = ab3550_startup_irq_enabled,
+};
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+static irqreturn_t ab3550_irq_handler(int irq, void *data)
+{
+	struct ab3550 *ab = data;
+	/*
+	 * Disable the IRQ and dispatch a worker to handle the
+	 * event. Since the chip resides on I2C this is slow
+	 * stuff and we will re-enable the interrupts once the
+	 * worker has finished.
+	 */
+	disable_irq_nosync(irq);
+	schedule_work(&ab->irq_work);
+	return IRQ_HANDLED;
+}
+static void ab3550_irq_work(struct work_struct *work)
+{
+	struct ab3550 *ab = container_of(work, struct ab3550, irq_work);
+	int err;
+	unsigned int i;
+	u8 e[AB3550_NUM_EVENT_REG];
+	u8 *events;
+	unsigned long flags;
+
+	events = (ab->startup_events_read ? e : ab->startup_events);
+	err = get_register_page_interruptible(ab, AB3550_EVENT_BANK,
+		AB3550_EVENT_REG, events, AB3550_NUM_EVENT_REG);
 	if (err)
 		goto err_event_wq;
-
-	if (!abx->startup_events_read) {
-		memcpy(abx->startup_events, abx->events, ABX_NUM_EVENT_REG);
-		abx->startup_events_read = true;
+	if (!ab->startup_events_read) {
+		dev_info(&ab->i2c_client[0]->dev,
+			"startup events 0x%x,0x%x,0x%x,0x%x,0x%x\n",
+			ab->startup_events[0], ab->startup_events[1],
+			ab->startup_events[2], ab->startup_events[3],
+			ab->startup_events[4]);
+		ab->startup_events_read = true;
+		goto out;
 	}
+	events[4] &= 0x3f; /* The two highest bits in event[4] are not used. */
+	spin_lock_irqsave(&ab->event_lock, flags);
+	for (i = 0; i < AB3550_NUM_EVENT_REG; i++)
+		events[i] &= ~ab->event_mask[i];
+	spin_unlock_irqrestore(&ab->event_lock, flags);
 
-	/*
-	 * The notified parties will have to mask out the events
-	 * they're interested in and react to them. They will be
-	 * notified on all events, then they use the event array
-	 * to determine if they're interested.
+	/* TODO: Can this disabling be "merged" with the
+	 *       spin_lock_irqsave/spin_unlock_irqrestore above?
 	 */
-	blocking_notifier_call_chain(&abx->event_subscribers, ABX_NUM_EVENT_REG,
-		abx->events);
+	local_irq_disable();
+	for (i = 0; i < AB3550_NUM_EVENT_REG; i++) {
+		u8 bit;
+		u8 event_reg;
+		dev_dbg(&ab->i2c_client[0]->dev, "IRQ Event[%d]: 0x%2x\n",
+			i, events[i]);
+		event_reg = events[i];
+		for (bit = 0; event_reg; bit++, event_reg /= 2) {
+			if (event_reg % 2) {
+				unsigned int irq;
+				struct irq_desc *desc;
+				struct ab3550_platform_data *plf_data;
 
-	for (i = 0; i < ABX_NUM_EVENT_REG; i++)
-		dev_dbg(abx->dev, "IRQ Event[%d]: 0x%2x\n", i, abx->events[i]);
-
+				plf_data = ab->i2c_client[0]->dev.platform_data;
+				irq = plf_data->irq.base + (i * 8) + bit;
+				desc = irq_to_desc(irq);
+				if (desc->status & IRQ_DISABLED)
+					note_interrupt(irq, desc, IRQ_NONE);
+				else
+					desc->handle_irq(irq, desc);
+			}
+		}
+	}
+	local_irq_enable();
+out:
 	/* By now the IRQ should be acked and deasserted so enable it again */
-	enable_irq(abx->i2c_client[0]->irq);
+	enable_irq(ab->i2c_client[0]->irq);
 	return;
 
 err_event_wq:
-	dev_dbg(abx->dev, "error in event workqueue\n");
+	dev_dbg(&ab->i2c_client[0]->dev, "error in event workqueue\n");
 	/* Enable the IRQ anyway, what choice do we have? */
-	enable_irq(abx->i2c_client[0]->irq);
+	enable_irq(ab->i2c_client[0]->irq);
 	return;
 }
 
-#ifdef CONFIG_DEBUG_FS
+#else
+static irqreturn_t ab3550_irq_handler(int irq, void *data)
+{
+	struct ab3550 *ab = data;
+	int err;
+	unsigned int i;
+	u8 e[AB3550_NUM_EVENT_REG];
+	u8 *events;
+	unsigned long flags;
 
-static struct abx_reg_ranges debug_ranges[ABX_NUM_BANKS] = {
+	events = (ab->startup_events_read ? e : ab->startup_events);
+
+	err = get_register_page_interruptible(ab, AB3550_EVENT_BANK,
+		AB3550_EVENT_REG, events, AB3550_NUM_EVENT_REG);
+	if (err)
+		goto err_event_rd;
+
+	if (!ab->startup_events_read) {
+		dev_info(&ab->i2c_client[0]->dev,
+			"startup events 0x%x,0x%x,0x%x,0x%x,0x%x\n",
+			ab->startup_events[0], ab->startup_events[1],
+			ab->startup_events[2], ab->startup_events[3],
+			ab->startup_events[4]);
+		ab->startup_events_read = true;
+		goto out;
+	}
+
+	/* The two highest bits in event[4] are not used. */
+	events[4] &= 0x3f;
+
+	spin_lock_irqsave(&ab->event_lock, flags);
+	for (i = 0; i < AB3550_NUM_EVENT_REG; i++)
+		events[i] &= ~ab->event_mask[i];
+	spin_unlock_irqrestore(&ab->event_lock, flags);
+
+	for (i = 0; i < AB3550_NUM_EVENT_REG; i++) {
+		u8 bit;
+		u8 event_reg;
+
+		dev_dbg(&ab->i2c_client[0]->dev, "IRQ Event[%d]: 0x%2x\n",
+			i, events[i]);
+
+		event_reg = events[i];
+		for (bit = 0; event_reg; bit++, event_reg /= 2) {
+			if (event_reg % 2) {
+				unsigned int irq;
+				struct ab3550_platform_data *plf_data;
+
+				plf_data = ab->i2c_client[0]->dev.platform_data;
+				irq = plf_data->irq.base + (i * 8) + bit;
+				handle_nested_irq(irq);
+			}
+		}
+	}
+out:
+	return IRQ_HANDLED;
+
+err_event_rd:
+	dev_dbg(&ab->i2c_client[0]->dev, "error reading event registers\n");
+	return IRQ_HANDLED;
+}
+#endif
+
+#ifdef CONFIG_DEBUG_FS
+static struct ab3550_reg_ranges debug_ranges[AB3550_NUM_BANKS] = {
 	{
 		.count = 6,
-		.range = (struct abx_reg_range[]) {
+		.range = (struct ab3550_reg_range[]) {
 			{
 				.first = 0x00,
 				.last = 0x0e,
@@ -771,13 +865,13 @@ static struct abx_reg_ranges debug_ranges[ABX_NUM_BANKS] = {
 			},
 			{
 				.first = 0xa5,
-				.last = 0xa9,
+				.last = 0xa8,
 			},
 		}
 	},
 	{
-		.count = 5,
-		.range = (struct abx_reg_range[]) {
+		.count = 8,
+		.range = (struct ab3550_reg_range[]) {
 			{
 				.first = 0x00,
 				.last = 0x0e,
@@ -788,28 +882,40 @@ static struct abx_reg_ranges debug_ranges[ABX_NUM_BANKS] = {
 			},
 			{
 				.first = 0x1a,
+				.last = 0x1c,
+			},
+			{
+				.first = 0x20,
 				.last = 0x56,
 			},
 			{
 				.first = 0x5a,
-				.last = 0xac,
+				.last = 0x88,
+			},
+			{
+				.first = 0x8a,
+				.last = 0xad,
 			},
 			{
 				.first = 0xb0,
-				.last = 0xc2,
+				.last = 0xba,
+			},
+			{
+				.first = 0xbc,
+				.last = 0xc3,
 			},
 		}
 	},
 };
 
-static int abx_registers_print(struct seq_file *s, void *p)
+static int ab3550_registers_print(struct seq_file *s, void *p)
 {
-	struct abx *abx = s->private;
+	struct ab3550 *ab = s->private;
 	int bank;
 
-	seq_printf(s, ABX_NAME_STRING " register values:\n");
+	seq_printf(s, AB3550_NAME_STRING " register values:\n");
 
-	for (bank = 0; bank < ABX_NUM_BANKS; bank++) {
+	for (bank = 0; bank < AB3550_NUM_BANKS; bank++) {
 		unsigned int i;
 
 		seq_printf(s, " bank %d:\n", bank);
@@ -821,55 +927,144 @@ static int abx_registers_print(struct seq_file *s, void *p)
 				reg++) {
 				u8 value;
 
-				get_register_interruptible(abx, bank, reg,
+				get_register_interruptible(ab, bank, reg,
 					&value);
 				seq_printf(s, "  [%d/0x%02X]: 0x%02X\n", bank,
-					 reg, value);
+					reg, value);
 			}
 		}
 	}
 	return 0;
 }
 
-static int abx_registers_open(struct inode *inode, struct file *file)
+static int ab3550_registers_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, abx_registers_print, inode->i_private);
+	return single_open(file, ab3550_registers_print, inode->i_private);
 }
 
-static const struct file_operations abx_registers_fops = {
-	.open = abx_registers_open,
+static const struct file_operations ab3550_registers_fops = {
+	.open = ab3550_registers_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
 	.owner = THIS_MODULE,
 };
 
-struct abx_get_set_reg_priv {
-	struct abx *abx;
-	bool mode;
-};
-
-static int abx_get_set_reg_open_file(struct inode *inode, struct file *file)
+static int ab3550_bank_print(struct seq_file *s, void *p)
 {
-	file->private_data = inode->i_private;
+	struct ab3550 *ab = s->private;
+
+	seq_printf(s, "%d\n", ab->debug_bank);
 	return 0;
 }
 
-static ssize_t abx_get_set_reg(struct file *file,
-			      const char __user *user_buf,
-			      size_t count, loff_t *ppos)
+static int ab3550_bank_open(struct inode *inode, struct file *file)
 {
-	struct abx_get_set_reg_priv *priv = file->private_data;
-	struct abx *abx = priv->abx;
+	return single_open(file, ab3550_bank_print, inode->i_private);
+}
+
+static ssize_t ab3550_bank_write(struct file *file,
+	const char __user *user_buf,
+	size_t count, loff_t *ppos)
+{
+	struct ab3550 *ab = ((struct seq_file *)(file->private_data))->private;
 	char buf[32];
 	int buf_size;
-	int regp;
-	int bankp;
-	unsigned long user_reg;
 	unsigned long user_bank;
 	int err;
-	int i = 0;
 
+	/* Get userspace string and assure termination */
+	buf_size = min(count, (sizeof(buf) - 1));
+	if (copy_from_user(buf, user_buf, buf_size))
+		return -EFAULT;
+	buf[buf_size] = 0;
+
+	err = strict_strtoul(buf, 0, &user_bank);
+	if (err)
+		return -EINVAL;
+
+	if (user_bank >= AB3550_NUM_BANKS) {
+		dev_err(&ab->i2c_client[0]->dev,
+			"debugfs error input > number of banks\n");
+		return -EINVAL;
+	}
+
+	ab->debug_bank = user_bank;
+
+	return buf_size;
+}
+
+static int ab3550_address_print(struct seq_file *s, void *p)
+{
+	struct ab3550 *ab = s->private;
+
+	seq_printf(s, "0x%02X\n", ab->debug_address);
+	return 0;
+}
+
+static int ab3550_address_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ab3550_address_print, inode->i_private);
+}
+
+static ssize_t ab3550_address_write(struct file *file,
+	const char __user *user_buf,
+	size_t count, loff_t *ppos)
+{
+	struct ab3550 *ab = ((struct seq_file *)(file->private_data))->private;
+	char buf[32];
+	int buf_size;
+	unsigned long user_address;
+	int err;
+
+	/* Get userspace string and assure termination */
+	buf_size = min(count, (sizeof(buf) - 1));
+	if (copy_from_user(buf, user_buf, buf_size))
+		return -EFAULT;
+	buf[buf_size] = 0;
+
+	err = strict_strtoul(buf, 0, &user_address);
+	if (err)
+		return -EINVAL;
+	if (user_address > 0xff) {
+		dev_err(&ab->i2c_client[0]->dev,
+			"debugfs error input > 0xff\n");
+		return -EINVAL;
+	}
+	ab->debug_address = user_address;
+	return buf_size;
+}
+
+static int ab3550_val_print(struct seq_file *s, void *p)
+{
+	struct ab3550 *ab = s->private;
+	int err;
+	u8 regvalue;
+
+	err = get_register_interruptible(ab, (u8)ab->debug_bank,
+		(u8)ab->debug_address, &regvalue);
+	if (err)
+		return -EINVAL;
+	seq_printf(s, "0x%02X\n", regvalue);
+
+	return 0;
+}
+
+static int ab3550_val_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ab3550_val_print, inode->i_private);
+}
+
+static ssize_t ab3550_val_write(struct file *file,
+	const char __user *user_buf,
+	size_t count, loff_t *ppos)
+{
+	struct ab3550 *ab = ((struct seq_file *)(file->private_data))->private;
+	char buf[32];
+	int buf_size;
+	unsigned long user_val;
+	int err;
+	u8 regvalue;
 
 	/* Get userspace string and assure termination */
 	buf_size = min(count, (sizeof(buf)-1));
@@ -877,197 +1072,119 @@ static ssize_t abx_get_set_reg(struct file *file,
 		return -EFAULT;
 	buf[buf_size] = 0;
 
-	/*
-	 * The idea is here to parse a string which is either
-	 * "b 0xnn" for reading a register with adress 0xnn in
-	 * bank b, or "b 0xaa 0xbb" for writing 0xbb to the
-	 * register 0xaa in bank b. First move past
-	 * whitespace and then begin to parse the bank.
-	 */
-	while ((i < buf_size) && (buf[i] == ' '))
-		i++;
-	if (i >= (buf_size - 1))
-		goto wrong_input;
-	bankp = i;
-
-	/*
-	 * Advance pointer to end of string then terminate
-	 * the bank string. This is needed to satisfy
-	 * the strict_strtoul() function.
-	 */
-	while ((i < buf_size) && (buf[i] != ' '))
-		i++;
-	if (i >= buf_size)
-		goto wrong_input;
-	buf[i++] = '\0';
-
-	err = strict_strtoul(&buf[bankp], 0, &user_bank);
+	err = strict_strtoul(buf, 0, &user_val);
 	if (err)
-		goto wrong_input;
-	if (user_bank >= ABX_NUM_BANKS) {
-		dev_err(abx->dev, "debug input error: invalid bank number");
+		return -EINVAL;
+	if (user_val > 0xff) {
+		dev_err(&ab->i2c_client[0]->dev,
+			"debugfs error input > 0xff\n");
 		return -EINVAL;
 	}
-
-	while ((i < buf_size) && (buf[i] == ' '))
-		i++;
-	if (i >= (buf_size - 1))
-		goto wrong_input;
-	regp = i;
-
-	/*
-	 * Advance pointer to end of string then terminate
-	 * the register string. This is needed to satisfy
-	 * the strict_strtoul() function.
-	 */
-	while ((i < buf_size) && (buf[i] != ' '))
-		i++;
-	if ((i >= buf_size) && priv->mode)
-		goto wrong_input;
-	buf[i] = '\0';
-
-	err = strict_strtoul(&buf[regp], 0, &user_reg);
+	err = mask_and_set_register_interruptible(
+		ab, (u8)ab->debug_bank,
+		(u8)ab->debug_address, 0xFF, (u8)user_val);
 	if (err)
-		goto wrong_input;
-	if (user_reg > 0xff) {
-		dev_err(abx->dev,
-			"debug input error: invalid register address");
 		return -EINVAL;
-	}
 
-	/* Either we read or we write a register here */
-	if (!priv->mode) {
-		/* Reading */
+	get_register_interruptible(ab, (u8)ab->debug_bank,
+		(u8)ab->debug_address, &regvalue);
+	if (err)
+		return -EINVAL;
 
-		u8 regvalue;
-
-		get_register_interruptible(abx, (u8)user_bank, (u8)user_reg,
-					   &regvalue);
-
-		dev_info(abx->dev,
-			 "debug read " ABX_NAME_STRING " [%d/0x%02X]: 0x%02X\n",
-			 (u8)user_bank, (u8)user_reg, regvalue);
-	} else {
-		/* Writing */
-
-		int valp;
-		unsigned long user_value;
-		u8 regvalue;
-
-		/*
-		 * We need some value to write to
-		 * the register so keep parsing the string
-		 * from userspace.
-		 */
-		i++;
-		while ((i < buf_size) && (buf[i] == ' '))
-			i++;
-		if (i >= (buf_size - 1))
-			goto wrong_input;
-		valp = i;
-		while ((i < buf_size) && (buf[i] != ' '))
-			i++;
-		buf[i] = '\0';
-
-		err = strict_strtoul(&buf[valp], 0, &user_value);
-		if (err)
-			goto wrong_input;
-		if (user_reg > 0xff) {
-			dev_err(abx->dev,
-				"debug input error: invalid register value");
-			return -EINVAL;
-		}
-
-		mask_and_set_register_interruptible(abx, (u8)user_bank,
-					   (u8)user_reg, 0xFF, (u8)user_value);
-		get_register_interruptible(abx, (u8)user_bank, (u8)user_reg,
-					   &regvalue);
-
-		dev_info(abx->dev,
-			 "debug write [%d/0x%02X] with 0x%02X, "
-			 "after readback: 0x%02X\n",
-			 (u8)user_bank, (u8)user_reg, (u8)user_value, regvalue);
-	}
 	return buf_size;
-wrong_input:
-	dev_err(abx->dev, "debug input error: should be \"B 0xRR%s\" "
-			"(B: bank, RR: register%s)\n",
-			(priv->mode ? " 0xVV" : ""),
-			(priv->mode ? ", VV: value" : ""));
-	return -EINVAL;
 }
 
-static const struct file_operations abx_get_set_reg_fops = {
-	.open = abx_get_set_reg_open_file,
-	.write = abx_get_set_reg,
+static const struct file_operations ab3550_bank_fops = {
+	.open = ab3550_bank_open,
+	.write = ab3550_bank_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+	.owner = THIS_MODULE,
 };
 
-static struct dentry *abx_dir;
-static struct dentry *abx_reg_file;
-static struct abx_get_set_reg_priv abx_get_priv;
-static struct dentry *abx_get_reg_file;
-static struct abx_get_set_reg_priv abx_set_priv;
-static struct dentry *abx_set_reg_file;
+static const struct file_operations ab3550_address_fops = {
+	.open = ab3550_address_open,
+	.write = ab3550_address_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+	.owner = THIS_MODULE,
+};
 
-static inline void abx_setup_debugfs(struct abx *abx)
+static const struct file_operations ab3550_val_fops = {
+	.open = ab3550_val_open,
+	.write = ab3550_val_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+	.owner = THIS_MODULE,
+};
+
+static struct dentry *ab3550_dir;
+static struct dentry *ab3550_reg_file;
+static struct dentry *ab3550_bank_file;
+static struct dentry *ab3550_address_file;
+static struct dentry *ab3550_val_file;
+
+static inline void ab3550_setup_debugfs(struct ab3550 *ab)
 {
-	int err;
+	ab->debug_bank = 0;
+	ab->debug_address = 0x00;
 
-	abx_dir = debugfs_create_dir(ABX_NAME_STRING, NULL);
-	if (!abx_dir)
+	ab3550_dir = debugfs_create_dir(AB3550_NAME_STRING, NULL);
+	if (!ab3550_dir)
 		goto exit_no_debugfs;
 
-	abx_reg_file = debugfs_create_file("registers",
-				S_IRUGO, abx_dir, abx,
-				&abx_registers_fops);
-	if (!abx_reg_file) {
-		err = -ENOMEM;
+	ab3550_reg_file = debugfs_create_file("all-registers",
+		S_IRUGO, ab3550_dir, ab, &ab3550_registers_fops);
+	if (!ab3550_reg_file)
 		goto exit_destroy_dir;
-	}
 
-	abx_get_priv.abx = abx;
-	abx_get_priv.mode = false;
-	abx_get_reg_file = debugfs_create_file("get_reg",
-				S_IWUGO, abx_dir, &abx_get_priv,
-				&abx_get_set_reg_fops);
-	if (!abx_get_reg_file) {
-		err = -ENOMEM;
+	ab3550_bank_file = debugfs_create_file("register-bank",
+		(S_IRUGO | S_IWUGO), ab3550_dir, ab, &ab3550_bank_fops);
+	if (!ab3550_bank_file)
 		goto exit_destroy_reg;
-	}
 
-	abx_set_priv.abx = abx;
-	abx_set_priv.mode = true;
-	abx_set_reg_file = debugfs_create_file("set_reg",
-				S_IWUGO, abx_dir, &abx_set_priv,
-				&abx_get_set_reg_fops);
-	if (!abx_set_reg_file) {
-		err = -ENOMEM;
-		goto exit_destroy_get_reg;
-	}
+	ab3550_address_file = debugfs_create_file("register-address",
+		(S_IRUGO | S_IWUGO), ab3550_dir, ab, &ab3550_address_fops);
+	if (!ab3550_address_file)
+		goto exit_destroy_bank;
+
+	ab3550_val_file = debugfs_create_file("register-value",
+		(S_IRUGO | S_IWUGO), ab3550_dir, ab, &ab3550_val_fops);
+	if (!ab3550_val_file)
+		goto exit_destroy_address;
+
 	return;
 
- exit_destroy_get_reg:
-	debugfs_remove(abx_get_reg_file);
- exit_destroy_reg:
-	debugfs_remove(abx_reg_file);
- exit_destroy_dir:
-	debugfs_remove(abx_dir);
- exit_no_debugfs:
+exit_destroy_address:
+	debugfs_remove(ab3550_address_file);
+exit_destroy_bank:
+	debugfs_remove(ab3550_bank_file);
+exit_destroy_reg:
+	debugfs_remove(ab3550_reg_file);
+exit_destroy_dir:
+	debugfs_remove(ab3550_dir);
+exit_no_debugfs:
+	dev_err(&ab->i2c_client[0]->dev, "failed to create debugfs entries.\n");
 	return;
+}
 
-}
-static inline void abx_remove_debugfs(void)
+static inline void ab3550_remove_debugfs(void)
 {
-	debugfs_remove(abx_set_reg_file);
-	debugfs_remove(abx_get_reg_file);
-	debugfs_remove(abx_reg_file);
-	debugfs_remove(abx_dir);
+	debugfs_remove(ab3550_val_file);
+	debugfs_remove(ab3550_address_file);
+	debugfs_remove(ab3550_bank_file);
+	debugfs_remove(ab3550_reg_file);
+	debugfs_remove(ab3550_dir);
 }
-#else
-static inline void abx_setup_debugfs(struct abx *abx)
+
+#else /* !CONFIG_DEBUG_FS */
+static inline void ab3550_setup_debugfs(struct ab3550 *ab)
 {
 }
-static inline void abx_remove_debugfs(void)
+static inline void ab3550_remove_debugfs(void)
 {
 }
 #endif
@@ -1076,55 +1193,110 @@ static inline void abx_remove_debugfs(void)
  * Basic set-up, datastructure creation/destruction and I2C interface.
  * This sets up a default config in the AB3550 chip so that it
  * will work as expected.
- *
- * TODO: This should be moved to the machine specific platform data structure.
  */
-
-struct abx_init_setting {
-	u8 bank;
-	u8 reg;
-	u8 setting;
-};
-
-static const struct abx_init_setting __initdata
-ab3550_init_settings[] = {
-	/* TODO: Fill this with more Petronella init values. */
-	{
-		.bank = 0,
-		.reg = AB3550_IMR3,
-		.setting = 0x00
-	},
-};
-
-static int __init abx_setup(struct abx *abx)
+static int __init ab3550_setup(struct ab3550 *ab)
 {
 	int err = 0;
 	int i;
+	struct ab3550_platform_data *plf_data;
+	struct abx500_init_settings *settings;
 
-	for (i = 0; i < ARRAY_SIZE(ab3550_init_settings); i++) {
-		err = mask_and_set_register_interruptible(abx,
-			ab3550_init_settings[i].bank,
-			ab3550_init_settings[i].reg,
-			0xFF, ab3550_init_settings[i].setting);
+	plf_data = ab->i2c_client[0]->dev.platform_data;
+	settings = plf_data->init_settings;
+
+	for (i = 0; i < plf_data->init_settings_sz; i++) {
+		err = mask_and_set_register_interruptible(ab,
+			settings[i].bank,
+			settings[i].reg,
+			0xFF, settings[i].setting);
 		if (err)
 			goto exit_no_setup;
-	}
 
+		/* If event mask register update the event mask in ab3550 */
+		if ((settings[i].bank == 0) &&
+			(AB3550_IMR1 <= settings[i].reg) &&
+			(settings[i].reg <= AB3550_IMR5)) {
+			ab->event_mask[settings[i].reg - AB3550_IMR1] =
+				settings[i].setting;
+		}
+	}
 exit_no_setup:
 	return err;
 }
 
-/* This function should be removed when possible.
- * See arch/arm/mach-u300/i2c.c for details.
- */
-struct device *get_u300_codec_device(void)
+static void ab3550_mask_work(struct work_struct *work)
 {
-	/* For now, we simply assume that the codec driver is the last entry in
-	 * ab3550_devs.
-	 */
-	return &ab3550_devs[ARRAY_SIZE(ab3550_devs) - 1].pdev.dev;
+	struct ab3550 *ab = container_of(work, struct ab3550, mask_work);
+	int i;
+	unsigned long flags;
+	u8 mask[AB3550_NUM_EVENT_REG];
+
+	spin_lock_irqsave(&ab->event_lock, flags);
+	for (i = 0; i < AB3550_NUM_EVENT_REG; i++)
+		mask[i] = ab->event_mask[i];
+	spin_unlock_irqrestore(&ab->event_lock, flags);
+
+	for (i = 0; i < AB3550_NUM_EVENT_REG; i++) {
+		int err;
+
+		err = mask_and_set_register_interruptible(ab, 0,
+			(AB3550_IMR1 + i), ~0, mask[i]);
+		if (err)
+			dev_err(&ab->i2c_client[0]->dev,
+				"ab3550_mask_work failed 0x%x,0x%x\n",
+				(AB3550_IMR1 + i), mask[i]);
+	}
 }
-EXPORT_SYMBOL(get_u300_codec_device);
+
+static void ab3550_mask(unsigned int irq)
+{
+	unsigned long flags;
+	struct ab3550 *ab;
+	struct ab3550_platform_data *plf_data;
+
+	ab = get_irq_chip_data(irq);
+	plf_data = ab->i2c_client[0]->dev.platform_data;
+	irq -= plf_data->irq.base;
+
+	spin_lock_irqsave(&ab->event_lock, flags);
+	ab->event_mask[irq / 8] |= BIT(irq % 8);
+	spin_unlock_irqrestore(&ab->event_lock, flags);
+
+	schedule_work(&ab->mask_work);
+}
+
+static void ab3550_unmask(unsigned int irq)
+{
+	unsigned long flags;
+	struct ab3550 *ab;
+	struct ab3550_platform_data *plf_data;
+
+	ab = get_irq_chip_data(irq);
+	plf_data = ab->i2c_client[0]->dev.platform_data;
+	irq -= plf_data->irq.base;
+
+	spin_lock_irqsave(&ab->event_lock, flags);
+	ab->event_mask[irq / 8] &= ~BIT(irq % 8);
+	spin_unlock_irqrestore(&ab->event_lock, flags);
+
+	schedule_work(&ab->mask_work);
+}
+
+static void noop(unsigned int irq)
+{
+}
+
+static struct irq_chip ab3550_irq_chip = {
+	.name		= "ab3550-core", /* Keep the same name as the request */
+	.startup	= NULL, /* defaults to enable */
+	.shutdown	= NULL, /* defaults to disable */
+	.enable		= NULL, /* defaults to unmask */
+	.disable	= ab3550_mask, /* No default to mask in chip.c */
+	.ack		= noop,
+	.mask		= ab3550_mask,
+	.unmask		= ab3550_unmask,
+	.end		= NULL,
+};
 
 struct ab_family_id {
 	u8	id;
@@ -1134,7 +1306,7 @@ struct ab_family_id {
 static const struct ab_family_id ids[] __initdata = {
 	/* AB3550 */
 	{
-		.id = 0x10,
+		.id = AB3550_P1A,
 		.name = "P1A"
 	},
 	/* Terminator */
@@ -1143,43 +1315,32 @@ static const struct ab_family_id ids[] __initdata = {
 	}
 };
 
-static int __init abx_probe(struct i2c_client *client,
+static int __init ab3550_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	struct abx *abx;
-	struct abx_platform_data *abx_plf_data = client->dev.platform_data;
+	struct ab3550 *ab;
+	struct ab3550_platform_data *ab3550_plf_data =
+		client->dev.platform_data;
 	int err;
 	int i;
 	int num_i2c_clients = 0;
 
-	abx = kzalloc(sizeof(struct abx), GFP_KERNEL);
-	if (!abx) {
+	ab = kzalloc(sizeof(struct ab3550), GFP_KERNEL);
+	if (!ab) {
 		dev_err(&client->dev,
-			"could not allocate " ABX_NAME_STRING " device\n");
+			"could not allocate " AB3550_NAME_STRING " device\n");
 		return -ENOMEM;
-	}
-	abx->devlist = kcalloc(ARRAY_SIZE(ab3550_devs),
-				sizeof(struct abx_dev), GFP_KERNEL);
-	if (!abx->devlist) {
-		dev_err(&client->dev,
-			"could not allocate " ABX_NAME_STRING " subdevices\n");
-		err = -ENOMEM;
-		goto free_abx_and_return;
 	}
 
 	/* Initialize data structure */
-	mutex_init(&abx->access_mutex);
-	BLOCKING_INIT_NOTIFIER_HEAD(&abx->event_subscribers);
+	mutex_init(&ab->access_mutex);
+	spin_lock_init(&ab->event_lock);
+	ab->i2c_client[0] = client;
 
-	abx->i2c_client[num_i2c_clients] = client;
-	num_i2c_clients++;
-	abx->dev = &client->dev;
-
-	i2c_set_clientdata(client, abx);
+	i2c_set_clientdata(client, ab);
 
 	/* Read chip ID register */
-	err = get_register_interruptible(abx, ABX_CID_BANK, ABX_CID_REG,
-		&abx->chip_id);
+	err = get_register_interruptible(ab, 0, AB3550_CID_REG, &ab->chip_id);
 	if (err) {
 		dev_err(&client->dev, "could not communicate with the analog "
 			"baseband chip\n");
@@ -1187,130 +1348,165 @@ static int __init abx_probe(struct i2c_client *client,
 	}
 
 	for (i = 0; ids[i].id != 0x0; i++) {
-		if (ids[i].id == abx->chip_id) {
-			snprintf(&abx->chip_name[0], sizeof(abx->chip_name) - 1,
-				ABX_ID_FORMAT_STRING, ids[i].name);
+		if (ids[i].id == ab->chip_id) {
+			snprintf(&ab->chip_name[0], sizeof(ab->chip_name) - 1,
+				AB3550_ID_FORMAT_STRING, ids[i].name);
 			break;
 		}
 	}
 
 	if (ids[i].id == 0x0) {
 		dev_err(&client->dev, "unknown analog baseband chip id: 0x%x\n",
-			abx->chip_id);
+			ab->chip_id);
 		dev_err(&client->dev, "driver not started!\n");
 		goto exit_no_detect;
 	}
 
-	dev_info(&client->dev, "detected chip: %s\n", &abx->chip_name[0]);
+	dev_info(&client->dev, "detected AB chip: %s\n", &ab->chip_name[0]);
 
 	/* Attach other dummy I2C clients. */
-	while (num_i2c_clients < ABX_NUM_BANKS) {
-		abx->i2c_client[num_i2c_clients] =
+	while (++num_i2c_clients < AB3550_NUM_BANKS) {
+		ab->i2c_client[num_i2c_clients] =
 			i2c_new_dummy(client->adapter,
 				(client->addr + num_i2c_clients));
-		if (!abx->i2c_client[num_i2c_clients]) {
+		if (!ab->i2c_client[num_i2c_clients]) {
 			err = -ENOMEM;
 			goto exit_no_dummy_client;
 		}
-		strlcpy(abx->i2c_client[num_i2c_clients]->name, id->name,
-			sizeof(abx->i2c_client[num_i2c_clients]->name));
-		num_i2c_clients++;
+		strlcpy(ab->i2c_client[num_i2c_clients]->name, id->name,
+			sizeof(ab->i2c_client[num_i2c_clients]->name));
 	}
 
-	err = abx_setup(abx);
+	err = ab3550_setup(ab);
 	if (err)
 		goto exit_no_setup;
 
-	INIT_WORK(&abx->work, abx_work);
+	INIT_WORK(&ab->irq_work, ab3550_irq_work);
+	INIT_WORK(&ab->mask_work, ab3550_mask_work);
 
-	/* Set parent and a pointer back to the container in device data. */
-	for (i = 0; i < ARRAY_SIZE(ab3550_devs); i++) {
-		int x;
-		ab3550_devs[i].pdev.dev.parent = &client->dev;
-		ab3550_devs[i].pdev.dev.platform_data = abx_plf_data;
-		abx->devlist[i].abx = abx;
-		abx->devlist[i].devinfo = &ab3550_devs[i];
-		platform_set_drvdata(&ab3550_devs[i].pdev,
-			&abx->devlist[i]);
-		x = platform_device_register(&ab3550_devs[i].pdev);
-		printk(KERN_DEBUG "platform device %s registered %s\n",
-		       ab3550_devs[i].pdev.name,
-		       x ? "unsuccessfully" : "successfully");
+	for (i = 0; i < ab3550_plf_data->irq.count; i++) {
+		unsigned int irq;
+
+		irq = ab3550_plf_data->irq.base + i;
+		set_irq_chip_data(irq, ab);
+		set_irq_chip_and_handler(irq, &ab3550_irq_chip,
+			handle_simple_irq);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+		set_irq_nested_thread(irq, 1);
+#endif
+#ifdef CONFIG_ARM
+		set_irq_flags(irq, IRQF_VALID);
+#else
+		set_irq_noprobe(irq);
+#endif
+	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+	if (client->irq > 0) {
+	/* This really unpredictable IRQ is of course sampled for entropy. */
+		err = request_irq(client->irq, ab3550_irq_handler,
+			(IRQF_DISABLED | IRQF_SAMPLE_RANDOM),
+			"ab3550-core", ab);
+		if (err)
+		goto exit_no_irq;
+
+	/* We probably already got an irq here, but if not,
+	 * we force a first time and save the startup events here.*/
+		disable_irq_nosync(client->irq);
+		schedule_work(&ab->irq_work);
+	}
+#else
+	if (client->irq > 0) {
+		err = request_threaded_irq(client->irq, NULL,
+			ab3550_irq_handler,
+			IRQF_ONESHOT, "ab3550-core", ab);
+	/* This real unpredictable IRQ is of course sampled for entropy */
+		rand_initialize_irq(client->irq);
+
+		if (err)
+			goto exit_no_irq;
+	}
+#endif
+
+	err = abx500_register_ops(&client->dev, &ab3550_ops);
+	if (err)
+		goto exit_no_ops;
+
+	/* Set up and register the platform devices. */
+	for (i = 0; i < AB3550_NUM_DEVICES; i++) {
+		ab3550_devs[i].platform_data = ab3550_plf_data->dev_data[i];
+		ab3550_devs[i].data_size = ab3550_plf_data->dev_data_sz[i];
 	}
 
-	abx_setup_debugfs(abx);
+	err = mfd_add_devices(&client->dev, 0, ab3550_devs,
+		ARRAY_SIZE(ab3550_devs), NULL,
+		ab3550_plf_data->irq.base);
+
+	ab3550_setup_debugfs(ab);
 
 	return 0;
 
+exit_no_ops:
+exit_no_irq:
 exit_no_setup:
 exit_no_dummy_client:
 	/* Unregister the dummy i2c clients. */
 	while (--num_i2c_clients)
-		i2c_unregister_device(abx->i2c_client[num_i2c_clients]);
-
+		i2c_unregister_device(ab->i2c_client[num_i2c_clients]);
 exit_no_detect:
-	kfree(abx->devlist);
-free_abx_and_return:
-	kfree(abx);
+	kfree(ab);
 	return err;
 }
 
-static int __exit abx_remove(struct i2c_client *client)
+static int __exit ab3550_remove(struct i2c_client *client)
 {
-	struct abx *abx = i2c_get_clientdata(client);
-	int i;
-	int num_i2c_clients = ABX_NUM_BANKS;
+	struct ab3550 *ab = i2c_get_clientdata(client);
+	int num_i2c_clients = AB3550_NUM_BANKS;
 
-	/* Unregister subdevices */
-	for (i = 0; i < ARRAY_SIZE(ab3550_devs); i++)
-		platform_device_unregister(&ab3550_devs[i].pdev);
+	mfd_remove_devices(&client->dev);
+	ab3550_remove_debugfs();
 
-	abx_remove_debugfs();
-
-	while (num_i2c_clients > 1) {
-		num_i2c_clients--;
-		i2c_unregister_device(abx->i2c_client[num_i2c_clients]);
-	}
+	while (--num_i2c_clients)
+		i2c_unregister_device(ab->i2c_client[num_i2c_clients]);
 
 	/*
 	 * At this point, all subscribers should have unregistered
 	 * their notifiers so deactivate IRQ
 	 */
-	free_irq(client->irq, abx);
-	kfree(abx->devlist);
-	kfree(abx);
+	free_irq(client->irq, ab);
+	i2c_set_clientdata(client, NULL);
+	kfree(ab);
 	return 0;
 }
 
-static const struct i2c_device_id abx_id[] = {
-	{ ABX_NAME_STRING, 0 },
-	{ }
+static const struct i2c_device_id ab3550_id[] = {
+	{AB3550_NAME_STRING, 0},
+	{}
 };
-MODULE_DEVICE_TABLE(i2c, abx_id);
+MODULE_DEVICE_TABLE(i2c, ab3550_id);
 
-static struct i2c_driver abx_driver = {
+static struct i2c_driver ab3550_driver = {
 	.driver = {
-		.name	= ABX_NAME_STRING,
+		.name	= AB3550_NAME_STRING,
 		.owner	= THIS_MODULE,
 	},
-	.id_table	= abx_id,
-	.probe		= abx_probe,
-	.remove		= __exit_p(abx_remove),
+	.id_table	= ab3550_id,
+	.probe		= ab3550_probe,
+	.remove		= __exit_p(ab3550_remove),
 };
 
-static int __init abx_i2c_init(void)
+static int __init ab3550_i2c_init(void)
 {
-	return i2c_add_driver(&abx_driver);
+	return i2c_add_driver(&ab3550_driver);
 }
 
-static void __exit abx_i2c_exit(void)
+static void __exit ab3550_i2c_exit(void)
 {
-	i2c_del_driver(&abx_driver);
+	i2c_del_driver(&ab3550_driver);
 }
 
-subsys_initcall(abx_i2c_init);
-module_exit(abx_i2c_exit);
+subsys_initcall(ab3550_i2c_init);
+module_exit(ab3550_i2c_exit);
 
-MODULE_AUTHOR("Mattias Nilsson <mattias.i.nilsson@stericsson.com>");
+MODULE_AUTHOR("Mattias Wallin <mattias.wallin@stericsson.com>");
 MODULE_DESCRIPTION("AB3550 core driver");
 MODULE_LICENSE("GPL");

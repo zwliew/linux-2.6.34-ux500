@@ -212,9 +212,20 @@ config MFD_TC6393XB
 	help
 	  Support for Toshiba Mobile IO Controller TC6393XB
 
-config MFD_AB3550_CORE
+config ABX500_CORE
+	bool "ST-Ericsson ABX500 Mixed Signal Circuit register functions"
+	default y if ARCH_U300
+	help
+	  Say yes here if you have the ABX500 Mixed Signal IC family
+	  chips. This core driver expose register access functions.
+	  Functionality specific drivers using these functions can
+	  remain unchanged when IC changes. Binding of the functions to
+	  actual register access is done by the IC core driver.
+
+config AB3550_CORE
 	bool "ST-Ericsson AB3550 Mixed Signal Circuit core functions"
-	depends on I2C && MACH_U8500_MOP
+	select MFD_CORE
+	depends on I2C=y && GENERIC_HARDIRQS && ABX500_CORE
 	help
 	  Select this to enable the AB3550 Mixed Signal IC core
 	  functionality. This connects to a AB3550 on the I2C bus
