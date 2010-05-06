@@ -111,7 +111,7 @@ static struct nmdk_spi_master_cntlr ssp0_platform_data = {
 
 struct amba_device u8500_ssp0_device = {
 	.dev		= {
-		.bus_id = "ssp0",
+		.init_name = "ssp0",
 		.platform_data = &ssp0_platform_data,
 	},
 	.res = {
@@ -139,7 +139,7 @@ static struct nmdk_spi_master_cntlr ssp1_platform_data = {
 
 struct amba_device u8500_ssp1_device = {
 	.dev		= {
-		.bus_id = "ssp1",
+		.init_name = "ssp1",
 		.platform_data = &ssp1_platform_data,
 	},
 	.res		= {
