@@ -85,12 +85,16 @@
 
 #define UX500_USBOTG_BASE	UX500(USBOTG)
 
-#define U8500_ESRAM_BASE	0x40000000
-#define U8500_ESRAM_DMA_LCLA_OFFSET	0x80000
-#define U8500_ESRAM_DMA_LCPA_OFFSET	0x84000
+#define U8500_ESRAM_BASE	        0x40000000
+/* on ED this register is secure so leaving mem init value
+   will not conflict with MCDE driver as on ED MCDE is using bank 6 */
+#define U8500_ESRAM_DMA_LCPA_OFFSET_ED	0x84000
+/* on V1 DMA uses 4KB for logical parameters
+   position is right after the 64KB reserved for security */
+#define U8500_ESRAM_DMA_LCPA_OFFSET	0x10000
 
-#define U8500_DMA_LCLA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCLA_OFFSET)
-#define U8500_DMA_LCPA_BASE (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCPA_OFFSET)
+#define U8500_DMA_LCPA_BASE    (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCPA_OFFSET)
+#define U8500_DMA_LCPA_BASE_ED (U8500_ESRAM_BASE + U8500_ESRAM_DMA_LCPA_OFFSET_ED)
 
 /* SSP specific declaration */
 #define SSP_PER_ID                      0x01080022

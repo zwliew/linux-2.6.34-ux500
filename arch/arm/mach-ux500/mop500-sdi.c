@@ -122,8 +122,8 @@ static struct mmc_board mmc_data = {
 	.card_detect = mmc_card_detect,
 	.card_detect_intr_value = mmc_get_carddetect_intr_value,
 	.dma_fifo_addr = U8500_SDI0_BASE + SD_MMC_TX_RX_REG_OFFSET,
-	.dma_fifo_dev_type_rx = DMA_DEV_SD_MMC0_RX,
-	.dma_fifo_dev_type_tx = DMA_DEV_SD_MMC0_TX,
+	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM0_RX,
+	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM0_TX,
 	.level_shifter = 1,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_SD_HIGHSPEED |
 					MMC_CAP_MMC_HIGHSPEED,
@@ -213,8 +213,8 @@ static struct mmc_board sdi2_data = {
 	.init = sdi2_init,
 	.exit = sdi2_exit,
 	.dma_fifo_addr = U8500_SDI2_BASE + SD_MMC_TX_RX_REG_OFFSET,
-	.dma_fifo_dev_type_rx = DMA_DEV_SD_MMC2_RX,
-	.dma_fifo_dev_type_tx = DMA_DEV_SD_MMC2_TX,
+	.dma_fifo_dev_type_rx = DMA_DEV_SD_MM2_RX,
+	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM2_TX,
 	.level_shifter = 0,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
 };

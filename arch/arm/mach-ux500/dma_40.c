@@ -3608,6 +3608,7 @@ static irqreturn_t stm_dma_interrupt_handler(int irq, void *dev_id)
 static int stm_dma_probe(struct platform_device *pdev)
 {
 	struct resource *res = NULL;
+	unsigned long lcpa_base;
 	int status = 0, i;
 	stm_dbg(DBG_ST.dma, "stm_dma_probe called.....\n");
 	printk(KERN_INFO "In DMA PROBE \n");
@@ -3670,18 +3671,15 @@ static int stm_dma_probe(struct platform_device *pdev)
 		    dma_drv_data->lchan_params_base.phys_addr,
 		    FULL32_MASK, NO_SHIFT);
 #else
-	/* LCPA value cannot be programmed(we are in non-secure mode).
-	 * We make use of ESRAM memory for this.
-	 * (xloader programs this register with the value(ESRAM address)
-	 * beforehand)
-	 * */
-	dma_drv_data->lchan_params_base.log_addr =
-	    ioremap(U8500_DMA_LCPA_BASE, 4096);
-	dma_drv_data->lchan_params_base.phys_addr = U8500_DMA_LCPA_BASE;
+	if (u8500_is_earlydrop())
+		lcpa_base = U8500_DMA_LCPA_BASE_ED;
+	else
+		lcpa_base = U8500_DMA_LCPA_BASE;
 
-	REG_WR_BITS(io_addr(DREG_LCPA),
-		U8500_DMA_LCPA_BASE,
-		FULL32_MASK, NO_SHIFT);
+	dma_drv_data->lchan_params_base.log_addr = ioremap(lcpa_base, 4096);
+	dma_drv_data->lchan_params_base.phys_addr = lcpa_base;
+
+	REG_WR_BITS(io_addr(DREG_LCPA), lcpa_base, FULL32_MASK, NO_SHIFT);
 #endif
 
 	dma_drv_data->pchan_lli_pool = create_elem_pool("PCHAN_LLI_POOL",
@@ -3702,7 +3700,7 @@ static int stm_dma_probe(struct platform_device *pdev)
 		stm_error("Unable to allocate memory for SG pool");
 		goto pchan_lli_pool_cleanup;
 	}
-#ifndef CONFIG_STM_SECURITY
+
 	/*Allocate 1Kb block for each physical channels */
 	dma_drv_data->lchan_lli_pool = create_elem_pool("LCHAN_LLI_POOL",
 							1024,
@@ -3716,36 +3714,14 @@ static int stm_dma_probe(struct platform_device *pdev)
 	REG_WR_BITS(io_addr(DREG_LCLA),
 		    dma_drv_data->lchan_lli_pool->base_addr.phys_addr,
 		    FULL32_MASK, NO_SHIFT);
-#else
-	/* LCLA value cannot be programmed(we are in non-secure mode).
-	 * We make use of ESRAM memory for this.
-	 * (xloader programs this register with the value(ESRAM address)
-	 * beforehand)
-	 * */
-	/*Allocate 1Kb block for each physical channels */
-	dma_drv_data->lchan_lli_pool =
-	    create_elem_pool_fixed_mem("LCHAN_LLI_POOL", 1024,
-				       MAX_AVAIL_PHY_CHANNELS,
-				       U8500_DMA_LCLA_BASE, 16 * 1024);
-
-	if (!dma_drv_data->lchan_lli_pool) {
-		stm_error("Unable to allocate memory for lchan_lli_pool");
-		goto sg_pool_cleanup;
-	}
-	REG_WR_BITS(io_addr(DREG_LCLA),
-		    dma_drv_data->lchan_lli_pool->base_addr.phys_addr,
-		    FULL32_MASK, NO_SHIFT);
-#endif
 
 	spin_lock_init(&dma_drv_data->pipe_id_lock);
 	spin_lock_init(&dma_drv_data->pr_info_lock);
 	for (i = 0; i < MAX_AVAIL_PHY_CHANNELS; i++)
 		spin_lock_init(&dma_drv_data->cfg_ch_lock[i]);
 
-    /* Audio is using physical channels 2 and 3 from MMDSP */
-    dma_drv_data->pr_info[2].status = RESOURCE_PHYSICAL;
-    dma_drv_data->pr_info[3].status = RESOURCE_PHYSICAL;
-    /* End of Audio */
+	/* Audio is using physical channels 2 from MMDSP */
+	dma_drv_data->pr_info[2].status = RESOURCE_PHYSICAL;
 
 	print_dma_regs();
 	return 0;
