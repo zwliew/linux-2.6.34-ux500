@@ -33,6 +33,7 @@
 #include <linux/timer.h>
 
 static void tsc_timer_wq(struct work_struct *_chip);
+static void tp_gpio_int_wq(struct work_struct *_chip);
 
 static struct i2c_driver tp_driver;
 static tsc_error tsc_write_byte(struct i2c_client *i2c, u8 reg,
@@ -50,8 +51,8 @@ static tsc_error tsc_read_byte(struct i2c_client *i2c, u8 reg, unsigned char *va
 #endif
 
 #if (defined CONFIG_CPU_IDLE || defined CONFIG_TOUCHP_TUNING)
-u8 th_on = 0x70;
-u8 th_off = 0x60;
+static u8 th_on = TSC_TH_ON_VAL; /* 0x20; */
+static u8 th_off = TSC_TH_OFF_VAL; /* 0x18; */
 #endif
 #ifdef CONFIG_TOUCHP_TUNING
 unsigned long penup_timer = PENUP_TIMEOUT;
@@ -80,37 +81,31 @@ static ssize_t touchp_attr_show(struct kobject *kobj,
 static ssize_t touchp_attr_store(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t len)
 {
-	int error = 0;
+	int ret = 0;
 	int timeout = 0;
 	int sys_th_on = 0;
 	int sys_th_off = 0;
 
 	if (strcmp(attr->name, "timeout_value") == 0) {
-		error = sscanf(buf, "%d", &timeout);
-		if (error != 1)
-			goto err;
-		penup_timer = timeout;
+		ret = sscanf(buf, "%d", &timeout);
+		if (ret == 1)
+			penup_timer = timeout;
 	} else if (strcmp(attr->name, "th_on") == 0) {
-		error = sscanf(buf, "%d", &sys_th_on);
-		if (error != 1)
-			goto err;
-		if (th_on != sys_th_on) {
+		ret = sscanf(buf, "%d", &sys_th_on);
+		if ((ret == 1) && (th_on != sys_th_on)) {
 			th_on = sys_th_on;
 			if (th_on < 0xFF)
 				bu21013_tsc_init(pdev_data->client);
 		}
 	} else if (strcmp(attr->name, "th_off") == 0) {
-		error = sscanf(buf, "%d", &sys_th_off);
-		if (error != 1)
-			goto err;
-		if (th_off != sys_th_off) {
+		ret = sscanf(buf, "%d", &sys_th_off);
+		if ((ret == 1) && (th_off != sys_th_off)) {
 			th_off = sys_th_off;
 			if (th_off < 0xFF)
 				bu21013_tsc_init(pdev_data->client);
 		}
 	}
-err:
-	return error == 1 ? len : -EINVAL;
+	return ret == 1 ? len : -EINVAL;
 }
 
 static struct attribute touchp_timeout = {.name = "timeout_value",
@@ -277,139 +272,145 @@ void get_touch(struct u8500_tsc_data *data)
 	struct i2c_client *i2c = data->client;
 	tsc_error retval = TSC_OK;
 	u8 finger1_buf[4];
-	u16 tmp1x = 0, tmp1y = 0;
+	int count;
+	signed short	tmp1x, tmp1y;
 	u8 j, i;
 #ifdef CONFIG_U8500_TSC_MULTITOUCH
 	u8 finger2_buf[4];
-	u16 tmp2x, tmp2y;
+	signed short	tmp2x, tmp2y;
 #endif
-	if (i2c == NULL)
-		return;
-#ifdef CONFIG_U8500_TSC_EXT_CLK_9_6
-	i = 0x73;
-	for (j = 0; j < 2; j++) {
-		retval = tsc_read_byte(i2c, i, &finger1_buf[j]);
-		if (retval < 0)
-			return;
-		i++;
-	}
-	tmp1x = finger1_buf[0];
-	tmp1x = (tmp1x << 2) | finger1_buf[1];
-	if (tmp1x != 0) {
-		i = 0x75;
-		for (j = 2; j < 4; j++) {
-			retval = tsc_read_byte(i2c, i, &finger1_buf[j]);
-			if (retval < 0)
+	if (i2c != NULL) {
+		for (count = 0; count < 2; count++) {
+	#ifdef CONFIG_U8500_TSC_EXT_CLK_9_6
+			i = TSC_POS_X1;
+			for (j = 0; j < 2; j++) {
+				retval = tsc_read_byte(i2c, i, &finger1_buf[j]);
+				if (retval < 0)
+					return;
+				i++;
+			}
+			tmp1x = finger1_buf[0];
+			tmp1x = (tmp1x << 2) | finger1_buf[1];
+			if (tmp1x != 0) {
+				i = TSC_POS_Y1;
+				for (j = 2; j < 4; j++) {
+					retval = tsc_read_byte(i2c, i, &finger1_buf[j]);
+					if (retval < 0)
+						return;
+					i++;
+				}
+				tmp1y = finger1_buf[2];
+				tmp1y = (tmp1y << 2) | finger1_buf[3];
+			} else
+				tmp1y = 0;
+	#else
+			retval = tsc_read_block(i2c, TSC_POS_X1, finger1_buf, 4);
+			if (retval != 0)
 				return;
-			i++;
+			tmp1x = finger1_buf[0];
+			tmp1x = (tmp1x << 2) | finger1_buf[1];
+			tmp1y = finger1_buf[2];
+			tmp1y = (tmp1y << 2) | finger1_buf[3];
+	#endif
+			if (tmp1x != 0 && tmp1y != 0)
+				break;
 		}
-		tmp1y = finger1_buf[2];
-		tmp1y = (tmp1y << 2) | finger1_buf[3];
-	} else
-		tmp1y = 0;
-#else
-	retval = tsc_read_block(i2c, 0x73, finger1_buf, 4);
-	if (retval != 0)
-		return;
+		if (tmp1x != 0 && tmp1y != 0)
+			data->finger1_pressed = TRUE;
+		else
+			data->finger1_pressed = FALSE;
 
-	tmp1x = finger1_buf[0];
-	tmp1x = (tmp1x << 2) | finger1_buf[1];
-	tmp1y = finger1_buf[2];
-	tmp1y = (tmp1y << 2) | finger1_buf[3];
-#endif
-	if (tmp1x != 0 && tmp1y != 0)
-		data->finger1_pressed = TRUE;
-	else
-		data->finger1_pressed = FALSE;
+		if (tmp1x > TOUCH_XMAX || tmp1y > TOUCH_YMAX)
+			data->finger1_pressed = FALSE;
 
-	if (tmp1x > TOUCH_XMAX || tmp1y > TOUCH_YMAX)
-		data->finger1_pressed = FALSE;
+		if (data->finger1_pressed) {
+			data->x1 = tmp1x;
+			data->y1 = tmp1y;
+		} else {
+			data->x1 = 0;
+			data->y1 = 0;
+			data->x2 = 0;
+			data->y2 = 0;
+		}
 
-	if (data->finger1_pressed) {
-		data->x1 = tmp1x;
-		data->y1 = tmp1y;
-	} else {
-		data->x1 = 0;
-		data->y1 = 0;
-		data->x2 = 0;
-		data->y2 = 0;
-	}
-
-#ifndef CONFIG_U8500_TSC_MULTITOUCH
-	if (data->finger1_pressed == TRUE) {
-		data->touch_en = TRUE;
-		data->touchflag = TRUE;
-	} else {
-		data->touch_en = FALSE;
-		data->touchflag = FALSE;
-	}
-#else
-#ifdef CONFIG_U8500_TSC_EXT_CLK_9_6
-	i = 0x77;
-	for (j = 0; j < 2; j++) {
-		retval = tsc_read_byte(i2c, i, &finger2_buf[j]);
-		if (retval < 0)
-			return;
-		i++;
-	}
-	tmp2x = finger2_buf[0];
-	tmp2x = (tmp2x << 2) | finger2_buf[1];
-	if (tmp2x != 0) {
-		i = 0x79;
-		for (j = 2; j < 4; j++) {
-			retval = tsc_read_byte(i2c, i, &finger2_buf[j]);
-			if (retval < 0)
+	#ifndef CONFIG_U8500_TSC_MULTITOUCH
+		if (data->finger1_pressed == TRUE) {
+			data->touch_en = TRUE;
+			data->touchflag = TRUE;
+		} else {
+			data->touch_en = FALSE;
+			data->touchflag = FALSE;
+		}
+	#else
+		for (count = 0; count < 2; count++) {
+		#ifdef CONFIG_U8500_TSC_EXT_CLK_9_6
+			i = TSC_POS_X2;
+			for (j = 0; j < 2; j++) {
+				retval = tsc_read_byte(i2c, i, &finger2_buf[j]);
+				if (retval < 0)
 				return;
-			i++;
+				i++;
+			}
+			tmp2x = finger2_buf[0];
+			tmp2x = (tmp2x << 2) | finger2_buf[1];
+			if (tmp2x != 0) {
+				i = TSC_POS_Y2;
+				for (j = 2; j < 4; j++) {
+					retval = tsc_read_byte(i2c, i, &finger2_buf[j]);
+					if (retval < 0)
+						return;
+					i++;
+				}
+				tmp2y = finger2_buf[2];
+				tmp2y = (tmp2y << 2) | finger2_buf[3];
+			} else
+				tmp2y = 0;
+		#else
+			retval = tsc_read_block(i2c, TSC_POS_X2, finger2_buf, 4);
+			if (retval != 0)
+				return;
+			tmp2x = finger2_buf[0];
+			tmp2x = (tmp2x << 2) | finger2_buf[1];
+			tmp2y = finger2_buf[2];
+			tmp2y = (tmp2y << 2) | finger2_buf[3];
+		#endif
+			if (tmp2x != 0 && tmp2y != 0)
+				break;
 		}
-		tmp2y = finger2_buf[2];
-		tmp2y = (tmp2y << 2) | finger2_buf[3];
-	} else
-		tmp2y = 0;
-#else
-	retval = tsc_read_block(i2c, 0x77, finger2_buf, 4);
-	if (retval != 0)
-		return;
-	tmp2x = finger2_buf[0];
-	tmp2x = (tmp2x << 2) | finger2_buf[1];
-	tmp2y = finger2_buf[2];
-	tmp2y = (tmp2y << 2) | finger2_buf[3];
-#endif
+		if (tmp2x != 0 && tmp2y != 0)
+			data->finger2_pressed = TRUE;
+		else
+			data->finger2_pressed = FALSE;
 
-	if (tmp2x != 0 && tmp2y != 0)
-		data->finger2_pressed = TRUE;
-	else
-		data->finger2_pressed = FALSE;
+		if (tmp2x > TOUCH_XMAX || tmp2y > TOUCH_YMAX)
+			data->finger2_pressed = FALSE;
+		data->finger2_count = 1;
+		if (data->finger2_pressed) {
+			data->x2 = tmp2x;
+			data->y2 = tmp2y;
+		} else {
+			data->x2 = 0;
+			data->y2 = 0;
+		}
+		if ((data->finger1_pressed == TRUE)
+			|| (data->finger2_pressed == TRUE)) {
+			data->touch_en = TRUE;
+			data->touchflag = TRUE;
+		} else {
+			data->touch_en = FALSE;
+			data->touchflag = FALSE;
+		}
 
-	if (tmp2x > TOUCH_XMAX || tmp2y > TOUCH_YMAX)
-		data->finger2_pressed = FALSE;
-	data->finger2_count = 1;
-	if (data->finger2_pressed) {
-		data->x2 = tmp2x;
-		data->y2 = tmp2y;
-	} else {
-		data->x2 = 0;
-		data->y2 = 0;
+		if ((data->finger1_pressed == FALSE)
+			&& (data->finger2_pressed == TRUE)) {
+			data->x1 = tmp2x;
+			data->y1 = tmp2y;
+			data->x2 = 0;
+			data->y2 = 0;
+			data->finger2_pressed = FALSE;
+		}
+	#endif
 	}
-
-	if ((data->finger1_pressed == TRUE)
-		|| (data->finger2_pressed == TRUE)) {
-		data->touch_en = TRUE;
-		data->touchflag = TRUE;
-	} else {
-		data->touch_en = FALSE;
-		data->touchflag = FALSE;
-	}
-
-	if ((data->finger1_pressed == FALSE)
-		&& (data->finger2_pressed == TRUE)) {
-		data->x1 = tmp2x;
-		data->y1 = tmp2y;
-		data->x2 = 0;
-		data->y2 = 0;
-		data->finger2_pressed = FALSE;
-	}
-#endif
 }
 
 /**
@@ -781,21 +782,6 @@ static void tsc_input_report(struct u8500_tsc_data *data, unsigned int value)
 	}
 	input_sync(data->pin_dev);
 }
-/**
- * tsc_task() - called for getting the touch point
- * @data:u8500_tsc_data structure pointer
- *
- * This funtion calls, when we get the Pen down interrupt assigns the task
- * and used to calculate the x,y postitons
- */
-static void tsc_task(struct u8500_tsc_data *data)
-{
-	get_touch_message(data);
-	if (data->touch_en)
-		tsc_input_report(data, 1);
-	/* pen down event, (re)start the pen up timer */
-	tsc_restart_pen_up_timer(data);
-}
 
 /**
  * tsc_callback() - callback handler for Pen down
@@ -808,8 +794,7 @@ static void tsc_task(struct u8500_tsc_data *data)
 static void tsc_callback(void *device_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
-	data->touchp_flag = 1;
-	wake_up_interruptible(&data->touchp_event);
+	schedule_work(&data->m_tp_gpio_int_wq);
 }
 /**
  * tsc_gpio_callback() - callback handler for Pen down
@@ -823,8 +808,7 @@ static void tsc_callback(void *device_data)
 static irqreturn_t tsc_gpio_callback(int irq, void *device_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)device_data;
-	data->touchp_flag = 1;
-	wake_up_interruptible(&data->touchp_event);
+	schedule_work(&data->m_tp_gpio_int_wq);
 	return IRQ_HANDLED;
 }
 
@@ -840,7 +824,7 @@ static irqreturn_t tsc_gpio_callback(int irq, void *device_data)
 static void tsc_timer_callback(unsigned long dev_data)
 {
 	struct u8500_tsc_data *data = (struct u8500_tsc_data *)dev_data;
-	schedule_work(&data->workq);
+	schedule_work(&data->m_tp_timer_int_wq);
 }
 
 /**
@@ -852,19 +836,12 @@ static void tsc_timer_callback(unsigned long dev_data)
  */
 static void tsc_timer_wq(struct work_struct *work)
 {
-	struct u8500_tsc_data
-		*data = container_of(work, struct u8500_tsc_data, workq);
-	unsigned char pin_value;
+	unsigned char			pin_value;
+	struct u8500_tsc_data *data = container_of(work, struct u8500_tsc_data, m_tp_timer_int_wq);
 	struct task_struct *tsk = current;
 
 	set_task_state(tsk, TASK_INTERRUPTIBLE);
 	pin_value = data->chip->pirq_read_val();
-	if (pin_value == 1) {
-		/* The pen is up */
-		tsc_clear_irq(data->client);
-		tsc_en_irq(data->client);
-		return ;
-	}
 
 	get_touch_message(data);
 	if (data->touch_en)
@@ -872,37 +849,44 @@ static void tsc_timer_wq(struct work_struct *work)
 	else
 		tsc_input_report(data, 0);
 
-	if (pin_value == 0)
+	if (pin_value == 0) {
 		tsc_restart_pen_up_timer(data);
-	return;
+	} else {
+		enable_irq(data->chip->irq);
+		tsc_clear_irq(data->client);
+		tsc_en_irq(data->client);
+	}
 }
 
 /**
- * touchp_thread() - get the touch panel co-ordinates
- * @_data:     u8500_tsc_data structure pointer
+ * tp_gpio_int_wq() - Work Queue for GPIO_INT handler
+ * @work:work_struct structure pointer
  *
- * This function will be used to
- * get the touch co-ordinates from the touch panel chip
- **/
-static int touchp_thread(void *_data)
+ * This work queue used to get the co-ordinates
+ * of the Pen up and Pen down interrupts and returns none
+ */
+static void tp_gpio_int_wq(struct work_struct *work)
 {
-	struct u8500_tsc_data *tp_data = _data;
-	struct task_struct *tsk = current;
-	struct sched_param param = { .sched_priority = 1 };
+	unsigned char			pin_value;
+	struct u8500_tsc_data *tp_data	= container_of(work, struct u8500_tsc_data, m_tp_gpio_int_wq);
+	struct task_struct *tsk		= current;
+	set_task_state(tsk, TASK_INTERRUPTIBLE);
+	pin_value = tp_data->chip->pirq_read_val();
+	if (pin_value == 0) {
+		disable_irq(tp_data->chip->irq);
+		get_touch_message(tp_data);
 
-	sched_setscheduler(tsk, SCHED_FIFO, &param);
+		if (tp_data->touch_en)
+			tsc_input_report(tp_data, 1);
+		else
+			tsc_input_report(tp_data, 0);
 
-	set_freezable();
-	while (!kthread_should_stop()) {
-		wait_event_freezable(tp_data->touchp_event,
-				((tp_data->touchp_flag == 1) || \
-				kthread_should_stop()));
-		tp_data->touchp_flag = 0;
-		tsc_task(tp_data);
+		tsc_clear_irq(tp_data->client);
+		tsc_en_irq(tp_data->client);
+		tsc_restart_pen_up_timer(tp_data);
+	} else {
+		tsc_input_report(tp_data, 0);
 	}
-
-	tp_data->touchp_tsk = NULL;
-	return 0;
 }
 /*
  * GetCaliStatus() - Get the Calibration status
@@ -910,7 +894,7 @@ static int touchp_thread(void *_data)
  * Get the calibration status of the touch sensor
  * and returns integer
  */
-int getCalibStatus(struct i2c_client *i2c)
+int get_calib_status(struct i2c_client *i2c)
 {
 	tsc_error retval = TSC_OK;
 	unsigned int value;
@@ -920,13 +904,13 @@ int getCalibStatus(struct i2c_client *i2c)
 		retval = tsc_read_10bit(i2c, i, &value);
 		if (retval < 0)
 			dev_err(&i2c->dev,
-			"getCalibStatus:failed retval=0x%x \n", retval);
+			"get_calib_status:failed retval=0x%x \n", retval);
 	}
 	for (i = 0x54; i <= 0x69; i += 2) {
 		retval = tsc_read_10bit(i2c, i, &value);
 		if (retval < 0)
 			dev_err(&i2c->dev,
-			"getCalibStatus:failed retval=0x%x \n", retval);
+			"get_calib_status:failed retval=0x%x \n", retval);
 	}
 	return retval;
 }
@@ -1072,29 +1056,29 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c)
 	}
 #endif
 #ifdef CONFIG_U8500_TSC_EXT_CLK_9_6
-	retval = i2c_smbus_write_byte_data(i2c, TSC_CLK_MODE, 0x82);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_CLK_MODE, TSC_CLK_MODE_VAL1);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "F5 reg i2c smbus write byte failed\n");
 		goto err;
 	}
 #else
-	retval = i2c_smbus_write_byte_data(i2c, TSC_CLK_MODE, 0x81);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_CLK_MODE, TSC_CLK_MODE_VAL2);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "F5 reg i2c smbus write byte failed\n");
 		goto err;
 	}
 #endif
-	retval = i2c_smbus_write_byte_data(i2c, TSC_IDLE, 0x12);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_IDLE, TSC_IDLE_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FA reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_INT_MODE, 0x00);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_INT_MODE, TSC_INT_MODE_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "E9 reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_FILTER, 0xFF);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_FILTER, TSC_FILTER_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FB reg i2c smbus write byte failed\n");
 		goto err;
@@ -1111,33 +1095,33 @@ static tsc_error bu21013_tsc_init(struct i2c_client *i2c)
 		goto err;
 	}
 #else
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, 0x50);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_ON, TSC_TH_ON_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FC i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_OFF, 0x40);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_TH_OFF, TSC_TH_OFF_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "FD i2c smbus write byte failed\n");
 		goto err;
 	}
 #endif
-	retval = i2c_smbus_write_byte_data(i2c, TSC_GAIN, 0x06);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_GAIN, TSC_GAIN_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "EA reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_OFFSET_MODE, 0x00);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_OFFSET_MODE, TSC_OFFSET_MODE_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "EB reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_XY_EDGE, 0xA5);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_XY_EDGE, TSC_XY_EDGE_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "EC reg i2c smbus write byte failed\n");
 		goto err;
 	}
-	retval = i2c_smbus_write_byte_data(i2c, TSC_DONE, 0x01);
+	retval = i2c_smbus_write_byte_data(i2c, TSC_DONE, TSC_DONE_VAL);
 	if (retval < TSC_OK) {
 		dev_err(&i2c->dev, "EF reg i2c smbus write byte failed\n");
 		goto err;
@@ -1246,7 +1230,7 @@ static tsc_error tsc_config(struct u8500_tsc_data *pdev_data)
 				}
 			}
 		}
-		retval = getCalibStatus(pdev_data->client);
+		retval = get_calib_status(pdev_data->client);
 		if (retval < 0) {
 			dev_err(&pdev_data->client->dev,
 				"u8500_tsc_probe::calibration not done \n");
@@ -1309,8 +1293,6 @@ static int tsc_resume(struct i2c_client *client)
 				touch panel configuration\n");
 		goto err;
 	}
-	if (tsc_data->touchp_tsk)
-		wake_up(&tsc_data->touchp_event);
 	return TSC_OK;
 err:
 	kfree(tsc_data);
@@ -1351,7 +1333,8 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	tsc_data->penirq_timer.data = (unsigned long)tsc_data;
 	tsc_data->penirq_timer.function = tsc_timer_callback;
 
-	INIT_WORK(&tsc_data->workq, tsc_timer_wq);
+	INIT_WORK(&tsc_data->m_tp_timer_int_wq, tsc_timer_wq);
+	INIT_WORK(&tsc_data->m_tp_gpio_int_wq, tp_gpio_int_wq);
 	i2c_set_clientdata(i2c, tsc_data);
 	init_waitqueue_head(&tsc_data->touchp_event);
 
@@ -1371,7 +1354,6 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		dev_err(&i2c->dev, "error in tp configuration\n");
 		goto err;
 	} else {
-		BUG_ON(tsc_data->touchp_tsk);
 		if (tsc_data->href_v1_flag) {
 			retval = request_irq(tsc_data->chip->irq, tsc_gpio_callback,
 						IRQF_TRIGGER_FALLING, DRIVER_TP, tsc_data);
@@ -1381,13 +1363,6 @@ static int tp_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 				gpio_free(tsc_data->chip->irq);
 				goto err;
 			}
-		}
-		tsc_data->touchp_tsk = kthread_run(touchp_thread, \
-					tsc_data, DRIVER_TP);
-		if (IS_ERR(tsc_data->touchp_tsk)) {
-			retval = PTR_ERR(tsc_data->touchp_tsk);
-			tsc_data->touchp_tsk = NULL;
-			goto err;
 		}
 		retval = tsc_driver_register(tsc_data);
 		if (retval)
@@ -1435,9 +1410,6 @@ static int __exit tp_remove(struct i2c_client *client)
 {
 	struct u8500_tsc_data *data = i2c_get_clientdata(client);
 	del_timer_sync(&data->penirq_timer);
-
-	if (data->touchp_tsk)
-		kthread_stop(data->touchp_tsk);
 	if (data->chip != NULL) {
 		data->chip->irq_exit();
 		data->chip->pirq_dis();

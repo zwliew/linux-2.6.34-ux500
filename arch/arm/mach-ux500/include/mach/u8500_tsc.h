@@ -47,9 +47,30 @@
 #define TSC_TH_ON 0xFC
 #define TSC_TH_OFF 0xFD
 #define TSC_INTR_STATUS 0x7B
+#define TSC_POS_X1 0x73
+#define TSC_POS_Y1 0x75
+#define TSC_POS_X2 0x77
+#define TSC_POS_Y2 0x79
 
 #define	MAX_10BIT ((1<<10)-1)
 
+
+#define TSC_CLK_MODE_VAL1 0x82
+#define TSC_CLK_MODE_VAL2 0x81
+#define TSC_IDLE_VAL 0x11
+#define TSC_INT_MODE_VAL 0x00
+#define TSC_FILTER_VAL 0xFF
+#define TSC_TH_ON_VAL 0x20
+#define TSC_TH_OFF_VAL 0x18
+#define TSC_GAIN_VAL 0x03
+#define TSC_OFFSET_MODE_VAL 0x00
+#define TSC_XY_EDGE_VAL 0xA5
+#define TSC_DONE_VAL 0x01
+
+
+/*
+ * Resolutions
+ */
 /*Panel Resolution, Target size. (864*480)*/
 #define X_MAX (480)
 #define Y_MAX (864)
@@ -123,7 +144,7 @@
 #define SMA_ARRAY 81
 #define THRESHOLD_SMA_N SMA_N
 #define MULTITOUCH_SIN_N 6
-#define PENUP_TIMEOUT 20 /* msec */
+#define PENUP_TIMEOUT (10) /* msec */
 
 /**
  * Error handling messages
@@ -197,17 +218,16 @@ struct gesture_info {
  * @client:	pointer to the i2c client
  * @chip:	pointer to the touch panel controller
  * @pin_dev:    pointer to the input device structure
- * @touchp_tsk: pointer to the task structure
  * @penirq_timer: variable to the timer list structure
  * @touchp_event: variable to the wait_queue_head_t structure
  * @touch_en: variable for reporting the co-ordinates to input device.
  * @finger1_pressed:      variable to indicate the first co-ordinates.
  * @finger2_pressed:      variable to indicate the first co-ordinates.
- * @workq:    variable to work structure
+ * @m_tp_timer_int_wq:    variable to work structure for timer
+ * @m_tp_timer_gpio_wq:    variable to work structure for interrupt
  * @gesture_info: variable to gesture_info structure
  * @touch_count:  variable to maintain sensors input count
  * @touchflag: variable to indicate the touch
- * @touchp_flag: flag to indicate the touch
  * @pre_tap_flag: flag to indicate the pre tap
  * @flick_flag: flickering flag
  * @touch_continue: to continue the touch flag
@@ -236,11 +256,11 @@ struct u8500_tsc_data {
 	unsigned short touch_en;
 	unsigned short finger1_pressed;
 	unsigned short finger2_pressed;
-	struct work_struct workq;
+	struct work_struct m_tp_timer_int_wq;
+	struct work_struct m_tp_gpio_int_wq;
 	struct gesture_info gesture_info;
 	signed long touch_count;
 	unsigned short touchflag;
-	bool touchp_flag;
 	unsigned char pre_tap_flag;
 	unsigned char flick_flag;
 	unsigned char touch_continue;
