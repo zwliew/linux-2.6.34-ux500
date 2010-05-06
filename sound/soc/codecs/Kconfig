@@ -262,7 +262,7 @@ config SND_SOC_WM9713
 
 config SND_SOC_AB3550
 	tristate "ST-Ericsson AB3550 Mixed Signal Circuit CODEC"
-	depends on SND_SOC_U8500 && MFD_AB3550_CORE
+	depends on SND_SOC_U8500 && AB3550_CORE
 	default m
 	help
 	  Select this to support the AB3550 codec block.

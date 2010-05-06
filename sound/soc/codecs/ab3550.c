@@ -23,7 +23,7 @@
 #include <sound/initval.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
-#include <linux/mfd/abx.h>
+#include <linux/mfd/abx500.h>
 #include <linux/bitops.h>
 #include "ab3550.h"
 
@@ -32,15 +32,16 @@
 
 #define I2C_BANK 0
 
-static struct abx_dev *ab3550_dev = NULL;
+static struct device *ab3550_dev = NULL;
 
-#define SET_REG(reg, val) abx_set_register_interruptible( \
+#define SET_REG(reg, val) abx500_set_register_interruptible( \
 		ab3550_dev, I2C_BANK, (reg), (val))
 
-#define MASK_SET_REG(reg, mask, val) abx_mask_and_set_register_interruptible( \
+#define MASK_SET_REG(reg, mask, val) \
+	abx500_mask_and_set_register_interruptible( \
 		ab3550_dev, I2C_BANK, (reg), (mask), (val))
 
-#define GET_REG(reg, val) abx_get_register_interruptible( \
+#define GET_REG(reg, val) abx500_get_register_interruptible( \
 		ab3550_dev, I2C_BANK, (reg), (val))
 
 #define AB3550_SUPPORTED_RATE (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 | \
@@ -941,7 +942,7 @@ static int ab3550_platform_probe(struct platform_device *pdev)
 	int ret = 0;
 
 	printk(KERN_DEBUG "%s invoked with pdev = %p.\n", __func__, pdev);
-	ab3550_dev = platform_get_drvdata(pdev);
+	ab3550_dev = &pdev->dev;
 	return ret;
 }
 
