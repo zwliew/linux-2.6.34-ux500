@@ -12,6 +12,5 @@ obj-$(CONFIG_FB_MCDE) += mcde_utils.o
 
 obj-$(CONFIG_FB_MCDE) += mcde.o
 
-
-
+clean-files := mcde_hwaccess.o dsi_hwaccess.o dsi_link_utils.o mcde_utils.o mcde.o modules.order built-in.o
 
