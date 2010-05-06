@@ -19,7 +19,7 @@ static inline void arch_idle(void)
 	cpu_do_idle();
 }
 
-static inline void arch_reset(char mode)
+static inline void arch_reset(char mode, const char *cmd)
 {
 #ifdef CONFIG_UX500_SOC_DB8500
 	prcmu_system_reset();
