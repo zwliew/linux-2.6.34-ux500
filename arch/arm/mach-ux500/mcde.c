@@ -208,7 +208,7 @@ struct platform_device u8500_mcde2_device = {
 	.name = "U8500-MCDE",
 	.id = 2,
 	.dev = {
-		.bus_id = "mcde_bus",
+		.init_name = "mcde_bus",
 		.coherent_dma_mask = ~0,
 		.platform_data = &mcde2_channel_data,
 	},
