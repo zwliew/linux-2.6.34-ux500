@@ -108,7 +108,7 @@ struct platform_device u8500_msp0_device = {
 	.num_resources = 2,
 	.resource = u8500_msp_0_resources,
 	.dev = {
-		.bus_id = "msp0",
+		.init_name = "msp0",
 		.platform_data = &msp0_platform_data,
 		},
 
@@ -139,7 +139,7 @@ struct platform_device u8500_msp1_device = {
 	.num_resources = 2,
 	.resource = u8500_msp_1_resources,
 	.dev = {
-		.bus_id = "msp1",
+		.init_name = "msp1",
 		.platform_data = &msp1_platform_data,
 		},
 
@@ -173,7 +173,7 @@ struct platform_device u8500_msp2_device = {
 	.num_resources = 2,
 	.resource = u8500_msp_2_resources,
 	.dev = {
-		.bus_id = "msp2",
+		.init_name = "msp2",
 		.platform_data = &msp2_platform_data,
 	},
 };
@@ -196,7 +196,7 @@ static struct nmdk_spi_master_cntlr msp2_spi_platform_data = {
 
 struct amba_device u8500_msp2_spi_device = {
 	.dev = {
-		.bus_id = "msp2",
+		.init_name = "msp2",
 		.platform_data = &msp2_spi_platform_data,
 		},
 	.res = {
@@ -289,7 +289,7 @@ struct platform_device u8500_shrm_device = {
 	.name = "u8500_shrm",
 	.id = 0,
 	.dev = {
-		.bus_id = "shrm_bus",
+		.init_name = "shrm_bus",
 		.coherent_dma_mask = ~0,
 		.platform_data = &shrm_platform_data,
 	},
@@ -317,7 +317,7 @@ struct platform_device ux500_b2r2_device = {
 	.name	= "U8500-B2R2",
 	.id	= 0,
 	.dev	= {
-		.bus_id = "b2r2_bus",
+		.init_name = "b2r2_bus",
 		.coherent_dma_mask = ~0,
 	},
 	.num_resources	= ARRAY_SIZE(b2r2_resources),
@@ -411,7 +411,7 @@ struct platform_device u8500_pmem_hwb_device = {
 
 struct amba_device ux500_rtc_device = {
 	.dev		= {
-		.bus_id = "mb:15",
+		.init_name = "mb:15",
 	},
 	.res		= {
 		.start	= UX500_RTC_BASE,
@@ -475,7 +475,7 @@ static struct nmdk_spi_master_cntlr spi0_platform_data = {
 
 struct amba_device ux500_spi0_device = {
 	.dev		= {
-		.bus_id	= "spi0",
+		.init_name	= "spi0",
 		.platform_data = &spi0_platform_data,
 	},
 	.res		= {
@@ -622,7 +622,7 @@ struct platform_device ux500_musb_device = {
 	.name = "musb_hdrc",
 	.id = 0,
 	.dev = {
-		.bus_id	= "musb_hdrc.0",	/* for clk_get() */
+		.init_name	= "musb_hdrc.0",	/* for clk_get() */
 		.platform_data = &musb_hdrc_hs_otg_platform_data,
 		.dma_mask = (u64 *)0xFFFFFFFF,
 		.coherent_dma_mask = (u64)0xFFFFFFFF
@@ -687,37 +687,37 @@ struct uart_amba_plat_data uart2_plat = {
  * remove this when uart2 problem solved in SVP5500
  */
 struct amba_device ux500_uart2_device = {
-	.dev = {.bus_id = "uart2", .platform_data = &uart0_plat, },
+	.dev = {.init_name = "uart2", .platform_data = &uart0_plat, },
 	__MEM_4K_RESOURCE(UX500_UART0_BASE),
 	.irq = {IRQ_UART0, NO_IRQ},
 };
 
 struct amba_device ux500_uart1_device = {
-	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
+	.dev = {.init_name = "uart1", .platform_data = &uart1_plat, },
 	__MEM_4K_RESOURCE(UX500_UART1_BASE),
 	.irq = {IRQ_UART1, NO_IRQ},
 };
 
 struct amba_device ux500_uart0_device = {
-	.dev = {.bus_id = "uart0", .platform_data = &uart2_plat, },
+	.dev = {.init_name = "uart0", .platform_data = &uart2_plat, },
 	__MEM_4K_RESOURCE(UX500_UART2_BASE),
 	.irq = {IRQ_UART2, NO_IRQ},
 };
 #else
 struct amba_device ux500_uart0_device = {
-	.dev = {.bus_id = "uart0", .platform_data = &uart0_plat, },
+	.dev = {.init_name = "uart0", .platform_data = &uart0_plat, },
 	__MEM_4K_RESOURCE(UX500_UART0_BASE),
 	.irq = {IRQ_UART0, NO_IRQ},
 };
 
 struct amba_device ux500_uart1_device = {
-	.dev = {.bus_id = "uart1", .platform_data = &uart1_plat, },
+	.dev = {.init_name = "uart1", .platform_data = &uart1_plat, },
 	__MEM_4K_RESOURCE(UX500_UART1_BASE),
 	.irq = {IRQ_UART1, NO_IRQ},
 };
 
 struct amba_device ux500_uart2_device = {
-	.dev = {.bus_id = "uart2", .platform_data = &uart2_plat, },
+	.dev = {.init_name = "uart2", .platform_data = &uart2_plat, },
 	__MEM_4K_RESOURCE(UX500_UART2_BASE),
 	.irq = {IRQ_UART2, NO_IRQ},
 };
