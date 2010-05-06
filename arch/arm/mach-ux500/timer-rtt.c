@@ -11,6 +11,7 @@
 #include <linux/irq.h>
 #include <linux/io.h>
 #include <linux/clockchips.h>
+#include <asm/smp.h>
 #include <asm/mach/time.h>
 
 #define RATE_32K	32768
@@ -111,7 +112,6 @@ static struct clock_event_device u8500_rtc = {
 	.rating		= 500,
 	.set_next_event	= u8500_rtc_set_event,
 	.set_mode	= u8500_rtc_set_mode,
-	.broadcast	= smp_timer_broadcast,
 	.irq		= IRQ_RTC_RTT,
 	.cpumask	= cpu_all_mask,
 };
