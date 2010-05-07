@@ -4671,6 +4671,8 @@ static int __init mcde_probe(struct platform_device *pdev)
 			mcde_supplies);
 #endif
 
+	(void)prcmu_set_hwacc(HW_ACC_MCDE, HW_ON);
+
 	/* Enable the PWM control for the backlight */
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, 0x7);
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, 0xFF);
