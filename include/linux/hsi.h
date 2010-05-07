@@ -47,6 +47,8 @@
 #define         HSI_INTERRUPT_MODE      0x01
 #define         HSI_DMA_MODE            0x02
 
+#define HSI_TYPE_SIZE 32
+
 #ifdef __KERNEL__
 #include <linux/device.h>
 #include <linux/interrupt.h>
@@ -75,7 +77,6 @@ enum {
  * @cid - Controller of the device
  * @chid - Channel on which it transceives
  * @curr_mode - DMA, Interrupt or Polling
- * @name - Name of the device
  * @ch - Channel information of the device
  * @ctrlr - Controller data of the device
  * dev - Device represention on sys interface
@@ -87,7 +88,6 @@ struct hsi_device {
 	short cid;
 	short chid;
 	int curr_mode;
-	char name[BUS_ID_SIZE];
 	struct hsi_channel *ch;
 	struct hsi_controller *ctrlr;
 	struct device dev;
@@ -146,7 +146,7 @@ struct hsi_data {
  * @list - To link on devices list of the HSI bus
 **/
 struct hsi_board_info {
-	char type[BUS_ID_SIZE];
+	char type[HSI_TYPE_SIZE];
 	unsigned short flags;
 	unsigned short controller_id;
 	unsigned short chan_num;
