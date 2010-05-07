@@ -454,7 +454,7 @@ config RADIO_TIMBERDALE
 
 config RADIO_CG2900
 	tristate "ST-Ericsson CG2900 FM Radio support"
-	depends on VIDEO_V4L2
+	depends on MFD_STE_CONN && VIDEO_V4L2
 	---help---
 	  Choose Y here if you have one of these FM radio cards. This is a BT,
 	  FM and GPS combo chip controlled via HCI.

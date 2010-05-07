@@ -3,7 +3,7 @@
 
 <book id="STE-CG2900-fm-driver-template">
  <bookinfo>
-  <title>ST-Ericsson CG2900 FM Driver</title>
+  <title>V4L FM Radio Driver for C2900</title>
 
   <authorgroup>
    <author>
@@ -90,7 +90,9 @@
     The necessary firmware and coeffecient files should be placed with the extension <constant>.fw.org</constant>.
     Note that there is a limitation in the Kernel firmware system regarding name length of a file.
   </para>
-  <para>
+  <section id="basic-tutorial">
+    <title>Basic Tutorial</title>
+    <para>
       To enable the CG2900 FM Driver using KConfig go to <constant>Device Drivers -> Multimedia devices </constant>
       and enable the following:
     <itemizedlist>
@@ -100,7 +102,7 @@
       <listitem><para>Radio Adapter -> ST-Ericsson CG2900 FM Radio support</para></listitem>
     </itemizedlist>
       Select the driver as built in kernel object.
-  </para>
+    </para>
 
   <!-- TODO: If the driver needs preparations to be used
         (special compilation flags, files in the file system,
@@ -111,6 +113,7 @@
   <!-- TODO: This guideline for this chapter may be extended
         during the user-guide guidelines drop. -->
 
+  </section>
  </chapter>
 
  <chapter id="concepts">
@@ -140,8 +143,8 @@
    </para>
  </chapter>
 
- <chapter id="Functionalities">
-   <title>FM Radio Functionalities</title>
+ <chapter id="Tasks">
+   <title>Tasks</title>
    <!-- Do NOT change the chapter id or title! -->
 
    <section id="Switching-On-FM">
@@ -529,10 +532,59 @@
  </chapter>
 
 
- <chapter id="driver-loading">
-   <title>Driver loading parameters</title>
+ <chapter id="driver-configuration">
+   <title>Driver Configuration and Interaction</title>
    <!-- Do NOT change the chapter id or title! -->
+   <para>
+     For debug purposes the variable ste_fm_debug_level in the file platformosapi.c can be changed to set how much debug printouts
+     that shall be generated.
+     <itemizedlist>
+       <listitem><para>1 = Error prints</para></listitem>
+       <listitem><para>2 = General info, e.g. function entries</para></listitem>
+       <listitem><para>3 = All Debug prints</para></listitem>
+       <listitem><para>4 = Data content, i.e. contents of the transferred data</para></listitem>
+     </itemizedlist>
+     <!-- TODO: Use this paragraph as an introduction to driver
+           configuration and interaction. Describe the big picture. -->
+     <!-- TODO: This chapter contains driver specific way to perform
+           configuration and interaction. The chapter includes a
+           number of sections. They should not be removed and if
+           the driver does not have the specific support for
+           configuration or interaction should the text "not
+           applicable" be inserted. Do NOT change the chapter id
+           or title! -->
+     <!-- TODO: This guideline for this chapter may be extended
+           during the user-guide guidelines drop. -->
+   </para>
 
+   <section id="driver-implemented-operations">
+     <title>Implemented operations in driver</title>
+     <para>
+       <!-- TODO: Describe the actual usage of the driver. Specify the actual
+            implemented operations in struct <structname>file_operations</structname>
+            and any other set of operations. Create a table with two columns
+            (see example in intro chapter how to create a table).
+            Column one list all operations supported (read,
+            write, open, close, ioctl etc) and column two a description of the
+            semantics of the operations in the specific context of the device
+            driver from the users perspective. Document the operations in a way
+            that a user of the driver can be helped. -->
+     </para>
+     <para>
+       <table>
+         <title> Supported device driver operations when using character device </title>
+         <tgroup cols="2"><tbody>
+           <row><entry> open </entry> <entry> Opening a character device will Initialize the FM Chip and download the firmware files.</entry> </row>
+           <row><entry> close </entry> <entry> Closes a character device willdeinitialize the FM Chip.</entry> </row>
+           <row><entry> poll </entry> <entry> Polling a character device will check if there is requested data is available or not.</entry> </row>
+           <row><entry> read </entry> <entry> Reading from a character device reads RDS data from the Chip</entry> </row>
+         </tbody></tgroup>
+       </table>
+     </para>
+   </section>
+
+   <section id="driver-loading">
+     <title>Driver loading parameters</title>
      <para>
        <!-- TODO: Describe parameters that can be specified at kernel
             driver loading with insmod or modprobe. If the driver
@@ -773,6 +825,490 @@
        <!-- TODO: This guideline for this section may be extended
             during the user-guide guidelines drop. -->
      </para>
+   </section>
+
+   <section id="driver-ioctl">
+     <title>Driver IO Control</title>
+     <para>
+       <!-- TODO: Describe driver parameters that can be modified
+            in runtime. Make a list of all device-dependent request code with
+            description of arguments, meaning etc.  If the driver has no IO control
+            interface, replace this text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term><constant>VIDIOC_QUERYCAP</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Get</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_capability</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_QUERYCAP</constant> IOCTL is used to query the capabilities supported by FM Driver. IF the FM Driver supports FM Rx it should set the capabilities field bit should be ored with V4L2_CAP_TUNER, otherwise if it supports FM Tx, the capabilities field bit should be ored with V4L2_CAP_MODULATOR.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to retrive the Capabilities successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+	<varlistentry>
+         <term><constant>VIDIOC_G_TUNER</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Get</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_tuner</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_G_TUNER</constant> IOCTL gets the FM Radio Tuner properties supported.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to retrive the tuner properties successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_S_TUNER</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_tuner</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_S_TUNER</constant> IOCTL configures the FM radio in Rx mode. Only 1 FM Tuner is supported by FM Driver.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to set the tuner properties successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_S_MODULATOR</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_modulator</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_S_MODULATOR</constant> IOCTL configures the FM radio in Tx mode. Only 1 FM Modulator is supported by FM Driver.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to set the modulator properties successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_S_FREQUENCY</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_frequency</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_S_FREQUENCY</constant> IOCTL sets the frequency on FM radio in Rx or Tx mode. The frequency parameter passed is in V4L2 format.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to set the frequency successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_G_FREQUENCY</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_modulator</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_G_FREQUENCY</constant> IOCTL retrives the currently set frequency on FM Radio in Rx or Tx mode.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to get the frequency successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_S_HW_FREQ_SEEK</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_hw_freq_seek</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_S_HW_FREQ_SEEK</constant> IOCTL starts the seek operation when FM Radio is configured in Rx mode. The direction parameter indicates the direction of seeking from the current station. At present the FM Driver ignores the wrap_Around parameter and unconditional wrap around is supported. If the operation is started successfully, the application should use poll() to identify when the seek is over.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to start the seek successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_G_CTRL</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Get</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_control</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_G_CTRL</constant> IOCTL to retrive value of a paticular control. The following controls are supported by FM Driver:
+               <itemizedlist>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RSSI_LEVEL
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RSSI_THRESHOLD
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_GET_RESULTS
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_GET_RESULTS
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RSSI_LEVEL
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RSSI_LEVEL
+               </para></listitem>
+               </itemizedlist>
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to retrive the value of the control successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_S_CTRL</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_control</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+              <para>
+               The <constant>VIDIOC_S_CTRL</constant> IOCTL to set value of a paticular control. The following controls are supported by FM Driver:
+               <itemizedlist>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_CHIP_STATE
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RDS_STATE
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_BANDSCAN
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_BLOCKSCAN_START
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_SELECT_ANTENNA
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RSSI_THRESHOLD
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_START
+               </para></listitem>
+               </itemizedlist>
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to set the value of the control successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_G_EXT_CTRLS</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Get</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_ext_controls</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_G_EXT_CTRLS</constant> IOCTL to retrive value of a paticular control. This is used when a control class is defined or when the value to be retrived is more than 1 parameter(s). Only V4L2_CTRL_CLASS_FM_TX class is supported for this IOCTL in FM Driver. The following controls are supported by FM Driver:
+               <itemizedlist>
+               <listitem><para>
+               V4L2_CID_RDS_TX_DEVIATION
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_PILOT_TONE_ENABLED
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_PILOT_TONE_DEVIATION
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_TUNE_PREEMPHASIS
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_TUNE_POWER_LEVEL
+               </para></listitem>
+               </itemizedlist>
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to retrive the value(s) of the control successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+       <varlistentry>
+         <term><constant>VIDIOC_S_EXT_CTRLS</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Set</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_ext_controls</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+               The <constant>VIDIOC_S_CTRL</constant> IOCTL to set value of a paticular control when the parameters to be set are more than 1 parameter or when a control class is defined. At present only the V4L2_CTRL_CLASS_FM_TX and V4L2_CTRL_CLASS_USER control classes are supported by FM Driver. The following controls are supported by FM Driver:
+               <itemizedlist>
+               <listitem><para>
+               V4L2_CID_RDS_TX_DEVIATION
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_RDS_TX_PI
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_RDS_TX_PTY
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_RDS_TX_PS_NAME
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_RDS_TX_RADIO_TEXT
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_PILOT_TONE_ENABLED
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_PILOT_TONE_DEVIATION
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_TUNE_PREEMPHASIS
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_TUNE_POWER_LEVEL
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_START
+               </para></listitem>
+               </itemizedlist>
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to set the value of the control successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+     </variablelist>
+   </section>
+
+   <section id="driver-sysfs">
+     <title>Driver Interaction with Sysfs</title>
+     <para>
+       <!-- TODO: Describe data available for read and write on the drivers
+            Sysfs entry.  Specify where the entry for the device is located in
+            Sysfs such as <filename>/sys/devices/*</filename>, <filename>/sys/devices/*</filename>
+            , etc.
+            Specify the data types for the attributes. Specify if the
+            attributes are read-only or write-only. If the driver has no Sysfs
+            interface, replace this text with "Not Applicable". -->
+       Not Applicable
+     </para>
+   </section>
+
+   <section id="driver-proc">
+     <title>Driver Interaction using /proc filesystem</title>
+     <para>
+       Not Applicable
+       <!-- TODO: Describe data available for read and write on the drivers
+            /proc entry. Specify where the entry for the device is located.
+            Specify the data types for the attributes. Specify if the
+            attributes are read-only or writeonly. If the driver has no /proc
+            interface, replace this text with "Not Applicable". -->
+     </para>
+   </section>
+
+   <section id="driver-other">
+     <title>Other means for Driver Interaction</title>
+     <para>
+       <!-- TODO: Does the driver have any configurations files? Describe other means
+            for driver status access or configuration. If the driver has no other
+            means (besides the one in already described in this chapter), replace
+            this text with "Not Applicable". -->
+       Not Applicable
+     </para>
+   </section>
+
+ <section id="driver-node">
+   <title>Driver Node File</title>
+     <variablelist>
+     <varlistentry>
+       <term>FM Radio Device</term>
+       <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>File</term>
+             <listitem><para><filename>/dev/radio0</filename></para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>The radio device for FM Radio.</para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+       </listitem>
+     </varlistentry>
+    </variablelist>
+  </section>
 
  </chapter>
 
@@ -802,10 +1338,10 @@
    </para>
  </chapter>
 
- <chapter id="function-description">
-   <title>Functions Description</title>
+ <chapter id="internal-functions">
+   <title>Internal Functions Provided</title>
    <para>
-	List of functions used in FM Driver.
+	List of internal functions used in FM Driver.
    </para>
    <!-- Do NOT change the chapter id or title! -->
    <!-- TODO: Replace with link to appropriate headerfile(s),
