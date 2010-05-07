@@ -160,7 +160,7 @@ struct ste_conn_hci_info {
 	enum ste_conn_hci_reset_state		hreset_state;
 	enum ste_conn_hci_enable_state		enable_state;
 	struct rfkill				*rfkill;
-	enum rfkill_state			rfkill_state;
+	int					rfkill_state;
 	enum ste_conn_hci_rfkill_rf_state	rfkill_rf_state;
 };
 
@@ -215,8 +215,8 @@ static void ste_conn_hci_cpd_reset_cb(struct ste_conn_device *dev);
 /* RFKill handling functions */
 static int ste_conn_hci_rfkill_register(void);
 static void ste_conn_hci_rfkill_deregister(void);
-static int ste_conn_hci_rfkill_toggle_radio(void *data, enum rfkill_state state);
-static int ste_conn_hci_rfkill_get_state(void *data, enum rfkill_state *state);
+static int ste_conn_hci_rfkill_toggle_radio(void *data, int state);
+static int ste_conn_hci_rfkill_get_state(void *data, int *state);
 
 /*
   * struct ste_conn_hci_cb - Specifies callback structure for ste_conn user.

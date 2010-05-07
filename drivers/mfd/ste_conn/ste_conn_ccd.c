@@ -28,6 +28,7 @@
 #include <linux/timer.h>
 #include <linux/miscdevice.h>
 #include <linux/mutex.h>
+#include <linux/sched.h>
 
 #include <linux/mfd/ste_conn.h>
 #include "ste_conn_cpd.h"
@@ -1004,9 +1005,11 @@ static int uart_tty_open(struct tty_struct *tty)
 	/* Flush any pending characters in the driver and line discipline.
 	* Don't use ldisc_ref here as the open path is before the ldisc is referencable
 	*/
-	if (tty->ldisc.ops->flush_buffer) {
-		tty->ldisc.ops->flush_buffer(tty);
+
+	if (tty->ldisc->ops->flush_buffer) {
+		tty->ldisc->ops->flush_buffer(tty);
 	}
+
 	tty_driver_flush_buffer(tty);
 
 	ccd_info->dev->parent = NULL;
@@ -1960,8 +1963,8 @@ static void __exit ste_conn_exit(void)
 	test_char_device_destroy();
 	if (ccd_info) {
 		temp_devt = ccd_info->dev->devt;
-		kfree(ccd_info->dev->driver_data);
 		device_destroy(ccd_info->ccd_class, temp_devt);
+		kfree(dev_get_drvdata(ccd_info->dev));
 		class_destroy(ccd_info->ccd_class);
 		unregister_chrdev_region(temp_devt, 32);
 

@@ -23,6 +23,7 @@
 #include <linux/device.h>
 #include <linux/poll.h>
 #include <linux/mutex.h>
+#include <linux/sched.h>
 
 #include <linux/mfd/ste_conn.h>
 #include <mach/ste_conn_devices.h>
@@ -581,7 +582,7 @@ static int char_dev_setup_cdev(struct ste_conn_char_dev_user *dev_usr,
 {
 	int err = 0;
 	struct ste_conn_ccd_driver_data *driver_data =
-		(struct ste_conn_ccd_driver_data *)parent->driver_data;
+		(struct ste_conn_ccd_driver_data *)dev_get_drvdata(parent);
 
 	if (!driver_data) {
 		STE_CONN_ERR("Received driver data is empty");
