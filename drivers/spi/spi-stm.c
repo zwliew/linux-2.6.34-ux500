@@ -794,7 +794,9 @@ int init_queue(struct driver_data *drv_data)
 	INIT_WORK(&drv_data->spi_work, pump_messages);
 #ifdef CONFIG_SPI_WORKQUEUE
 	drv_data->workqueue = create_singlethread_workqueue(
-			drv_data->master->dev.bus_id);
+		dev_name(&drv_data->master->dev));
+
+
 	if (drv_data->workqueue == NULL)
 		return -EBUSY;
 #endif
