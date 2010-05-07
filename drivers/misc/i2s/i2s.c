@@ -36,13 +36,11 @@ static void i2sdev_release(struct device *dev)
 		put_device(&(i2s->controller->dev));
 	kfree(dev);
 }
-
 static ssize_t
 modalias_show(struct device *dev, struct device_attribute *a, char *buf)
 {
 	const struct i2s_device *i2s = to_i2s_device(dev);
-
-	return snprintf(buf, BUS_ID_SIZE + 1, "%s\n", i2s->modalias);
+	return sprintf(buf, "%s\n", i2s->modalias);
 }
 
 static struct device_attribute i2s_dev_attrs[] = {
@@ -224,12 +222,11 @@ int i2s_add_device(struct i2s_device *i2s)
 	struct device *dev = i2s->dev.parent;
 	int status;
 
-	snprintf(i2s->dev.bus_id, sizeof i2s->dev.bus_id,
-		 "%s.%u", "i2s", i2s->chip_select);
+	dev_set_name(&i2s->dev, "%s.%u", "i2s", i2s->chip_select);
 
 	mutex_lock(&i2s_add_lock);
 
-	if (bus_find_device_by_name(&i2s_bus_type, NULL, i2s->dev.bus_id)
+	if (bus_find_device_by_name(&i2s_bus_type, NULL, dev_name(&i2s->dev))
 	    != NULL) {
 		dev_err(dev, "chipselect %d already in use\n",
 			i2s->chip_select);
@@ -241,9 +238,9 @@ int i2s_add_device(struct i2s_device *i2s)
 	status = device_add(&i2s->dev);
 	if (status < 0)
 		dev_err(dev, "can't %s %s, status %d\n",
-			"add", i2s->dev.bus_id, status);
+			"add", dev_name(&i2s->dev), status);
 	else
-		dev_dbg(dev, "registered child %s\n", i2s->dev.bus_id);
+		dev_dbg(dev, "registered child %s\n", dev_name(&i2s->dev));
 
       done:
 	mutex_unlock(&i2s_add_lock);
@@ -408,7 +405,7 @@ static int i2s_register_controller(struct i2s_controller *cont)
 		pr_debug("I2S controller driver [%s] forgot to specify "
 			 "physical device\n", cont->name);
 	}
-	sprintf(cont->dev.bus_id, "I2Scrlr-%d", cont->id);
+	dev_set_name(&cont->dev, "I2Scrlr-%d", cont->id);
 	cont->dev.release = &i2s_controller_dev_release;
 	cont->dev.class = &i2s_controller_class;
 	res = device_register(&cont->dev);
