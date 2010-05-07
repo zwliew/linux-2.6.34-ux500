@@ -35,10 +35,11 @@
 #include <linux/err.h>
 #include <linux/highmem.h>
 #include <linux/mmc/host.h>
+#include <linux/mmc/card.h>
 #include <linux/mmc/sdio.h>
+#include <linux/mmc/sdio_func.h>
 #include <linux/amba/bus.h>
 #include <linux/clk.h>
-#include <linux/autoconf.h>
 #include <linux/dma-mapping.h>
 #include <linux/vmalloc.h>
 #include <linux/completion.h>
@@ -51,7 +52,7 @@
 #include <asm/scatterlist.h>
 #include <asm/sizes.h>
 #include <mach/hardware.h>
-#include <asm/mach/mmc.h>
+#include <mach/mmc.h>
 #include <asm/bitops.h>
 #include <mach/mmc.h>
 #include <mach/debug.h>
