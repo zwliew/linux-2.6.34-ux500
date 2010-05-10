@@ -1,19 +1,12 @@
-/*---------------------------------------------------------------------------*/
-/* Copyrighti (C) STEricsson 2009. 				  	     */
-/*                                                                           */
-/* This program is free software; you can redistribute it and/or modify it   */
-/* under the terms of the GNU Lesser General Public License as published     */
-/* by the Free Software Foundation; either version 2.1 of the License,       */
-/* or (at your option)any later version.                                     */
-/*                                                                           */
-/* This program is distributed in the hope that it will be useful, but       */
-/* WITHOUT ANY WARRANTY; without even the implied warranty of                */
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See                  */
-/* the GNU Lesser General Public License for more details.                   */
-/*                                                                           */
-/* You should have received a copy of the GNU Lesser General Public License  */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.      */
-/*---------------------------------------------------------------------------*/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #ifndef _MCDE_COMMON_H_
 #define _MCDE_COMMON_H_
@@ -56,7 +49,7 @@ MODULE_PARM_DESC(mcde_debug,"Debug level for messages");
 
 /** Global data */
 
-#define MAX_LPF 1280
+#define MAX_LPF 1080
 #define MAX_PPL 1920
 #define NUM_MCDE_FLOWS 4
 #ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
@@ -106,6 +99,8 @@ struct mcdefb_info {
 	u32 vcomp_irq;
 	u32 dsi_formatter;
 	u32 dsi_mode;
+	u32 swap;
+	u32 started;
 
 	/** phy-virtual addresses allocated for framebuffer and overlays */
 	struct mcde_addrmap buffaddr[MCDE_MAX_FRAMEBUFF*2];

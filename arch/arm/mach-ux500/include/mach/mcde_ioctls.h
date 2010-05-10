@@ -1,18 +1,12 @@
-/*----------------------------------------------------------------------------------*/
-/*  copyright STEricsson, 2009.                                            */
-/*                                                                                  */
-/* This program is free software; you can redistribute it and/or modify it under    */
-/* the terms of the GNU General Public License as published by the Free             */
-/* Software Foundation; either version 2.1 of the License, or (at your option)      */
-/* any later version.                                                               */
-/*                                                                                  */
-/* This program is distributed in the hope that it will be useful, but WITHOUT      */
-/* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    */
-/* FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.   */
-/*                                                                                  */
-/* You should have received a copy of the GNU General Public License                */
-/* along with this program. If not, see <http://www.gnu.org/licenses/>.             */
-/*----------------------------------------------------------------------------------*/
+/*
+ * Copyright (C) ST-Ericsson SA 2010
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
 
 #ifndef _MCDE_IOCTLS_H_
 #define _MCDE_IOCTLS_H_
@@ -422,6 +416,10 @@ typedef enum{
   VMODE_1920_1080_60_I,
   VMODE_1920_1080_60_P,
 #ifdef CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT
+  VMODE_1280_720_24_P,
+  VMODE_1280_720_30_P,
+  VMODE_1920_1080_24_P,
+  VMODE_1920_1080_25_P,
   VMODE_1920_1080_30_P,
 #endif
 }mcde_video_mode;
@@ -465,6 +463,8 @@ IOCTLs for access from user space
 #define MCDE_IOCTL_TV_PLUG_STATUS		_IOR(MCDE_IOC_MAGIC, 0x1D,unsigned long)
 #define MCDE_IOCTL_TV_CHANGE_MODE		_IOWR(MCDE_IOC_MAGIC, 0x1E,unsigned long)
 #define MCDE_IOCTL_TV_GET_MODE		_IOR(MCDE_IOC_MAGIC, 0x1F,unsigned long)
+
+#define MCDE_IOCTL_REG_DUMP			_IOR(MCDE_IOC_MAGIC, 0x20,unsigned long)
 
 /**
  * struct mcde_overlay_create - To create overlay
