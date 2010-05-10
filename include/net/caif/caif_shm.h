@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -10,7 +10,7 @@
 #include <linux/list.h>
 /*#include <linux/init.h>
 #include <linux/workqueue.h>*/
-#include <net/caif/generic/caif_layer.h>
+#include <net/caif/caif_layer.h>
 
 #define ESUCCESS    0
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
- * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
+ * Copyright (C) ST-Ericsson AB 2010
+ * Author:	Sjur Brendeland / sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
@@ -16,7 +16,7 @@
 #define CAIF_ACT_CREATE_DEVICE 		 7
 
 /*
- *  Remove a CAIF device. Requires the device to be previously disconnected.
+ * Remove a CAIF device. Requires the device to be previously disconnected.
  * Type is struct caif_device_name)
  */
 #define CAIF_ACT_DELETE_DEVICE           8

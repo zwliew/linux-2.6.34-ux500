@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -7,8 +7,8 @@
 #ifndef CAIF_CHR_H_
 #define CAIF_CHR_H_
 
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
 #include <linux/caif/caif_config.h>
 #include <linux/if.h>
 #include <net/caif/caif_actions.h>
@@ -174,19 +174,19 @@ struct caif_packet_funcs {
 	struct cfpkt *(*cfpkt_dequeue)(struct cfpktq *pktq);
 
 	/* Get length of a packet */
-	uint16(*cfpkt_getlen)(struct cfpkt *pkt);
+	u16(*cfpkt_getlen)(struct cfpkt *pkt);
 };
 
 
 struct caif_service_config;
 extern int (*netdev_mgmt_func) (int action, union caif_action *param);
 
-int caifdev_phy_register(struct layer *phyif, enum cfcnfg_phy_type phy_type,
+int caifdev_phy_register(struct cflayer *phyif, enum cfcnfg_phy_type phy_type,
 			 enum cfcnfg_phy_preference phy_pref,
 			 bool fcs, bool stx);
 
-int caifdev_phy_unregister(struct layer *phyif);
-int caifdev_phy_loop_register(struct layer *phyif,
+int caifdev_phy_unregister(struct cflayer *phyif);
+int caifdev_phy_loop_register(struct cflayer *phyif,
 			      enum cfcnfg_phy_type phy_type,
 			      bool fcs, bool stx);
 int caif_register_chrdev(int (*chrdev_mgmt)
@@ -196,6 +196,8 @@ struct caif_packet_funcs cfcnfg_get_packet_funcs(void);
 struct net_device *chnl_net_create(char *name,
 				   struct caif_channel_config *config);
 struct caif_packet_funcs caif_get_packet_funcs(void);
+int add_adaptation_layer(struct caif_channel_config *config,
+			 struct cflayer *adap_layer);
 
 #endif				/* CAIF_CHR_H_ */
 
