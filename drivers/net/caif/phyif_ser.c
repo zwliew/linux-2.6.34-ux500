@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -10,9 +10,9 @@
 #include <linux/device.h>
 #include <linux/tty.h>
 
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
-#include <net/caif/generic/cfpkt.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
+#include <net/caif/cfpkt.h>
 #include <net/caif/caif_chr.h>
 
 MODULE_LICENSE("GPL");
@@ -25,7 +25,7 @@ MODULE_PARM_DESC(serial_use_stx, "STX enabled or not.");
 
 unsigned char sbuf_wr[WRITE_BUF_SIZE];
 
-struct layer ser_phy;
+struct cflayer ser_phy;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 static struct tty_ldisc_ops phyif_ldisc;
@@ -83,14 +83,14 @@ static void ser_receive(struct tty_struct *tty, const u8 *data,
 	ser_phy.up->receive(ser_phy.up, pkt);
 }
 
-int ser_phy_tx(struct layer *layr, struct cfpkt *cfpkt)
+int ser_phy_tx(struct cflayer *layr, struct cfpkt *cfpkt)
 {
 	size_t tty_wr, actual_len;
 	bool cont;
 	struct caif_packet_funcs f;
 
 	if (!pser_tty)
-		return CFGLU_ENOTCONN;
+		return -ENOTCONN;
 
 	/* Get CAIF packet functions. */
 	f = cfcnfg_get_packet_funcs();

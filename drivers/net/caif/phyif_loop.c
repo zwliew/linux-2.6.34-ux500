@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
  *		Per Sigmond / Per.Sigmond@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
@@ -16,9 +16,9 @@
 #include <linux/sched.h>
 
 /* Caif header files. */
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
-#include <net/caif/generic/cfpkt.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
+#include <net/caif/cfpkt.h>
 #include <net/caif/caif_chr.h>
 
 MODULE_LICENSE("GPL");
@@ -34,8 +34,8 @@ MODULE_PARM_DESC(reentrant,
 MODULE_PARM_DESC(direct,
 		 "Direct mode, looping packets directly back up the stack");
 
-static struct layer cf_phy;
-static struct layer loop_phy;
+static struct cflayer cf_phy;
+static struct cflayer loop_phy;
 static spinlock_t ring_buffer_lock;
 
 /* Start ring buffer */
@@ -97,7 +97,7 @@ static void work_func(struct work_struct *work)
 	CAIFLOG_EXIT("");
 }
 
-static int cf_phy_modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
+static int cf_phy_modemcmd(struct cflayer *layr, enum caif_modemcmd ctrl)
 {
 	switch (ctrl) {
 	case _CAIF_MODEMCMD_PHYIF_USEFULL:
@@ -114,7 +114,7 @@ static int cf_phy_modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
 	return 0;
 }
 
-static int cf_phy_tx(struct layer *layr, struct cfpkt *pkt)
+static int cf_phy_tx(struct cflayer *layr, struct cfpkt *pkt)
 {
 	int ret;
 	CAIFLOG_ENTER("");
@@ -127,7 +127,7 @@ static int cf_phy_tx(struct layer *layr, struct cfpkt *pkt)
 }
 
 static int
-loop_phy_tx_reent(struct layer *layr, struct cfpkt *cfpkt)
+loop_phy_tx_reent(struct cflayer *layr, struct cfpkt *cfpkt)
 {
 	CAIFLOG_ENTER("");
 
@@ -138,7 +138,7 @@ loop_phy_tx_reent(struct layer *layr, struct cfpkt *cfpkt)
 	return 0;
 }
 
-static int loop_phy_tx(struct layer *layr, struct cfpkt *cfpkt)
+static int loop_phy_tx(struct cflayer *layr, struct cfpkt *cfpkt)
 {
 	CAIFLOG_ENTER("");
 
@@ -172,7 +172,7 @@ static int loop_phy_tx(struct layer *layr, struct cfpkt *cfpkt)
 	return 0;
 }
 
-static int cf_phy_tx_direct(struct layer *layr, struct cfpkt *pkt)
+static int cf_phy_tx_direct(struct cflayer *layr, struct cfpkt *pkt)
 {
 	int ret;
 

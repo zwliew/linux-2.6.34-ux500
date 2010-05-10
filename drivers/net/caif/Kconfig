@@ -10,17 +10,29 @@ config CAIF_TTY
 	tristate "CAIF TTY transport driver"
 	default n
 	---help---
-	The CAIF TTY transport driver.
+	The CAIF TTY transport driver is a Line Discipline (ldisc)
+	identified as N_CAIF. When this ldisc is opened from user space
+	it will redirect the TTY's traffic into the CAIF stack.
 
-#official-kernel-patch-cut-here
+#deprecated-functionality-below
 
-config CAIF_PHYIF_MSPI
+if CAIF_TTY
+config CAIF_TTY_NOFCS
+	bool "Don't use checksum for CAIF TTY transport driver"
+	default n
+	---help---
+	If the CAIF transport driver is reliable checksumming is
+	not needed.
+endif # CAIF_TTY
+
+
+config CAIF_SPI_MASTER
 	tristate "CAIF SPI transport driver for master interface"
 	default n
 	---help---
 	The CAIF SPI transport driver. Master SPI interface.
 
-config CAIF_PHYIF_SSPI
+config CAIF_SPI_SLAVE
 	tristate "CAIF SPI transport driver for slave interface"
 	default n
 	---help---
@@ -40,23 +52,29 @@ config CAIF_LOOPBACK
 	---help---
 	Loopback test driver
 
-if CAIF_PHYIF_MSPI || CAIF_PHYIF_SSPI
+if CAIF_SPI_MASTER
 
 comment "CAIF SPI physical drivers"
 
-config CAIF_SIM_MSPI
-	tristate "Use simulated SPI device, master interface"
+config CAIF_SPI_LOOP
+	tristate "Use simulated SPI loop device"
 	default n
 	---help---
-	Simulated SPI master interface device.
+	Simulated SPI loop device.
 
-config CAIF_SIM_SSPI
-	tristate "Use simulated SPI device, slave interface"
+endif # CAIF_SPI_MASTER
+
+if CAIF_SPI_SLAVE
+
+config CONFIG_CAIF_SPI_SYNC
+	bool "Next command and length in start of frame"
 	default n
 	---help---
-	Simulated SPI slave interface device.
+	Putting the next command and length in the start of the frame can
+	help to synchronize to the next transfer in case of over or underruns.
+	NB: This option also needs to be enabled on the modem.
 
-endif # CAIF_PHYIF_MSPI | CAIF_PHYIF_SSPI
+endif # CAIF_SPI_SLAVE
 
 if CAIF_SHM
 
@@ -86,5 +104,6 @@ config CAIF_SMBX
 
 endif # CAIF_USE_SHM
 
-#official-kernel-patch-resume-here
+#deprecated-functionality-above
+
 endif # CAIF

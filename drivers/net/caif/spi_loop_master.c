@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2.
  */
@@ -13,8 +13,19 @@
 #include <linux/dma-mapping.h>
 #include <linux/hrtimer.h>
 
-#include <net/caif/caif_chr.h>
 #include <net/caif/caif_spi.h>
+
+#ifdef CONFIG_UML
+static inline void  __BUG_ON(unsigned long condition, int line)
+{
+	if (condition)
+		printk(KERN_ERR "BUG_ON: file: %s, line: %d.\n", __FILE__, line);
+	else
+		return;
+}
+#undef BUG_ON
+#define BUG_ON(x) __BUG_ON((unsigned long)(x), __LINE__)
+#endif	/* CONFIG_UML */
 
 MODULE_LICENSE("GPL");
 
@@ -30,7 +41,7 @@ struct mspi_struct {
 
 static struct mspi_struct mspi;
 
-extern int phyif_mspi_dev_reg(struct cfspi_dev *dev, struct cfspi_ifc **ifc);
+extern int cfspi_mspi_dev_reg(struct cfspi_dev *dev, struct cfspi_ifc **ifc);
 
 static enum hrtimer_restart mspi_hrtimer(struct hrtimer *timer)
 {
@@ -53,8 +64,8 @@ static enum hrtimer_restart mspi_hrtimer(struct hrtimer *timer)
 
 static void mspi_xfer(struct mspi_struct *mspi)
 {
-	uint32 xfer_time;
-	uint16 xfer_len;
+	uint32_t xfer_time;
+	uint16_t xfer_len;
 
 	/* Calculate minimum transfer. */
 	if (mspi->mxfer->tx_dma_len < mspi->sxfer->tx_dma_len)
@@ -118,7 +129,7 @@ int spi_mspi_connect(struct cfspi_dev *sdev, struct cfspi_dev **mdev)
 	mspi.sdev = sdev;
 
 	/* Initialize platform device. */
-	mspi.pdev.name = "phyif_mspi";
+	mspi.pdev.name = "cfspi_mspi";
 	mspi.pdev.dev.platform_data = &mspi.mdev;
 
 	/* Initialize spin lock. */
@@ -137,6 +148,13 @@ int spi_mspi_connect(struct cfspi_dev *sdev, struct cfspi_dev **mdev)
 	return res;
 }
 EXPORT_SYMBOL(spi_mspi_connect);
+
+void spi_mspi_disconnect(struct cfspi_dev *mdev)
+{
+	struct mspi_struct *mspi = (struct mspi_struct *)mdev->priv;
+	//platform_device_del(&mspi->pdev);
+}
+EXPORT_SYMBOL(spi_mspi_disconnect);
 
 int spi_mspi_init_xfer(struct cfspi_xfer *xfer, struct cfspi_dev *mdev)
 {
@@ -178,8 +196,10 @@ static int __init mspi_init(void)
 
 static void __exit mspi_exit(void)
 {
-	/* Unregister platform device. */
-	platform_device_unregister(&mspi.pdev);
+	/* Delete platform device. */
+	pr_warning("exit (%p)\n",&mspi.pdev);
+	//platform_device_del(&mspi.pdev);
+
 }
 
 module_init(mspi_init);

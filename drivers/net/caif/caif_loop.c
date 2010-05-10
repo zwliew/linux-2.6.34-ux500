@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland / sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -12,11 +12,13 @@
 #include <net/pkt_sched.h>
 #include <linux/if_arp.h>
 #include <net/caif/caif_device.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
+#include <net/caif/cfctrl.h>
 
 MODULE_LICENSE("GPL");
+static int caif_recv(struct net_device *dev, struct sk_buff *skb);
 
 struct caif_loop_dev {
 	struct caif_dev_common common;
@@ -24,6 +26,8 @@ struct caif_loop_dev {
 	int flow_on;
 	int queue_on;
 	int copycat;
+	int errmode;
+	struct sk_buff *heldskb;
 };
 #define CAIF_MAX_MTU 4096
 
@@ -72,6 +76,37 @@ static ssize_t show_copycat(struct device *dev,
 	return sprintf(buf, "%u\n", loopdev->copycat);
 }
 
+static ssize_t store_errmode(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t len)
+{
+	unsigned long val;
+	struct net_device *netdev = to_net_dev(dev);
+	struct caif_loop_dev *loopdev = netdev_priv(netdev);
+	struct sk_buff *skb;
+	strict_strtoul(buf, 10, &val);
+	skb = loopdev->heldskb;
+	loopdev->heldskb = NULL;
+	if (loopdev->errmode == 1 && val == 0 && skb) {
+		printk(KERN_INFO "send held skb %p\n",skb);
+		netif_rx_ni(skb);
+		printk(KERN_INFO "send flow on\n");
+		//loopdev->common.flowctrl(loopdev->dev, 1);
+	}
+	loopdev->errmode = val;
+	printk(KERN_INFO "caif_loop:errmode:%lu\n",val);
+	return len;
+}
+
+static ssize_t show_errmode(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	struct net_device *netdev = to_net_dev(dev);
+	struct caif_loop_dev *loopdev = netdev_priv(netdev);
+	return sprintf(buf, "%u\n", loopdev->errmode);
+}
+
+
 static ssize_t store_flow_on(struct device *dev,
 			  struct device_attribute *attr,
 			  const char *buf, size_t len)
@@ -96,6 +131,7 @@ static struct device_attribute attrs[] = {
 	__ATTR(flow_on, S_IRUGO | S_IWUSR, show_flow_on, store_flow_on),
 	__ATTR(queue_on, S_IRUGO | S_IWUSR, show_queue_on, store_queue_on),
 	__ATTR(copycat, S_IRUGO | S_IWUSR, show_copycat, store_copycat),
+	__ATTR(errmode, S_IRUGO | S_IWUSR, show_errmode, store_errmode),
 };
 
 static int sysfs_add(struct net_device *netdev)
@@ -135,6 +171,28 @@ static int caif_recv(struct net_device *dev, struct sk_buff *skb)
 	dev->stats.rx_packets++;
 	dev->stats.rx_bytes += skb->len;
 	caifd = netdev_priv(dev);
+	if (caifd->errmode == 1) {
+		if (caifd->heldskb) {
+			printk(KERN_INFO "send held skb in mode 1 - %p\n",skb);
+			netif_rx_ni(caifd->heldskb);
+		}
+		printk(KERN_INFO "store skb and send flow off\n");
+		//if (caifd && caifd->common.flowctrl)
+		//	caifd->common.flowctrl(dev, 0);
+		caifd->heldskb = skb;
+		return 0;
+	}
+	if (caifd->errmode == 2) {
+		kfree_skb(skb);
+		return 0;
+	}
+	if (caifd->errmode == 3) {
+		kfree_skb(skb);
+		return 0;
+	}
+
+	if (caifd->errmode == 4)
+		skb_pull(skb, 0)[3] |= CFCTRL_ERR_BIT; /* Set error bit */
 
 	if (caifd->flow_on > 0) {
 		--caifd->flow_on;
@@ -143,9 +201,9 @@ static int caif_recv(struct net_device *dev, struct sk_buff *skb)
 	for (i = caifd->copycat; i; i--) {
 		struct sk_buff *clone;
 		clone = skb_clone(skb,GFP_ATOMIC);
-		netif_rx(clone);
+		netif_rx_ni(clone);
 	}
-	ret = netif_rx(skb);
+	ret = netif_rx_ni(skb);
 	if (ret == NET_RX_DROP)
 		return NET_XMIT_DROP;
 	return 0;

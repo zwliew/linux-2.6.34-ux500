@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -25,9 +25,9 @@
 #include <linux/io.h>
 
 /* CAIF header files. */
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
-#include <net/caif/generic/cfpkt.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
+#include <net/caif/cfpkt.h>
 
 /* CAIF linux header files. */
 #include <net/caif/caif_chr.h>
@@ -66,14 +66,14 @@ struct shm_pck_desc_t {
 	/* Offset from start of shared memory area to start of
 	 * shared memory CAIF frame.
 	 */
-	uint32 frm_ofs;
+	u32 frm_ofs;
 	/* Length of CAIF frame. */
-	uint32 frm_len;
+	u32 frm_len;
 };
 
 struct shm_caif_frm_t{
 	/* Number of bytes of padding before the CAIF frame. */
-	uint8 hdr_ofs;
+	u8 hdr_ofs;
 };
 
 
@@ -98,7 +98,7 @@ struct shm_caif_frm_t{
 #define SHM_FRM_PAD_LEN				4
 
 struct shm_layer {
-	struct layer shm_phy;
+	struct cflayer shm_phy;
 	struct shm_cfgifc_t *cfg_ifc;
 	struct shm_mbxifc_t *mbx_ifc;
 	char cfg_name[16];
@@ -156,7 +156,7 @@ static void phyif_shm_sig_work_func(struct work_struct *work)
 	 *	 is not allowed. Option is to lock the whole function.
 	 */
 	int ret;
-	uint16 mbox_msg;
+	u16 mbox_msg;
 	struct shm_layer *pshm = container_of(work, struct shm_layer, sig_work);
 
 	do {
@@ -514,7 +514,7 @@ err_tx_sync:
     return ESUCCESS;
 }
 
-void shm_phy_fctrl(struct layer *layr, enum caif_ctrlcmd on, int phyid)
+void shm_phy_fctrl(struct cflayer *layr, enum caif_ctrlcmd on, int phyid)
 {
 	/* We have not yet added flow control. */
 }
@@ -523,7 +523,7 @@ void
 cfpkt_extract(struct cfpkt *pkt, void *buf, unsigned int buflen,
 	      unsigned int *actual_len)
 {
-	uint16 pklen;
+	u16 pklen;
 	pklen = cfpkt_getlen(pkt);
 	if (likely(buflen < pklen))
 		pklen = buflen;
@@ -552,7 +552,7 @@ static int shm_send_pkt(struct shm_layer *pshm, struct cfpkt *cfpkt,
 		if (list_empty(&pshm->tx_pend_list)) {
 			/* Release spin lock. */
 			spin_unlock_irqrestore(&lock, flags);
-			return CFGLU_ERETRY;
+			return -EAGAIN;
 		}
 
 		/* Get the last pending buffer. */
@@ -563,7 +563,7 @@ static int shm_send_pkt(struct shm_layer *pshm, struct cfpkt *cfpkt,
 		if (pbuf->frames >= SHM_MAX_CAIF_FRMS_PER_BUF) {
 			/* Release spin lock. */
 			spin_unlock_irqrestore(&lock, flags);
-			return CFGLU_ERETRY;
+			return -EAGAIN;
 		}
 	} else {
 		if (list_empty(&pshm->tx_empty_list)) {
@@ -575,13 +575,13 @@ static int shm_send_pkt(struct shm_layer *pshm, struct cfpkt *cfpkt,
 
 			if (!pshm->shm_phy.up->ctrlcmd) {
 				printk(KERN_WARNING "shm_phy_tx: No flow up.\n");
-				return CFGLU_ERETRY;
+				return -EAGAIN;
 			}
 
 			pshm->shm_phy.up->ctrlcmd(pshm->shm_phy.up,
 				_CAIF_CTRLCMD_PHYIF_FLOW_OFF_IND, 0);
 
-			return CFGLU_ERETRY;
+			return -EAGAIN;
 		}
 
 		/* Get the first free buffer. */
@@ -615,11 +615,11 @@ static int shm_send_pkt(struct shm_layer *pshm, struct cfpkt *cfpkt,
 		if (append) {
 			/* Put back packet as end of pending queue. */
 			list_add_tail(&pbuf->list, &pshm->tx_pend_list);
-			return CFGLU_ENOSPC;
+			return -ENOSPC;
 		} else {
 			/* Put back packet as start of empty queue. */
 			list_add(&pbuf->list, &pshm->tx_empty_list);
-			return CFGLU_ENOSPC;
+			return -ENOSPC;
 		}
 	}
 
@@ -664,7 +664,7 @@ static int shm_send_pkt(struct shm_layer *pshm, struct cfpkt *cfpkt,
 	return ESUCCESS;
 }
 
-int shm_phy_tx(struct layer *layr, struct cfpkt *cfpkt)
+int shm_phy_tx(struct cflayer *layr, struct cfpkt *cfpkt)
 {
 	struct shm_layer *pshm;
 	int result;
@@ -785,7 +785,7 @@ static int __init phyif_shm_init(void)
 			       "phyif_shm_init: can't find mailbox: %s.\n",
 			       shm_layer[i].mbx_name);
 			/* CLEANUP !!! */
-			return CFGLU_ENXIO;
+			return -ENXIO;
 		}
 
 		/* Fill in some info about ourselves. */
@@ -825,7 +825,7 @@ static int __init phyif_shm_init(void)
 static void __exit phyif_shm_exit(void)
 {
 	struct shm_buf_t *pbuf;
-	uint8 i = 0;
+	u8 i = 0;
 	for (i = 0; i < SHM_INSTANCES; i++) {
 
 		/* Unregister callbacks from mailbox interface. */
