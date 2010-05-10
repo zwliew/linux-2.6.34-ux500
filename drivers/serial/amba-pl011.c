@@ -34,12 +34,17 @@
 #define SUPPORT_SYSRQ
 #endif
 
+#define KEYPAD_IMPLEMENTATION_USING_UART
+
 #include <linux/module.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
 #include <linux/console.h>
 #include <linux/sysrq.h>
 #include <linux/device.h>
+#ifdef KEYPAD_IMPLEMENTATION_USING_UART
+#include <linux/input.h>
+#endif
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 #include <linux/serial_core.h>
@@ -62,6 +67,179 @@
 
 #define UART_DR_ERROR		(UART011_DR_OE|UART011_DR_BE|UART011_DR_PE|UART011_DR_FE)
 #define UART_DUMMY_DR_RX	(1 << 16)
+
+#ifdef KEYPAD_IMPLEMENTATION_USING_UART
+
+static struct input_dev *button_dev;
+static char use_keyboard=0;
+
+int keys_set_bit(struct input_dev * dev);
+
+/* This is key map table go to the index = "ascii value of key" and put the key event
+ * It should start working */
+
+static char key_to_register[256] =
+{
+/*
+0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+*/
+KEY_BACK, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_ENTER, KEY_RESERVED, KEY_RESERVED,
+/*
+0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+*/
+KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7,
+/*
+0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
+*/
+KEY_8, KEY_9, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
+*/
+KEY_RESERVED, KEY_UP, KEY_DOWN, KEY_RIGHT, KEY_LEFT, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_F3, KEY_RESERVED, KEY_MENU, KEY_RESERVED, KEY_RESERVED,
+/*
+0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_F4, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67,
+*/
+KEY_RESERVED, KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G,
+/*
+0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
+*/
+KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M, KEY_N, KEY_O,
+/*
+0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77,
+*/
+KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W,
+/*
+0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F,
+*/
+KEY_X, KEY_Y, KEY_Z, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
+/*
+0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
+*/
+KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED
+};
+
+
+int keys_set_bit(struct input_dev * dev)
+{
+	int i;
+	for(i=0; i<256; i++) {
+		if(key_to_register[i] != KEY_RESERVED) {
+			set_bit(key_to_register[i], dev->keybit);
+			//printk("%s: set bit for key %d at 0x%02x\n", __FUNCTION__, key_to_register[i], i);
+		}
+	}
+	return 0;
+}
+
+
+void report_key(unsigned int ch)
+{
+	int i=(ch&255);
+
+	if(key_to_register[i] != KEY_RESERVED) {
+		input_report_key(button_dev, key_to_register[i], 1);
+		input_sync(button_dev);
+		//printk("%s: key pressed %d at 0x%02x\n", __FUNCTION__, key_to_register[i],i);
+		input_report_key(button_dev, key_to_register[i], 0);
+		input_sync(button_dev);
+	} else {
+		//printk("%s: key at %x is reserved\n", __FUNCTION__, i);
+	}
+}
+
+#endif
 
 /*
  * We wrap our port structure around the generic uart_port.
@@ -164,6 +342,17 @@ static void pl011_rx_chars(struct uart_amba_port *uap)
 
 		if (uart_handle_sysrq_char(&uap->port, ch & 255))
 			goto ignore_char;
+
+#ifdef KEYPAD_IMPLEMENTATION_USING_UART
+		if( (ch & 255) == 0x2a ) {
+			/* toggle this when '*' is pressed */
+			use_keyboard=(1-use_keyboard);
+		}
+
+		if(use_keyboard) {
+			report_key(ch);
+		}
+#endif
 
 		uart_insert_char(&uap->port, ch, UART011_DR_OE, ch, flag);
 
@@ -900,6 +1089,36 @@ static int __init pl011_init(void)
 	int ret;
 	printk(KERN_INFO "Serial: AMBA PL011 UART driver\n");
 
+#ifdef KEYPAD_IMPLEMENTATION_USING_UART
+	//: REGISTERING TO THE INPUT DEVICE SYSTEM
+	/*
+	  Then it allocates a new input device structure with input_allocate_device()
+	  and sets up input bitfields. This way the device driver tells the other
+	  parts of the input systems what it is - what events can be generated or
+	  accepted by this input device. Our example device can only generate EV_KEY OR EV_REP
+	  type events, and from those only KEY_ENTER,KEY_BACK etc event code. Thus we only set these
+	  two bits. We could have used
+	*/
+	button_dev = input_allocate_device();
+	if (!button_dev) {
+		printk(KERN_ERR ": IN amba-pl011.c: Not enough memory\n");
+		return -ENOMEM;
+	}
+
+	button_dev->evbit[0] = BIT(EV_KEY) | BIT(EV_REP); //BIT_MASK(EV_KEY);
+
+	if(keys_set_bit(button_dev) < 0)
+		printk(KERN_ERR "amba-pl011.c: Failed to set bit for keys\n");
+
+	ret = input_register_device(button_dev);
+	if (ret) {
+		printk(KERN_ERR " IN amba-pl011.c: Failed to register input device\n");
+		return ret;
+	}
+
+	input_sync(button_dev);
+#endif
+
 	ret = uart_register_driver(&amba_reg);
 	if (ret == 0) {
 		ret = amba_driver_register(&pl011_driver);
@@ -919,7 +1138,13 @@ static void __exit pl011_exit(void)
  * While this can be a module, if builtin it's most likely the console
  * So let's leave module_exit but move module_init to an earlier place
  */
+#ifdef KEYPAD_IMPLEMENTATION_USING_UART
+/* In case of input device must call pl011_init after input_init (subsys_initcall)
+   so that input class is fully registered other wise we panic */
+device_initcall(pl011_init);
+#else
 arch_initcall(pl011_init);
+#endif
 module_exit(pl011_exit);
 
 MODULE_AUTHOR("ARM Ltd/Deep Blue Solutions Ltd");
