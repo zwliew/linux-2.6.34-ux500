@@ -1,13 +1,3 @@
-/*
- * Copyright (C) ST-Ericsson SA 2010
- *
- * License terms:
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as published
- * by the Free Software Foundation.
- */
-
 #define WRITE_FIELD(reg, field, value) \
   (reg = (reg & (~((field##_MASK) << (field##_SHIFT)))) | ((value & (field##_MASK)) << (field##_SHIFT)) )
 
@@ -314,18 +304,11 @@
 #define MCDE_CHNLSTAT_CHNLRD          0x00000001
 
 
-#define MCDE_CHNLSYNCHMOD						(MCDE_BASE + 0x608)
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_SHIFT	2
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_MASK	0x7
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT		0
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_MASK		0x3
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_FROM_SELECTED_FORMATER	0x0
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_FROM_MCDEVSYNC0			0x1
-#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_FROM_MCDEVSYNC1			0x2
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_OUTPUT						0x0
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_AUTO						0x1
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_SW							0x2
-#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_EXTERNAL					0x3
+#define MCDE_CHNLSYNCHMOD                     (MCDE_BASE + 0x608)
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_SHIFT 2
+#define MCDE_CHNLSYNCHMOD_OUT_SYNCH_SRC_MASK  0x7
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_SHIFT     0
+#define MCDE_CHNLSYNCHMOD_SRC_SYNCH_MASK      0x3
 
 
 #define MCDE_CHNLSYNCHSW          (MCDE_BASE + 0x60C)
@@ -367,6 +350,7 @@
 #define MCDE_CR0_BLENDEN            0x00000004
 #define MCDE_CR0_POWEREN            0x00000002
 #define MCDE_CR0_FLOEN              0x00000001
+
 
 #define MCDE_CR1                  (MCDE_BASE + 0x804)
 #define MCDE_CR1_TEFFECTEN        0x80000000
@@ -483,24 +467,12 @@
 #define MCDE_TVCR_AVRGEN          0x00000100
 #define MCDE_TVCR_SDTVMODE_SHIFT  6
 #define MCDE_TVCR_SDTVMODE_MASK   0x3
-#define MCDE_TVCR_SDTVMODE_YC     0x0
-#define MCDE_TVCR_SDTVMODE_CY     0x1
 #define MCDE_TVCR_TVMODE_SHIFT    3
 #define MCDE_TVCR_TVMODE_MASK     0x7
-#define MCDE_TVCR_TVMODE_SDTV            0x0
-#define MCDE_TVCR_TVMODE_HDTV_480P       0x1
-#define MCDE_TVCR_TVMODE_HDTV_720P       0x2
-#define MCDE_TVCR_TVMODE_SDTV_DDR_LS_1ST 0x3
-#define MCDE_TVCR_TVMODE_SDTV_DDR_MS_1ST 0x4
-#define MCDE_TVCR_IFIELD_SHIFT    2
-#define MCDE_TVCR_IFIELD_MASK     0x1
-#define MCDE_TVCR_IFIELD_ACT_HGH  0x0
-#define MCDE_TVCR_IFIELD_ACT_LOW  0x1
+#define MCDE_TVCR_IFIELD          0x00000004
 #define MCDE_TVCR_INTEREN         0x00000002
-#define MCDE_TVCR_SEL_MOD_SHIFT   0
-#define MCDE_TVCR_SEL_MOD_MASK    0x1
-#define MCDE_TVCR_SEL_MOD_LCD     0x0
-#define MCDE_TVCR_SEL_MOD_TV      0x1
+#define MCDE_TVCR_SEL_MOD         0x00000001
+
 
 #define MCDE_TVBL1                (MCDE_BASE + 0x83C)
 #define MCDE_TVBL1_BSL1_SHIFT     16
@@ -878,8 +850,6 @@
 #define MCDE_DSICMDW_CMDW_START_MASK      0xFFFF
 #define MCDE_DSICMDW_CMDW_CONTINUE_SHIFT  0
 #define MCDE_DSICMDW_CMDW_CONTINUE_MASK   0xFFFF
-#define MCDE_DSICMDW_CMD_START_MEMORY_WRITE		0x2C
-#define MCDE_DSICMDW_CMD_CONTINUE_MEMORY_WRITE	0x3C
 
 
 #define MCDE_DSIDELAY0                  (MCDE_BASE + 0xE14)

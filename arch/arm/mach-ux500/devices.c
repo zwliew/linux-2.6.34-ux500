@@ -16,7 +16,6 @@
 #include <linux/i2c.h>
 #include <linux/gpio.h>
 #include <linux/usb/musb.h>
-#include <linux/delay.h>
 #include <linux/regulator/machine.h>
 #include <linux/dma-mapping.h>
 
