@@ -1,33 +1,37 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfpkt.h>
+#include <linux/stddef.h>
+#include <linux/spinlock.h>
+#include <linux/slab.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfpkt.h>
+#include <net/caif/cfserl.h>
 
 #define container_obj(layr) ((struct cfserl *) layr)
 
 #define CFSERL_STX 0x02
 #define CAIF_MINIUM_PACKET_SIZE 4
 struct cfserl {
-	struct layer layer;
+	struct cflayer layer;
 	struct cfpkt *incomplete_frm;
-	cfglu_lock_t sync;
+	/* Protects parallel processing of incoming packets */
+	spinlock_t sync;
 	bool usestx;
 };
 #define STXLEN(layr) (layr->usestx ? 1 : 0)
 
-static int cfserl_receive(struct layer *layr, struct cfpkt *pkt);
-static int cfserl_transmit(struct layer *layr, struct cfpkt *pkt);
-static void cfserl_ctrlcmd(struct layer *layr, enum caif_ctrlcmd ctrl,
+static int cfserl_receive(struct cflayer *layr, struct cfpkt *pkt);
+static int cfserl_transmit(struct cflayer *layr, struct cfpkt *pkt);
+static void cfserl_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
 				int phyid);
 
-struct cfserl *cfserl_create(int type, int instance, bool use_stx)
+struct cflayer *cfserl_create(int type, int instance, bool use_stx)
 {
-	struct cfserl *this = cfglu_alloc(sizeof(struct cfserl));
+	struct cfserl *this = kmalloc(sizeof(struct cfserl), GFP_ATOMIC);
 	if (!this) {
 		pr_warning("CAIF: %s(): Out of memory\n", __func__);
 		return NULL;
@@ -39,34 +43,24 @@ struct cfserl *cfserl_create(int type, int instance, bool use_stx)
 	this->layer.ctrlcmd = cfserl_ctrlcmd;
 	this->layer.type = type;
 	this->usestx = use_stx;
-	cfglu_init_lock(this->sync);
+	spin_lock_init(&this->sync);
 	snprintf(this->layer.name, CAIF_LAYER_NAME_SZ, "ser1");
-	return this;
+	return &this->layer;
 }
 
-void cfserl_set_uplayer(struct cfserl *this, struct layer *up)
-{
-	this->layer.up = up;
-}
-
-void cfserl_set_dnlayer(struct cfserl *this, struct layer *dn)
-{
-	this->layer.dn = dn;
-}
-
-static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
+static int cfserl_receive(struct cflayer *l, struct cfpkt *newpkt)
 {
 	struct cfserl *layr = container_obj(l);
-	uint16 pkt_len;
+	u16 pkt_len;
 	struct cfpkt *pkt = NULL;
 	struct cfpkt *tail_pkt = NULL;
-	uint8 tmp8;
-	uint16 tmp;
-	uint8 stx = CFSERL_STX;
+	u8 tmp8;
+	u16 tmp;
+	u8 stx = CFSERL_STX;
 	int ret;
-	uint16 expectlen = 0;
+	u16 expectlen = 0;
 	caif_assert(newpkt != NULL);
-	cfglu_lock(layr->sync);
+	spin_lock(&layr->sync);
 
 	if (layr->incomplete_frm != NULL) {
 
@@ -90,8 +84,8 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 				if (!cfpkt_more(pkt)) {
 					cfpkt_destroy(pkt);
 					layr->incomplete_frm = NULL;
-					cfglu_unlock(layr->sync);
-					return CFGLU_EPROTO;
+					spin_unlock(&layr->sync);
+					return -EPROTO;
 				}
 			}
 		}
@@ -108,7 +102,7 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 			if (layr->usestx)
 				cfpkt_add_head(pkt, &stx, 1);
 			layr->incomplete_frm = pkt;
-			cfglu_unlock(layr->sync);
+			spin_unlock(&layr->sync);
 			return 0;
 		}
 
@@ -117,7 +111,7 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 		 *  expectlen is the length we need for a full frame.
 		 */
 		cfpkt_peek_head(pkt, &tmp, 2);
-		expectlen = cfglu_le16_to_cpu(tmp) + 2;
+		expectlen = le16_to_cpu(tmp) + 2;
 		/*
 		 * Frame error handling
 		 */
@@ -128,8 +122,8 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 					cfpkt_destroy(pkt);
 				layr->incomplete_frm = NULL;
 				expectlen = 0;
-				cfglu_unlock(layr->sync);
-				return CFGLU_EPROTO;
+				spin_unlock(&layr->sync);
+				return -EPROTO;
 			}
 			continue;
 		}
@@ -139,7 +133,7 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 			if (layr->usestx)
 				cfpkt_add_head(pkt, &stx, 1);
 			layr->incomplete_frm = pkt;
-			cfglu_unlock(layr->sync);
+			spin_unlock(&layr->sync);
 			return 0;
 		}
 
@@ -153,10 +147,10 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 			tail_pkt = NULL;
 
 		/* Send the first part of packet upwards.*/
-		cfglu_unlock(layr->sync);
+		spin_unlock(&layr->sync);
 		ret = layr->layer.up->receive(layr->layer.up, pkt);
-		cfglu_lock(layr->sync);
-		if (ret == CFGLU_EFCS) {
+		spin_lock(&layr->sync);
+		if (ret == -EILSEQ) {
 			if (layr->usestx) {
 				if (tail_pkt != NULL)
 					pkt = cfpkt_append(pkt, tail_pkt, 0);
@@ -173,15 +167,15 @@ static int cfserl_receive(struct layer *l, struct cfpkt *newpkt)
 
 	} while (pkt != NULL);
 
-	cfglu_unlock(layr->sync);
+	spin_unlock(&layr->sync);
 	return 0;
 }
 
-static int cfserl_transmit(struct layer *layer, struct cfpkt *newpkt)
+static int cfserl_transmit(struct cflayer *layer, struct cfpkt *newpkt)
 {
 	struct cfserl *layr = container_obj(layer);
 	int ret;
-	uint8 tmp8 = CFSERL_STX;
+	u8 tmp8 = CFSERL_STX;
 	if (layr->usestx)
 		cfpkt_add_head(newpkt, &tmp8, 1);
 	ret = layer->dn->transmit(layer->dn, newpkt);
@@ -191,7 +185,7 @@ static int cfserl_transmit(struct layer *layer, struct cfpkt *newpkt)
 	return ret;
 }
 
-static void cfserl_ctrlcmd(struct layer *layr, enum caif_ctrlcmd ctrl,
+static void cfserl_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
 				int phyid)
 {
 	layr->up->ctrlcmd(layr->up, ctrl, phyid);

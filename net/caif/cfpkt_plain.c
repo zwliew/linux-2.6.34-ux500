@@ -1,11 +1,10 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/cfpkt.h>
+#include <net/caif/cfpkt.h>
 
 /* NOTE: Excluding physical layer, max is 10 bytes. Physical layer is
  * uncertain.
@@ -18,9 +17,9 @@
 
 #define MAGIC_VALUE 0xbaadf00d
 /* Return closest 32bit aligned address (by adding) */
-#define ALIGN32(p) (((((uint32)p)&0x3) == 0) ?\
-		    ((uint32) p) :\
-		    (((uint32)p) + (0x4 - (((uint32)p)&0x3))))
+#define ALIGN32(p) (((((u32)p)&0x3) == 0) ?\
+		    ((u32) p) :\
+		    (((u32)p) + (0x4 - (((u32)p)&0x3))))
 
 /* Do division by 0 on failure - CRASH */
 #define CHECK_MAGIC(pkt) \
@@ -46,55 +45,55 @@
  */
 
 struct _payload {
-	uint32 magic2;
-	uint8 buf[1];
+	u32 magic2;
+	u8 buf[1];
 };
 struct cfpkt {
-	uint32 magic1;
-	uint32 *magic2;		/* This will point to location before _head_ */
-	struct payload_info info;
+	u32 magic1;
+	u32 *magic2;		/* This will point to location before _head_ */
+	struct caif_payload_info info;
 	void *blob;
 	struct cfpkt *next;
-	const uint8 *_head_;	/* Start of buffer, i.e. first legal
+	const u8 *_head_;	/* Start of buffer, i.e. first legal
 				 * pos for _data_
 				 */
-	uint8 *_data_;		/* Start of payload */
-	uint8 *_tail_;		/* End of payload data */
-	uint8 *_end_;		/* End of buffer, i.e. last legal pos
+	u8 *_data_;		/* Start of payload */
+	u8 *_tail_;		/* End of payload data */
+	u8 *_end_;		/* End of buffer, i.e. last legal pos
 				 * for _tail_
 				 */
 };
 
 #define PKT_ERROR(pkt, errmsg) do {\
-	   pkt->_data_ = pkt->_tail_ = pkt->_end_ = (uint8 *)pkt->_head_;\
+	   pkt->_data_ = pkt->_tail_ = pkt->_end_ = (u8 *)pkt->_head_;\
 	   pr_err(errmsg); } while (0)
 
 struct cfpktq {
 	struct cfpkt *head;
-	cfglu_lock_t qlock;
+	spinlock_t qlock;
 	int count;
 };
 
-cfglu_atomic_t cfpkt_packet_count;
+atomic_t cfpkt_packet_count;
 EXPORT_SYMBOL(cfpkt_packet_count);
 
-struct cfpkt *cfpkt_create_pfx(uint16 len, uint16 pfx)
+struct cfpkt *cfpkt_create_pfx(u16 len, u16 pfx)
 {
 	int pldlen;
 	int bloblen;
 	struct cfpkt *pkt;
 	void *blob;
 	struct _payload *pld;
-	uint8 *pktstruct;
+	u8 *pktstruct;
 	void *blobend, *structend;
-	cfglu_atomic_inc(cfpkt_packet_count);
+	atomic_inc(&cfpkt_packet_count);
 
 	/* (1) Compute payload length */
 	pldlen = len + pfx;
 	if (pldlen < PKT_MINSIZE)
 		pldlen = PKT_MINSIZE;
 	/* Make room for Magic before & after payload */
-	pldlen += 2 * sizeof(uint32);
+	pldlen += 2 * sizeof(u32);
 	pldlen = ALIGN32(pldlen);
 
 	/* (2) Compute blob length, payload + packet struct */
@@ -105,7 +104,7 @@ struct cfpkt *cfpkt_create_pfx(uint16 len, uint16 pfx)
 	/* (3) Allocate the blob */
 	blob = cfglu_alloc(bloblen);
 
-	blobend = (uint8 *) blob + bloblen;
+	blobend = (u8 *) blob + bloblen;
 
 	/* Initialize payload struct */
 	pld = (struct _payload *) blob;
@@ -113,7 +112,7 @@ struct cfpkt *cfpkt_create_pfx(uint16 len, uint16 pfx)
 
 	/* Initialize packet struct */
 	pktstruct = pld->buf + pldlen;
-	pktstruct = (uint8 *) ALIGN32(pktstruct);
+	pktstruct = (u8 *) ALIGN32(pktstruct);
 	structend = pktstruct + sizeof(struct cfpkt);
 	memset(pktstruct, 0, sizeof(struct cfpkt));
 	caif_assert(structend <= blobend);
@@ -121,17 +120,17 @@ struct cfpkt *cfpkt_create_pfx(uint16 len, uint16 pfx)
 	pkt->blob = blob;
 	pkt->_end_ = &pld->buf[pldlen];
 	pkt->_head_ = &pld->buf[0];
-	pkt->_data_ = (uint8 *) pkt->_head_ + pfx;
+	pkt->_data_ = (u8 *) pkt->_head_ + pfx;
 	pkt->_tail_ = pkt->_data_;
 
 	pkt->magic1 = MAGIC_VALUE;
-	pkt->magic2 = (uint32 *) &pld->buf[pldlen];
+	pkt->magic2 = (u32 *) &pld->buf[pldlen];
 	*pkt->magic2 = MAGIC_VALUE;
 	CHECK_MAGIC(pkt);
 	return pkt;
 }
 
-struct cfpkt *cfpkt_create(uint16 len)
+struct cfpkt *cfpkt_create(u16 len)
 {
 	return cfpkt_create_pfx(len, PKT_PREFIX);
 }
@@ -139,9 +138,9 @@ struct cfpkt *cfpkt_create(uint16 len)
 void cfpkt_destroy(struct cfpkt *pkt)
 {
 	CHECK_MAGIC(pkt);
-	cfglu_atomic_dec(cfpkt_packet_count);
-	caif_assert(cfglu_atomic_read(cfpkt_packet_count) >= 0);
-	cfglu_free(pkt->blob);
+	atomic_dec(&cfpkt_packet_count);
+	caif_assert(atomic_read(&cfpkt_packet_count) >= 0);
+	kfree(pkt->blob);
 }
 
 bool cfpkt_more(struct cfpkt *pkt)
@@ -150,35 +149,35 @@ bool cfpkt_more(struct cfpkt *pkt)
 	return pkt->_data_ < pkt->_tail_;
 }
 
-int cfpkt_extr_head(struct cfpkt *pkt, void *dta, uint16 len)
+int cfpkt_extr_head(struct cfpkt *pkt, void *dta, u16 len)
 {
 	register int i;
-	uint8 *data = dta;
+	u8 *data = dta;
 	caif_assert(data != NULL);
 	CHECK_MAGIC(pkt);
 	if (pkt->_data_ + len > pkt->_tail_) {
 		PKT_ERROR(pkt,
 			  "cfpkt_extr_head would read beyond end of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	for (i = 0; i < len; i++) {
 		data[i] = *pkt->_data_;
 		pkt->_data_++;
 	}
 	CHECK_MAGIC(pkt);
-	return CFGLU_EOK;
+	return 0;
 }
 
-int cfpkt_extr_trail(struct cfpkt *pkt, void *dta, uint16 len)
+int cfpkt_extr_trail(struct cfpkt *pkt, void *dta, u16 len)
 {
 	int i;
-	uint8 *data = dta;
+	u8 *data = dta;
 	caif_assert(data != NULL);
 	CHECK_MAGIC(pkt);
 	if (pkt->_data_ + len > pkt->_tail_) {
 		PKT_ERROR(pkt,
 			"cfpkt_extr_trail would read beyond start of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	data += len;
 	for (i = 0; i < len; i++) {
@@ -187,7 +186,7 @@ int cfpkt_extr_trail(struct cfpkt *pkt, void *dta, uint16 len)
 		*data = *pkt->_tail_;
 	}
 	CHECK_MAGIC(pkt);
-	return CFGLU_EOK;
+	return 0;
 }
 
 char *cfpkt_log_pkt(struct cfpkt *pkt, char *buf, int buflen)
@@ -213,16 +212,16 @@ char *cfpkt_log_pkt(struct cfpkt *pkt, char *buf, int buflen)
 	return buf;
 }
 
-int cfpkt_add_body(struct cfpkt *pkt, const void *dta, uint16 len)
+int cfpkt_add_body(struct cfpkt *pkt, const void *dta, u16 len)
 {
 	register int i;
-	const uint8 *data = dta;
+	const u8 *data = dta;
 	caif_assert(data != NULL);
 	CHECK_MAGIC(pkt);
 	if (pkt->_tail_ + len > pkt->_end_) {
 		PKT_ERROR(pkt,
 			  "cfpkt_add_body would write beyond end of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 
 	for (i = 0; i < len; i++) {
@@ -230,34 +229,34 @@ int cfpkt_add_body(struct cfpkt *pkt, const void *dta, uint16 len)
 		pkt->_tail_++;
 	}
 	CHECK_MAGIC(pkt);
-	return CFGLU_EOK;
+	return 0;
 }
 
-int cfpkt_addbdy(struct cfpkt *pkt, uint8 data)
+int cfpkt_addbdy(struct cfpkt *pkt, u8 data)
 {
 	CHECK_MAGIC(pkt);
 	return cfpkt_add_body(pkt, &data, 1);
 }
 
-int cfpkt_add_head(struct cfpkt *pkt, const void *dta, uint16 len)
+int cfpkt_add_head(struct cfpkt *pkt, const void *dta, u16 len)
 {
 	register int i;
-	const uint8 *data = dta;
+	const u8 *data = dta;
 	caif_assert(data != NULL);
 	CHECK_MAGIC(pkt);
 	if (pkt->_data_ - len < pkt->_head_) {
 		PKT_ERROR(pkt, "cfpkt_add_head: write beyond start of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	for (i = len - 1; i >= 0; i--) {
 		--pkt->_data_;
 		*pkt->_data_ = data[i];
 	}
 	CHECK_MAGIC(pkt);
-	return CFGLU_EOK;
+	return 0;
 }
 
-int cfpkt_add_trail(struct cfpkt *pkt, const void *data, uint16 len)
+int cfpkt_add_trail(struct cfpkt *pkt, const void *data, u16 len)
 {
 	CHECK_MAGIC(pkt);
 	caif_assert(data != NULL);
@@ -265,25 +264,25 @@ int cfpkt_add_trail(struct cfpkt *pkt, const void *data, uint16 len)
 
 }
 
-uint16 cfpkt_iterate(struct cfpkt *pkt,
-		uint16 (*func)(uint16 chks, void *buf, uint16 len),
-		uint16 data)
+u16 cfpkt_iterate(struct cfpkt *pkt,
+		u16 (*func)(u16 chks, void *buf, u16 len),
+		u16 data)
 {
 	return func(data, pkt->_data_, cfpkt_getlen(pkt));
 }
 
-int cfpkt_setlen(struct cfpkt *pkt, uint16 len)
+int cfpkt_setlen(struct cfpkt *pkt, u16 len)
 {
 	CHECK_MAGIC(pkt);
 	if (pkt->_data_ + len > pkt->_end_) {
 		PKT_ERROR(pkt, "cfpkt_setlen: Erroneous packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	pkt->_tail_ = pkt->_data_ + len;
 	return cfpkt_getlen(pkt);
 }
 
-uint16 cfpkt_getlen(struct cfpkt *pkt)
+u16 cfpkt_getlen(struct cfpkt *pkt)
 {
 	CHECK_MAGIC(pkt);
 	return pkt->_tail_ - pkt->_data_;
@@ -292,7 +291,7 @@ uint16 cfpkt_getlen(struct cfpkt *pkt)
 void cfpkt_extract(struct cfpkt *cfpkt, void *buf, unsigned int buflen,
 		   unsigned int *actual_len)
 {
-	uint16 pklen = cfpkt_getlen(cfpkt);
+	u16 pklen = cfpkt_getlen(cfpkt);
 	caif_assert(buf != NULL);
 	caif_assert(actual_len != NULL);
 	CHECK_MAGIC(cfpkt);
@@ -313,10 +312,10 @@ struct cfpkt *cfpkt_create_uplink(const unsigned char *data, unsigned int len)
 }
 
 struct cfpkt *cfpkt_append(struct cfpkt *dstpkt, struct cfpkt *addpkt,
-				uint16 expectlen)
+				u16 expectlen)
 {
-	uint16 addpktlen = addpkt->_tail_ - addpkt->_data_;
-	uint16 neededtailspace;
+	u16 addpktlen = addpkt->_tail_ - addpkt->_data_;
+	u16 neededtailspace;
 	CHECK_MAGIC(dstpkt);
 	CHECK_MAGIC(addpkt);
 	if (expectlen > addpktlen)
@@ -325,8 +324,8 @@ struct cfpkt *cfpkt_append(struct cfpkt *dstpkt, struct cfpkt *addpkt,
 		neededtailspace = addpktlen;
 	if (dstpkt->_tail_ + neededtailspace > dstpkt->_end_) {
 		struct cfpkt *tmppkt;
-		uint16 dstlen;
-		uint16 createlen;
+		u16 dstlen;
+		u16 createlen;
 		dstlen = dstpkt->_tail_ - dstpkt->_data_;
 		createlen = dstlen + addpktlen;
 		if (expectlen > createlen)
@@ -345,11 +344,11 @@ struct cfpkt *cfpkt_append(struct cfpkt *dstpkt, struct cfpkt *addpkt,
 	return dstpkt;
 }
 
-struct cfpkt *cfpkt_split(struct cfpkt *pkt, uint16 pos)
+struct cfpkt *cfpkt_split(struct cfpkt *pkt, u16 pos)
 {
 	struct cfpkt *half;		/* FIXME: Rename half to pkt2 */
-	uint8 *split = pkt->_data_ + pos;
-	uint16 len2nd = pkt->_tail_ - split;
+	u8 *split = pkt->_data_ + pos;
+	u16 len2nd = pkt->_tail_ - split;
 
 
 	CHECK_MAGIC(pkt);
@@ -380,15 +379,15 @@ bool cfpkt_erroneous(struct cfpkt *pkt)
 	/* Errors are marked by setting _end_ equal to _head_ (zero sized
 	 *  packet)
 	 */
-	return pkt->_end_ == (uint8 *) pkt->_head_;
+	return pkt->_end_ == (u8 *) pkt->_head_;
 }
 
-int cfpkt_pad_trail(struct cfpkt *pkt, uint16 len)
+int cfpkt_pad_trail(struct cfpkt *pkt, u16 len)
 {
 	CHECK_MAGIC(pkt);
 	if (pkt->_tail_ + len > pkt->_end_) {
 		PKT_ERROR(pkt, "cfpkt_pad_trail pads beyond end of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 #if 1
 	/* We're assuming that the modem doesn't require zero-padding */
@@ -399,23 +398,23 @@ int cfpkt_pad_trail(struct cfpkt *pkt, uint16 len)
 #endif
 
 	CHECK_MAGIC(pkt);
-	return CFGLU_EOK;
+	return 0;
 }
 
-int cfpkt_peek_head(struct cfpkt *const pkt, void *dta, uint16 len)
+int cfpkt_peek_head(struct cfpkt *const pkt, void *dta, u16 len)
 {
 	register int i;
-	uint8 *data = (uint8 *) dta;
+	u8 *data = (u8 *) dta;
 	CHECK_MAGIC(pkt);
 	if (pkt->_data_ + len > pkt->_tail_) {
 		PKT_ERROR(pkt,
 			  "cfpkt_peek_head would read beyond end of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	for (i = 0; i < len; i++)
 		data[i] = pkt->_data_[i];
 	CHECK_MAGIC(pkt);
-	return CFGLU_EOK;
+	return 0;
 
 }
 
@@ -425,12 +424,12 @@ int cfpkt_raw_append(struct cfpkt *cfpkt, void **buf, unsigned int buflen)
 	if (cfpkt->_tail_ + buflen > cfpkt->_end_) {
 		PKT_ERROR(cfpkt,
 			  "cfpkt_raw_append would append beyond end of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 
 	*buf = cfpkt->_tail_;
 	cfpkt->_tail_ += buflen;
-	return CFGLU_EOK;
+	return 0;
 }
 
 int cfpkt_raw_extract(struct cfpkt *cfpkt, void **buf, unsigned int buflen)
@@ -439,18 +438,18 @@ int cfpkt_raw_extract(struct cfpkt *cfpkt, void **buf, unsigned int buflen)
 	if (cfpkt->_data_ + buflen > cfpkt->_tail_) {
 		PKT_ERROR(cfpkt,
 			  "cfpkt_raw_extact would read beyond end of packet\n");
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 
 	*buf = cfpkt->_data_;
 	cfpkt->_data_ += buflen;
-	return CFGLU_EOK;
+	return 0;
 }
 
-struct cfpktq *cfpktq_create()
+struct cfpktq *cfpktq_create(void)
 {
 	struct cfpktq *q = (struct cfpktq *) cfglu_alloc(sizeof(struct cfpktq));
-	cfglu_init_lock(q->qlock);
+	spin_lock_init(&q->qlock);
 	q->head = NULL;
 	q->count = 0;
 	return q;
@@ -459,7 +458,7 @@ struct cfpktq *cfpktq_create()
 void cfpkt_queue(struct cfpktq *pktq, struct cfpkt *pkt, unsigned short prio)
 {
 	CHECK_MAGIC(pkt);
-	cfglu_lock(pktq->qlock);
+	spin_lock(&pktq->qlock);
 	pkt->next = NULL;
 	if (pktq->head == NULL)
 		pktq->head = pkt;
@@ -475,29 +474,29 @@ void cfpkt_queue(struct cfpktq *pktq, struct cfpkt *pkt, unsigned short prio)
 		p->next = pkt;
 	}
 	pktq->count++;
-	cfglu_unlock(pktq->qlock);
+	spin_unlock(&pktq->qlock);
 }
 
 struct cfpkt *cfpkt_qpeek(struct cfpktq *pktq)
 {
 	struct cfpkt *pkt;
 
-	cfglu_lock(pktq->qlock);
+	spin_lock(&pktq->qlock);
 	if (pktq->head != NULL) {
 		/* NOTE: Sync is only needed due to this CHECK_MAGIC... */
 		CHECK_MAGIC(pktq->head);
 	}
 	pkt = pktq->head;
-	cfglu_unlock(pktq->qlock);
+	spin_unlock(&pktq->qlock);
 	return pkt;
 }
 
 struct cfpkt *cfpkt_dequeue(struct cfpktq *pktq)
 {
 	struct cfpkt *ret;
-	cfglu_lock(pktq->qlock);
+	spin_lock(&pktq->qlock);
 	if (pktq->head == NULL) {
-		cfglu_unlock(pktq->qlock);
+		spin_unlock(&pktq->qlock);
 		return NULL;
 	}
 	ret = pktq->head;
@@ -505,7 +504,7 @@ struct cfpkt *cfpkt_dequeue(struct cfpktq *pktq)
 	CHECK_MAGIC(ret);
 	pktq->count--;
 	caif_assert(pktq->count >= 0);
-	cfglu_unlock(pktq->qlock);
+	spin_unlock(&pktq->qlock);
 	return ret;
 }
 
@@ -513,9 +512,9 @@ int cfpkt_qcount(struct cfpktq *pktq)
 {
 	int count;
 
-	cfglu_lock(pktq->qlock);
+	spin_lock(&pktq->qlock);
 	count = pktq->count;
-	cfglu_unlock(pktq->qlock);
+	spin_unlock(&pktq->qlock);
 
 	return count;
 }
@@ -547,7 +546,7 @@ struct caif_packet_funcs cfpkt_get_packet_funcs()
 	return f;
 }
 #endif
-struct payload_info *cfpkt_info(struct cfpkt *pkt)
+struct caif_payload_info *cfpkt_info(struct cfpkt *pkt)
 {
 	return &pkt->info;
 }

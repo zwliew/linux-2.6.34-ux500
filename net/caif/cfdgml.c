@@ -1,13 +1,15 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfsrvl.h>
-#include <net/caif/generic/cfpkt.h>
+#include <linux/stddef.h>
+#include <linux/spinlock.h>
+#include <linux/slab.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfsrvl.h>
+#include <net/caif/cfpkt.h>
 
 #define container_obj(layr) ((struct cfsrvl *) layr)
 
@@ -16,12 +18,12 @@
 #define DGM_FLOW_ON  0x80
 #define DGM_CTRL_PKT_SIZE 1
 
-static int cfdgml_receive(struct layer *layr, struct cfpkt *pkt);
-static int cfdgml_transmit(struct layer *layr, struct cfpkt *pkt);
+static int cfdgml_receive(struct cflayer *layr, struct cfpkt *pkt);
+static int cfdgml_transmit(struct cflayer *layr, struct cfpkt *pkt);
 
-struct layer *cfdgml_create(uint8 channel_id, struct dev_info *dev_info)
+struct cflayer *cfdgml_create(u8 channel_id, struct dev_info *dev_info)
 {
-	struct cfsrvl *dgm = cfglu_alloc(sizeof(struct cfsrvl));
+	struct cfsrvl *dgm = kmalloc(sizeof(struct cfsrvl), GFP_ATOMIC);
 	if (!dgm) {
 		pr_warning("CAIF: %s(): Out of memory\n", __func__);
 		return NULL;
@@ -36,10 +38,10 @@ struct layer *cfdgml_create(uint8 channel_id, struct dev_info *dev_info)
 	return &dgm->layer;
 }
 
-static int cfdgml_receive(struct layer *layr, struct cfpkt *pkt)
+static int cfdgml_receive(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint8 cmd = -1;
-	uint8 dgmhdr[3];
+	u8 cmd = -1;
+	u8 dgmhdr[3];
 	int ret;
 	caif_assert(layr->up != NULL);
 	caif_assert(layr->receive != NULL);
@@ -48,14 +50,14 @@ static int cfdgml_receive(struct layer *layr, struct cfpkt *pkt)
 	if (cfpkt_extr_head(pkt, &cmd, 1) < 0) {
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
 		cfpkt_destroy(pkt);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 
 	if ((cmd & DGM_CMD_BIT) == 0) {
 		if (cfpkt_extr_head(pkt, &dgmhdr, 3) < 0) {
 			pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
 			cfpkt_destroy(pkt);
-			return CFGLU_EPROTO;
+			return -EPROTO;
 		}
 		ret = layr->up->receive(layr->up, pkt);
 		return ret;
@@ -74,14 +76,14 @@ static int cfdgml_receive(struct layer *layr, struct cfpkt *pkt)
 		cfpkt_destroy(pkt);
 		pr_info("CAIF: %s(): Unknown datagram control %d (0x%x)\n",
 			__func__, cmd, cmd);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 }
 
-static int cfdgml_transmit(struct layer *layr, struct cfpkt *pkt)
+static int cfdgml_transmit(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint32 zero = 0;
-	struct payload_info *info;
+	u32 zero = 0;
+	struct caif_payload_info *info;
 	struct cfsrvl *service = container_obj(layr);
 	int ret;
 	if (!cfsrvl_ready(service, &ret))
@@ -99,7 +101,7 @@ static int cfdgml_transmit(struct layer *layr, struct cfpkt *pkt)
 	info->dev_info = &service->dev_info;
 	ret = layr->dn->transmit(layr->dn, pkt);
 	if (ret < 0) {
-		uint32 tmp32;
+		u32 tmp32;
 		cfpkt_extr_head(pkt, &tmp32, 4);
 	}
 	return ret;

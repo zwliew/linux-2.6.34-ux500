@@ -1,78 +1,81 @@
 /*
  * CAIF Framing Layer.
  *
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#define container_obj(layr) cfglu_container_of(layr, struct cffrml, layer)
+#include <linux/stddef.h>
+#include <linux/spinlock.h>
+#include <linux/slab.h>
+#include <linux/crc-ccitt.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfpkt.h>
+#include <net/caif/cffrml.h>
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfpkt.h>
-#include <net/caif/generic/cffrml.h>
+#define container_obj(layr) container_of(layr, struct cffrml, layer)
 
 struct cffrml {
-	struct layer layer;
+	struct cflayer layer;
 	bool dofcs;		/* !< FCS active */
 };
 
-static int cffrml_receive(struct layer *layr, struct cfpkt *pkt);
-static int cffrml_transmit(struct layer *layr, struct cfpkt *pkt);
-static void cffrml_ctrlcmd(struct layer *layr, enum caif_ctrlcmd ctrl,
+static int cffrml_receive(struct cflayer *layr, struct cfpkt *pkt);
+static int cffrml_transmit(struct cflayer *layr, struct cfpkt *pkt);
+static void cffrml_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
 				int phyid);
 
-uint32 cffrml_rcv_error;
-uint32 cffrml_rcv_checsum_error;
-struct layer *cffrml_create(uint16 phyid, bool use_fcs)
+static u32 cffrml_rcv_error;
+static u32 cffrml_rcv_checsum_error;
+struct cflayer *cffrml_create(u16 phyid, bool use_fcs)
 {
-	struct cffrml *this = cfglu_alloc(sizeof(struct cffrml));
+	struct cffrml *this = kmalloc(sizeof(struct cffrml), GFP_ATOMIC);
 	if (!this) {
 		pr_warning("CAIF: %s(): Out of memory\n", __func__);
 		return NULL;
 	}
 	caif_assert(offsetof(struct cffrml, layer) == 0);
 
-	memset(this, 0, sizeof(struct layer));
+	memset(this, 0, sizeof(struct cflayer));
 	this->layer.receive = cffrml_receive;
 	this->layer.transmit = cffrml_transmit;
 	this->layer.ctrlcmd = cffrml_ctrlcmd;
 	snprintf(this->layer.name, CAIF_LAYER_NAME_SZ, "frm%d", phyid);
 	this->dofcs = use_fcs;
 	this->layer.id = phyid;
-	return (struct layer *) this;
+	return (struct cflayer *) this;
 }
 
-void cffrml_set_uplayer(struct layer *this, struct layer *up)
+void cffrml_set_uplayer(struct cflayer *this, struct cflayer *up)
 {
 	this->up = up;
 }
 
-void cffrml_set_dnlayer(struct layer *this, struct layer *dn)
+void cffrml_set_dnlayer(struct cflayer *this, struct cflayer *dn)
 {
 	this->dn = dn;
 }
 
-static uint16 cffrml_checksum(uint16 chks, void *buf, uint16 len)
+static u16 cffrml_checksum(u16 chks, void *buf, u16 len)
 {
 	/* FIXME: FCS should be moved to glue in order to use OS-Specific
 	 * solutions
 	 */
-	return fcs16(chks, buf, len);
+	return crc_ccitt(chks, buf, len);
 }
 
-static int cffrml_receive(struct layer *layr, struct cfpkt *pkt)
+static int cffrml_receive(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint16 tmp;
-	uint16 len;
-	uint16 hdrchks;
-	uint16 pktchks;
+	u16 tmp;
+	u16 len;
+	u16 hdrchks;
+	u16 pktchks;
 	struct cffrml *this;
 	this = container_obj(layr);
 
 	cfpkt_extr_head(pkt, &tmp, 2);
-	len = cfglu_le16_to_cpu(tmp);
+	len = le16_to_cpu(tmp);
 
 	/* Subtract for FCS on length if FCS is not used. */
 	if (!this->dofcs)
@@ -82,7 +85,7 @@ static int cffrml_receive(struct layer *layr, struct cfpkt *pkt)
 		++cffrml_rcv_error;
 		pr_err("CAIF: %s():Framing length error (%d)\n", __func__, len);
 		cfpkt_destroy(pkt);
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	/*
 	 * Don't do extract if FCS is false, rather do setlen - then we don't
@@ -90,7 +93,7 @@ static int cffrml_receive(struct layer *layr, struct cfpkt *pkt)
 	 */
 	if (this->dofcs) {
 		cfpkt_extr_trail(pkt, &tmp, 2);
-		hdrchks = cfglu_le16_to_cpu(tmp);
+		hdrchks = le16_to_cpu(tmp);
 		pktchks = cfpkt_iterate(pkt, cffrml_checksum, 0xffff);
 		if (pktchks != hdrchks) {
 			cfpkt_add_trail(pkt, &tmp, 2);
@@ -98,39 +101,39 @@ static int cffrml_receive(struct layer *layr, struct cfpkt *pkt)
 			++cffrml_rcv_checsum_error;
 			pr_info("CAIF: %s(): Frame checksum error "
 				"(0x%x != 0x%x)\n", __func__, hdrchks, pktchks);
-			return CFGLU_EFCS;
+			return -EILSEQ;
 		}
 	}
 	if (cfpkt_erroneous(pkt)) {
 		++cffrml_rcv_error;
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
 		cfpkt_destroy(pkt);
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 	return layr->up->receive(layr->up, pkt);
 }
 
-static int cffrml_transmit(struct layer *layr, struct cfpkt *pkt)
+static int cffrml_transmit(struct cflayer *layr, struct cfpkt *pkt)
 {
 	int tmp;
-	uint16 chks;
-	uint16 len;
+	u16 chks;
+	u16 len;
 	int ret;
 	struct cffrml *this = container_obj(layr);
 	if (this->dofcs) {
 		chks = cfpkt_iterate(pkt, cffrml_checksum, 0xffff);
-		tmp = cfglu_cpu_to_le16(chks);
+		tmp = cpu_to_le16(chks);
 		cfpkt_add_trail(pkt, &tmp, 2);
 	} else {
 		cfpkt_pad_trail(pkt, 2);
 	}
 	len = cfpkt_getlen(pkt);
-	tmp = cfglu_cpu_to_le16(len);
+	tmp = cpu_to_le16(len);
 	cfpkt_add_head(pkt, &tmp, 2);
 	cfpkt_info(pkt)->hdr_len += 2;
 	if (cfpkt_erroneous(pkt)) {
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 	ret = layr->dn->transmit(layr->dn, pkt);
 	if (ret < 0) {
@@ -140,7 +143,7 @@ static int cffrml_transmit(struct layer *layr, struct cfpkt *pkt)
 	return ret;
 }
 
-static void cffrml_ctrlcmd(struct layer *layr, enum caif_ctrlcmd ctrl,
+static void cffrml_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
 					int phyid)
 {
 	if (layr->up->ctrlcmd)

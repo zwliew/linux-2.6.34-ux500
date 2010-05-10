@@ -1,22 +1,25 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/cfsrvl.h>
-#include <net/caif/generic/cfpkt.h>
+#include <linux/kernel.h>
+#include <linux/types.h>
+#include <linux/slab.h>
+#include <linux/errno.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfsrvl.h>
+#include <net/caif/cfpkt.h>
 
 #define container_obj(layr) ((struct cfsrvl *) layr)
 
-static int cfvidl_receive(struct layer *layr, struct cfpkt *pkt);
-static int cfvidl_transmit(struct layer *layr, struct cfpkt *pkt);
+static int cfvidl_receive(struct cflayer *layr, struct cfpkt *pkt);
+static int cfvidl_transmit(struct cflayer *layr, struct cfpkt *pkt);
 
-struct layer *cfvidl_create(uint8 channel_id, struct dev_info *dev_info)
+struct cflayer *cfvidl_create(u8 channel_id, struct dev_info *dev_info)
 {
-	struct cfsrvl *vid = cfglu_alloc(sizeof(struct cfsrvl));
+	struct cfsrvl *vid = kmalloc(sizeof(struct cfsrvl), GFP_ATOMIC);
 	if (!vid) {
 		pr_warning("CAIF: %s(): Out of memory\n", __func__);
 		return NULL;
@@ -31,22 +34,22 @@ struct layer *cfvidl_create(uint8 channel_id, struct dev_info *dev_info)
 	return &vid->layer;
 }
 
-static int cfvidl_receive(struct layer *layr, struct cfpkt *pkt)
+static int cfvidl_receive(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint32 videoheader;
+	u32 videoheader;
 	if (cfpkt_extr_head(pkt, &videoheader, 4) < 0) {
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
 		cfpkt_destroy(pkt);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 	return layr->up->receive(layr->up, pkt);
 }
 
-static int cfvidl_transmit(struct layer *layr, struct cfpkt *pkt)
+static int cfvidl_transmit(struct cflayer *layr, struct cfpkt *pkt)
 {
 	struct cfsrvl *service = container_obj(layr);
-	struct payload_info *info;
-	uint32 videoheader = 0;
+	struct caif_payload_info *info;
+	u32 videoheader = 0;
 	int ret;
 	if (!cfsrvl_ready(service, &ret))
 		return ret;

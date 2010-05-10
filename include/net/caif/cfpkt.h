@@ -1,20 +1,20 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
 #ifndef CFPKT_H_
 #define CFPKT_H_
-#include <net/caif/generic/caif_layer.h>
-
+#include <net/caif/caif_layer.h>
+#include <linux/types.h>
 struct cfpkt;
 
 /* Create a CAIF packet.
  * len: Length of packet to be created
  * @return New packet.
  */
-struct cfpkt *cfpkt_create(uint16 len);
+struct cfpkt *cfpkt_create(u16 len);
 
 /* Create a CAIF packet.
  * data Data to copy.
@@ -36,7 +36,7 @@ void cfpkt_destroy(struct cfpkt *pkt);
  * len Length of head data to copy.
  * @return zero on success and error code upon failure
  */
-int cfpkt_extr_head(struct cfpkt *pkt, void *data, uint16 len);
+int cfpkt_extr_head(struct cfpkt *pkt, void *data, u16 len);
 
 /*
  * Peek header from packet.
@@ -47,7 +47,7 @@ int cfpkt_extr_head(struct cfpkt *pkt, void *data, uint16 len);
  * len Length of head data to copy.
  * @return zero on success and error code upon failure
  */
-int cfpkt_peek_head(struct cfpkt *pkt, void *data, uint16 len);
+int cfpkt_peek_head(struct cfpkt *pkt, void *data, u16 len);
 
 /*
  * Extract header from trailer (end of packet).
@@ -57,7 +57,7 @@ int cfpkt_peek_head(struct cfpkt *pkt, void *data, uint16 len);
  * len Length of header data to copy.
  * @return zero on success and error code upon failure
  */
-int cfpkt_extr_trail(struct cfpkt *pkt, void *data, uint16 len);
+int cfpkt_extr_trail(struct cfpkt *pkt, void *data, u16 len);
 
 /*
  * Add header to packet.
@@ -68,7 +68,7 @@ int cfpkt_extr_trail(struct cfpkt *pkt, void *data, uint16 len);
  * len Length of header data to copy.
  * @return zero on success and error code upon failure
  */
-int cfpkt_add_head(struct cfpkt *pkt, const void *data, uint16 len);
+int cfpkt_add_head(struct cfpkt *pkt, const void *data, u16 len);
 
 /*
  * Add trailer to packet.
@@ -79,7 +79,7 @@ int cfpkt_add_head(struct cfpkt *pkt, const void *data, uint16 len);
  * len Length of trailer data to copy.
  * @return zero on success and error code upon failure
  */
-int cfpkt_add_trail(struct cfpkt *pkt, const void *data, uint16 len);
+int cfpkt_add_trail(struct cfpkt *pkt, const void *data, u16 len);
 
 /*
  * Pad trailer on packet.
@@ -89,7 +89,7 @@ int cfpkt_add_trail(struct cfpkt *pkt, const void *data, uint16 len);
  * len Length of padding to add.
  * @return zero on success and error code upon failure
  */
-int cfpkt_pad_trail(struct cfpkt *pkt, uint16 len);
+int cfpkt_pad_trail(struct cfpkt *pkt, u16 len);
 
 /*
  * Add a single byte to packet body (tail).
@@ -98,7 +98,7 @@ int cfpkt_pad_trail(struct cfpkt *pkt, uint16 len);
  * data Byte to add.
  * @return zero on success and error code upon failure
  */
-int cfpkt_addbdy(struct cfpkt *pkt, const uint8 data);
+int cfpkt_addbdy(struct cfpkt *pkt, const u8 data);
 
 /*
  * Add a data to packet body (tail).
@@ -108,7 +108,7 @@ int cfpkt_addbdy(struct cfpkt *pkt, const uint8 data);
  * len Length of data to add.
  * @return zero on success and error code upon failure
  */
-int cfpkt_add_body(struct cfpkt *pkt, const void *data, uint16 len);
+int cfpkt_add_body(struct cfpkt *pkt, const void *data, u16 len);
 
 /*
  * Checks whether there are more data to process in packet.
@@ -131,7 +131,7 @@ bool cfpkt_erroneous(struct cfpkt *pkt);
  * pkt Packet to get length from.
  * @return Number of bytes in packet.
  */
-uint16 cfpkt_getlen(struct cfpkt *pkt);
+u16 cfpkt_getlen(struct cfpkt *pkt);
 
 /*
  * Set the packet length, by adjusting the trailer pointer according to length.
@@ -139,7 +139,7 @@ uint16 cfpkt_getlen(struct cfpkt *pkt);
  * len Packet length.
  * @return Number of bytes in packet.
  */
-int cfpkt_setlen(struct cfpkt *pkt, uint16 len);
+int cfpkt_setlen(struct cfpkt *pkt, u16 len);
 
 /*
  * cfpkt_append - Appends a packet's data to another packet.
@@ -153,7 +153,7 @@ int cfpkt_setlen(struct cfpkt *pkt, uint16 len);
  * @return    The new appended packet.
  */
 struct cfpkt *cfpkt_append(struct cfpkt *dstpkt, struct cfpkt *addpkt,
-		      uint16 expectlen);
+		      u16 expectlen);
 
 /*
  * cfpkt_split - Split a packet into two packets at the specified split point.
@@ -161,7 +161,7 @@ struct cfpkt *cfpkt_append(struct cfpkt *dstpkt, struct cfpkt *addpkt,
  * pos: Position to split packet in two parts.
  * @return The new packet, containing the second part of the data.
  */
-struct cfpkt *cfpkt_split(struct cfpkt *pkt, uint16 pos);
+struct cfpkt *cfpkt_split(struct cfpkt *pkt, u16 pos);
 
 /*
  * Iteration function, iterates the packet buffers from start to end.
@@ -177,9 +177,9 @@ struct cfpkt *cfpkt_split(struct cfpkt *pkt, uint16 pos);
  * @return    Checksum of buffer.
  */
 
-uint16 cfpkt_iterate(struct cfpkt *pkt,
-		uint16 (*iter_func)(uint16 chks, void *buf, uint16 len),
-		uint16 data);
+u16 cfpkt_iterate(struct cfpkt *pkt,
+		u16 (*iter_func)(u16 chks, void *buf, u16 len),
+		u16 data);
 
 /* Append by giving user access to packet buffer
  * cfpkt Packet to append to
@@ -269,6 +269,6 @@ struct cfpkt *cfpkt_clone_release(struct cfpkt *pkt);
  * pkt Packet to get info from;
  * @return Packet information
  */
-struct payload_info *cfpkt_info(struct cfpkt *pkt);
+struct caif_payload_info *cfpkt_info(struct cfpkt *pkt);
 /*! @} */
 #endif				/* CFPKT_H_ */

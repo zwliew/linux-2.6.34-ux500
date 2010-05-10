@@ -1,21 +1,23 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
+#include <linux/stddef.h>
+#include <linux/kernel.h>
+#include <linux/hardirq.h>
+#include <net/caif/cfpkt.h>
+#include <net/caif/cflst.h>
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/cfpkt.h>
-#include <net/caif/generic/cflst.h>
 
-void cflst_init(struct layer **lst)
+void cflst_init(struct cflayer **lst)
 {
 	*lst = NULL;
 }
 
-struct layer *cflst_remove(struct layer **lst, struct layer *elem)
+struct cflayer *cflst_remove(struct cflayer **lst, struct cflayer *elem)
 {
-	struct layer *tmp;
+	struct cflayer *tmp;
 	if (*lst == NULL)
 		return NULL;
 
@@ -25,9 +27,9 @@ struct layer *cflst_remove(struct layer **lst, struct layer *elem)
 }
 
 /* Adds an element from the queue. */
-void cflst_insert(struct layer **lst, struct layer *node)
+void cflst_insert(struct cflayer **lst, struct cflayer *node)
 {
-	struct layer *tmp;
+	struct cflayer *tmp;
 	node->next = NULL;
 	if ((*lst) == NULL) {
 		(*lst) = node;
@@ -39,20 +41,20 @@ void cflst_insert(struct layer **lst, struct layer *node)
 	tmp->next = node;
 }
 
-int cflst_put(struct layer **lst, uint8 id, struct layer *node)
+int cflst_put(struct cflayer **lst, u8 id, struct cflayer *node)
 {
 	if (cflst_get(lst, id) != NULL) {
 		pr_err("CAIF: %s(): cflst_put duplicate key\n", __func__);
-		return CFGLU_EINVAL;
+		return -EINVAL;
 	}
 	node->id = id;
 	cflst_insert(lst, node);
-	return CFGLU_EOK;
+	return 0;
 }
 
-struct layer *cflst_get(struct layer * *lst, uint8 id)
+struct cflayer *cflst_get(struct cflayer * *lst, u8 id)
 {
-	struct layer *node;
+	struct cflayer *node;
 	for (node = (*lst); node != NULL; node = node->next) {
 		if (id == node->id)
 			return node;
@@ -60,10 +62,10 @@ struct layer *cflst_get(struct layer * *lst, uint8 id)
 	return NULL;
 }
 
-struct layer *cflst_del(struct layer * *lst, uint8 id)
+struct cflayer *cflst_del(struct cflayer * *lst, u8 id)
 {
-	struct layer *iter;
-	struct layer *node = NULL;
+	struct cflayer *iter;
+	struct cflayer *node = NULL;
 
 	if ((*lst) == NULL)
 		return NULL;

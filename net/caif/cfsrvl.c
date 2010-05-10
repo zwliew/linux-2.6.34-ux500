@@ -1,13 +1,16 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfsrvl.h>
-#include <net/caif/generic/cfpkt.h>
+#include <linux/kernel.h>
+#include <linux/types.h>
+#include <linux/errno.h>
+#include <linux/slab.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfsrvl.h>
+#include <net/caif/cfpkt.h>
 
 #define SRVL_CTRL_PKT_SIZE 1
 #define SRVL_FLOW_OFF 0x81
@@ -15,9 +18,9 @@
 #define SRVL_SET_PIN  0x82
 #define SRVL_CTRL_PKT_SIZE 1
 
-#define container_obj(layr) cfglu_container_of(layr, struct cfsrvl, layer)
+#define container_obj(layr) container_of(layr, struct cfsrvl, layer)
 
-static void cfservl_ctrlcmd(struct layer *layr, enum caif_ctrlcmd ctrl,
+static void cfservl_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
 				int phyid)
 {
 	struct cfsrvl *service = container_obj(layr);
@@ -83,7 +86,7 @@ static void cfservl_ctrlcmd(struct layer *layr, enum caif_ctrlcmd ctrl,
 	}
 }
 
-static int cfservl_modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
+static int cfservl_modemcmd(struct cflayer *layr, enum caif_modemcmd ctrl)
 {
 	struct cfsrvl *service = container_obj(layr);
 	caif_assert(layr != NULL);
@@ -93,20 +96,20 @@ static int cfservl_modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
 	case CAIF_MODEMCMD_FLOW_ON_REQ:
 		{
 			struct cfpkt *pkt;
-			struct payload_info *info;
-			uint8 flow_on = SRVL_FLOW_ON;
+			struct caif_payload_info *info;
+			u8 flow_on = SRVL_FLOW_ON;
 			pkt = cfpkt_create(SRVL_CTRL_PKT_SIZE);
 			if (!pkt) {
 				pr_warning("CAIF: %s(): Out of memory\n",
 					__func__);
-				return CFGLU_ENOMEM;
+				return -ENOMEM;
 			}
 
 			if (cfpkt_add_head(pkt, &flow_on, 1) < 0) {
 				pr_err("CAIF: %s(): Packet is erroneous!\n",
 					__func__);
 				cfpkt_destroy(pkt);
-				return CFGLU_EPROTO;
+				return -EPROTO;
 			}
 			info = cfpkt_info(pkt);
 			info->channel_id = service->layer.id;
@@ -117,14 +120,14 @@ static int cfservl_modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
 	case CAIF_MODEMCMD_FLOW_OFF_REQ:
 		{
 			struct cfpkt *pkt;
-			struct payload_info *info;
-			uint8 flow_off = SRVL_FLOW_OFF;
+			struct caif_payload_info *info;
+			u8 flow_off = SRVL_FLOW_OFF;
 			pkt = cfpkt_create(SRVL_CTRL_PKT_SIZE);
 			if (cfpkt_add_head(pkt, &flow_off, 1) < 0) {
 				pr_err("CAIF: %s(): Packet is erroneous!\n",
 					__func__);
 				cfpkt_destroy(pkt);
-				return CFGLU_EPROTO;
+				return -EPROTO;
 			}
 			info = cfpkt_info(pkt);
 			info->channel_id = service->layer.id;
@@ -135,16 +138,16 @@ static int cfservl_modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
 	default:
 	  break;
 	}
-	return CFGLU_EINVAL;
+	return -EINVAL;
 }
 
-void cfservl_destroy(struct layer *layer)
+void cfservl_destroy(struct cflayer *layer)
 {
-	cfglu_free(layer);
+	kfree(layer);
 }
 
 void cfsrvl_init(struct cfsrvl *service,
-		 uint8 channel_id,
+		 u8 channel_id,
 		 struct dev_info *dev_info)
 {
 	caif_assert(offsetof(struct cfsrvl, layer) == 0);
@@ -155,6 +158,13 @@ void cfsrvl_init(struct cfsrvl *service,
 	service->layer.ctrlcmd = cfservl_ctrlcmd;
 	service->layer.modemcmd = cfservl_modemcmd;
 	service->dev_info = *dev_info;
+	kref_init(&service->ref);
+}
+
+void cfsrvl_release(struct kref *kref)
+{
+	struct cfsrvl *service = container_of(kref, struct cfsrvl, ref);
+	kfree(service);
 }
 
 bool cfsrvl_ready(struct cfsrvl *service, int *err)
@@ -162,20 +172,20 @@ bool cfsrvl_ready(struct cfsrvl *service, int *err)
 	if (service->open && service->modem_flow_on && service->phy_flow_on)
 		return true;
 	if (!service->open) {
-		*err = CFGLU_ENOTCONN;
+		*err = -ENOTCONN;
 		return false;
 	}
 	caif_assert(!(service->modem_flow_on && service->phy_flow_on));
-	*err = CFGLU_ERETRY;
+	*err = -EAGAIN;
 	return false;
 }
-uint8 cfsrvl_getphyid(struct layer *layer)
+u8 cfsrvl_getphyid(struct cflayer *layer)
 {
 	struct cfsrvl *servl = container_obj(layer);
 	return servl->dev_info.id;
 }
 
-bool cfsrvl_phyid_match(struct layer *layer, int phyid)
+bool cfsrvl_phyid_match(struct cflayer *layer, int phyid)
 {
 	struct cfsrvl *servl = container_obj(layer);
 	return servl->dev_info.id == phyid;

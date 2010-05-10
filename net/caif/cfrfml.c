@@ -1,15 +1,17 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfsrvl.h>
-#include <net/caif/generic/cfpkt.h>
+#include <linux/stddef.h>
+#include <linux/spinlock.h>
+#include <linux/slab.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfsrvl.h>
+#include <net/caif/cfpkt.h>
 
-#define container_obj(layr) cfglu_container_of(layr, struct cfsrvl, layer)
+#define container_obj(layr) container_of(layr, struct cfsrvl, layer)
 
 #define RFM_SEGMENTATION_BIT 0x01
 #define RFM_PAYLOAD  0x00
@@ -19,12 +21,13 @@
 #define RFM_SET_PIN  0x82
 #define RFM_CTRL_PKT_SIZE 1
 
-static int cfrfml_receive(struct layer *layr, struct cfpkt *pkt);
-static int cfrfml_transmit(struct layer *layr, struct cfpkt *pkt);
+static int cfrfml_receive(struct cflayer *layr, struct cfpkt *pkt);
+static int cfrfml_transmit(struct cflayer *layr, struct cfpkt *pkt);
+static int cfservl_modemcmd(struct cflayer *layr, enum caif_modemcmd ctrl);
 
-struct layer *cfrfml_create(uint8 channel_id, struct dev_info *dev_info)
+struct cflayer *cfrfml_create(u8 channel_id, struct dev_info *dev_info)
 {
-	struct cfsrvl *rfm = cfglu_alloc(sizeof(struct cfsrvl));
+	struct cfsrvl *rfm = kmalloc(sizeof(struct cfsrvl), GFP_ATOMIC);
 	if (!rfm) {
 		pr_warning("CAIF: %s(): Out of memory\n", __func__);
 		return NULL;
@@ -32,20 +35,21 @@ struct layer *cfrfml_create(uint8 channel_id, struct dev_info *dev_info)
 	caif_assert(offsetof(struct cfsrvl, layer) == 0);
 	memset(rfm, 0, sizeof(struct cfsrvl));
 	cfsrvl_init(rfm, channel_id, dev_info);
+	rfm->layer.modemcmd = cfservl_modemcmd;
 	rfm->layer.receive = cfrfml_receive;
 	rfm->layer.transmit = cfrfml_transmit;
 	snprintf(rfm->layer.name, CAIF_LAYER_NAME_SZ, "rfm%d", channel_id);
 	return &rfm->layer;
 }
 
-void cffrml_destroy(struct layer *layer)
+static int cfservl_modemcmd(struct cflayer *layr, enum caif_modemcmd ctrl)
 {
-	cfglu_free(layer);
+       return -EPROTO;
 }
 
-static int cfrfml_receive(struct layer *layr, struct cfpkt *pkt)
+static int cfrfml_receive(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint8 tmp;
+	u8 tmp;
 	bool segmented;
 	int ret;
 	caif_assert(layr->up != NULL);
@@ -58,7 +62,7 @@ static int cfrfml_receive(struct layer *layr, struct cfpkt *pkt)
 	if (cfpkt_extr_head(pkt, &tmp, 1) < 0) {
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
 		cfpkt_destroy(pkt);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 	segmented = tmp & RFM_SEGMENTATION_BIT;
 	caif_assert(!segmented);
@@ -67,9 +71,9 @@ static int cfrfml_receive(struct layer *layr, struct cfpkt *pkt)
 	return ret;
 }
 
-static int cfrfml_transmit(struct layer *layr, struct cfpkt *pkt)
+static int cfrfml_transmit(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint8 tmp = 0;
+	u8 tmp = 0;
 	int ret;
 	struct cfsrvl *service = container_obj(layr);
 
@@ -82,11 +86,11 @@ static int cfrfml_transmit(struct layer *layr, struct cfpkt *pkt)
 	if (!cfpkt_getlen(pkt) > CAIF_MAX_PAYLOAD_SIZE) {
 		pr_err("CAIF: %s():Packet too large - size=%d\n",
 			__func__, cfpkt_getlen(pkt));
-		return CFGLU_EOVERFLOW;
+		return -EOVERFLOW;
 	}
 	if (cfpkt_add_head(pkt, &tmp, 1) < 0) {
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
-		return CFGLU_EPKT;
+		return -EPROTO;
 	}
 
 	/* Add info for MUX-layer to route the packet out. */

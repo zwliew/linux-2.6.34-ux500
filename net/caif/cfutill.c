@@ -1,13 +1,16 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
-#include <net/caif/generic/cfglue.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfsrvl.h>
-#include <net/caif/generic/cfpkt.h>
+#include <linux/kernel.h>
+#include <linux/types.h>
+#include <linux/slab.h>
+#include <linux/errno.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfsrvl.h>
+#include <net/caif/cfpkt.h>
 
 #define container_obj(layr) ((struct cfsrvl *) layr)
 #define UTIL_PAYLOAD  0x00
@@ -16,12 +19,12 @@
 #define UTIL_FLOW_OFF 0x81
 #define UTIL_FLOW_ON  0x80
 #define UTIL_CTRL_PKT_SIZE 1
-static int cfutill_receive(struct layer *layr, struct cfpkt *pkt);
-static int cfutill_transmit(struct layer *layr, struct cfpkt *pkt);
+static int cfutill_receive(struct cflayer *layr, struct cfpkt *pkt);
+static int cfutill_transmit(struct cflayer *layr, struct cfpkt *pkt);
 
-struct layer *cfutill_create(uint8 channel_id, struct dev_info *dev_info)
+struct cflayer *cfutill_create(u8 channel_id, struct dev_info *dev_info)
 {
-	struct cfsrvl *util = cfglu_alloc(sizeof(struct cfsrvl));
+	struct cfsrvl *util = kmalloc(sizeof(struct cfsrvl), GFP_ATOMIC);
 	if (!util) {
 		pr_warning("CAIF: %s(): Out of memory\n", __func__);
 		return NULL;
@@ -35,9 +38,9 @@ struct layer *cfutill_create(uint8 channel_id, struct dev_info *dev_info)
 	return &util->layer;
 }
 
-static int cfutill_receive(struct layer *layr, struct cfpkt *pkt)
+static int cfutill_receive(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint8 cmd = -1;
+	u8 cmd = -1;
 	struct cfsrvl *service = container_obj(layr);
 	caif_assert(layr != NULL);
 	caif_assert(layr->up != NULL);
@@ -46,7 +49,7 @@ static int cfutill_receive(struct layer *layr, struct cfpkt *pkt)
 	if (cfpkt_extr_head(pkt, &cmd, 1) < 0) {
 		pr_err("CAIF: %s(): Packet is erroneous!\n", __func__);
 		cfpkt_destroy(pkt);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 
 	switch (cmd) {
@@ -71,14 +74,14 @@ static int cfutill_receive(struct layer *layr, struct cfpkt *pkt)
 		cfpkt_destroy(pkt);
 		pr_warning("CAIF: %s(): Unknown service control %d (0x%x)\n",
 			   __func__, cmd, cmd);
-		return CFGLU_EPROTO;
+		return -EPROTO;
 	}
 }
 
-static int cfutill_transmit(struct layer *layr, struct cfpkt *pkt)
+static int cfutill_transmit(struct cflayer *layr, struct cfpkt *pkt)
 {
-	uint8 zero = 0;
-	struct payload_info *info;
+	u8 zero = 0;
+	struct caif_payload_info *info;
 	int ret;
 	struct cfsrvl *service = container_obj(layr);
 	caif_assert(layr != NULL);
@@ -90,7 +93,7 @@ static int cfutill_transmit(struct layer *layr, struct cfpkt *pkt)
 	if (cfpkt_getlen(pkt) > CAIF_MAX_PAYLOAD_SIZE) {
 		pr_err("CAIF: %s(): packet too large size=%d\n",
 			__func__, cfpkt_getlen(pkt));
-		return CFGLU_EOVERFLOW;
+		return -EOVERFLOW;
 	}
 
 	cfpkt_add_head(pkt, &zero, 1);
@@ -105,7 +108,7 @@ static int cfutill_transmit(struct layer *layr, struct cfpkt *pkt)
 	info->dev_info = &service->dev_info;
 	ret = layr->dn->transmit(layr->dn, pkt);
 	if (ret < 0) {
-		uint32 tmp32;
+		u32 tmp32;
 		cfpkt_extr_head(pkt, &tmp32, 4);
 	}
 	return ret;
