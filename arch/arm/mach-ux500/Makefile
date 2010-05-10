@@ -8,7 +8,7 @@ ifeq ($(CONFIG_CRYPTO_DEV_UX500_HASH), m)
 	CFLAGS_board-mop500.o += -DCONFIG_CRYPTO_DEV_UX500_HASH
 endif
 
-obj-y					:= clock.o timer.o timer-rtt.o gpio.o
+obj-y					:= clock.o timer.o timer-rtt.o gpio.o localtimer.o
 obj-$(CONFIG_REGULATOR)			+= regulator.o
 obj-$(CONFIG_ARCH_U8500)		+= devices.o cpu.o
 obj-$(CONFIG_STM_DMA)			+= dma_40.o   #part1 no. of dma is 0x40
