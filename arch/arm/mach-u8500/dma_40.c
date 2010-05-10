@@ -3447,15 +3447,11 @@ void process_phy_channel_inerrupt(void)
 	int k = 0;
 	struct dma_channel_info *info = NULL;
 	u32 tmp;
-	if (ioread32(io_addr(DREG_PCEIS))) {
+	if (ioread32(io_addr(DREG_PCMIS))) {
+		// Search Physical Interrupt source(s)
 		for (k = 0; k < MAX_AVAIL_PHY_CHANNELS; k++) {
+			// Is it due to an Error ?
 			if (ioread32(io_addr(DREG_PCEIS)) & (0x1 << k)) {
-				tmp =
-				    REG_RD_BITS(io_addr(DREG_PCICR),
-						FULL32_MASK, NO_SHIFT);
-				tmp |= (0x1 << k);
-				REG_WR_BITS(io_addr(DREG_PCICR), tmp,
-					    FULL32_MASK, NO_SHIFT);
 				info =
 				    dma_drv_data->dma_chan_info
 				    [MAX_LOGICAL_CHANNELS + k];
@@ -3463,28 +3459,19 @@ void process_phy_channel_inerrupt(void)
 				if ((info->active) && (info->callback))
 					info->callback(info->data, XFER_ERROR);
 			}
-		}
-	}
 
-	if (ioread32(io_addr(DREG_PCTIS))) {
-		for (k = 0; k < MAX_AVAIL_PHY_CHANNELS; k++) {
+			// Is it due to a Terminal Count ?
 			if (ioread32(io_addr(DREG_PCTIS)) & (0x1 << k)) {
-				tmp =
-				    REG_RD_BITS(io_addr(DREG_PCICR),
-						FULL32_MASK, NO_SHIFT);
-				tmp |= (0x1 << k);
-				REG_WR_BITS(io_addr(DREG_PCICR), tmp,
-					    FULL32_MASK, NO_SHIFT);
 				info =
-				    dma_drv_data->dma_chan_info
-				    [MAX_LOGICAL_CHANNELS + k];
+					dma_drv_data->dma_chan_info
+					[MAX_LOGICAL_CHANNELS + k];
 				stm_dbg(DBG_ST.dma, "TIS interrupt\n");
 				if ((info->lli_interrupt == 1)
 				    && (info->sg_dest)
 				    && ((info->dir == PERIPH_TO_MEM)
 					|| (info->dir == MEM_TO_PERIPH))) {
 					info->bytes_xfred +=
-					    sg_dma_len(info->current_sg);
+						sg_dma_len(info->current_sg);
 					stm_dbg(DBG_ST.dma,
 						"Channel(%d) :: Transfer "
 						"completed for %d bytes\n",
@@ -3503,6 +3490,13 @@ void process_phy_channel_inerrupt(void)
 							       XFER_COMPLETE);
 				}
 			}
+			// Acknoledge Interrupt
+			tmp =
+				REG_RD_BITS(io_addr(DREG_PCICR),
+					    FULL32_MASK, NO_SHIFT);
+			tmp |= (0x1 << k);
+			REG_WR_BITS(io_addr(DREG_PCICR), tmp,
+				    FULL32_MASK, NO_SHIFT);
 		}
 	}
 }
@@ -3743,6 +3737,12 @@ static int stm_dma_probe(struct platform_device *pdev)
 	spin_lock_init(&dma_drv_data->pr_info_lock);
 	for (i = 0; i < MAX_AVAIL_PHY_CHANNELS; i++)
 		spin_lock_init(&dma_drv_data->cfg_ch_lock[i]);
+
+    /* Audio is using physical channels 2 and 3 from MMDSP */
+    dma_drv_data->pr_info[2].status = RESOURCE_PHYSICAL;
+    dma_drv_data->pr_info[3].status = RESOURCE_PHYSICAL;
+    /* End of Audio */
+
 	print_dma_regs();
 	return 0;
 sg_pool_cleanup:
