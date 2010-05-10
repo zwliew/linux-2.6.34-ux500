@@ -55,8 +55,6 @@ is returned by the functions
 .BR read (2), recv (2),
 .BR recvmsg (2)
 if the provided buffer is too small to hold the received CAIF message.
-The length can be retrieved by using socket option
-.BR CAIFSO_PACKET_LEN .
 
 .B EMSGSIZE
 is returned for
@@ -91,7 +89,7 @@ After a successful connect, information about the CAIF connection
 can be read using
 .BR getsockopt (2).
 Relevant options for getsockopt are
-.B CAIFSO_CONN_ID
+.B CAIFSO_CHANNEL_ID
 to read the unique CAIF channel ID.
 For a CAIF utility link
 .RB ( CAIFPROTO_UTIL )
@@ -203,7 +201,60 @@ must be one of the supported protocols defined by the
 enum.
 
 .TP
-.B CAIFSO_CHANNEL_CONFIG
+.B CAIFSO_LINK_SELECT
+When muliple CAIF Link layers are available the CAIF socket will
+default use the high bandwidth link. But the link selection can
+be set explicitly with the socket option
+.B CAIFSO_LINK_SELECT.
+Either a high bandwidth link can be selected by using
+.B CAIF_LINK_HIGH_BANDW
+as argument or a low latency link can be selected with argument
+.B CAIF_LINK_LOW_LATENCY
+This option is of type u_int32_t.
+Alternativly to this option SO_BINDTODEVICE can be used.
+.TP
+.B SO_BINDTODEVICE
+can be used to bind a CAIF socket to an named
+.I struct ifreq
+with element name set to the desired CAIF interface.
+.TP
+.B SO_PRIORITY
+can be used to specify the CAIF Channel priority.
+The is used as argument of type int.
+The priority must be a between 0 and 31 where 0 is
+the lowest priority of the channel.
+.TP
+.B CAIFSO_REQ_PARAM
+For connections of type
+.B CAIFPROTO_UTIL
+additional request parameters may be supplied with this socket option.
+The actual parameters are send using
+the struct
+.I caif_param.
+
+.nf
+struct caif_param {
+        u_int16_t size;
+        u_int8_t  data[256];
+};
+.fi
+.I size
+and
+.I data
+specifies the request parameter length and value.
+.TP
+.B CAIFSO_RSP_PARAM
+For connections of type
+.B CAIFPROTO_UTIL
+the modem may supply extra response parameters in the connect response.
+.TP
+.B CAIFSO_CHANNEL_ID
+Every open connection has a unique CAIF connection ID.
+This is assigned by the modem and is unique for every CAIF connection in the system.
+This socket option allows connection ID (u_int32_t) to be read after a successful connect.
+
+.TP
+.B CAIFSO_CHANNEL_CONFIG - DEPREPECATED
 When connecting a CAIF socket, the address given in sockaddr_caif is not
 the only parameters in the
 actual CAIF connect message. It also contains priority on the connection
@@ -235,50 +286,6 @@ should be set to
 for low latency connections and
 .B CAIF_LINK_HIGH_BANDW
 for high bandwidth connections.
-.TP
-.B CAIFSO_REQ_PARAM
-For connections of type
-.B CAIFPROTO_UTIL
-additional request parameters may be supplied with this socket option.
-The actual parameters are send using
-the struct
-.I caif_param.
-
-.nf
-struct caif_param {
-        u_int16_t size;
-        u_int8_t  data[256];
-};
-.fi
-.I size
-and
-.I data
-specifies the request parameter length and value.
-.TP
-.B CAIFSO_RSP_PARAM
-For connections of type
-.B CAIFPROTO_UTIL
-the modem may supply extra response parameters in the connect response.
-The response is returned in struct
-.IR caif_param .
-If no response parameters are supplied,
-.I size
-will be set to zero.
-.TP
-.B CAIFSO_CONN_ID
-Every open connection has a unique CAIF connection ID.
-This is assigned by the modem and is unique for every CAIF connection in the system.
-This socket option allows connection ID (u_int32_t) to be read after a successful connect.
-.TP
-.B CAIFSO_NEXT_PACKET_LEN
-The length of the next packet in the socket's receive queue can be read using
-this socket option. If no packet is available, zero is returned.
-The type is u_int32_t.
-.TP
-.B CAIFSO_MAX_PACKET_LEN
-The maximum transfer and receive packet size can be read using this
-socket option.
-The type is u_int32_t.
 
 .SH ERROR CODES
 .TP
@@ -384,13 +391,13 @@ but may be caused by transient congestion.
   len = sizeof(rsp);
   getsockopt(s, SOL_CAIF, CAIFSO_RSP_PARAM, &rsp, &len);
   len = sizeof(connid);
-  getsockopt(s, SOL_CAIF, CAIFSO_CONN_ID, &connid, &len);
+  getsockopt(s, SOL_CAIF, CAIFSO_CHANNEL_ID, &connid, &len);
 .fi
 .PP
 .SH AUTHOR
 Sjur Brandeland <sjur.brandeland@stericsson.com>
 .SH COPYRIGHT
-Copyright (C) ST-Ericsson AB 2009
+Copyright (C) ST-Ericsson AB 2010
 .SH SEE ALSO
 .BR socket (2),
 .BR connect (2),

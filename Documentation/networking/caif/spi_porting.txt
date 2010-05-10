@@ -67,7 +67,7 @@ This part takes care of the physical hardware, both with regard to SPI and to GP
 		Assign your private data (can be used to map to your structure).
 
 		- Filling in the SPI slave platform device structure:
-		Add name of driver to connect to ("phyif_sspi").
+		Add name of driver to connect to ("cfspi_sspi").
 		Assign the SPI slave device structure as platform data.
 
 - Padding:
@@ -75,16 +75,14 @@ This part takes care of the physical hardware, both with regard to SPI and to GP
 In order to optimize throughput, a number of SPI padding options are provided. Padding can be
 enabled independently for uplink and downlink transfers. Padding can be enabled for the head, the
 tail and for the total frame size. The padding needs to be correctly configured on both sides of
-the link. The padding can be changed via module parameters in phyif_sspi.c or via the sysfs
-directory of the phyif_sspi driver (before device registration).
+the link. The padding can be changed via module parameters in cfspi_sspi.c or via the sysfs
+directory of the cfspi_sspi driver (before device registration).
 
 - CAIF SPI device template:
 
 /*
- *      Copyright (C) ST-Ericsson AB 2009
- *
+ *      Copyright (C) ST-Ericsson AB 2010
  *      Author: Daniel Martensson / Daniel.Martensson@stericsson.com
- *
  *      License terms: GNU General Public License (GPL), version 2.
  *
  */
@@ -95,9 +93,7 @@ directory of the phyif_sspi driver (before device registration).
 #include <linux/wait.h>
 #include <linux/interrupt.h>
 #include <linux/dma-mapping.h>
-
-#include "caif_chr.h"
-#include "phyif_spi.h"
+#include <net/caif/caif_spi.h>
 
 MODULE_LICENSE("GPL");
 
@@ -153,6 +149,13 @@ void sspi_sig_xfer(bool xfer, struct cfspi_dev *dev)
 	struct sspi_struct *sspi = (struct sspi_struct *)dev->priv;
 }
 
+static void sspi_release(struct device *dev)
+{
+	/*
+	 * Here you should release your SPI device resources.
+	 */
+}
+
 static int __init sspi_init(void)
 {
 	/* Here you should initialize your SPI device by providing the
@@ -171,9 +174,10 @@ static int __init sspi_init(void)
 	slave.sdev.clk_mhz = 13;
 	slave.sdev.priv = &slave;
 	slave.sdev.name = "spi_sspi";
+	slave_device.dev.release = sspi_release;
 
 	/* Initialize platform device. */
-	slave_device.name = "phyif_sspi";
+	slave_device.name = "cfspi_sspi";
 	slave_device.dev.platform_data = &slave.sdev;
 
 	/* Register platform device. */
@@ -188,7 +192,7 @@ static int __init sspi_init(void)
 
 static void __exit sspi_exit(void)
 {
-	platform_device_unregister(&slave_device);
+	platform_device_del(&slave_device);
 }
 
 module_init(sspi_init);

@@ -1,14 +1,16 @@
 Linux CAIF
 ===========
+copyright (C) ST-Ericsson AB 2010
+Author: Sjur Brendeland/ sjur.brandeland@stericsson.com
+License terms: GNU General Public License (GPL) version 2
+
 
 Introduction
 ------------
 CAIF is a MUX protocol used by ST-Ericsson cellular modems for
 communication between Modem and host. The host processes can open virtual AT
-channels, initiate GPRS Data connections, Video channels and
-Utility Channels.
-The Utility Channels are general purpose pipes between modem
-and host.
+channels, initiate GPRS Data connections, Video channels and Utility Channels.
+The Utility Channels are general purpose pipes between modem and host.
 
 ST-Ericsson modems support a number of transports between modem
 and host. Currently, UART and Loopback are available for Linux.
@@ -18,11 +20,11 @@ Architecture:
 ------------
 The implementation of CAIF is divided into:
 * CAIF Socket Layer, Kernel API, and  Net Device.
-* CAIF Generic Protocol Implementation
+* CAIF Core Protocol Implementation
 * CAIF Link Layer, implemented as NET devices.
 
 
-  RTNL/IOCTL
+  RTNL
    !
    !	 +------+   +------+   +------+
    !	+------+!  +------+!  +------+!
@@ -33,30 +35,13 @@ The implementation of CAIF is divided into:
    !	   +----------!----------+
    !		   +------+		  <- CAIF Protocol Implementation
    +------->	   ! CAIF !
+		   ! Core !
 		   +------+
 	     +--------!--------+
 	     !		       !
 	  +------+	    +-----+
-	  !Loop	 !	    ! TTY !	  <- Link Layer (Net Devices)
+	  !    	 !	    ! TTY !	  <- Link Layer (Net Devices)
 	  +------+	    +-----+
-
-
-Using CAIF (IP) Net Device
-----------------------
-CAIF Net device can be created by use of Socket IOCTLs,
-or RT Netlink.
-
-  static struct ifcaif_param param = {
-    .ipv4_connid = 1,
-    .loop = 0
-  };
-  static struct ifreq ifr = {
-    .ifr_name = "caif%d",
-    .ifr_ifru.ifru_data = &param
-
-  };
-  s = socket(AF_CAIF,SOCK_SEQPACKET,CAIFPROTO_AT);
-  ioctl(s,SIOCCAIFNETNEW,&ifr);
 
 
 Using the Kernel API
@@ -89,32 +74,27 @@ I M P L E M E N T A T I O N
 ===========================
 ===========================
 
-Generic CAIF Protocol Layer
+CAIF Core Protocol Layer
 =========================================
 
-caif/generic is a generic CAIF protocol implementation. It implements the CAIF
-protocol as defined by ST-Ericsson.
+CAIF Core layer implements the CAIF protocol as defined by ST-Ericsson.
 It implements the CAIF protocol stack in a layered approach, where
 each layer described in the specification is implemented as a separate layer.
 The architecture is inspired by the design patterns "Protocol Layer" and
 "Protocol Packet".
 
 == CAIF structure ==
-
-The goal is to have CAIF as system independent as possible.
-All CAIF code can be found under net/caif/generic and include/net/caif/generic.
-
-The generic CAIF implementation is:
+The Core CAIF implementation contains:
       -	Simple implementation of CAIF.
       -	Layered architecture (a la Streams), each layer in the CAIF
 	specification is implemented in a separate c-file.
       -	Clients must implement PHY layer to access physical HW
 	with receive and transmit functions.
       -	Clients must call configuration function to add PHY layer.
-      -	Clients must implement adaptation layer to consume/produce
+      -	Clients must implement CAIF layer to consume/produce
 	CAIF payload with receive and transmit functions.
-      -	Clients must call configuration function to add adaptation
-	layer.
+      -	Clients must call configuration function to add and connect the
+	Client layer.
       - When receiving / transmitting CAIF Packets (cfpkt), ownership is passed
 	to the called function (except for framing layers' receive functions
 	or if a transmit function returns an error, in which case the caller
@@ -137,7 +117,7 @@ Implementation. The support functions include:
 The CAIF Protocol implementation contains:
 
       - CFCNFG CAIF Configuration layer. Configures the CAIF Protocol
-	Stack and has a Client interface for adding Link-Layer and
+	Stack and provides a Client interface for adding Link-Layer and
 	Driver interfaces on top of the CAIF Stack.
 
       - CFCTRL CAIF Control layer. Encodes and Decodes control messages
@@ -147,10 +127,10 @@ The CAIF Protocol implementation contains:
       - CFSERVL General CAIF Service Layer functionality; handles flow
 	control and remote shutdown requests.
 
-      - CFVEI CAIF VEI layer. Handles CAIF VEI layer (AT-Channel),
-	encodes/decodes VEI frames.
+      - CFVEI CAIF VEI layer. Handles CAIF AT Channels on VEI (Virtual
+        External Interface). This layer encodes/decodes VEI frames.
 
-      - CFDGML CAIF Data-gram layer. Handles CAIF Data-gram layer(IP
+      - CFDGML CAIF Datagram layer. Handles CAIF Datagram layer (IP
 	traffic), encodes/decodes Datagram frames.
 
       - CFMUX CAIF Mux layer. Handles multiplexing between multiple
@@ -190,13 +170,13 @@ The CAIF Protocol implementation contains:
 	    +---------+	    +---------+
 		 !		!
 	    +---------+	    +---------+
-	    | Loopback|	    | Serial  |
+	    |         |	    | Serial  |
 	    |	      |	    | CFSERL  |
 	    +---------+	    +---------+
 
 
-In this layered approach the following "rules" applies.
-      - All layers embedd the same structure "struct layer"
+In this layered approach the following "rules" apply.
+      - All layers embed the same structure "struct cflayer"
       - A layer does not depend on any other layer's private data.
       - Layers are stacked by setting the pointers
 		  layer->up , layer->dn
@@ -210,23 +190,23 @@ Linux Driver Implementation
 ===========================
 
 Linux GPRS Net Device and CAIF socket are implemented on top of the
-Generic CAIF protocol. The Net device and CAIF socket have an instance of
-'struct layer', just like the generic CAIF protocol stack.
+CAIF Core protocol. The Net device and CAIF socket have an instance of
+'struct cflayer', just like the CAIF Core protocol stack.
 Net device and Socket implement the 'receive()' function defined by
-'struct layer', just like the rest of the CAIF stack. In this way, transmit and
+'struct cflayer', just like the rest of the CAIF stack. In this way, transmit and
 receive of packets is handled as by the rest of the layers: the 'dn->transmit()'
 function is called in order to transmit data.
 
-The layer on top of the generic CAIF implementation is
-sometimes refered to as the "adaptation layer".
+The layer on top of the CAIF Core implementation is
+sometimes referred to as the "Client layer".
 
 
 Configuration of Link Layer
 ---------------------------
 The Link Layer is implemented as Linux net devices (struct net_device).
-Payload handling and registration is done using standard Linux mecanisms.
+Payload handling and registration is done using standard Linux mechanisms.
 
-The CAIF Protocol relies on a lossless link layer without implementing
+The CAIF Protocol relies on a loss-less link layer without implementing
 retransmission. This implies that packet drops must not happen.
-Therefor a flow-control mecanism is implemented where the physical
+Therefore a flow-control mechanism is implemented where the physical
 interface can initiate flow stop for all CAIF Channels.

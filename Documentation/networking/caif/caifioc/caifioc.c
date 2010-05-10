@@ -1,8 +1,8 @@
 /*
  * Example program creating and configuring CAIF IP Interface
  * by use of IOCTLs.
- * Copyright (C) ST-Ericsson AB 2009
- * Author:	Sjur Brandeland / sjur.brandeland@stericsson.com
+ * Copyright (C) ST-Ericsson AB 2010
+ * Author:	Sjur Brendeland / sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 #include <linux/types.h>
