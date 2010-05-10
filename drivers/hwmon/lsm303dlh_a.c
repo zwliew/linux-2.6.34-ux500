@@ -580,8 +580,10 @@ static int lsm303dlh_a_probe(struct i2c_client *client,
 		goto exit_kfree;
 	}
 
-	if (i2c_smbus_read_byte(client) < 0) {
+	err = i2c_smbus_read_byte(client);
+	if (err < 0) {
 		dev_err(&client->dev, "i2c_smbus_read_byte error!!\n");
+		err = -ENOMEM;
 		goto exit_kfree;
 	} else {
 		dev_info(&client->dev, "lsm303dlh_a Device detected!\n");

@@ -495,8 +495,10 @@ int lsm303dlh_m_probe(struct i2c_client *client,
 		goto exit_kfree;
 	}
 
-	if (i2c_smbus_read_byte(client) < 0) {
+	err = i2c_smbus_read_byte(client);
+	if (err < 0) {
 		dev_err(&client->dev, "i2c_smbus_read_byte error!!\n");
+		err = -ENODEV;
 		goto exit_kfree;
 	} else {
 		dev_info(&client->dev, "LSM303DLH_M Device detected!\n");
@@ -508,6 +510,7 @@ int lsm303dlh_m_probe(struct i2c_client *client,
 		dev_info(&client->dev, "I2C driver registered!\n");
 	} else {
 		ldata->client = NULL;
+		err = -EINVAL;
 		goto exit_kfree;
 	}
 
