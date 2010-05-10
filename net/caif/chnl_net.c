@@ -1,6 +1,7 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
- * Author:	Daniel Martensson / Daniel.Martensson@stericsson.com
+ * Copyright (C) ST-Ericsson AB 2010
+ * Authors:	Sjur Brendeland/sjur.brandeland@stericsson.com
+ *		Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
 
@@ -16,36 +17,48 @@
 #include <linux/sockios.h>
 #include <linux/caif/if_caif.h>
 #include <net/rtnetlink.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
-#include <net/caif/generic/cfpkt.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
+#include <net/caif/cfpkt.h>
 #include <net/caif/caif_dev.h>
 
-#define CAIF_CONNECT_TIMEOUT 30
+/* GPRS PDP connection has MTU to 1500 */
 #define SIZE_MTU 1500
-#define SIZE_MTU_MAX 4080
-#define SIZE_MTU_MIN 68
+/* 5 sec. connect timeout */
+#define CONNECT_TIMEOUT (5 * HZ)
 #define CAIF_NET_DEFAULT_QUEUE_LEN 500
 
-/*This list isi protected by the rtnl lock. */
+#undef pr_debug
+#define pr_debug pr_warning
+
+/*This list is protected by the rtnl lock. */
 static LIST_HEAD(chnl_net_list);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_RTNL_LINK("caif");
 
+enum caif_states {
+	CAIF_CONNECTED		= 1,
+	CAIF_CONNECTING,
+	CAIF_DISCONNECTED,
+	CAIF_SHUTDOWN
+};
+
 struct chnl_net {
-	struct layer chnl;
+	struct cflayer chnl;
 	struct net_device_stats stats;
-	struct caif_channel_config config;
+	struct caif_connect_request conn_req;
 	struct list_head list_field;
 	struct net_device *netdev;
 	char name[256];
 	wait_queue_head_t netmgmt_wq;
 	/* Flow status to remember and control the transmission. */
 	bool flowenabled;
+	enum caif_states state;
 };
 
-
+//deprecated-functionality-below
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33))
 static struct chnl_net *find_device(char *name)
 {
 	struct list_head *list_node;
@@ -71,7 +84,8 @@ static struct chnl_net *find_device(char *name)
 	}
 	return dev;
 }
-
+#endif
+//deprecated-functionality-above
 static void robust_list_del(struct list_head *delete_node)
 {
 	struct list_head *list_node;
@@ -80,15 +94,16 @@ static void robust_list_del(struct list_head *delete_node)
 	list_for_each_safe(list_node, n, &chnl_net_list) {
 		if (list_node == delete_node) {
 			list_del(list_node);
-			break;
+			return;
 		}
 	}
+	WARN_ON(1);
 }
 
-static int chnl_recv_cb(struct layer *layr, struct cfpkt *pkt)
+static int chnl_recv_cb(struct cflayer *layr, struct cfpkt *pkt)
 {
 	struct sk_buff *skb;
-	struct chnl_net *priv  = NULL;
+	struct chnl_net *priv  = container_of(layr, struct chnl_net, chnl);
 	int pktlen;
 	int err = 0;
 
@@ -107,14 +122,12 @@ static int chnl_recv_cb(struct layer *layr, struct cfpkt *pkt)
 	skb->dev = priv->netdev;
 	skb->protocol = htons(ETH_P_IP);
 
-	if (priv->config.type == CAIF_CHTY_DATAGRAM_LOOP) {
-		/* We change the header, so the checksum is corrupted. */
+	/* If we change the header in loop mode, the checksum is corrupted. */
+	if (priv->conn_req.protocol == CAIFPROTO_DATAGRAM_LOOP)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
-	} else {
-		skb->ip_summed = CHECKSUM_COMPLETE;
-	}
+	else
+		skb->ip_summed = CHECKSUM_NONE;
 
-	/* FIXME: Drivers should call this in tasklet context. */
 	if (in_interrupt())
 		netif_rx(skb);
 	else
@@ -127,11 +140,38 @@ static int chnl_recv_cb(struct layer *layr, struct cfpkt *pkt)
 	return err;
 }
 
-static void chnl_flowctrl_cb(struct layer *layr, enum caif_ctrlcmd flow,
+static int delete_device(struct chnl_net *dev)
+{
+	ASSERT_RTNL();
+	if (dev->netdev)
+		unregister_netdevice(dev->netdev);
+	return 0;
+}
+
+static void close_work(struct work_struct *work)
+{
+	struct chnl_net *dev = NULL;
+	struct list_head *list_node;
+	struct list_head *_tmp;
+	/* May be called with or without RTNL lock held */
+	int islocked = rtnl_is_locked();
+	if (!islocked)
+		rtnl_lock();
+	list_for_each_safe(list_node, _tmp, &chnl_net_list) {
+		dev = list_entry(list_node, struct chnl_net, list_field);
+		if (dev->state == CAIF_SHUTDOWN)
+			dev_close(dev->netdev);
+	}
+	if (!islocked)
+		rtnl_unlock();
+}
+static DECLARE_WORK(close_worker, close_work);
+
+static void chnl_flowctrl_cb(struct cflayer *layr, enum caif_ctrlcmd flow,
 				int phyid)
 {
-	struct chnl_net *priv  = NULL;
-	pr_debug("CAIF: %s(): NET flowctrl func called flow: %s.\n",
+	struct chnl_net *priv = container_of(layr, struct chnl_net, chnl);
+	pr_debug("CAIF: %s(): NET flowctrl func called flow: %s\n",
 		__func__,
 		flow == CAIF_CTRLCMD_FLOW_ON_IND ? "ON" :
 		flow == CAIF_CTRLCMD_INIT_RSP ? "INIT" :
@@ -141,41 +181,48 @@ static void chnl_flowctrl_cb(struct layer *layr, enum caif_ctrlcmd flow,
 		flow == CAIF_CTRLCMD_REMOTE_SHUTDOWN_IND ?
 		 "REMOTE_SHUTDOWN" : "UKNOWN CTRL COMMAND");
 
-	priv = container_of(layr, struct chnl_net, chnl);
+
 
 	switch (flow) {
 	case CAIF_CTRLCMD_FLOW_OFF_IND:
-	case CAIF_CTRLCMD_DEINIT_RSP:
-	case CAIF_CTRLCMD_INIT_FAIL_RSP:
-	case CAIF_CTRLCMD_REMOTE_SHUTDOWN_IND:
 		priv->flowenabled = false;
-		netif_tx_disable(priv->netdev);
+		netif_stop_queue(priv->netdev);
+		break;
+	case CAIF_CTRLCMD_DEINIT_RSP:
+		priv->state = CAIF_DISCONNECTED;
+		break;
+	case CAIF_CTRLCMD_INIT_FAIL_RSP:
+		priv->state = CAIF_DISCONNECTED;
 		wake_up_interruptible(&priv->netmgmt_wq);
-	break;
+		break;
+	case CAIF_CTRLCMD_REMOTE_SHUTDOWN_IND:
+		priv->state = CAIF_SHUTDOWN;
+		netif_tx_disable(priv->netdev);
+		schedule_work(&close_worker);
+		break;
 	case CAIF_CTRLCMD_FLOW_ON_IND:
+		priv->flowenabled = true;
+		netif_wake_queue(priv->netdev);
+		break;
 	case CAIF_CTRLCMD_INIT_RSP:
+		priv->state = CAIF_CONNECTED;
 		priv->flowenabled = true;
 		netif_wake_queue(priv->netdev);
 		wake_up_interruptible(&priv->netmgmt_wq);
-	break;
+		break;
 	default:
 		break;
 	}
 }
 
-static int chnl_net_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
+static int chnl_net_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct chnl_net *priv;
 	struct cfpkt *pkt = NULL;
 	int len;
 	int result = -1;
-	ASSERT_RTNL();
-
 	/* Get our private data. */
-	priv = (struct chnl_net *)netdev_priv(dev);
-	if (!priv)
-		return -ENOSPC;
-
+	priv = netdev_priv(dev);
 
 	if (skb->len > priv->netdev->mtu) {
 		pr_warning("CAIF: %s(): Size of skb exceeded MTU\n", __func__);
@@ -187,16 +234,9 @@ static int chnl_net_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		return NETDEV_TX_BUSY;
 	}
 
-	if (priv->config.type == CAIF_CHTY_DATAGRAM_LOOP) {
-		struct iphdr *hdr;
-		__be32 swap;
-		/* Retrieve IP header. */
-		hdr = ip_hdr(skb);
-		/* Change source and destination address. */
-		swap = hdr->saddr;
-		hdr->saddr = hdr->daddr;
-		hdr->daddr = swap;
-	}
+	if (priv->conn_req.protocol == CAIFPROTO_DATAGRAM_LOOP)
+		swap(ip_hdr(skb)->saddr, ip_hdr(skb)->daddr);
+
 	/* Store original SKB length. */
 	len = skb->len;
 
@@ -205,7 +245,7 @@ static int chnl_net_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	/* Send the packet down the stack. */
 	result = priv->chnl.dn->transmit(priv->chnl.dn, pkt);
 	if (result) {
-		if (result == CFGLU_ERETRY)
+		if (result == -EAGAIN)
 			result = NETDEV_TX_BUSY;
 		return result;
 	}
@@ -217,120 +257,96 @@ static int chnl_net_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	return NETDEV_TX_OK;
 }
 
-
 static int chnl_net_open(struct net_device *dev)
 {
 	struct chnl_net *priv = NULL;
 	int result = -1;
 	ASSERT_RTNL();
-
-	priv = (struct chnl_net *)netdev_priv(dev);
-	pr_debug("CAIF: %s(): dev name: %s\n", __func__, priv->name);
-
+	priv = netdev_priv(dev);
 	if (!priv) {
 		pr_debug("CAIF: %s(): chnl_net_open: no priv\n", __func__);
 		return -ENODEV;
 	}
-	result = caifdev_adapt_register(&priv->config, &priv->chnl);
-	if (result != 0) {
-		pr_debug("CAIF: %s(): err: "
-			 "Unable to register and open device, Err:%d\n",
-			__func__,
-			result);
-		return -ENODEV;
+
+	if (priv->state != CAIF_CONNECTING) {
+		priv->state = CAIF_CONNECTING;
+		result = caif_connect_client(&priv->conn_req, &priv->chnl);
+		if (result != 0) {
+				priv->state = CAIF_DISCONNECTED;
+				pr_debug("CAIF: %s(): err: "
+					"Unable to register and open device,"
+					" Err:%d\n",
+					__func__,
+					result);
+				return result;
+		}
 	}
-	result = wait_event_interruptible(priv->netmgmt_wq, priv->flowenabled);
+
+	result = wait_event_interruptible_timeout(priv->netmgmt_wq,
+						priv->state != CAIF_CONNECTING,
+						CONNECT_TIMEOUT);
 
 	if (result == -ERESTARTSYS) {
 		pr_debug("CAIF: %s(): wait_event_interruptible"
 			 " woken by a signal\n", __func__);
 		return -ERESTARTSYS;
-	} else
-		pr_debug("CAIF: %s(): Flow on recieved\n", __func__);
+	}
+	if (result == 0) {
+		pr_debug("CAIF: %s(): connect timeout\n", __func__);
+		caif_disconnect_client(&priv->chnl);
+		priv->state = CAIF_DISCONNECTED;
+		pr_debug("CAIF: %s(): state disconnected\n", __func__);
+		return -ETIMEDOUT;
+	}
 
+	if (priv->state != CAIF_CONNECTED) {
+		pr_debug("CAIF: %s(): connect failed\n", __func__);
+		return -ECONNREFUSED;
+	}
+	pr_debug("CAIF: %s(): CAIF Netdevice connected\n", __func__);
 	return 0;
 }
 
 static int chnl_net_stop(struct net_device *dev)
 {
 	struct chnl_net *priv;
-	int result = -1;
+
 	ASSERT_RTNL();
-	priv = (struct chnl_net *)netdev_priv(dev);
-
-	result = caifdev_adapt_unregister(&priv->chnl);
-	if (result != 0) {
-		pr_debug("CAIF: %s(): chnl_net_stop: err: "
-			 "Unable to STOP device, Err:%d\n",
-			 __func__, result);
-		return -EBUSY;
-	}
-	result = wait_event_interruptible(priv->netmgmt_wq,
-					  !priv->flowenabled);
-
-	if (result == -ERESTARTSYS) {
-		pr_debug("CAIF: %s(): wait_event_interruptible woken by"
-			 " signal, signal_pending(current) = %d\n",
-			 __func__,
-			 signal_pending(current));
-	} else {
-		pr_debug("CAIF: %s(): disconnect received\n", __func__);
-
-	}
-
+	priv = netdev_priv(dev);
+	priv->state = CAIF_DISCONNECTED;
+	caif_disconnect_client(&priv->chnl);
 	return 0;
 }
 
-int chnl_net_init(struct net_device *dev)
+static int chnl_net_init(struct net_device *dev)
 {
 	struct chnl_net *priv;
 	ASSERT_RTNL();
-	priv = (struct chnl_net *)netdev_priv(dev);
-	strncpy(priv->config.name, dev->name, sizeof(priv->config.name));
+	priv = netdev_priv(dev);
 	strncpy(priv->name, dev->name, sizeof(priv->name));
 	return 0;
 }
 
-void chnl_net_uninit(struct net_device *dev)
+static void chnl_net_uninit(struct net_device *dev)
 {
 	struct chnl_net *priv;
 	ASSERT_RTNL();
-	priv = (struct chnl_net *)netdev_priv(dev);
-	/* If someone already have the lock it's already protected */
+	priv = netdev_priv(dev);
 	robust_list_del(&priv->list_field);
-	dev_put(dev);
 }
 
-//official-kernel-patch-cut-here
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 28))
-//official-kernel-patch-resume-here
 static const struct net_device_ops netdev_ops = {
 	.ndo_open = chnl_net_open,
 	.ndo_stop = chnl_net_stop,
 	.ndo_init = chnl_net_init,
 	.ndo_uninit = chnl_net_uninit,
-	.ndo_start_xmit = chnl_net_hard_start_xmit,
+	.ndo_start_xmit = chnl_net_start_xmit,
 };
-//official-kernel-patch-cut-here
-#endif
-//official-kernel-patch-resume-here
 
-static void ipcaif_net_init(struct net_device *dev)
+static void ipcaif_net_setup(struct net_device *dev)
 {
 	struct chnl_net *priv;
-//official-kernel-patch-cut-here
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28))
-	dev->open = chnl_net_open;
-	dev->stop = chnl_net_stop;
-	dev->init = chnl_net_init;
-	dev->uninit = chnl_net_uninit;
-	dev->hard_start_xmit = chnl_net_hard_start_xmit;
-#else
-//official-kernel-patch-resume-here
 	dev->netdev_ops = &netdev_ops;
-//official-kernel-patch-cut-here
-#endif
-//official-kernel-patch-resume-here
 	dev->destructor = free_netdev;
 	dev->flags |= IFF_NOARP;
 	dev->flags |= IFF_POINTOPOINT;
@@ -339,14 +355,15 @@ static void ipcaif_net_init(struct net_device *dev)
 	dev->mtu = SIZE_MTU;
 	dev->tx_queue_len = CAIF_NET_DEFAULT_QUEUE_LEN;
 
-	priv = (struct chnl_net *)netdev_priv(dev);
+	priv = netdev_priv(dev);
 	priv->chnl.receive = chnl_recv_cb;
 	priv->chnl.ctrlcmd = chnl_flowctrl_cb;
 	priv->netdev = dev;
-	priv->config.type = CAIF_CHTY_DATAGRAM;
-	priv->config.phy_pref = CFPHYPREF_HIGH_BW;
-	priv->config.priority = CAIF_PRIO_LOW;
-	priv->config.u.dgm.connection_id = -1; /* Insert illegal value */
+	priv->conn_req.protocol = CAIFPROTO_DATAGRAM;
+	priv->conn_req.link_selector = CAIF_LINK_HIGH_BANDW;
+	priv->conn_req.priority = CAIF_PRIO_LOW;
+	/* Insert illegal value */
+	priv->conn_req.sockaddr.u.dgm.connection_id = -1;
 	priv->flowenabled = false;
 
 	ASSERT_RTNL();
@@ -354,24 +371,17 @@ static void ipcaif_net_init(struct net_device *dev)
 	list_add(&priv->list_field, &chnl_net_list);
 }
 
-static int delete_device(struct chnl_net *dev)
-{
-	ASSERT_RTNL();
-	if (dev->netdev)
-		unregister_netdevice(dev->netdev);
-	return 0;
-}
 
 static int ipcaif_fill_info(struct sk_buff *skb, const struct net_device *dev)
 {
 	struct chnl_net *priv;
 	u8 loop;
-	priv = (struct chnl_net *)netdev_priv(dev);
+	priv = netdev_priv(dev);
 	NLA_PUT_U32(skb, IFLA_CAIF_IPV4_CONNID,
-		    priv->config.u.dgm.connection_id);
+		    priv->conn_req.sockaddr.u.dgm.connection_id);
 	NLA_PUT_U32(skb, IFLA_CAIF_IPV6_CONNID,
-		    priv->config.u.dgm.connection_id);
-	loop = priv->config.type == CAIF_CHTY_DATAGRAM_LOOP;
+		    priv->conn_req.sockaddr.u.dgm.connection_id);
+	loop = priv->conn_req.protocol == CAIFPROTO_DATAGRAM_LOOP;
 	NLA_PUT_U8(skb, IFLA_CAIF_LOOPBACK, loop);
 
 
@@ -382,52 +392,56 @@ nla_put_failure:
 }
 
 static void caif_netlink_parms(struct nlattr *data[],
-				struct caif_channel_config *parms)
+				struct caif_connect_request *conn_req)
 {
 	if (!data) {
 		pr_warning("CAIF: %s: no params data found\n", __func__);
 		return;
 	}
 	if (data[IFLA_CAIF_IPV4_CONNID])
-		parms->u.dgm.connection_id =
+		conn_req->sockaddr.u.dgm.connection_id =
 			nla_get_u32(data[IFLA_CAIF_IPV4_CONNID]);
 	if (data[IFLA_CAIF_IPV6_CONNID])
-		parms->u.dgm.connection_id =
+		conn_req->sockaddr.u.dgm.connection_id =
 			nla_get_u32(data[IFLA_CAIF_IPV6_CONNID]);
 	if (data[IFLA_CAIF_LOOPBACK]) {
 		if (nla_get_u8(data[IFLA_CAIF_LOOPBACK]))
-			parms->type = CAIF_CHTY_DATAGRAM_LOOP;
+			conn_req->protocol = CAIFPROTO_DATAGRAM_LOOP;
 		else
-			parms->type = CAIF_CHTY_DATAGRAM;
+			conn_req->protocol = CAIFPROTO_DATAGRAM;
 	}
 }
 
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 static int ipcaif_newlink(struct net *src_net, struct net_device *dev,
 			  struct nlattr *tb[], struct nlattr *data[])
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #else
 static int ipcaif_newlink(struct net_device *dev, struct nlattr *tb[],
 			struct nlattr *data[])
 #endif
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 {
-	int err;
+	int ret;
 	struct chnl_net *caifdev;
 	ASSERT_RTNL();
 	caifdev = netdev_priv(dev);
-	caif_netlink_parms(data, &caifdev->config);
-	err = register_netdevice(dev);
-	if (err) {
+	caif_netlink_parms(data, &caifdev->conn_req);
+//deprecated-functionality-below
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
+//deprecated-functionality-above
+	dev_net_set(caifdev->netdev, src_net);
+//deprecated-functionality-below
+#endif
+//deprecated-functionality-above
+
+	ret = register_netdevice(dev);
+	if (ret)
 		pr_warning("CAIF: %s(): device rtml registration failed\n",
 			   __func__);
-		goto out;
-	}
-	dev_hold(dev);
-out:
-	return err;
+	return ret;
 }
 
 static int ipcaif_changelink(struct net_device *dev, struct nlattr *tb[],
@@ -436,7 +450,7 @@ static int ipcaif_changelink(struct net_device *dev, struct nlattr *tb[],
 	struct chnl_net *caifdev;
 	ASSERT_RTNL();
 	caifdev = netdev_priv(dev);
-	caif_netlink_parms(data, &caifdev->config);
+	caif_netlink_parms(data, &caifdev->conn_req);
 	netdev_state_change(dev);
 	return 0;
 }
@@ -462,8 +476,8 @@ static const struct nla_policy ipcaif_policy[IFLA_CAIF_MAX + 1] = {
 
 static struct rtnl_link_ops ipcaif_link_ops __read_mostly = {
 	.kind		= "caif",
-	.priv_size	= (size_t)sizeof(struct chnl_net),
-	.setup		= ipcaif_net_init,
+	.priv_size	= sizeof(struct chnl_net),
+	.setup		= ipcaif_net_setup,
 	.maxtype	= IFLA_CAIF_MAX,
 	.policy		= ipcaif_policy,
 	.newlink	= ipcaif_newlink,
@@ -473,6 +487,8 @@ static struct rtnl_link_ops ipcaif_link_ops __read_mostly = {
 
 };
 
+//deprecated-functionality-below
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33))
 int chnl_net_ioctl(unsigned int cmd, unsigned long arg, bool from_user_land)
 {
 	struct chnl_net *priv;
@@ -521,58 +537,89 @@ int chnl_net_ioctl(unsigned int cmd, unsigned long arg, bool from_user_land)
 	}
 
 	netdevptr = alloc_netdev(sizeof(struct chnl_net),
-				 ifreq.ifr_name, ipcaif_net_init);
+				 ifreq.ifr_name, ipcaif_net_setup);
 	if (!netdevptr) {
 		rtnl_unlock();
 		return	-ENODEV;
 	}
-	dev_hold(netdevptr);
-	priv = (struct chnl_net *)netdev_priv(netdevptr);
-	priv->config.u.dgm.connection_id = param.ipv4_connid;
+	priv = netdev_priv(netdevptr);
+	priv->conn_req.sockaddr.u.dgm.connection_id = param.ipv4_connid;
 
 	if (param.loop)
-		priv->config.type = CAIF_CHTY_DATAGRAM_LOOP;
+		priv->conn_req.protocol = CAIFPROTO_DATAGRAM_LOOP;
 	else
-		priv->config.type = CAIF_CHTY_DATAGRAM;
+		priv->conn_req.protocol = CAIFPROTO_DATAGRAM;
 
 	result = register_netdevice(priv->netdev);
 
 	if (result < 0) {
 		pr_warning("CAIF: %s(): can't register netdev %s %d\n",
 			   __func__, ifreq.ifr_name, result);
-		dev_put(netdevptr);
 		rtnl_unlock();
 		return	-ENODEV;
 	}
 	pr_debug("CAIF: %s(): netdev channel open:%s\n", __func__, priv->name);
 	rtnl_unlock();
 	return 0;
-};
+}
+#endif
 
+#include <linux/caif/caif_config.h>
 struct net_device *chnl_net_create(char *name,
-				   struct caif_channel_config *config)
+					struct caif_channel_config *config)
 {
 	struct net_device *dev;
+	struct caif_connect_request s;
+	memset(&s,0,sizeof(s));
 	ASSERT_RTNL();
-	dev = alloc_netdev(sizeof(struct chnl_net), name, ipcaif_net_init);
+	switch(config->type) {
+	case CAIF_CHTY_DATAGRAM:
+		s.protocol = CAIFPROTO_DATAGRAM;
+		break;
+
+	case CAIF_CHTY_DATAGRAM_LOOP:
+		s.protocol = CAIFPROTO_DATAGRAM_LOOP;
+		break;
+	default:
+		return NULL;
+	}
+	strcpy(s.link_name, config->phy_name);
+	switch (config->phy_pref) {
+	case CAIF_PHYPREF_UNSPECIFIED:
+	case CAIF_PHYPREF_HIGH_BW:
+		s.link_selector = CAIF_LINK_HIGH_BANDW;
+		break;
+	case CAIF_PHYPREF_LOW_LAT:
+		s.link_selector = CAIF_LINK_LOW_LATENCY;
+		break;
+	default:
+		return NULL;
+	}
+	s.sockaddr.u.dgm.connection_id =
+		config->u.dgm.connection_id;
+	dev = alloc_netdev(sizeof(struct chnl_net), name, ipcaif_net_setup);
 	if (!dev)
 		return NULL;
-	((struct chnl_net *)netdev_priv(dev))->config = *config;
-	dev_hold(dev);
+	((struct chnl_net *)netdev_priv(dev))->conn_req = s;
 	return dev;
 }
 EXPORT_SYMBOL(chnl_net_create);
-
+//deprecated-functionality-above
 static int __init chnl_init_module(void)
 {
-	int err = -1;
-	caif_register_ioctl(chnl_net_ioctl);
-	err = rtnl_link_register(&ipcaif_link_ops);
-	if (err < 0) {
-		rtnl_link_unregister(&ipcaif_link_ops);
-		return err;
-	}
-	return 0;
+//deprecated-functionality-below
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33))
+	int ret;
+	ret = rtnl_link_register(&ipcaif_link_ops);
+	if (!ret)
+		caif_register_ioctl(chnl_net_ioctl);
+	return ret;
+#else
+//deprecated-functionality-above
+	return rtnl_link_register(&ipcaif_link_ops);
+//deprecated-functionality-below
+#endif
+//deprecated-functionality-above
 }
 
 static void __exit chnl_exit_module(void)
@@ -580,14 +627,19 @@ static void __exit chnl_exit_module(void)
 	struct chnl_net *dev = NULL;
 	struct list_head *list_node;
 	struct list_head *_tmp;
+	rtnl_link_unregister(&ipcaif_link_ops);
+//deprecated-functionality-below
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33))
+	caif_register_ioctl(NULL);
+#endif
+//deprecated-functionality-above
 	rtnl_lock();
 	list_for_each_safe(list_node, _tmp, &chnl_net_list) {
 		dev = list_entry(list_node, struct chnl_net, list_field);
+		list_del(list_node);
 		delete_device(dev);
 	}
 	rtnl_unlock();
-	rtnl_link_unregister(&ipcaif_link_ops);
-	caif_register_ioctl(NULL);
 }
 
 module_init(chnl_init_module);

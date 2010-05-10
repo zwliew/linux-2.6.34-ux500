@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Per Sigmond / Per.Sigmond@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -18,10 +18,10 @@
 #include <asm/atomic.h>
 
 /* CAIF header files. */
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfcnfg.h>
-#include <net/caif/generic/cfpkt.h>
-#include <net/caif/generic/cffrml.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfcnfg.h>
+#include <net/caif/cfpkt.h>
+#include <net/caif/cffrml.h>
 #include <net/caif/caif_chr.h>
 #include <linux/caif/caif_config.h>
 #include <net/caif/caif_actions.h>
@@ -35,11 +35,11 @@ MODULE_LICENSE("GPL");
 static LIST_HEAD(caif_chrdev_list);
 static spinlock_t list_lock;
 
-#define CONN_STATE_OPEN_BIT           1
-#define CONN_STATE_PENDING_BIT        2
+#define CONN_STATE_OPEN_BIT	      1
+#define CONN_STATE_PENDING_BIT	      2
 #define CONN_REMOTE_SHUTDOWN_BIT      4
-#define TX_FLOW_ON_BIT                1
-#define RX_FLOW_ON_BIT                2
+#define TX_FLOW_ON_BIT		      1
+#define RX_FLOW_ON_BIT		      2
 
 #define STATE_IS_OPEN(dev) test_bit(CONN_STATE_OPEN_BIT,\
 				    (void *) &(dev)->conn_state)
@@ -86,7 +86,7 @@ static struct dentry *debugfsdir;
 #endif
 
 struct caif_char_dev {
-	struct layer layer;
+	struct cflayer layer;
 	u32 conn_state;
 	u32 flow_state;
 	struct cfpktq *pktq;
@@ -127,7 +127,7 @@ struct caif_char_dev {
 static void drain_queue(struct caif_char_dev *dev);
 
 /* Packet Receive Callback function called from CAIF Stack */
-static int caif_chrrecv_cb(struct layer *layr, struct cfpkt *pkt)
+static int caif_chrrecv_cb(struct cflayer *layr, struct cfpkt *pkt)
 {
 	struct caif_char_dev *dev;
 	int read_queue_high;
@@ -193,7 +193,8 @@ static int caif_chrrecv_cb(struct layer *layr, struct cfpkt *pkt)
 }
 
 /* Packet Flow Control Callback function called from CAIF */
-static void caif_chrflowctrl_cb(struct layer *layr, enum caif_ctrlcmd flow, int phyid)
+static void caif_chrflowctrl_cb(struct cflayer *layr, enum caif_ctrlcmd flow,
+				int phyid)
 {
 	struct caif_char_dev *dev;
 
@@ -389,11 +390,11 @@ ssize_t caif_chrread(struct file *filp, char __user *buf, size_t count,
 					     dev->pktf.cfpkt_qpeek(dev->pktq)
 					     || STATE_IS_REMOTE_SHUTDOWN(dev)
 					     || !STATE_IS_OPEN(dev)) ==
-		    -ERESTARTSYS) {
+			-ERESTARTSYS) {
 			pr_debug("CAIF: %s():_event_interruptible woken by "
-			         "a signal, signal_pending(current) = %d\n",
+				 "a signal, signal_pending(current) = %d\n",
 				__func__,
-			        signal_pending(current));
+				signal_pending(current));
 			return -ERESTARTSYS;
 		}
 
@@ -911,8 +912,8 @@ int caif_chropen(struct inode *inode, struct file *filp)
 		/* Open */
 		pr_debug("CAIF: %s():"
 			 " Device is already opened (dev=%p) check access "
-		         "f_flags = 0x%x file_mode = 0x%x\n",
-		         __func__, dev, mode, dev->file_mode);
+			 "f_flags = 0x%x file_mode = 0x%x\n",
+			 __func__, dev, mode, dev->file_mode);
 
 		if (mode & dev->file_mode) {
 			pr_debug("CAIF: %s():Access mode already in use 0x%x\n",
@@ -922,9 +923,9 @@ int caif_chropen(struct inode *inode, struct file *filp)
 		}
 	} else {
 		/* We are closed or pending open.
-		 * If closed:       send link setup
+		 * If closed:	    send link setup
 		 * If pending open: link setup already sent (we could have been
-		 *                  interrupted by a signal last time)
+		 *		    interrupted by a signal last time)
 		 */
 		if (!STATE_IS_OPEN(dev)) {
 			/* First opening of file; connect lower layers: */
@@ -936,7 +937,7 @@ int caif_chropen(struct inode *inode, struct file *filp)
 
 			/* Register this channel. */
 			result =
-			    caifdev_adapt_register(&dev->config, &dev->layer);
+			    add_adaptation_layer(&dev->config, &dev->layer);
 			if (result < 0) {
 				pr_debug("CAIF: %s():can't register channel\n",
 					 __func__);
@@ -988,9 +989,6 @@ int caif_chropen(struct inode *inode, struct file *filp)
 
 		caif_assert(dev->layer.dn);
 		caif_assert(dev->layer.dn->ctrlcmd);
-		(void) dev->layer.dn->modemcmd(dev->layer.dn,
-					       CAIF_MODEMCMD_FLOW_ON_REQ);
-
 	}
 open_success:
 	/* Open is OK. */
@@ -1067,7 +1065,7 @@ int caif_chrrelease(struct inode *inode, struct file *filp)
 	dev->file_mode &= ~mode;
 	if (dev->file_mode) {
 		pr_debug("CAIF: %s(): Device is kept open by someone else,"
-		         " don't close. CAIF connection - file_mode = %x\n",
+			 " don't close. CAIF connection - file_mode = %x\n",
 			 __func__, dev->file_mode);
 		mutex_unlock(&dev->mutex);
 		return 0;
@@ -1084,10 +1082,10 @@ int caif_chrrelease(struct inode *inode, struct file *filp)
 	SET_PENDING_ON(dev);
 	tx_flow_state_was_on = TX_FLOW_IS_ON(dev);
 	SET_TX_FLOW_OFF(dev);
-	result = caifdev_adapt_unregister(&dev->layer);
+	result = caif_disconnect_client(&dev->layer);
 
 	if (result < 0) {
-		pr_debug("CAIF: %s(): caifdev_adapt_unregister() failed\n",
+		pr_debug("CAIF: %s(): caif_disconnect_client() failed\n",
 			 __func__);
 		SET_STATE_CLOSED(dev);
 		SET_PENDING_OFF(dev);
@@ -1292,7 +1290,7 @@ int chrdev_remove(char *name)
 	if (STATE_IS_OPEN(dev)) {
 		pr_debug("CAIF: %s(): Device is opened "
 			 "(dev=%p) file_mode = 0x%x\n",
-		         __func__, dev, dev->file_mode);
+			 __func__, dev, dev->file_mode);
 		mutex_unlock(&dev->mutex);
 		return -EBUSY;
 	}
@@ -1303,7 +1301,7 @@ int chrdev_remove(char *name)
 	drain_queue(dev);
 	ret = misc_deregister(&dev->misc);
 
-	cfglu_free(dev->pktq);
+	kfree(dev->pktq);
 
 #ifdef CONFIG_DEBUG_FS
 	if (dev->debugfs_device_dir != NULL)

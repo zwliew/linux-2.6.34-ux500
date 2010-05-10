@@ -1,5 +1,5 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author: Daniel Martensson / Daniel.Martensson@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  */
@@ -20,11 +20,12 @@
 #include <net/caif/caif_actions.h>
 #include <net/caif/caif_dev.h>
 #include <net/caif/caif_chr.h>
-#include <net/caif/generic/cfloopcfg.h>
-#include <net/caif/generic/cfpkt.h>
-#include <net/caif/generic/cfcnfg.h>
+#include <net/caif/cfloopcfg.h>
+#include <net/caif/cfpkt.h>
+#include <net/caif/cfcnfg.h>
 #include <linux/caif/caif_ioctl.h>
 #include <linux/caif/if_caif.h>
+#include <linux/version.h>
 
 MODULE_LICENSE("GPL");
 
@@ -70,13 +71,13 @@ static struct caif_chr caifdev;
 
 int caifdev_open(struct inode *inode, struct file *filp)
 {
-	pr_warning("CAIF: %s(): Entered\n", __func__);
+	pr_debug("CAIF: %s(): Entered\n", __func__);
 	return 0;
 }
 
 int caifdev_release(struct inode *inode, struct file *filp)
 {
-	pr_warning("CAIF: %s(): Entered\n", __func__);
+	pr_debug("CAIF: %s(): Entered\n", __func__);
 	return 0;
 }
 
@@ -91,10 +92,14 @@ static int netdev_create(struct caif_channel_create_action *action)
 
 static int netdev_remove(char *name)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33))
 	struct ifreq ifreq;
 	strncpy(ifreq.ifr_name, name, sizeof(ifreq.ifr_name));
 	ifreq.ifr_name[sizeof(ifreq.ifr_name)-1] = '\0';
 	return caif_ioctl(SIOCCAIFNETREMOVE, (unsigned long) &ifreq, false);
+#else
+	return -EINVAL;
+#endif
 }
 
 static int caifdev_ioctl(struct inode *inode, struct file *filp,
@@ -158,13 +163,15 @@ static int caifdev_ioctl(struct inode *inode, struct file *filp,
 		pr_info("CAIF: %s(): device type CAIF_DEV_CHR\n", __func__);
 		if (chrdev_mgmt_func == NULL) {
 			printk(KERN_WARNING
-				"caifdev_ioctl:DevType CHR is not registered\n");
+				"caifdev_ioctl:"
+				"DevType CHR is not registered\n");
 			return -EINVAL;
-	        }
+		}
 		ret = (*chrdev_mgmt_func)(operation, &param);
 		if (ret < 0) {
 			printk(KERN_INFO
-				"caifdev_ioctl: error performing device operation\n");
+				"caifdev_ioctl:"
+				"error performing device operation\n");
 			return ret;
 		}
 
@@ -244,43 +251,28 @@ err_misc_register_failed:
 	return -ENODEV;
 }
 
-int caifdev_phy_register(struct layer *phyif, enum cfcnfg_phy_type phy_type,
-			 enum cfcnfg_phy_preference phy_pref,
-			 bool fcs,bool stx)
+int caifdev_phy_register(struct cflayer *phyif, enum cfcnfg_phy_type phy_type,
+				enum cfcnfg_phy_preference phy_pref,
+				bool fcs, bool stx)
 {
-	uint16 phyid;
+	u16 phyid;
 
 	/* Hook up the physical interface.
 	 * Right now we are not using the returned ID.
 	 */
 	cfcnfg_add_phy_layer(get_caif_conf(), phy_type, NULL, phyif, &phyid,
-			phy_pref,fcs,stx);
+			phy_pref, fcs, stx);
 
-	pr_warning("CAIF: caifdev_phy_register: phyif:%p phyid:%d == phyif->id:%d\n",
-	       (void *)phyif, phyid, phyif->id);
+	pr_debug("CAIF: caifdev_phy_register: "
+			"phyif:%p phyid:%d == phyif->id:%d\n",
+			(void *)phyif, phyid, phyif->id);
 	return 0;
 }
 EXPORT_SYMBOL(caifdev_phy_register);
 
-#if 0
-int caifdev_phy_loop_register(struct layer *phyif,
-			      enum cfcnfg_phy_type phy_type,
-			      bool fcs, bool stx)
+int caifdev_phy_unregister(struct cflayer *phyif)
 {
-       /* Create the loop stack. */
-       caifdev.loop = cfloopcfg_create();
-
-       /* Hook up the loop layer. */
-       cfloopcfg_add_phy_layer(caifdev.loop, phy_type, phyif);
-
-       return 0;
-}
-EXPORT_SYMBOL(caifdev_phy_loop_register);
-#endif
-
-int caifdev_phy_unregister(struct layer *phyif)
-{
-	pr_warning("CAIF: caifdev_phy_unregister: phy:%p id:%d\n",
+	pr_debug("CAIF: caifdev_phy_unregister: phy:%p id:%d\n",
 	       phyif, phyif->id);
 	cfcnfg_del_phy_layer(get_caif_conf(), phyif);
 	return 0;
@@ -300,6 +292,20 @@ void caif_unregister_chrdev()
 	chrdev_mgmt_func = NULL;
 }
 EXPORT_SYMBOL(caif_unregister_chrdev);
+
+int add_adaptation_layer(struct caif_channel_config *config,
+                          struct cflayer *adap_layer)
+{
+	struct cfctrl_link_param param;
+
+	if (channel_config_2_link_param(get_caif_conf(), config, &param) == 0)
+		/* Hook up the adaptation layer. */
+		return cfcnfg_add_adaptation_layer(get_caif_conf(),
+						&param, adap_layer);
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL(add_adaptation_layer);
 
 struct caif_packet_funcs cfcnfg_get_packet_funcs()
 {

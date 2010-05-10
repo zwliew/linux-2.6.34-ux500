@@ -1,6 +1,6 @@
 /*
  * CAIF Interface registration.
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
  * License terms: GNU General Public License (GPL) version 2
  *
@@ -23,26 +23,27 @@
 #include <net/pkt_sched.h>
 #include <net/caif/caif_device.h>
 #include <net/caif/caif_dev.h>
-#include <net/caif/generic/caif_layer.h>
-#include <net/caif/generic/cfpkt.h>
-#include <net/caif/generic/cfcnfg.h>
+#include <net/caif/caif_layer.h>
+#include <net/caif/cfpkt.h>
+#include <net/caif/cfcnfg.h>
 
 MODULE_LICENSE("GPL");
-#define TIMEOUT (HZ*1000)
+#define TIMEOUT (HZ*5)
 
 /* Used for local tracking of the CAIF net devices */
 struct caif_device_entry {
-	struct layer layer;
+	struct cflayer layer;
 	struct list_head list;
 	atomic_t in_use;
 	atomic_t state;
-	uint16 phyid;
+	u16 phyid;
 	struct net_device *netdev;
 	wait_queue_head_t event;
 };
 
 struct caif_device_entry_list {
 	struct list_head list;
+	/* Protects simulanous deletes in list */
 	spinlock_t lock;
 };
 
@@ -50,10 +51,10 @@ struct caif_net {
 	struct caif_device_entry_list caifdevs;
 };
 
-int caif_net_id;
-struct cfcnfg *cfg;
+static int caif_net_id;
+static struct cfcnfg *cfg;
 
-struct caif_device_entry_list *caif_device_list(struct net *net)
+static struct caif_device_entry_list *caif_device_list(struct net *net)
 {
 	struct caif_net *caifn;
 	BUG_ON(!net);
@@ -114,7 +115,7 @@ static void caif_device_destroy(struct net_device *dev)
 	return;
 }
 
-static int transmit(struct layer *layer, struct cfpkt *pkt)
+static int transmit(struct cflayer *layer, struct cfpkt *pkt)
 {
 	struct caif_device_entry *caifd =
 	    container_of(layer, struct caif_device_entry, layer);
@@ -141,7 +142,7 @@ static int transmit(struct layer *layer, struct cfpkt *pkt)
 	return 0;
 }
 
-static int modemcmd(struct layer *layr, enum caif_modemcmd ctrl)
+static int modemcmd(struct cflayer *layr, enum caif_modemcmd ctrl)
 {
 	struct caif_device_entry *caifd;
 	struct caif_dev_common *caifdev;
@@ -205,8 +206,8 @@ static int caif_device_notify(struct notifier_block *me, unsigned long what,
 	struct net_device *dev = arg;
 	struct caif_device_entry *caifd = NULL;
 	struct caif_dev_common *caifdev;
+	enum cfcnfg_phy_preference pref;
 	int res = -EINVAL;
-	enum caif_phy_preference phy_pref;
 	enum cfcnfg_phy_type phy_type;
 
 	if (dev->type != ARPHRD_CAIF)
@@ -238,22 +239,30 @@ static int caif_device_notify(struct notifier_block *me, unsigned long what,
 		atomic_set(&caifd->state, what);
 		caifd->layer.transmit = transmit;
 		caifd->layer.modemcmd = modemcmd;
-		if (caifdev->link_select == CAIF_PHYPREF_LOW_LAT)
-			phy_pref = CAIF_LINK_LOW_LATENCY;
-		else
-			phy_pref = CAIF_LINK_HIGH_BANDW;
 
 		if (caifdev->use_frag)
 			phy_type = CFPHYTYPE_FRAG;
 		else
 			phy_type = CFPHYTYPE_CAIF;
 
+		switch (caifdev->link_select) {
+		case CAIF_LINK_HIGH_BANDW:
+			pref = CFPHYPREF_HIGH_BW;
+			break;
+		case CAIF_LINK_LOW_LATENCY:
+			pref = CFPHYPREF_LOW_LAT;
+			break;
+		default:
+			pref = CFPHYPREF_HIGH_BW;
+			break;
+		}
+
 		cfcnfg_add_phy_layer(get_caif_conf(),
 				     phy_type,
 				     dev,
 				     &caifd->layer,
 				     &caifd->phyid,
-				     phy_pref,
+				     pref,
 				     caifdev->use_fcs,
 				     caifdev->use_stx);
 		strncpy(caifd->layer.name, dev->name,
@@ -266,6 +275,11 @@ static int caif_device_notify(struct notifier_block *me, unsigned long what,
 		if (caifd == NULL)
 			break;
 		pr_info("CAIF: %s():going down %s\n", __func__, dev->name);
+
+		if (atomic_read(&caifd->state) == NETDEV_GOING_DOWN ||
+			atomic_read(&caifd->state) == NETDEV_DOWN)
+			break;
+
 		atomic_set(&caifd->state, what);
 		if (!caifd || !caifd->layer.up || !caifd->layer.up->ctrlcmd)
 			return -EINVAL;
@@ -311,7 +325,7 @@ struct cfcnfg *get_caif_conf(void)
 	return cfg;
 }
 EXPORT_SYMBOL(get_caif_conf);
-
+//deprecated-functionality-below
 static int (*caif_ioctl_func)(unsigned int cmd, unsigned long arg, bool);
 
 void caif_register_ioctl(
@@ -331,29 +345,37 @@ int caif_ioctl(unsigned int cmd, unsigned long arg, bool from_user_land)
 }
 EXPORT_SYMBOL(caif_ioctl);
 
-int caifdev_adapt_register(struct caif_channel_config *config,
-			   struct layer *adap_layer)
+//deprecated-functionality-above
+
+int caif_connect_client(struct caif_connect_request *conn_req,
+			   struct cflayer *client_layer)
 {
 	struct cfctrl_link_param param;
-
-	if (channel_config_2_link_param(get_caif_conf(), config, &param) == 0)
-		/* Hook up the adaptation layer. */
-		return cfcnfg_add_adaptation_layer(get_caif_conf(),
-						&param, adap_layer);
-
-	return -EINVAL;
+	int ret;
+	ret = connect_req_to_link_param(get_caif_conf(), conn_req, &param);
+	if (ret)
+		return ret;
+	/* Hook up the adaptation layer. */
+	return cfcnfg_add_adaptation_layer(get_caif_conf(),
+						&param, client_layer);
 }
-EXPORT_SYMBOL(caifdev_adapt_register);
+EXPORT_SYMBOL(caif_connect_client);
 
-int caifdev_adapt_unregister(struct layer *adap_layer)
+int caif_disconnect_client(struct cflayer *adap_layer)
 {
-	return cfcnfg_del_adapt_layer(get_caif_conf(), adap_layer);
+       return cfcnfg_disconn_adapt_layer(get_caif_conf(), adap_layer);
 }
-EXPORT_SYMBOL(caifdev_adapt_unregister);
+EXPORT_SYMBOL(caif_disconnect_client);
 
-//official-kernel-patch-cut-here
+void caif_release_client(struct cflayer *adap_layer)
+{
+       cfcnfg_release_adap_layer(adap_layer);
+}
+EXPORT_SYMBOL(caif_release_client);
+
+//deprecated-functionality-below
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 /* Per-namespace Caif devices handling */
 static int caif_init_net(struct net *net)
 {
@@ -383,7 +405,7 @@ static struct pernet_operations caif_net_ops = {
 	.id   = &caif_net_id,
 	.size = sizeof(struct caif_net),
 };
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #else
 
 /* Per-namespace Caif devices handling */
@@ -425,10 +447,10 @@ static struct pernet_operations caif_net_ops = {
 };
 
 #endif
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 
 /* Initialize Caif devices list */
-int __init caif_device_init(void)
+static int __init caif_device_init(void)
 {
 	int result;
 	cfg = cfcnfg_create();
@@ -436,15 +458,15 @@ int __init caif_device_init(void)
 		pr_warning("CAIF: %s(): can't create cfcnfg.\n", __func__);
 		goto err_cfcnfg_create_failed;
 	}
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 	result = register_pernet_device(&caif_net_ops);
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #else
-	result = register_pernet_gen_device(&caif_net_id,&caif_net_ops);
+	result = register_pernet_gen_device(&caif_net_id, &caif_net_ops);
 #endif
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 
 	if (result) {
 		kfree(cfg);
@@ -459,20 +481,20 @@ err_cfcnfg_create_failed:
 	return -ENODEV;
 }
 
-void __exit caif_device_exit(void)
+static void __exit caif_device_exit(void)
 {
-	cfcnfg_remove(cfg);
 	dev_remove_pack(&caif_packet_type);
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 	unregister_pernet_device(&caif_net_ops);
-//official-kernel-patch-cut-here
+//deprecated-functionality-below
 #else
-	unregister_pernet_gen_device(caif_net_id,&caif_net_ops);
+	unregister_pernet_gen_device(caif_net_id, &caif_net_ops);
 #endif
-//official-kernel-patch-resume-here
+//deprecated-functionality-above
 	unregister_netdevice_notifier(&caif_device_notifier);
+	cfcnfg_remove(cfg);
 }
 
 module_init(caif_device_init);
