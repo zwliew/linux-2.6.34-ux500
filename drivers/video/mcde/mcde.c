@@ -3120,8 +3120,6 @@ static int mcde_pan_display(struct fb_var_screeninfo *var,
 	else
 		info->var.vmode &= ~FB_VMODE_YWRAP;
 
-	printk(KERN_DEBUG "MCDE pan_display: channel id = %d\n",
-						currentpar->chid);
 #ifdef CONFIG_FB_MCDE_MULTIBUFFER
 	currentpar->clcd_event.base = info->fix.smem_start + (var->yoffset * info->fix.line_length);
 
