@@ -44,6 +44,7 @@ extern "C" {
 #include <linux/gpio.h>
 #include <linux/init.h>
 #include <linux/regulator/consumer.h>
+#include <linux/debugfs.h>
 #include <asm/dma.h>
 #include <asm/uaccess.h>
 #include <mach/mcde_common.h>
@@ -4640,7 +4641,6 @@ static int __init mcde_probe(struct platform_device *pdev)
 	u8 * dsiChanlRegAdd = NULL;
 	u8  *dsilinkAddr = NULL;
 	u32 rotationframesize = 0;
-	int data_4500;
 	int i, ret;
 #ifdef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 	volatile u32 __iomem *clcd_clk;
@@ -4678,8 +4678,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 
 	PRNK_COL(PRNK_COL_GREEN);
 	printk(KERN_INFO "MCDE probe: channel id = %d\n",
-		channel_info->channelid);
-
+						channel_info->channelid);
 	/** To be removed I2C */
 	if(!i2c_init_done)
 	{
@@ -5594,7 +5593,6 @@ extern "C" {
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
-#include <linux/debugfs.h>
 
 #include <asm/dma.h>
 #include <asm/uaccess.h>
@@ -5648,9 +5646,6 @@ void mcde_fb_unlock(struct fb_info *info, const char *caller)
 
 int mcde_debug = MCDE_DEFAULT_LOG_LEVEL;
 
-/* ecsmmtu: I dont't think the variable below is used for anything.
- * TODO: chk if static and remove.
- */
 char isVideoModeChanged = 0;
 unsigned int mcde_4500_plugstatus=0;
 
@@ -8571,6 +8566,7 @@ static int __init mcde_probe(struct platform_device *pdev)
 	u8 * dsiChanlRegAdd = NULL;
 	u8  *dsilinkAddr = NULL;
 	u32 rotationframesize = 0;
+	int data_4500;
 
 #ifdef  CONFIG_FB_U8500_MCDE_CHANNELB_DISPLAY_VUIB_WVGA
 	volatile u32 __iomem *clcd_clk;
