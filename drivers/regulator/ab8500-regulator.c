@@ -1,10 +1,9 @@
 /*
- * Copyright (C) 2009 STMicroelectronics
- * Copyright (C) 2010 ST-Ericsson SA
+ * Copyright (C) STMicroelectronics 2009
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2, as
- * published by the Free Software Foundation.
+ * License Terms: GNU General Public License v2
+ * Author: Sundar Iyer <sundar.iyer@stericsson.com>
  *
  * AB8500 peripheral regulators
  *

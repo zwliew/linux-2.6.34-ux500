@@ -1,11 +1,9 @@
 /*
- * linux/arch/arm/mach-u8500/timer-rtt.c
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * Copyright (C) 2009 ST-Ericsson SA
+ * License Terms: GNU General Public License v2
+ * Author: Rabin Vincent <rabin.vincent@stericsson.com>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2, as
- * published by the Free Software Foundation.
  */
 #include <linux/interrupt.h>
 #include <linux/irq.h>

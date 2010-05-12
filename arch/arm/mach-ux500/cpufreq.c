@@ -1,12 +1,10 @@
 /*
- * CPU frequency module for U8500
+ * Copyright (C) STMicroelectronics 2009
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * Copyright (C) 2009 STMicroelectronics.
- * Copyright (C) 2009 ST-Ericsson SA
+ * License Terms: GNU General Public License v2
+ * Author: Sundar Iyer <sundar.iyer@stericsson.com>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
  */
 #include <linux/cpufreq.h>
 #include <linux/delay.h>

@@ -1,9 +1,11 @@
 /*
- * Copyright (C) 2009 ST-Ericsson SA
+ * Copyright (C) STMicroelectronics 2009
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
+ * License Terms: GNU General Public License v2
+ * Author: Kumar Sanghvi <kumar.sanghvi@stericsson.com>
+ *
+ * U8500 PRCM header definitions for u8500 v1.0 cut
  */
 
 #ifndef __MACH_PRCMU_FW_V1_H

@@ -1,11 +1,11 @@
 /*
- * CPU frequency module for U8500
+ * Copyright (C) STMicroelectronics 2009
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * Copyright 2009 STMicroelectronics.
+ * License Terms: GNU General Public License v2
+ * Author: Sundar Iyer <sundar.iyer@stericsson.com>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
+ * CPUIdle header for U8500
  */
 #ifndef __U8500_CPUIDLE_H
 #define __U8500_CPUIDLE_H

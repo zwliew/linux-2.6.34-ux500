@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2009 ST-Ericsson SA
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2, as
- * published by the Free Software Foundation.
+ * License Terms: GNU General Public License v2
+ * Author: Sundar Iyer <sundar.iyer@stericsson.com>
  *
- * U8500 machine specific regulators
+ * DB8500 specific regulators on AB8500
  *
  * Supplies on the AB8500 which are dedicated to AB8500 and AB8500 devices
  * are included here as machine specific -
@@ -14,7 +13,6 @@
  * following points must be noted :
  *  - VARM,VMODEM and VSAFE wont be accountable to the framework.
  *  - VAPE cannot be turned off as it is the interconnect supply.
- *  - the EPODs for multimedia are modelled as regulators derived from VAPE.
  *
  */
 

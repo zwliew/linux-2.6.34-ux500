@@ -1,13 +1,12 @@
 /*
- * Copyright (c) 2009 ST-Ericsson SA
+ * Copyright (C) STMicroelectronics 2009
+ * Copyright (C) ST-Ericsson SA 2010
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
+ * License Terms: GNU General Public License v2
+ * Author: Kumar Sanghvi <kumar.sanghvi@stericsson.com>
+ *
+ * PRCMU definitions for U8500 ED cut
  */
-
-
-
 #ifndef __MACH_PRCMU_FW_DEFS_ED_H
 #define __MACH_PRCMU_FW_DEFS_ED_H
 
