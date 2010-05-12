@@ -359,7 +359,7 @@ void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 		/* Never idle if active, or when VBUS
 			 timeout is not set as host */
 		if (musb->is_active || ((musb->a_wait_bcon == 0)
-			&& (musb->xceiv.state == OTG_STATE_A_WAIT_BCON))) {
+			&& (musb->xceiv->state == OTG_STATE_A_WAIT_BCON))) {
 			DBG(4, "%s active, deleting timer\n",
 				otg_state_string(musb));
 			del_timer(&notify_timer);
@@ -404,8 +404,8 @@ static void set_vbus(struct musb *musb, int is_on)
 
 	if (is_on) {
 		musb->is_active = 1;
-		musb->xceiv.default_a = 1;
-		musb->xceiv.state = OTG_STATE_A_WAIT_VRISE;
+		musb->xceiv->default_a = 1;
+		musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
 		devctl |= MUSB_DEVCTL_SESSION;
 
 		MUSB_HST_MODE(musb);
@@ -416,8 +416,8 @@ static void set_vbus(struct musb *musb, int is_on)
 		 * jumping right to B_IDLE...
 		 */
 
-		musb->xceiv.default_a = 0;
-		musb->xceiv.state = OTG_STATE_B_IDLE;
+		musb->xceiv->default_a = 0;
+		musb->xceiv->state = OTG_STATE_B_IDLE;
 		devctl &= ~MUSB_DEVCTL_SESSION;
 
 		MUSB_DEV_MODE(musb);
@@ -460,10 +460,10 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 
 	switch (musb_mode) {
 	case MUSB_HOST:
-		otg_set_host(&musb->xceiv, musb->xceiv.host);
+		otg_set_host(&musb->xceiv, musb->xceiv->host);
 		break;
 	case MUSB_PERIPHERAL:
-		otg_set_peripheral(&musb->xceiv, musb->xceiv.gadget);
+		otg_set_peripheral(&musb->xceiv, musb->xceiv->gadget);
 		break;
 	case MUSB_OTG:
 		break;
@@ -485,7 +485,7 @@ static void funct_host_notify_timer(unsigned long data)
 	uint8_t temp = 0;
 	uint8_t devctl = 0;
 
-	if (musb->xceiv.state != OTG_STATE_A_HOST) {
+	if (musb->xceiv->state != OTG_STATE_A_HOST) {
 		temp = ulpi_read_register(musb, 0x13);
 		if (temp & 0x08) {
 			devctl = musb_readb(reg_base, MUSB_DEVCTL);
@@ -513,7 +513,7 @@ int __init musb_platform_init(struct musb *musb)
 	if (is_host_enabled(musb))
 		musb->board_set_vbus = set_vbus;
 	if (is_peripheral_enabled(musb))
-		musb->xceiv.set_power = set_power;
+		musb->xceiv->set_power = set_power;
 
 	ret = musb_phy_en(musb->board_mode);
 	if (ret < 0)
