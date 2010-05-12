@@ -577,6 +577,14 @@ int ste_audio_io_power_up_earpiece(AUDIOIO_CH_INDEX channel_index)
 	if (EN_DA1 & initialVal_DA)
 		return 0;
 
+	MSG0("DA_IN1 path mixed with sidetone FIR");
+	error = HW_ACODEC_MODIFY_WRITE(DIGITAL_MUXES_REG1,
+							DA1_TO_HSL, 0);
+	if (error != 0) {
+		printk(KERN_ERR "DA_IN1 path mixed with sidetone FIR %d", error);
+		return error;
+	}
+
 	/*Enable DA1*/
 	MSG0("Data sent to DA1 from Slot 08");
 	error = HW_ACODEC_MODIFY_WRITE(SLOT_SELECTION_TO_DA1_REG,
@@ -645,6 +653,13 @@ int ste_audio_io_power_down_earpiece(AUDIOIO_CH_INDEX channel_index)
 	error = HW_ACODEC_MODIFY_WRITE(DIGITAL_OUTPUT_ENABLE_REG,0,EN_EAR_MASK);
 	if (error != 0) {
 		printk("ERROR: Power Down EAR DAC and digital path %d", error);
+		return error;
+	}
+
+	MSG0("Clear DA_IN1 path mixed with sidetone FIR");
+	error = HW_ACODEC_MODIFY_WRITE(DIGITAL_MUXES_REG1,0,DA1_TO_HSL);
+	if (error != 0) {
+		printk(KERN_ERR "Clear DA_IN1 path mixed with sidetone FIR %d",error);
 		return error;
 	}
 
