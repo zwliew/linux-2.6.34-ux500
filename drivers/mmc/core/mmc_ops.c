@@ -202,6 +202,7 @@ int mmc_set_relative_addr(struct mmc_card *card)
 {
 	int err;
 	struct mmc_command cmd;
+	u32 status;
 
 	BUG_ON(!card);
 	BUG_ON(!card->host);
@@ -460,7 +461,6 @@ int mmc_send_status(struct mmc_card *card, u32 *status)
 {
 	int err;
 	struct mmc_command cmd;
-	u32 status;
 
 	BUG_ON(!card);
 	BUG_ON(!card->host);
