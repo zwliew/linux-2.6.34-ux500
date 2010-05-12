@@ -32,7 +32,9 @@
 #include <linux/spi/spi-stm.h>
 #include <linux/mmc/host.h>
 #include <asm/setup.h>
+#ifdef CONFIG_ANDROID_PMEM
 #include <linux/android_pmem.h>
+#endif
 #include <mach/msp.h>
 #include <mach/i2c.h>
 #include <mach/shrm.h>
@@ -324,6 +326,7 @@ struct platform_device ux500_b2r2_device = {
 	.resource	= b2r2_resources,
 };
 
+#ifdef CONFIG_ANDROID_PMEM
 static void __init early_pmem_generic_parse(char **p, struct android_pmem_platform_data * data)
 {
 	data->size = memparse(*p, p);
@@ -408,6 +411,7 @@ struct platform_device u8500_pmem_hwb_device = {
 		.platform_data = &pmem_hwb_pdata,
 	},
 };
+#endif
 
 struct amba_device ux500_rtc_device = {
 	.dev		= {

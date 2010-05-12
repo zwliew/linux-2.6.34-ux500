@@ -1018,9 +1018,11 @@ static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_mcde0_device,
 #endif	/* CONFIG_FB_U8500_MCDE_CHANNELA */
 	&ux500_b2r2_device,
+#ifdef CONFIG_ANDROID_PMEM
 	&u8500_pmem_device,
 	&u8500_pmem_mio_device,
 	&u8500_pmem_hwb_device,
+#endif
 #ifdef CONFIG_CRYPTO_DEV_UX500_HASH
 	&ux500_hash1_device,
 #endif
