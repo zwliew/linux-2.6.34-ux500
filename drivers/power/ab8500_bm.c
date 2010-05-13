@@ -142,6 +142,26 @@ struct ab8500_bm_device_info {
 	struct completion ab8500_bm_usb_completed;
 };
 
+/* structure - battery capacity based on voltage
+ * @vol_mV:	voltage in mV
+ * @capacity	capacity corresponding to the voltage
+ */
+struct ab8500_bm_capacity {
+	int vol_mV;
+	int capacity;
+};
+
+/* voltage based capacity */
+static struct ab8500_bm_capacity ab8500_bm_cap[] = {
+	{2894, 5},
+	{3451, 20},
+	{3701, 40},
+	{3902, 50},
+	{3949, 75},
+	{4150, 90},
+	{4200, 100},
+};
+
 static char *ab8500_bm_supplied_to[] = {
 	"ab8500_bm_battery",
 };
@@ -2268,7 +2288,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 					  union power_supply_propval *val)
 {
 	struct ab8500_bm_device_info *di;
-	int status = 0;
+	int status = 0, cnt;
 
 	di = to_ab8500_bm_device_info(psy);
 
@@ -2341,22 +2361,22 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		 * capacity
 		 */
 		ab8500_bm_sys_get_gg_capacity(&di->capacity);
-		if (0 == di->capacity) {
-			if (di->voltage_uV < 2894)
-				val->intval = 5;
-			else if (di->voltage_uV < 3451 && di->voltage_uV > 2894)
-				val->intval = 20;
-			else if (di->voltage_uV < 3702 && di->voltage_uV > 3451)
-				val->intval = 40;
-			else if (di->voltage_uV < 3902 && di->voltage_uV > 3702)
-				val->intval = 50;
-			else if (di->voltage_uV < 3949 && di->voltage_uV > 3902)
-				val->intval = 75;
-			else if (di->voltage_uV > 3949)
-				val->intval = 90;
-		} else {
+		if (di->capacity > 0) {
 			val->intval = di->capacity;
+			dev_dbg(di->dev, "capacity based on gas gauge\n");
+			break;
 		}
+		if (di->voltage_uV > 4200) {
+			val->intval = 100;
+			break;
+		}
+		for (cnt = 0; cnt < ARRAY_SIZE(ab8500_bm_cap); cnt++) {
+			if (di->voltage_uV <= ab8500_bm_cap[cnt].vol_mV) {
+				val->intval = ab8500_bm_cap[cnt].capacity;
+				dev_dbg(di->dev, "voltage based capacity\n");
+				break;
+			}
+		};
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = (di->temp_C * 10);
