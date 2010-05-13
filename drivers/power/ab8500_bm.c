@@ -151,12 +151,13 @@ struct ab8500_bm_capacity {
 	int capacity;
 };
 
-/* voltage based capacity */
+/* Battery capacity(in percent) based on battery voltage(in mV) */
 static struct ab8500_bm_capacity ab8500_bm_cap[] = {
 	{2894, 5},
 	{3451, 20},
 	{3701, 40},
-	{3902, 50},
+	{3800, 50},
+	{3902, 60},
 	{3949, 75},
 	{4150, 90},
 	{4200, 100},
@@ -1701,6 +1702,28 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
 }
 
 /**
+ * ab8500_bm_get_bat_capacity() - get battery capacity
+ * @di:		Pointer to the ab8500_bm_device_info structure
+ *
+ * This function returns the battery capacity(in percent) based on voltage.
+ **/
+static int ab8500_bm_get_bat_capacity(struct ab8500_bm_device_info *di)
+{
+	int ret = 0, cnt;
+
+	if (di->voltage_uV > di->pdata->termination_vol)
+		return 100;
+	for (cnt = 0; cnt < ARRAY_SIZE(ab8500_bm_cap); cnt++) {
+		if (di->voltage_uV <= ab8500_bm_cap[cnt].vol_mV) {
+			ret = ab8500_bm_cap[cnt].capacity;
+			dev_dbg(di->dev, "voltage based capacity\n");
+			break;
+		}
+	};
+	return ret;
+}
+
+/**
  * ab8500_bm_battery_work() - battery monitoring work
  * @work:	pointer to the work_struct structure
  *
@@ -1709,12 +1732,32 @@ static void ab8500_bm_battery_update_status(struct ab8500_bm_device_info *di)
  **/
 static void ab8500_bm_battery_work(struct work_struct *work)
 {
+	static int old_capacity;
+	int new_capacity;
 	struct ab8500_bm_device_info *di = container_of(work,
-							struct
-							ab8500_bm_device_info,
-							ab8500_bm_monitor_work.work);
+						struct
+						ab8500_bm_device_info,
+						ab8500_bm_monitor_work.work);
 
 	ab8500_bm_battery_update_status(di);
+	/* Check if the present battery capacity is same as
+	 * previous capacity, if not sent an uevent
+	 */
+	new_capacity = ab8500_bm_get_bat_capacity(di);
+	if (new_capacity != old_capacity) {
+		/* check if charging and if so verify that new capacity is
+		 * greater than the old capacity. Just to make sure that we
+		 * dont report wrong value as the battery voltage tend to
+		 * fluctuate in terms of 50-100mV. Similar in case of not
+		 * charging.
+		 */
+		if ((di->charge_status == POWER_SUPPLY_STATUS_CHARGING &&
+			new_capacity > old_capacity) || (di->charge_status
+			== POWER_SUPPLY_STATUS_DISCHARGING &&
+						new_capacity < old_capacity))
+			power_supply_changed(&di->bat);
+		old_capacity = new_capacity;
+	}
 	queue_delayed_work(di->ab8500_bm_wq, &di->ab8500_bm_monitor_work, 100);
 }
 
@@ -2288,7 +2331,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 					  union power_supply_propval *val)
 {
 	struct ab8500_bm_device_info *di;
-	int status = 0, cnt;
+	int status = 0;
 
 	di = to_ab8500_bm_device_info(psy);
 
@@ -2366,17 +2409,8 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 			dev_dbg(di->dev, "capacity based on gas gauge\n");
 			break;
 		}
-		if (di->voltage_uV > 4200) {
-			val->intval = 100;
-			break;
-		}
-		for (cnt = 0; cnt < ARRAY_SIZE(ab8500_bm_cap); cnt++) {
-			if (di->voltage_uV <= ab8500_bm_cap[cnt].vol_mV) {
-				val->intval = ab8500_bm_cap[cnt].capacity;
-				dev_dbg(di->dev, "voltage based capacity\n");
-				break;
-			}
-		};
+		/* capacity based on voltage */
+		val->intval = ab8500_bm_get_bat_capacity(di);
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = (di->temp_C * 10);
