@@ -561,9 +561,8 @@ static int ab8500_bm_detect_usb_type(struct ab8500_bm_device_info *di)
 		dev_dbg(di->dev, "USB Type - ACA RID_C configuration, HS Chirp mode\n");
 		break;
 	case USB_STAT_HM_IDGND:
-		di->usb_ip_cur_lvl = USB_CH_IP_CUR_LVL_0P5;
 		dev_dbg(di->dev, "USB Type - Host Mode(IDGND)\n");
-		break;
+		return USB_STAT_HM_IDGND;
 	case USB_STAT_RESERVED:
 		dev_dbg(di->dev, "USB Type - Reserved\n");
 		break;
@@ -2047,6 +2046,9 @@ static int ab8500_bm_usb_en(struct ab8500_bm_device_info *di, int enable)
 		ret = ab8500_bm_detect_usb_type(di);
 		if (ret < 0) {
 			dev_err(di->dev, "Unable to detect usb type\n");
+			return ret;
+		} else if (ret == USB_STAT_HM_IDGND) {
+			dev_dbg(di->dev, "In Host mode\n");
 			return ret;
 		}
 		/* BattOVV threshold = 4.75v */
