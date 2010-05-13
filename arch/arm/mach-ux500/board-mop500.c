@@ -971,7 +971,10 @@ static struct platform_device ab8500_gpadc_device = {
 };
 
 static struct ab8500_bm_platform_data ab8500_bm_plat_data = {
-	.name = POWER_SUPPLY_TECHNOLOGY_LION,
+	.bat_type = {
+		{POWER_SUPPLY_TECHNOLOGY_LION, BATTERY_NOKIA_BL_5F},
+		{POWER_SUPPLY_TECHNOLOGY_LIPO, BATTERY_NOKIA_BP_5M},
+	},
 	.termination_vol = 4200,
 	.op_cur_lvl = CH_OP_CUR_LVL_0P9,
 	.ip_vol_lvl = CH_VOL_LVL_4P2,

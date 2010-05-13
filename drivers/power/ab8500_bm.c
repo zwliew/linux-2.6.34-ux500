@@ -48,9 +48,13 @@
 #define USB_CHARGER_NOT_OKF	103
 
 /* Charger constants */
-#define NO_PW_CONN	0
-#define AC_PW_CONN	1
-#define USB_PW_CONN	2
+#define NO_PW_CONN		0
+#define AC_PW_CONN		1
+#define USB_PW_CONN		2
+#define BAT_GAIN		8
+#define BAT_PRESENT		1
+#define BAT_NOT_PRESENT		0
+#define NO_BAT_CONN		1350
 
 #define to_ab8500_bm_usb_device_info(x) container_of((x), \
 		struct ab8500_bm_device_info, usb);
@@ -2302,7 +2306,7 @@ static int ab8500_bm_get_bat_resis(struct ab8500_bm_device_info *di)
 
 	data = ab8500_gpadc_conversion(BAT_CTRL);
 	vbs = (1350 * data) / 1023;
-	rbs = (80 * vbs) / (1800 - vbs);
+	rbs = (450 * vbs) / (1800 - vbs);
 	dev_dbg(di->dev, "Battery Resistance = %d\n", rbs);
 	return rbs;
 }
@@ -2333,7 +2337,7 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 					  union power_supply_propval *val)
 {
 	struct ab8500_bm_device_info *di;
-	int status = 0;
+	int status = 0, res = 0, cnt;
 
 	di = to_ab8500_bm_device_info(psy);
 
@@ -2343,24 +2347,20 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 		val->intval = di->charge_status;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
-		if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
+		/* No support for reading the battery health, hence
+		 * if battery presence is detected health is
+		 * assumed to be good.
+		 */
+		if (ab8500_bm_get_bat_resis(di) <= (NO_BAT_CONN - BAT_GAIN))
 			val->intval = POWER_SUPPLY_HEALTH_GOOD;
 		else
 			val->intval = POWER_SUPPLY_HEALTH_UNKNOWN;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
-		/* TODO: Battery presence can be obtained from the
-		 * battery sense of GPADC. This reading is not
-		 * consistant.
-		 * This should always be 1 fro android to work.
-		 * Hence by default havin it to be 0x01;
-		 */
-		/*if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
-		 *	val->intval = 0x01;
-		 * else
-		 *	val->intval = 0x00;
-		 */
-		val->intval = 0x01;
+		if (ab8500_bm_get_bat_resis(di) <= (NO_BAT_CONN - BAT_GAIN))
+			val->intval = BAT_PRESENT;
+		else
+			val->intval = BAT_NOT_PRESENT;
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		status = ab8500_bm_status();
@@ -2372,10 +2372,15 @@ static int ab8500_bm_get_battery_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_TYPE_BATTERY;
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
-		if (ab8500_bm_get_bat_resis(di) <= NOKIA_BL_5F)
-			val->intval = di->pdata->name;
-		else
-			val->intval = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+		res = ab8500_bm_get_bat_resis(di);
+		val->intval = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+		for (cnt = 0; cnt < SUPPORTED_BATT; cnt++) {
+			if ((res > (di->pdata->bat_type[cnt].resis - BAT_GAIN))
+				&& (res < (di->pdata->bat_type[cnt].resis + BAT_GAIN))) {
+				val->intval = di->pdata->bat_type[cnt].name;
+				break;
+			}
+		};
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		status = ab8500_read(AB8500_CHARGER, AB8500_BATT_OVV);

@@ -8,11 +8,16 @@
 #ifndef _AB8500_BM_H
 #define _AB8500_BM_H
 
-struct ab8500_bm_platform_data {
+struct battery_type {
 	int name;
+	int resis;
+};
+
+struct ab8500_bm_platform_data {
 	int termination_vol;	/* voltage in mV */
 	int op_cur_lvl;		/* o/p current level in mA */
 	int ip_vol_lvl;		/* i/p current level in mV */
+	struct battery_type bat_type[];
 };
 
 /* Main charge i/p current */
@@ -123,7 +128,9 @@ struct ab8500_bm_platform_data {
 #define UNMASK_USB_CHARGER_NOT_OK_F	0x7F
 
 /* Battery resistance */
-#define NOKIA_BL_5F			0x04
+#define BATTERY_NOKIA_BL_5F		20
+#define BATTERY_NOKIA_BP_5M		63
+#define SUPPORTED_BATT			2
 /* static constants */
 #define STANDARD_HOST			0x04
 
