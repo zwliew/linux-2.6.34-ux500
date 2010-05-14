@@ -140,25 +140,6 @@ static struct mmc_board mmc_data = {
 static int sdio_configure(struct amba_device *dev)
 {
 	int i;
-	int status;
-
-	status = gpio_request(215, "sdio_init");
-	if (status) {
-		dev_err(&dev->dev, "Unable to request gpio 215");
-		return status;
-	}
-
-	gpio_direction_output(215, 1);
-	gpio_set_value(215, 0);
-	mdelay(10);
-	gpio_set_value(213, 1);
-	mdelay(10);
-	gpio_set_value(215, 1);
-	mdelay(10);
-	gpio_set_value(213, 0);
-	mdelay(10);
-
-	gpio_free(215);
 
 	for (i = 208; i <= 214; i++)
 		nmk_gpio_set_pull(i, NMK_GPIO_PULL_UP);

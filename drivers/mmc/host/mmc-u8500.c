@@ -131,6 +131,53 @@ static void u8500_mmci_data_irq(struct u8500_mmci_host *host,
 
 static void u8500_mmci_cmd_irq(struct u8500_mmci_host *host,
 						u32 hoststatus);
+/*
+ * Pointer to save SDIO host data structure.
+ * Required for sysfs inplementation for card detection
+ */
+static struct u8500_mmci_host *sdio_host_ptr;
+#define CARD_DETECT_DELAY_MSEC (10)
+
+/**
+ * u8500_sdio_detect_card() - Initiates card scan for sdio host
+ *
+ *  this function will scan for insertion/removal of sdio card.
+ *  This is required to initiate card rescan from sdio client device driver.
+ */
+void u8500_sdio_detect_card(void)
+{
+	struct u8500_mmci_host *host = sdio_host_ptr;
+	if (sdio_host_ptr && host->mmc)
+		mmc_detect_change(host->mmc,
+				  msecs_to_jiffies(CARD_DETECT_DELAY_MSEC));
+
+	return;
+}
+EXPORT_SYMBOL(u8500_sdio_detect_card);
+
+static ssize_t sdio_detect_card_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	unsigned int scan_val;
+
+	if (sscanf(buf, "%u", &scan_val) != 1)
+		return -EINVAL;
+	/*
+	 * unsigned integer is valid entry.
+	 * mmc_detect_change is called when scan_val == 1.
+	 */
+	if (scan_val != 1)
+		return -EINVAL;
+
+	/* call card scan */
+	u8500_sdio_detect_card();
+
+	return strnlen(buf, count);
+}
+
+static DEVICE_ATTR(detect_card, S_IWUSR, NULL, sdio_detect_card_store);
+
 
 /**
  *   u8500_mmci_init_sg() - initializing the host scatterlist
@@ -1596,9 +1643,21 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 		if (stm_set_callback_handler(host->dmach_mem2mmc, &u8500_mmc_dmaclbk, (void *)host))
 			goto mem2mmc_dmareq_failed;
 	}
-
+	/*
+	 * SDIO host structure is saved into global pointer
+	 * Used for sysfs implementation for dynamic detection of I/O cards
+	 * Also create sysfs file for detect_card
+	 */
+	if (host->is_sdio) {
+		ret = device_create_file(&dev->dev, &dev_attr_detect_card);
+		if (ret < 0) {
+			stm_error("\nCould not create sysfs file"
+				  "for SDIO detect_card");
+			goto mem2mmc_dmareq_failed;
+		}
+		sdio_host_ptr = host;
+	}
 	return 0;
-
 mem2mmc_dmareq_failed:
 	stm_free_dma(host->dmach_mem2mmc);
 mmc2mem_dmareq_failed:
@@ -1648,6 +1707,16 @@ static int u8500_mmci_remove(struct amba_device *dev)
 	amba_set_drvdata(dev, NULL);
 	if (mmc) {
 		struct u8500_mmci_host *host = mmc_priv(mmc);
+
+		/*
+		 * global pointer for storing SDIO host structure is cleared
+		 * Used for sysfs implementation for dynamic detection of
+		 * I/O cards. Also remove sysfs file for detect_card
+		 */
+		if (host->is_sdio) {
+			sdio_host_ptr = NULL;
+			device_remove_file(&dev->dev, &dev_attr_detect_card);
+		}
 		stm_free_dma(host->dmach_mmc2mem);
 		stm_free_dma(host->dmach_mem2mmc);
 		host->dmach_mmc2mem = -1;
