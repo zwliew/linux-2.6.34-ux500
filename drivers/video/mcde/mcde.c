@@ -5725,6 +5725,12 @@ extern "C" {
 #include <mach/irqs.h>
 #include <mach/ab8500.h>
 
+/* Usually included in tc35892.h, but this is not used in ed */
+#define MCDE_EGPIO_PIN_0 268
+#define MCDE_EGPIO_PIN_1 269
+#define MCDE_EGPIO_PIN_14 282
+#define MCDE_EGPIO_PIN_15 283
+
 void  mcde_test(struct fb_info *info);
 DECLARE_MUTEX(mcde_module_mutex);
 
@@ -8719,19 +8725,16 @@ static int __init mcde_probe(struct platform_device *pdev)
 
 		if(platform_id==0)
 		{
-			/** why set directtion is not working ~ FIXME */
-			//gpio_direction_output(268,1);
-			//gpio_direction_output(269,1);
-			gpio_set_value(EGPIO_PIN_0, 0);
-			gpio_set_value(EGPIO_PIN_1, 0);
+			gpio_set_value(MCDE_EGPIO_PIN_0, 0);
+			gpio_set_value(MCDE_EGPIO_PIN_1, 0);
 		}
 
 		if(platform_id==1)
 		{
-			gpio_direction_output(EGPIO_PIN_14,1);
-			gpio_direction_output(EGPIO_PIN_15,1);
-			gpio_set_value(EGPIO_PIN_14,0);
-			gpio_set_value(EGPIO_PIN_15,0);
+			gpio_direction_output(MCDE_EGPIO_PIN_14,1);
+			gpio_direction_output(MCDE_EGPIO_PIN_15,1);
+			gpio_set_value(MCDE_EGPIO_PIN_14,0);
+			gpio_set_value(MCDE_EGPIO_PIN_15,0);
 		}
 
           mdelay(1); /** let the low value settle  */
@@ -8759,19 +8762,16 @@ static int __init mcde_probe(struct platform_device *pdev)
 
 		if(platform_id==0)
 		{
-			/** why set directtion is not working ~ FIXME */
-			//gpio_direction_output(268,1);
-			//gpio_direction_output(269,1);
-			gpio_set_value(EGPIO_PIN_0, 1);
-			gpio_set_value(EGPIO_PIN_1, 1);
+			gpio_set_value(MCDE_EGPIO_PIN_0, 1);
+			gpio_set_value(MCDE_EGPIO_PIN_1, 1);
 		}
 
 		if(platform_id==1)
 		{
-			gpio_direction_output(EGPIO_PIN_14,1);
-			gpio_direction_output(EGPIO_PIN_15,1);
-			gpio_set_value(EGPIO_PIN_14,1);
-			gpio_set_value(EGPIO_PIN_15,1);
+			gpio_direction_output(MCDE_EGPIO_PIN_14,1);
+			gpio_direction_output(MCDE_EGPIO_PIN_15,1);
+			gpio_set_value(MCDE_EGPIO_PIN_14,1);
+			gpio_set_value(MCDE_EGPIO_PIN_15,1);
 		}
 
 		mdelay(1); /** let the high value settle  */
@@ -9201,13 +9201,13 @@ void  mcde_test(struct fb_info *info)
 
 	mcde_fb_lock(info, __func__);
 
-	gpio_set_value(EGPIO_PIN_0, 0);
-	gpio_set_value(EGPIO_PIN_1, 0);
+	gpio_set_value(MCDE_EGPIO_PIN_0, 0);
+	gpio_set_value(MCDE_EGPIO_PIN_1, 0);
 
 	mdelay(10);
 
-	gpio_set_value(EGPIO_PIN_0, 1);
-	gpio_set_value(EGPIO_PIN_1, 1);
+	gpio_set_value(MCDE_EGPIO_PIN_0, 1);
+	gpio_set_value(MCDE_EGPIO_PIN_1, 1);
 
 	mdelay(10); /** let the high value settle  */
 
