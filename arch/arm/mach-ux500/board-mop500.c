@@ -212,10 +212,21 @@ int tp_gpio_board_init(void)
 #endif
 #endif
 	if (platform_id == MOP500_PLATFORM_ID) {
+		retval = gpio_request(TOUCHP_CS0, "touchp_cs0");
+		if (retval) {
+			printk(KERN_ERR "Unable to request gpio TOUCHP_CS0");
+			return retval;
+		}
 		/** why set directtion is not working ~ FIXME */
 		/* gpio_direction_output(270,1); */
 		gpio_set_value(TOUCHP_CS0, 1);
 	} else if (platform_id == HREF_PLATFORM_ID) {
+		retval = gpio_request(EGPIO_PIN_13, "touchp_cs0");
+		if (retval) {
+			printk(KERN_ERR "Unable to request gpio TOUCHP_CS0");
+			return retval;
+		}
+
 		retval = gpio_direction_output(EGPIO_PIN_13, 1);
 		if (retval < 0) {
 			printk(KERN_ERR " reset gpio_direction_output init failed  \n");
