@@ -24,6 +24,8 @@
 #include <asm/mach/map.h>
 #include <asm/mach-types.h>
 
+#include <plat/pincfg.h>
+#include <mach/db8500-pins.h>
 #include <mach/devices.h>
 #include <mach/kpd.h>
 #include <mach/stmpe2401.h>
@@ -78,12 +80,19 @@ static int __init board_id_setup(char *str)
 }
 __setup("board_id=", board_id_setup);
 
+static pin_cfg_t mop500_pins[] = {
+	/* I2C */
+	GPIO147_I2C0_SCL,
+	GPIO148_I2C0_SDA,
+	GPIO16_I2C1_SCL,
+	GPIO17_I2C1_SDA,
+	GPIO10_I2C2_SDA,
+	GPIO11_I2C2_SCL,
+	GPIO229_I2C3_SDA,
+	GPIO230_I2C3_SCL,
+};
+
 static struct gpio_altfun_data gpio_altfun_table[] = {
-	__GPIO_ALT(GPIO_ALT_I2C_4, 4, 5, 0, NMK_GPIO_ALT_B, "i2c4"),
-	__GPIO_ALT(GPIO_ALT_I2C_1, 16, 17, 0, NMK_GPIO_ALT_B, "i2c1"),
-	__GPIO_ALT(GPIO_ALT_I2C_2, 10, 11, 0, NMK_GPIO_ALT_B, "i2c2"),
-	__GPIO_ALT(GPIO_ALT_I2C_0, 147, 148, 0, NMK_GPIO_ALT_A, "i2c0"),
-	__GPIO_ALT(GPIO_ALT_I2C_3, 229, 230, 0, NMK_GPIO_ALT_C, "i2c3"),
 	__GPIO_ALT(GPIO_ALT_UART_2, 29, 32, 0, NMK_GPIO_ALT_C, "uart2"),
 	__GPIO_ALT(GPIO_ALT_SSP_0, 143, 146, 0, NMK_GPIO_ALT_A, "ssp0"),
 	__GPIO_ALT(GPIO_ALT_SSP_1, 139, 142, 0, NMK_GPIO_ALT_A, "ssp1"),
@@ -1068,6 +1077,8 @@ static void __init mop500_init_machine(void)
 #endif
 	u8500_init_devices();
 
+	nmk_config_pins(mop500_pins, ARRAY_SIZE(mop500_pins));
+
 	mop500_platdata_init();
 
 	amba_add_devices(amba_board_devs, ARRAY_SIZE(amba_board_devs));
@@ -1107,11 +1118,6 @@ static void __init mop500_init_machine(void)
 
 static int __init u8500_i2call_init(void)
 {
-	stm_gpio_altfuncenable(GPIO_ALT_I2C_0);
-	stm_gpio_altfuncenable(GPIO_ALT_I2C_1);
-	stm_gpio_altfuncenable(GPIO_ALT_I2C_2);
-	stm_gpio_altfuncenable(GPIO_ALT_I2C_3);
-
 	/* Enable pullups for UART Rx lines. */
 	nmk_gpio_set_pull(2, NMK_GPIO_PULL_UP);
 	nmk_gpio_set_pull(4, NMK_GPIO_PULL_UP);
