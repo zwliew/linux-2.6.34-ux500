@@ -4685,6 +4685,18 @@ static int __init mcde_probe(struct platform_device *pdev)
 		/** Make display reset to low */
 		if(platform_id==0)
 		{
+			retVal = gpio_request(EGPIO_PIN_14, "mcde_egpio_14");
+			if (retVal) {
+				dev_err(&pdev->dev, "Unable to request gpio EGPIO_PIN_14");
+				return retVal;
+			}
+			retVal = gpio_request(EGPIO_PIN_15, "mcde_egpio_15");
+			if (retVal) {
+				gpio_free(EGPIO_PIN_14);
+				dev_err(&pdev->dev, "Unable to request gpio EGPIO_PIN_15");
+				return retVal;
+			}
+
 			/** why set directtion is not working ~ FIXME */
 //			gpio_direction_output(EGPIO_PIN_14,1);
 //			gpio_direction_output(EGPIO_PIN_15,1);
@@ -4696,6 +4708,18 @@ static int __init mcde_probe(struct platform_device *pdev)
 		if(platform_id==1)
 		{
 // Removed EDtoV1
+			retVal = gpio_request(282, "mcde_egpio_282");
+			if (retVal) {
+				dev_err(&pdev->dev, "Unable to request gpio 282");
+				return retVal;
+			}
+			retVal = gpio_request(283, "mcde_egpio_283");
+			if (retVal) {
+				gpio_free(282);
+				dev_err(&pdev->dev, "Unable to request gpio 283");
+				return retVal;
+			}
+
 			gpio_direction_output(282,1);
 			gpio_direction_output(283,1);
 			gpio_set_value(282,0);
