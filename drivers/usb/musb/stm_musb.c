@@ -460,10 +460,10 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
 
 	switch (musb_mode) {
 	case MUSB_HOST:
-		otg_set_host(&musb->xceiv, musb->xceiv->host);
+		otg_set_host(musb->xceiv, musb->xceiv->host);
 		break;
 	case MUSB_PERIPHERAL:
-		otg_set_peripheral(&musb->xceiv, musb->xceiv->gadget);
+		otg_set_peripheral(musb->xceiv, musb->xceiv->gadget);
 		break;
 	case MUSB_OTG:
 		break;
@@ -507,9 +507,18 @@ int __init musb_platform_init(struct musb *musb)
 {
 	int ret;
 
+	usb_nop_xceiv_register();
+
+	musb->xceiv = otg_get_transceiver();
+	if (!musb->xceiv) {
+		pr_err("U8500 USB : no transceiver configured\n");
+		ret = -ENODEV;
+		goto done;
+	}
+
 	ret = musb_stm_hs_otg_init(musb);
 	if (ret < 0)
-		return ret;
+		goto done;
 	if (is_host_enabled(musb))
 		musb->board_set_vbus = set_vbus;
 	if (is_peripheral_enabled(musb))
@@ -517,7 +526,7 @@ int __init musb_platform_init(struct musb *musb)
 
 	ret = musb_phy_en(musb->board_mode);
 	if (ret < 0)
-		return ret;
+		goto done;
 
 	if (musb_status == NULL) {
 		musb_status = musb;
@@ -549,8 +558,12 @@ int __init musb_platform_init(struct musb *musb)
 	}
 	ret = musb_force_detect(musb->board_mode);
 	if (ret < 0)
-		return ret;
+		goto done;
 	return 0;
+
+done:
+	usb_nop_xceiv_unregister();
+	return ret;
 }
 /**
  * musb_platform_exit() - unregister the platform USB driver.
@@ -569,6 +582,8 @@ int musb_platform_exit(struct musb *musb)
 	}
 	if (musb->board_mode != MUSB_PERIPHERAL)
 		del_timer_sync(&notify_timer);
+
+	usb_nop_xceiv_unregister();
 
 	musb_status = NULL;
 
