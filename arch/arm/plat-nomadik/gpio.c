@@ -49,8 +49,7 @@ struct nmk_gpio_chip {
 /**
  * nmk_gpio_set_pull() - enable/disable pull up/down on a gpio
  * @gpio: pin number
- * @gpio_pull: one of NMK_GPIO_PULL_DOWN, NMK_GPIO_PULL_UP,
- * 	       and NMK_GPIO_PULL_NONE
+ * @pull: one of NMK_GPIO_PULL_DOWN, NMK_GPIO_PULL_UP, and NMK_GPIO_PULL_NONE
  *
  * Enables/disables pull up/down on a specified pin.  This only takes effect if
  * the pin is configured as an input (either explicitly or by the alternate
@@ -60,7 +59,7 @@ struct nmk_gpio_chip {
  * configured as an input.  Otherwise, due to the way the controller registers
  * work, this function will change the value output on the pin.
  */
-int nmk_gpio_set_pull(int gpio, int gpio_pull)
+int nmk_gpio_set_pull(int gpio, enum nmk_gpio_pull pull)
 {
 	struct nmk_gpio_chip *nmk_chip;
 	unsigned long flags;
@@ -75,15 +74,15 @@ int nmk_gpio_set_pull(int gpio, int gpio_pull)
 	spin_lock_irqsave(&nmk_chip->lock, flags);
 
 	pdis = readl(nmk_chip->addr + NMK_GPIO_PDIS);
-	if (gpio_pull == NMK_GPIO_PULL_NONE)
+	if (pull == NMK_GPIO_PULL_NONE)
 		pdis |= bit;
 	else
 		pdis &= ~bit;
 	writel(pdis, nmk_chip->addr + NMK_GPIO_PDIS);
 
-	if (gpio_pull == NMK_GPIO_PULL_UP)
+	if (pull == NMK_GPIO_PULL_UP)
 		writel(bit, nmk_chip->addr + NMK_GPIO_DATS);
-	else if (gpio_pull == NMK_GPIO_PULL_DOWN)
+	else if (pull == NMK_GPIO_PULL_DOWN)
 		writel(bit, nmk_chip->addr + NMK_GPIO_DATC);
 
 	spin_unlock_irqrestore(&nmk_chip->lock, flags);
