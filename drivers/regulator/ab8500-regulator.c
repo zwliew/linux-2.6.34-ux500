@@ -420,8 +420,9 @@ static struct regulator_desc ab8500_desc[AB8500_NUM_REGULATORS] = {
 static int __devinit ab8500_regulator_probe(struct platform_device *pdev)
 {
 	struct regulator_dev *rdev;
+	struct regulator_init_data *init_data = pdev->dev.platform_data;
 
-	rdev = regulator_register(&ab8500_desc[pdev->id], &pdev->dev, NULL);
+	rdev = regulator_register(&ab8500_desc[pdev->id], &pdev->dev, init_data, NULL);
 	if (IS_ERR(rdev)) {
 		dev_dbg(&pdev->dev, "couldn't register regulator\n");
 		return PTR_ERR(rdev);
