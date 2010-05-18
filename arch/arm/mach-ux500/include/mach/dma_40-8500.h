@@ -1,5 +1,6 @@
 /*----------------------------------------------------------------------------*/
-/*   copyright STMicroelectronics, 2008.                                      */
+/* copyright STMicroelectronics, 2008.                                        */
+/* Copyright (C) ST-Ericsson SA 2009					      */
 /*                                                                            */
 /* This program is free software; you can redistribute it and/or modify       */
 /* it under the terms of the GNU General Public License as published by       */

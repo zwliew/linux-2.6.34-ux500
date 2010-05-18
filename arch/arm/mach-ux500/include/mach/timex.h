@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) ST-Ericsson SA 2009
+ * Author: Rabin Vincent <rabin.vincent@stericsson.com>
+ * License terms: GNU General Public License (GPL) version 2
+ */
+
 #ifndef __ASM_ARCH_TIMEX_H
 #define __ASM_ARCH_TIMEX_H
 
