@@ -37,6 +37,16 @@
 /* Transport protocol registration */
 static struct phonet_protocol *proto_tab[PHONET_NPROTO] __read_mostly;
 
+#define PHONET_DEBUG		0
+#define PHONET_PIPE_CTRLR
+
+#define PN_MODEM_MEDIA		0x26
+#define PN_MODEM_MEDIA_SIZE	1
+#define PN_PIPE_RES_ID		0xD9
+#define PNS_PIPE_DATA_MSG_ID	0x20
+
+struct net_device phonet_dev;
+
 static struct phonet_protocol *phonet_proto_get(int protocol)
 {
 	struct phonet_protocol *pp;
@@ -152,7 +162,7 @@ struct header_ops phonet_header_ops = {
 	.create = pn_header_create,
 	.parse = pn_header_parse,
 };
-EXPORT_SYMBOL(phonet_header_ops);
+/*EXPORT_SYMBOL(phonet_header_ops);*/
 
 /*
  * Prepends an ISI header and sends a datagram.
@@ -162,18 +172,20 @@ static int pn_send(struct sk_buff *skb, struct net_device *dev,
 {
 	struct phonethdr *ph;
 	int err;
+	unsigned char *lptr = kmalloc(2*1024, GFP_ATOMIC);
 
+#ifdef PHONET_DEV
 	if (skb->len + 2 > 0xffff /* Phonet length field limit */ ||
 	    skb->len + sizeof(struct phonethdr) > dev->mtu) {
 		err = -EMSGSIZE;
 		goto drop;
 	}
-
 	/* Broadcast sending is not implemented */
 	if (pn_addr(dst) == PNADDR_BROADCAST) {
 		err = -EOPNOTSUPP;
 		goto drop;
 	}
+#endif
 
 	skb_reset_transport_header(skb);
 	WARN_ON(skb_headroom(skb) & 1); /* HW assumes word alignment */
@@ -194,12 +206,56 @@ static int pn_send(struct sk_buff *skb, struct net_device *dev,
 	if (skb->pkt_type == PACKET_LOOPBACK) {
 		skb_reset_mac_header(skb);
 		skb_orphan(skb);
+
+#ifdef PHONET_PIPE_CTRLR
+#if (PHONET_DEBUG & 1)
+		int i;
+
+		printk(KERN_INFO "\n\nIn %s BEF memcpy loopback\n\n", __func__);
+
+		for (i = 0 ; i < skb->len ; i++)
+			printk(KERN_INFO "%02X ", skb->data[i]);
+
+		printk(KERN_INFO "\n\nIn %s END skb->data loopback\n\n", \
+				__func__);
+#endif
+
+		if ((char)*(skb->data + sizeof(struct phonethdr)) \
+				== PN_MODEM_MEDIA) {
+			skb->data += (sizeof(struct phonethdr) + \
+					PN_MODEM_MEDIA_SIZE);
+			skb->len -= (sizeof(struct phonethdr) - \
+					PN_MODEM_MEDIA_SIZE);
+		} else {
+			memcpy(lptr, (void *)(skb->data), \
+				     sizeof(struct phonethdr));
+			memcpy(lptr + sizeof(struct phonethdr), "\x26", \
+					PN_MODEM_MEDIA_SIZE);
+
+			__skb_push(skb, sizeof(struct phonethdr) + \
+					PN_MODEM_MEDIA_SIZE);
+			skb_reset_transport_header(skb);
+			skb_copy_to_linear_data(skb, lptr, \
+						sizeof(struct phonethdr) + \
+						PN_MODEM_MEDIA_SIZE);
+		}
+
+#if (PHONET_DEBUG & 1)
+		printk(KERN_INFO "\nIn %s AFT memcpy loopback\n\n", __func__);
+
+		for (i = 0 ; i < skb->len ; i++)
+			printk(KERN_INFO "%02X ", skb->data[i]);
+
+		printk(KERN_INFO "\nIn %s END skb->data loopback\n", __func__);
+#endif
+#endif
 		if (irq)
 			netif_rx(skb);
 		else
 			netif_rx_ni(skb);
 		err = 0;
 	} else {
+#ifdef PHONET_DEV
 		err = dev_hard_header(skb, dev, ntohs(skb->protocol),
 					NULL, NULL, skb->len);
 		if (err < 0) {
@@ -207,12 +263,92 @@ static int pn_send(struct sk_buff *skb, struct net_device *dev,
 			goto drop;
 		}
 		err = dev_queue_xmit(skb);
+#endif
+#if (PHONET_DEBUG & 1)
+		printk(KERN_INFO "\nSAMPATH:: PHONET:: before isa_write\n");
+		printk(KERN_INFO "SAMPATH:: len = %d\n%s \
+				SendBuf:: \n", skb->len, __func__);
+
+		for (i = 0 ; i < skb->len ; i++)
+			printk(KERN_INFO "%02X ", skb->data[i]);
+		printk(KERN_INFO "\n\n");
+#endif
+#ifdef PHONET_PIPE_CTRLR
+		/**
+		 * As the data coming from Phonet Library already has phonet
+		 * header appended to it and as the driver again tries to add,
+		 * the one added by phonet driver is bypassed. Also, for
+		 * PIPE_DATA msgs which come from TCP/IP stack, data and header
+		 * needs to be copied to a single buffer and passed to
+		 * SHM driver.
+		 */
+		if ((ph->pn_res == PN_PIPE_RES_ID) && \
+				(skb->data[8] == PNS_PIPE_DATA_MSG_ID)) {
+#if (PHONET_DEBUG & 1)
+			printk(KERN_INFO "SAMPATH:: rskb len = %d\n%s \
+					rskb SendBuf:: \n", \
+				(skb_shinfo(skb)->frag_list)->len, __func__);
+
+			for (i = 0 ; \
+			     i < (skb_shinfo(skb)->frag_list)->len ; \
+			     i++)
+				printk(KERN_INFO "%02X ", \
+					(skb_shinfo(skb)->frag_list)->data[i]);
+			printk(KERN_INFO "\n\n");
+			printk(KERN_INFO "\nPipe Data!!prepare headers!!!\n");
+#endif
+			memcpy(lptr, "\x26", PN_MODEM_MEDIA_SIZE);
+			memcpy(lptr + PN_MODEM_MEDIA_SIZE, \
+			       (void *)(skb->data), \
+			       sizeof(struct phonethdr) + 3);
+
+			__skb_push((skb_shinfo(skb)->frag_list), \
+					3 + sizeof(struct phonethdr) \
+					+ PN_MODEM_MEDIA_SIZE);
+			skb_reset_transport_header(\
+					(skb_shinfo(skb)->frag_list));
+			skb_copy_to_linear_data(\
+					(skb_shinfo(skb)->frag_list), \
+					lptr, \
+					3 + sizeof(struct phonethdr) \
+					+ PN_MODEM_MEDIA_SIZE);
+
+			err = isa_write(NULL, \
+					((skb_shinfo(skb)->frag_list)->data), \
+				(skb_shinfo(skb)->frag_list)->len + 8 + 3, \
+				NULL);
+
+			err = 0;
+
+#if (PHONET_DEBUG & 1)
+			printk(KERN_INFO "SAMPATH:: mod skb len = %d\n%s \
+				mod skb SendBuf:: \n", \
+				(skb_shinfo(skb)->frag_list)->len + 8, \
+				__func__);
+
+			for (i = 0 ; \
+			     i < (skb_shinfo(skb)->frag_list)->len + 8 + 3 ; \
+			     i++)
+				printk("%02X ", lptr[i]);
+			printk("\n\n");
+#endif
+		}
+#endif
+		else
+			err = isa_write(NULL, \
+					skb->data + sizeof(struct phonethdr), \
+					skb->len - sizeof(struct phonethdr), \
+					NULL);
+		kfree_skb(skb);
 	}
 
+	kfree(lptr);
 	return err;
+#ifdef PHONET_DEV
 drop:
 	kfree_skb(skb);
 	return err;
+#endif
 }
 
 static int pn_raw_send(const void *data, int len, struct net_device *dev,
@@ -221,10 +357,10 @@ static int pn_raw_send(const void *data, int len, struct net_device *dev,
 	struct sk_buff *skb = alloc_skb(MAX_PHONET_HEADER + len, GFP_ATOMIC);
 	if (skb == NULL)
 		return -ENOMEM;
-
+#ifdef PHONET_DEV
 	if (phonet_address_lookup(dev_net(dev), pn_addr(dst)) == 0)
 		skb->pkt_type = PACKET_LOOPBACK;
-
+#endif
 	skb_reserve(skb, MAX_PHONET_HEADER);
 	__skb_put(skb, len);
 	skb_copy_to_linear_data(skb, data, len);
@@ -238,14 +374,18 @@ static int pn_raw_send(const void *data, int len, struct net_device *dev,
 int pn_skb_send(struct sock *sk, struct sk_buff *skb,
 		const struct sockaddr_pn *target)
 {
-	struct net *net = sock_net(sk);
-	struct net_device *dev;
+	struct net_device *dev = &phonet_dev;
 	struct pn_sock *pn = pn_sk(sk);
 	int err;
 	u16 src;
-	u8 daddr = pn_sockaddr_get_addr(target), saddr = PN_NO_ADDR;
+	u8 saddr = PN_NO_ADDR;
+	u8 pipe_hdl;
 
 	err = -EHOSTUNREACH;
+#ifdef PHONET_DEV
+	struct net *net = sock_net(sk);
+	u8 daddr = pn_sockaddr_get_addr(target);
+
 	if (sk->sk_bound_dev_if)
 		dev = dev_get_by_index(net, sk->sk_bound_dev_if);
 	else if (phonet_address_lookup(net, daddr) == 0) {
@@ -258,12 +398,31 @@ int pn_skb_send(struct sock *sk, struct sk_buff *skb,
 		goto drop;
 
 	saddr = phonet_address_get(dev, daddr);
+#endif
+	saddr = 0x00;
+
 	if (saddr == PN_NO_ADDR)
 		goto drop;
 
 	src = pn->sobject;
+
+#if (PHONET_DEBUG & 1)
+	printk(KERN_INFO "\n\n\n src = %02X, target->spn_dev = %02X, \
+		target->spn_obj = %02X, target->spn_resource = %02X, \
+		dst = %02X\n\n\n", src, target->spn_dev, target->spn_obj, \
+				   target->spn_resource, \
+				   pn_sockaddr_get_object(target));
+#endif
 	if (!pn_addr(src))
 		src = pn_object(saddr, pn_obj(src));
+
+	(skb->data[0] == PN_MODEM_MEDIA) ? \
+		       (pipe_hdl = skb->data[10]) : (pipe_hdl = skb->data[2]);
+
+	if ((target->spn_dev == pipe_hdl) && (target->spn_obj == pipe_hdl)) {
+		src = pn_sockaddr_get_object(target);
+		skb->pkt_type = PACKET_LOOPBACK;
+	}
 
 	err = pn_send(skb, dev, pn_sockaddr_get_object(target),
 			src, pn_sockaddr_get_resource(target), 0);
@@ -360,7 +519,18 @@ static int phonet_rcv(struct sk_buff *skb, struct net_device *dev,
 	struct phonethdr *ph;
 	struct sockaddr_pn sa;
 	u16 len;
+	u8 pipe_hdl, msg_id = 0;
 
+#if (PHONET_DEBUG & 1)
+	u16 i;
+
+	printk(KERN_INFO "\nSAMPATH:: %s: B4 pskb_pull: \
+			skb->len = %d\n\nskb->data:\n", __func__, skb->len);
+
+	for (i = 0 ; i < skb->len ; i++)
+		printk(KERN_INFO "%02X ", skb->data[i]);
+	printk(KERN_INFO "\n\n");
+#endif
 	/* check we have at least a full Phonet header */
 	if (!pskb_pull(skb, sizeof(struct phonethdr)))
 		goto out;
@@ -371,11 +541,33 @@ static int phonet_rcv(struct sk_buff *skb, struct net_device *dev,
 	if (len < 2)
 		goto out;
 	len -= 2;
-	if ((len > skb->len) || pskb_trim(skb, len))
+#if (PHONET_DEBUG & 1)
+	printk(KERN_INFO "\nSAMPATH:: %s: after pskb_pull: len = %d, \
+			skb->len = %d, ph->pn_length = %d\n\n \
+			skb->data:\n", __func__, len, skb->len, ph->pn_length);
+	for (i = 0 ; i < skb->len ; i++)
+		printk(KERN_INFO "%02X ", skb->data[i]);
+	printk(KERN_INFO "\n\n");
+#endif
+
+	if ((len > skb->len)/*|| pskb_trim(skb, len)*/)
 		goto out;
+
 	skb_reset_transport_header(skb);
 
+#ifdef PHONET_DEV
 	pn_skb_get_dst_sockaddr(skb, &sa);
+#else
+	{
+		struct phonethdr *ph = pn_hdr(skb);
+		u16 obj = (u16)((ph->pn_rdev << 8) | (ph->pn_robj & 0x3ff));
+		sa.spn_family = AF_PHONET;
+		sa.spn_dev = obj >> 8;
+		sa.spn_obj = obj & 0xff;
+		sa.spn_resource = ph->pn_res;
+		memset(sa.spn_zero, 0, sizeof(sa.spn_zero));
+	}
+#endif
 
 	/* check if this is broadcasted */
 	if (pn_sockaddr_get_addr(&sa) == PNADDR_BROADCAST) {
@@ -383,11 +575,47 @@ static int phonet_rcv(struct sk_buff *skb, struct net_device *dev,
 		goto out;
 	}
 
+	(skb->data[0] == PN_MODEM_MEDIA) ? \
+		       ((pipe_hdl = skb->data[10]), (msg_id = skb->data[9])) :\
+		       (pipe_hdl = skb->data[2]);
+
+	if ((skb->data[0] != PN_MODEM_MEDIA) 		|| \
+		((ph->pn_res == PN_PIPE_RES_ID) && \
+		 (msg_id == PNS_PIPE_DATA_MSG_ID)) 	|| \
+		((ph->pn_res == PN_PIPE_RES_ID) && \
+		 (msg_id == 0x60))) {
+		sa.spn_dev = sa.spn_obj = sa.spn_resource = pipe_hdl;
+	} else if (skb->data[0] == PN_MODEM_MEDIA) {
+		sa.spn_dev = sa.spn_obj = ph->pn_res;
+	}
+
+#ifdef PHONET_DEV
 	/* check if we are the destination */
 	if (phonet_address_lookup(net, pn_sockaddr_get_addr(&sa)) == 0) {
 		/* Phonet packet input */
 		struct sock *sk = pn_find_sock_by_sa(net, &sa);
+#else
+	if (1) {
+		struct sock *sk = pn_find_sock_by_sa(/*net, */&sa);
+#endif
 
+		if ((ph->pn_res == PN_PIPE_RES_ID) && \
+				(msg_id == PNS_PIPE_DATA_MSG_ID)) {
+			skb->data += 8;
+			skb->len -= 8;
+			skb_reset_transport_header(skb);
+		}
+
+#if (PHONET_DEBUG & 1)
+		printk(KERN_INFO "\nSAMPATH:: %s: len = %d, skb->len = %d, \
+				    ph->pn_length = %d, sa.spn_dev = %d, \
+				    sa.spn_obj = %d, \
+			    sa.spn_res = %d\n\nskb->data:\n", __func__, \
+			    len, skb->len, ph->pn_length, sa.spn_dev, \
+			    sa.spn_obj, sa.spn_resource);
+		for (i = 0 ; i < skb->len ; i++)
+			printk(KERN_INFO "%02X ", skb->data[i]);
+#endif
 		if (sk)
 			return sk_receive_skb(sk, skb, 0);
 

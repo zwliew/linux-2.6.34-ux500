@@ -47,6 +47,7 @@
 
 /* ioctls */
 #define SIOCPNGETOBJECT		(SIOCPROTOPRIVATE + 0)
+#define SIOCPNSETBINDFLAG   (SIOCPROTOPRIVATE + 1)
 
 /* Phonet protocol header */
 struct phonethdr {

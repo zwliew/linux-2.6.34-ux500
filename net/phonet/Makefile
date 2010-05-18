@@ -1,3 +1,5 @@
+EXTRA_CFLAGS += -Wall
+
 obj-$(CONFIG_PHONET) += phonet.o pn_pep.o
 
 phonet-objs := \

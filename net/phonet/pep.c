@@ -50,7 +50,8 @@
 #define CREDITS_MAX	10
 #define CREDITS_THR	7
 
-static const struct sockaddr_pn pipe_srv = {
+#define PHONET_DEBUG	0
+static /*const*/ struct sockaddr_pn pipe_srv = {
 	.spn_family = AF_PHONET,
 	.spn_resource = 0xD9, /* pipe service */
 };
@@ -89,12 +90,12 @@ static int pep_reply(struct sock *sk, struct sk_buff *oskb,
 	struct pnpipehdr *ph;
 	struct sk_buff *skb;
 
-	skb = alloc_skb(MAX_PNPIPE_HEADER + len, priority);
+	skb = alloc_skb(8 + MAX_PNPIPE_HEADER + len, priority);
 	if (!skb)
 		return -ENOMEM;
 	skb_set_owner_w(skb, sk);
 
-	skb_reserve(skb, MAX_PNPIPE_HEADER);
+	skb_reserve(skb, 8 + MAX_PNPIPE_HEADER);
 	__skb_put(skb, len);
 	skb_copy_to_linear_data(skb, data, len);
 	__skb_push(skb, sizeof(*ph));
@@ -104,6 +105,9 @@ static int pep_reply(struct sock *sk, struct sk_buff *oskb,
 	ph->message_id = oph->message_id + 1; /* REQ -> RESP */
 	ph->pipe_handle = oph->pipe_handle;
 	ph->error_code = code;
+
+	pipe_srv.spn_dev = ph->pipe_handle;
+	pipe_srv.spn_obj = ph->pipe_handle;
 
 	return pn_skb_send(sk, skb, &pipe_srv);
 }
@@ -580,6 +584,9 @@ static int pep_do_rcv(struct sock *sk, struct sk_buff *skb)
 
 	pn_skb_get_dst_sockaddr(skb, &dst);
 
+	dst.spn_dev = hdr->pipe_handle;
+	dst.spn_obj = hdr->pipe_handle;
+
 	/* Look for an existing pipe handle */
 	sknode = pep_find_pipe(&pn->hlist, &dst, pipe_handle);
 	if (sknode)
@@ -848,6 +855,9 @@ static int pipe_skb_send(struct sock *sk, struct sk_buff *skb)
 	} else
 		ph->message_id = PNS_PIPE_DATA;
 	ph->pipe_handle = pn->pipe_handle;
+
+	pipe_srv.spn_dev = 0x60;
+	pipe_srv.spn_obj = 0x30;
 
 	return pn_skb_send(sk, skb, &pipe_srv);
 }

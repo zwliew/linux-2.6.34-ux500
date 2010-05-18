@@ -32,6 +32,11 @@
 #include <linux/phonet.h>
 #include <net/phonet/phonet.h>
 
+enum {
+	PHONET_BIND_NOT_DONE,
+	PHONET_BIND_DONE
+};
+
 static int pn_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 /* associated socket ceases to exist */
@@ -52,6 +57,10 @@ static int pn_ioctl(struct sock *sk, int cmd, unsigned long arg)
 		answ = skb ? skb->len : 0;
 		release_sock(sk);
 		return put_user(answ, (int __user *)arg);
+	case SIOCPNSETBINDFLAG:
+		printk(KERN_INFO "\nSetting bind flag in kernel!!\n");
+		phonet_bind_check(PHONET_BIND_DONE);
+		return 0;
 	}
 
 	return -ENOIOCTLCMD;

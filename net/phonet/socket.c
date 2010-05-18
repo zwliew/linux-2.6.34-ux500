@@ -73,7 +73,12 @@ static struct hlist_head *pn_hash_list(u16 obj)
  * Find address based on socket address, match only certain fields.
  * Also grab sock if it was found. Remember to sock_put it later.
  */
+#ifdef PHONET_DEV
 struct sock *pn_find_sock_by_sa(struct net *net, const struct sockaddr_pn *spn)
+#else
+struct sock *pn_find_sock_by_sa(/*struct net *net, */ \
+		const struct sockaddr_pn *spn)
+#endif
 {
 	struct hlist_node *node;
 	struct sock *sknode;
@@ -87,9 +92,10 @@ struct sock *pn_find_sock_by_sa(struct net *net, const struct sockaddr_pn *spn)
 	sk_for_each(sknode, node, hlist) {
 		struct pn_sock *pn = pn_sk(sknode);
 		BUG_ON(!pn->sobject); /* unbound socket */
-
+#ifdef PHONET_DEV
 		if (!net_eq(sock_net(sknode), net))
 			continue;
+#endif
 		if (pn_port(obj)) {
 			/* Look up socket by port */
 			if (pn_port(pn->sobject) != pn_port(obj))
@@ -182,9 +188,10 @@ static int pn_socket_bind(struct socket *sock, struct sockaddr *addr, int len)
 
 	handle = pn_sockaddr_get_object((struct sockaddr_pn *)addr);
 	saddr = pn_addr(handle);
+#ifdef PHONET_DEV
 	if (saddr && phonet_address_lookup(sock_net(sk), saddr))
 		return -EADDRNOTAVAIL;
-
+#endif
 	lock_sock(sk);
 	if (sk->sk_state != TCP_CLOSE || pn_port(pn->sobject)) {
 		err = -EINVAL; /* attempt to rebind */
@@ -409,13 +416,15 @@ const struct proto_ops phonet_stream_ops = {
 	.mmap		= sock_no_mmap,
 	.sendpage	= sock_no_sendpage,
 };
-EXPORT_SYMBOL(phonet_stream_ops);
+/*EXPORT_SYMBOL(phonet_stream_ops);*/
 
 /* allocate port for a socket */
 int pn_sock_get_port(struct sock *sk, unsigned short sport)
 {
 	static int port_cur;
+#ifdef PHONET_DEV
 	struct net *net = sock_net(sk);
+#endif
 	struct pn_sock *pn = pn_sk(sk);
 	struct sockaddr_pn try_sa;
 	struct sock *tmpsk;
@@ -434,7 +443,11 @@ int pn_sock_get_port(struct sock *sk, unsigned short sport)
 				port_cur = pmin;
 
 			pn_sockaddr_set_port(&try_sa, port_cur);
+#ifdef PHONET_DEV
 			tmpsk = pn_find_sock_by_sa(net, &try_sa);
+#else
+			tmpsk = pn_find_sock_by_sa(/*net, In 2.6.29*/ &try_sa);
+#endif
 			if (tmpsk == NULL) {
 				sport = port_cur;
 				goto found;
@@ -444,7 +457,11 @@ int pn_sock_get_port(struct sock *sk, unsigned short sport)
 	} else {
 		/* try to find specific port */
 		pn_sockaddr_set_port(&try_sa, sport);
+#ifdef PHONET_DEV
 		tmpsk = pn_find_sock_by_sa(net, &try_sa);
+#else
+		tmpsk = pn_find_sock_by_sa(/*net, In 2.6.29*/ &try_sa);
+#endif
 		if (tmpsk == NULL)
 			/* No sock there! We can use that port... */
 			goto found;

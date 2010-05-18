@@ -212,7 +212,7 @@ u8 phonet_address_get(struct net_device *dev, u8 daddr)
 	}
 	return saddr;
 }
-
+#ifdef PHONET_DEV
 int phonet_address_lookup(struct net *net, u8 addr)
 {
 	struct phonet_device_list *pndevs = phonet_device_list(net);
@@ -235,7 +235,7 @@ found:
 	rcu_read_unlock();
 	return err;
 }
-
+#endif
 /* automatically configure a Phonet device, if supported */
 static int phonet_device_autoconf(struct net_device *dev)
 {
