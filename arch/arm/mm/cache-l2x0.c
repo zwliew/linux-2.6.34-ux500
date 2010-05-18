@@ -229,6 +229,14 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 
 		/* enable L2X0 */
 		writel(1, l2x0_base + L2X0_CTRL);
+	} else {
+		/* Unlock Data and Instruction Lock if locked */
+		if (readl(l2x0_base + L2X0_LOCKDOWN_WAY_D) &  0xFF) {
+			writel(0x0, l2x0_base + L2X0_LOCKDOWN_WAY_D);
+		}
+		if (readl(l2x0_base + L2X0_LOCKDOWN_WAY_I) &  0xFF) {
+			writel(0x0, l2x0_base + L2X0_LOCKDOWN_WAY_I);
+		}
 	}
 
 	outer_cache.inv_range = l2x0_inv_range;
