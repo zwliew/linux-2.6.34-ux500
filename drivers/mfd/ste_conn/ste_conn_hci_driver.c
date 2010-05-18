@@ -24,7 +24,6 @@
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/jiffies.h>
-#include <linux/rfkill.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
 
@@ -73,22 +72,6 @@
 	STE_CONN_SET_STATE("hci reset_state", hci_info->hreset_state, __hci_reset_new_state)
 #define HCI_SET_ENABLE_STATE(__hci_enable_new_state) \
 	STE_CONN_SET_STATE("hci enable_state", hci_info->enable_state, __hci_enable_new_state)
-#define SET_RFKILL_STATE(__new_state) \
-	STE_CONN_SET_STATE("hci rfkill_state", hci_info->rfkill_state, __new_state)
-#define SET_RFKILL_RF_STATE(__new_state) \
-	STE_CONN_SET_STATE("hci rfkill_rf_state", hci_info->rfkill_rf_state, __new_state)
-
-/**
-  * enum ste_conn_hci_rfkill_rf_state - RFKill RF state.
-  * @RFKILL_RF_ENABLED:		Radio is not disabled.
-  * @RFKILL_HCI_RESET_SENT:	HCI reset has been sent. Waiting for reply.
-  * @RFKILL_RF_DISABLED:	Radio is disabled.
-  */
-enum ste_conn_hci_rfkill_rf_state {
-	RFKILL_RF_ENABLED,
-	RFKILL_HCI_RESET_SENT,
-	RFKILL_RF_DISABLED
-};
 
 /**
   * enum ste_conn_hci_reset_state - RESET-state for hci driver.
@@ -148,9 +131,6 @@ enum ste_conn_hci_enable_state {
   * @hdev:		Device structure for hci device.
   * @hreset_state:	Device enum for hci driver reset state.
   * @enable_state:	Device enum for hci driver BT enable state.
-  * @rfkill:		RFKill structure.
-  * @rfkill_state:	Current RFKill state.
-  * @rfkill_rf_state:	Current RFKill RF state.
   */
 struct ste_conn_hci_info {
 	struct ste_conn_device			*cpd_bt_cmd;
@@ -159,9 +139,6 @@ struct ste_conn_hci_info {
 	struct hci_dev				*hdev;
 	enum ste_conn_hci_reset_state		hreset_state;
 	enum ste_conn_hci_enable_state		enable_state;
-	struct rfkill				*rfkill;
-	int					rfkill_state;
-	enum ste_conn_hci_rfkill_rf_state	rfkill_rf_state;
 };
 
 /**
@@ -212,12 +189,6 @@ static int ste_conn_hci_ioctl(struct hci_dev *hdev, unsigned int cmd, unsigned l
 static void ste_conn_hci_cpd_read_cb(struct ste_conn_device *dev, struct sk_buff *skb);
 static void ste_conn_hci_cpd_reset_cb(struct ste_conn_device *dev);
 
-/* RFKill handling functions */
-static int ste_conn_hci_rfkill_register(void);
-static void ste_conn_hci_rfkill_deregister(void);
-static int ste_conn_hci_rfkill_toggle_radio(void *data, int state);
-static int ste_conn_hci_rfkill_get_state(void *data, int *state);
-
 /*
   * struct ste_conn_hci_cb - Specifies callback structure for ste_conn user.
   *
@@ -232,12 +203,6 @@ static struct ste_conn_callbacks ste_conn_hci_cb = {
 };
 
 struct ste_conn_hci_info *hci_info;
-
-/* time_1s - 1 second time struct.*/
-static struct timeval time_1s = {
-	.tv_sec = 1,
-	.tv_usec = 0
-};
 
 /*
   * ste_conn_hci_wait_queue - Main Wait Queue in HCI driver.
@@ -516,7 +481,6 @@ static int ste_conn_hci_flush(struct hci_dev *hdev)
  *   0 if there is no error.
  *   -EINVAL if NULL pointer is supplied.
  *   -EOPNOTSUPP if supplied packet type is not supported.
- *   -EACCES if write operation is blocked by RFKill.
  *   Error codes from ste_conn_write.
  */
 static int ste_conn_hci_send(struct sk_buff *skb)
@@ -540,11 +504,6 @@ static int ste_conn_hci_send(struct sk_buff *skb)
 	if (!info) {
 		STE_CONN_ERR("NULL supplied for info");
 		return -EINVAL;
-	}
-
-	if (RFKILL_STATE_UNBLOCKED != info->rfkill_state) {
-		STE_CONN_ERR("RF disabled by RFKill. Packet blocked");
-		return -EACCES;
 	}
 
 	/* Update BlueZ stats */
@@ -697,16 +656,6 @@ static void ste_conn_hci_cpd_read_cb(struct ste_conn_device *dev, struct sk_buff
 		 * Just free the packet.
 		 */
 		kfree_skb(skb);
-	} else if ((RFKILL_HCI_RESET_SENT == hci_info->rfkill_rf_state) &&
-		(dev == hci_info->cpd_bt_evt) &&
-		(HCI_BT_EVT_CMD_COMPLETE == skb->data[HCI_EVT_OP_CODE_POS]) &&
-		(HCI_RESET_CMD_LSB == skb->data[HCI_EVT_CMD_COMPLETE_CMD_LSB_POS]) &&
-		(HCI_RESET_CMD_MSB == skb->data[HCI_EVT_CMD_COMPLETE_CMD_MSB_POS])) {
-		STE_CONN_DBG("Received command complete for HCI reset with status 0x%X",
-			skb->data[HCI_EVT_CMD_COMPLETE_STATUS_POS]);
-		SET_RFKILL_RF_STATE(RFKILL_RF_DISABLED);
-		wake_up_interruptible(&ste_conn_hci_wait_queue);
-		kfree_skb(skb);
 	} else {
 
 		bt_cb(skb)->pkt_type = dev_info->hci_data_type;
@@ -845,181 +794,6 @@ finished:
 }
 
 /**
- * ste_conn_hci_rfkill_register() - Register to RFKill.
- *
- * Returns:
- *   0 if there is no error.
- *   -ENOMEM if allocation fails.
- *   Error codes from rfkill_register.
- */
-static int ste_conn_hci_rfkill_register(void)
-{
-	int err = 0;
-
-	STE_CONN_INFO("ste_conn_hci_rfkill_register");
-
-	SET_RFKILL_STATE(RFKILL_STATE_SOFT_BLOCKED);
-	SET_RFKILL_RF_STATE(RFKILL_RF_DISABLED);
-
-	hci_info->rfkill = rfkill_allocate(&(hci_info->hdev->dev), RFKILL_TYPE_BLUETOOTH);
-	if (!hci_info->rfkill) {
-		STE_CONN_ERR("Could not allocate rfkill device.");
-		err = -ENOMEM;
-		goto finished;
-	}
-
-	hci_info->rfkill->name = STE_CONN_HCI_NAME;
-	hci_info->rfkill->data = NULL;
-	hci_info->rfkill->state = hci_info->rfkill_state;
-
-	hci_info->rfkill->toggle_radio = ste_conn_hci_rfkill_toggle_radio;
-	hci_info->rfkill->get_state    = ste_conn_hci_rfkill_get_state;
-
-	err = rfkill_register(hci_info->rfkill);
-	if (err) {
-		STE_CONN_ERR("Could not register rfkill device.");
-		goto err_free_rfkill;
-	}
-	STE_CONN_DBG("RFKill registration ... OK.");
-
-	goto finished;
-
-err_free_rfkill:
-	STE_CONN_ERR("RFKill freeing rfkill device.");
-	if (hci_info->rfkill) {
-		rfkill_free(hci_info->rfkill);
-		hci_info->rfkill = NULL;
-	}
-
-finished:
-	return err;
-}
-
-/**
- * ste_conn_hci_rfkill_deregister() - Deregister from RFKill.
- */
-static void ste_conn_hci_rfkill_deregister(void)
-{
-	if (hci_info->rfkill) {
-		/* Unregister RFKill */
-		rfkill_unregister(hci_info->rfkill);
-		rfkill_free(hci_info->rfkill);
-		hci_info->rfkill = NULL;
-	}
-}
-
-/**
- * ste_conn_hci_rfkill_toggle_radio() - Called from RFKill upon state change.
- * @data:  Private data (NULL used).
- * @state: New RFKill state.
- *
- * Returns:
- *   0 if there is no error.
- *   -EBUSY if supplied new state is equal to current state or if disabling of
- *   state fails.
- *   -ENOTSUPP if supplied new state is not supported.
- *   -ENOMEM if allocation failed.
- */
-static int ste_conn_hci_rfkill_toggle_radio(void *data, enum rfkill_state state)
-{
-	int err = 0;
-	struct sk_buff *skb;
-	uint8_t *data_ptr;
-
-	STE_CONN_INFO("ste_conn_hci_rfkill_toggle_radio new state = %d", state);
-
-	if (state == hci_info->rfkill_state) {
-		STE_CONN_ERR("ste_conn_hci_rfkill_toggle_radio called without state change (%d)", state);
-		err = -EBUSY;
-		goto finished;
-	}
-
-	/* Store new state */
-	SET_RFKILL_STATE(state);
-
-	switch (state) {
-	case RFKILL_STATE_SOFT_BLOCKED:
-		STE_CONN_DBG("RFKILL disable radio.");
-
-		/* We only need to disable if BT is actually running */
-		if (!test_bit(HCI_RUNNING, &(hci_info->hdev->flags))) {
-			STE_CONN_DBG("Setting blocked when device is not opened");
-			SET_RFKILL_RF_STATE(RFKILL_RF_DISABLED);
-			goto finished;
-		}
-
-		skb = ste_conn_alloc_skb(HCI_RESET_LEN, GFP_KERNEL);
-		if (!skb) {
-			STE_CONN_ERR("Could not allocate sk_buffer for HCI reset");
-			err = -ENOMEM;
-			SET_RFKILL_RF_STATE(RFKILL_RF_DISABLED);
-			goto finished;
-		}
-
-		data_ptr = skb_put(skb, HCI_RESET_LEN);
-		data_ptr[0] = HCI_RESET_CMD_LSB;
-		data_ptr[1] = HCI_RESET_CMD_MSB;
-		data_ptr[2] = HCI_RESET_PARAM_LEN;
-
-		err = ste_conn_write(hci_info->cpd_bt_cmd, skb);
-		if (err) {
-			STE_CONN_ERR("ste_conn_write failed when sending HCI reset (%d)", err);
-			kfree_skb(skb);
-			goto finished;
-		}
-
-		SET_RFKILL_RF_STATE(RFKILL_HCI_RESET_SENT);
-
-		/* Wait for reset to finish */
-		if (wait_event_interruptible_timeout(ste_conn_hci_wait_queue,
-				(RFKILL_RF_DISABLED == hci_info->rfkill_rf_state),
-				timeval_to_jiffies(&time_1s)) <= 0) {
-			STE_CONN_ERR("Couldn't disable RF in time");
-			err = -EBUSY;
-			SET_RFKILL_RF_STATE(RFKILL_RF_DISABLED);
-		}
-		break;
-
-	case RFKILL_STATE_UNBLOCKED:
-		STE_CONN_DBG("RFKILL enable radio.");
-		/* Remove block of data TX. User will have to handle the reset
-		 * of the chip
-		 */
-		SET_RFKILL_RF_STATE(RFKILL_RF_ENABLED);
-		break;
-
-	case RFKILL_STATE_HARD_BLOCKED:
-		STE_CONN_ERR("RFKill hard disable radio. Should never happen!");
-		err = -ENOTSUPP;
-		break;
-
-	default:
-		STE_CONN_ERR("RFKill unknown state %d. Should never happen!", state);
-		err = -ENOTSUPP;
-		break;
-	}
-
-finished:
-	return err;
-}
-
-/**
- * ste_conn_hci_rfkill_get_state - Called from RFKill to read current RFKill state.
- * @data:  Data supplied when registering (NULL).
- * @state: Current RFKill state (to be returned).
- *
- * Returns:
- *   0 if there is no error (no error can occur).
- */
-static int ste_conn_hci_rfkill_get_state(void *data, enum rfkill_state *state)
-{
-	STE_CONN_INFO("ste_conn_hci_rfkill_get_state (%d)", hci_info->rfkill_state);
-
-	*state = hci_info->rfkill_state;
-	return 0;
-}
-
-/**
  * ste_conn_hci_driver_init() - Initialize module.
  *
  * Add hci device to ste_conn driver and exit.
@@ -1070,17 +844,8 @@ static int __init ste_conn_hci_driver_init(void)
 		goto err_free_hci;
 	}
 
-	/* Register to RFKill */
-	err = ste_conn_hci_rfkill_register();
-	if (err) {
-		STE_CONN_ERR("RFKill registration error %d.", err);
-		goto err_hci_dereg;
-	}
-
 	goto finished;
 
-err_hci_dereg:
-	hci_unregister_dev(hci_info->hdev);
 err_free_hci:
 	hci_free_dev(hci_info->hdev);
 err_free_info:
@@ -1102,9 +867,6 @@ static void __exit ste_conn_hci_driver_exit(void)
 	STE_CONN_INFO("ste_conn hci driver exit.");
 
 	if (hci_info) {
-		/* Deregister from RFKill */
-		ste_conn_hci_rfkill_deregister();
-
 		if (hci_info->hdev) {
 			err = hci_unregister_dev(hci_info->hdev);
 			if (err) {
