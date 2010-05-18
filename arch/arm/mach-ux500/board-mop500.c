@@ -1016,6 +1016,12 @@ static struct amba_device *amba_board_devs[] __initdata = {
 	&ux500_spi0_device,
 	&u8500_msp2_spi_device,
 };
+/* LED device for LCD backlight */
+/* LCD backlight in LED device framework */
+static struct platform_device u8500_leds_controller = {
+	.name = "u8500-leds",
+	.id = 0,
+};
 
 static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_msp0_device,
@@ -1049,6 +1055,7 @@ static struct platform_device *platform_board_devs[] __initdata = {
 #ifdef CONFIG_CRYPTO_DEV_UX500_HASH
 	&ux500_hash1_device,
 #endif
+	&u8500_leds_controller,
 };
 
 static void __init mop500_platdata_init(void)
