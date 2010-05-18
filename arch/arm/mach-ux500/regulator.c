@@ -235,6 +235,7 @@ static int __devinit db8500_regulator_probe(struct platform_device *pdev)
 {
 	struct regulator_dev *rdev;
 	struct regulator_priv *priv;
+	struct regulator_init_data *init_data = pdev->dev.platform_data;
 
 	priv = kzalloc(sizeof(struct regulator_priv), GFP_KERNEL);
 	if (!priv) {
@@ -247,7 +248,8 @@ static int __devinit db8500_regulator_probe(struct platform_device *pdev)
 	priv->opp_mode_dep_count = 0;
 
 	/* TODO : pass the regulator specific data to register */
-	rdev = regulator_register(&db8500_desc[pdev->id], &pdev->dev, priv);
+	rdev = regulator_register(&db8500_desc[pdev->id], &pdev->dev,
+							init_data, priv);
 	if (IS_ERR(rdev)) {
 		dev_dbg(&pdev->dev, "couldn't register regulator\n");
 		return PTR_ERR(rdev);
