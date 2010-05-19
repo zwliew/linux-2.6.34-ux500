@@ -167,7 +167,7 @@ struct ab8500_bm_capacity {
 /* Battery capacity(in percent) based on battery voltage(in mV) */
 static struct ab8500_bm_capacity ab8500_bm_cap[] = {
 	{3100, 5},
-	{3225, 10}
+	{3225, 10},
 	{3451, 15},
 	{3525, 20},
 	{3605, 30},
