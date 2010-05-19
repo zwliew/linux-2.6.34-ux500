@@ -16,7 +16,7 @@
 #define UX500_DEBUG_UART	UX500_UART2_BASE
 #endif
 
-	.macro	addruart,rx
+	.macro	addruart, rx, tmp
 	mrc	p15, 0, \rx, c1, c0
 	tst	\rx, #1			@MMU enabled?
 	ldreq	\rx, =UX500_DEBUG_UART			@ no, physical address
