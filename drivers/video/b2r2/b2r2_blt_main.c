@@ -23,7 +23,7 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/poll.h>
-
+#include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 #include <linux/list.h>
