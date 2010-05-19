@@ -2478,8 +2478,6 @@ static int __init musb_init(void)
  * not loaded. This has been done to correct the order
  */
 module_init(musb_init);
-#else
-module_init(musb_init);
 #endif
 
 static void __exit musb_cleanup(void)
