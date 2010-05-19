@@ -213,7 +213,9 @@ static inline void clean_l1_cache_range_curr_cpu(void *arg)
 {
 	struct sync_args *sa = (struct sync_args *)arg;
 
-	dmac_clean_range((void *)sa->start, (void *)sa->end);
+	dmac_map_area((void *)sa->start,
+		      (void *)sa->end - (void *)sa->start,
+		      DMA_FROM_DEVICE);
 }
 
 #ifdef CONFIG_SMP
