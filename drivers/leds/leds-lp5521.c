@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/i2c.h>
 #include <linux/leds.h>
+#include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #include <linux/i2c/lp5521.h>

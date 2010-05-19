@@ -16,6 +16,7 @@
 #include <linux/ktime.h>
 #include <linux/spinlock.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 
 #include <mach/hardware.h>
 #include <mach/prcmu-regs.h>

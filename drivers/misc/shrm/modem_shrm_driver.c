@@ -23,6 +23,7 @@
 #include <linux/ioport.h>
 #include <linux/smp_lock.h>
 #include <linux/poll.h>
+#include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/uaccess.h>
 #include <asm/atomic.h>

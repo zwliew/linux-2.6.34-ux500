@@ -29,6 +29,7 @@
 #include <linux/scatterlist.h>
 #include <linux/uaccess.h>
 #include <linux/clk.h>
+#include <linux/slab.h>
 #include <asm/page.h>
 #include <asm/fiq.h>
 #include <asm/irq.h>

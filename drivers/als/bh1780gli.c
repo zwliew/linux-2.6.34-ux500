@@ -13,6 +13,7 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/slab.h>
 #include <linux/als_sys.h>
 #include <linux/jiffies.h>
 

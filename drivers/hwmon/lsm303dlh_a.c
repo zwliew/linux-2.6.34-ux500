@@ -41,7 +41,7 @@
 #include <linux/miscdevice.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
-
+#include <linux/slab.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <linux/freezer.h>

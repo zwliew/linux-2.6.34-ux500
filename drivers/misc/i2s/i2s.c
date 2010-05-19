@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/cache.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 #include <linux/idr.h>
 #include <linux/i2s/i2s.h>
 #include <linux/platform_device.h>

@@ -21,6 +21,7 @@
 #include <linux/ioport.h>
 #include <linux/errno.h>
 #include <linux/spinlock.h>
+#include <linux/slab.h>
 #include <linux/platform_device.h>
 
 #include <linux/input.h>
