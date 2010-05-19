@@ -18,6 +18,19 @@ struct regulator *musb_vape_supply, *musb_vbus_supply;
 #endif
 
 int boot_time_flag;
+/**
+ * stm_musb_states - Different states of musb_chip
+ *
+ * Used for USB cable plug-in state machine
+ */
+enum stm_musb_states {
+	USB_IDLE,
+	USB_DEVICE,
+	USB_HOST,
+};
+enum stm_musb_states stm_musb_curr_state = USB_IDLE;
+
+void musb_set_session(void);
 
 /**
  * usb_kick_watchdog() - Kick the watch dog timer
@@ -87,7 +100,11 @@ void usb_host_phy_en(int enable)
  */
 void usb_host_insert_handler(void)
 {
-	usb_host_phy_en(USB_ENABLE);
+	if (stm_musb_curr_state == USB_IDLE) {
+		stm_musb_curr_state = USB_HOST;
+		usb_host_phy_en(USB_ENABLE);
+		musb_set_session();
+	}
 }
 /**
  * usb_host_remove_handler() - Removed the USB host cable
@@ -96,7 +113,10 @@ void usb_host_insert_handler(void)
  */
 void usb_host_remove_handler(void)
 {
-	usb_host_phy_en(USB_DISABLE);
+	if (stm_musb_curr_state == USB_HOST) {
+		stm_musb_curr_state = USB_IDLE;
+		usb_host_phy_en(USB_DISABLE);
+	}
 }
 /**
  * usb_device_phy_en() - for enabling the 5V to usb gadget
@@ -150,7 +170,10 @@ void usb_device_phy_en(int enable)
  */
 void usb_device_insert_handler(void)
 {
-	usb_device_phy_en(USB_ENABLE);
+	if (stm_musb_curr_state == USB_IDLE) {
+		stm_musb_curr_state = USB_DEVICE;
+		usb_device_phy_en(USB_ENABLE);
+	}
 }
 /**
  * usb_device_remove_handler() - remove the 5V to usb device
@@ -159,7 +182,10 @@ void usb_device_insert_handler(void)
  */
 void usb_device_remove_handler(void)
 {
-	usb_device_phy_en(USB_DISABLE);
+	if (stm_musb_curr_state == USB_DEVICE) {
+		stm_musb_curr_state = USB_IDLE;
+		usb_device_phy_en(USB_DISABLE);
+	}
 }
 /**
  * musb_phy_en : register USB callback handlers for ab8500
@@ -189,7 +215,7 @@ int musb_phy_en(u8 mode)
 #endif
 	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 	if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
-		if (mode == MUSB_HOST) {
+		if (mode == MUSB_HOST || mode == MUSB_OTG) {
 			ab8500_write
 				(AB8500_INTERRUPT,
 					AB8500_IT_MASK20_REG, AB8500_IT_MASK20_MASK);
@@ -215,7 +241,8 @@ int musb_phy_en(u8 mode)
 				return ret;
 			}
 			usb_kick_watchdog();
-		} else if (mode == MUSB_PERIPHERAL) {
+		}
+		if (mode == MUSB_PERIPHERAL || mode == MUSB_OTG) {
 			ab8500_write
 				(AB8500_INTERRUPT, AB8500_IT_MASK2_REG,
 						AB8500_IT_MASK2_MASK);
@@ -251,14 +278,15 @@ int musb_force_detect(u8 mode)
 	int usb_status = 0;
 	ab8500_rev = ab8500_read(AB8500_MISC, AB8500_REV_REG);
 	if ((ab8500_rev == AB8500_REV_10) || (ab8500_rev == AB8500_REV_11)) {
-		if (mode == MUSB_HOST) {
+		if (mode == MUSB_HOST || mode == MUSB_OTG) {
 			usb_status = ab8500_read
 				(AB8500_INTERRUPT, AB8500_IT_SOURCE20_REG);
 			if (usb_status & AB8500_SRC_INT_USB_HOST) {
 				boot_time_flag = USB_ENABLE;
 				usb_host_phy_en(USB_ENABLE);
 			}
-		} else if (mode == MUSB_PERIPHERAL) {
+		}
+		if (mode == MUSB_PERIPHERAL || mode == MUSB_OTG) {
 			usb_status = ab8500_read
 				(AB8500_INTERRUPT, AB8500_IT_SOURCE2_REG);
 			if (usb_status & AB8500_SRC_INT_USB_DEVICE) {

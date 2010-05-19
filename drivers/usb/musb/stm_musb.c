@@ -32,45 +32,19 @@ static struct musb *musb_status;
 static spinlock_t musb_ulpi_spinlock;
 static unsigned musb_power;
 
-#if 0
-static void
-ab8500_bm_ulpi_test(void)
+void musb_set_session(void)
 {
-	u8 x;
+	u8 val = 0;
+	void __iomem *regs = musb_status->mregs;
 
-	x = ulpi_read_register(musb_status, ULPI_VIDLO);
-	if (x != 0x83)
-		printk(KERN_ALERT "Unexpected USB PHY VID-LO: 0x%02x\n", x);
-
-	x = ulpi_read_register(musb_status, ULPI_VIDHI);
-	if (x != 0x04)
-		printk(KERN_ALERT "Unexpected USB PHY VID-HI: 0x%02x\n", x);
-
-	x = ulpi_read_register(musb_status, ULPI_PIDLO);
-	if (x != 0x00)
-		printk(KERN_ALERT "Unexpected USB PHY PID-LO: 0x%02x\n", x);
-
-	x = ulpi_read_register(musb_status, ULPI_PIDHI);
-	if (x != 0x45)
-		printk(KERN_ALERT "Unexpected USB PHY PID-HI: 0x%02x\n", x);
-
-	ulpi_write_register(musb_status, ULPI_SCRATCH, 0xAA);
-
-	x = ulpi_read_register(musb_status, ULPI_SCRATCH);
-	if (x != 0xAA)
-		printk(KERN_ALERT "Unexpected ULPI "
-		    "read-back value: 0x%02x\n", x);
-
-	ulpi_write_register(musb_status, ULPI_SCRATCH, 0x55);
-
-	x = ulpi_read_register(musb_status, ULPI_SCRATCH);
-	if (x != 0x55)
-		printk(KERN_ALERT "Unexpected ULPI "
-		    "read-back value: 0x%02x\n", x);
-	else
-		printk(KERN_INFO "USB: ULPI read-back value OK\n");
+	if (musb_status == NULL) {
+		printk(KERN_ERR "Error: devctl session cannot be set\n");
+		return;
+	}
+	val = musb_readb(regs, MUSB_DEVCTL);
+	musb_writeb(regs, MUSB_DEVCTL, val | MUSB_DEVCTL_SESSION);
 }
-#endif
+EXPORT_SYMBOL(musb_set_session);
 
 void
 ab8500_bm_usb_state_changed_wrapper(u8 bm_usb_state)
@@ -78,17 +52,7 @@ ab8500_bm_usb_state_changed_wrapper(u8 bm_usb_state)
 	if ((bm_usb_state == AB8500_BM_USB_STATE_RESET_HS) ||
 	    (bm_usb_state == AB8500_BM_USB_STATE_RESET_FS)) {
 		musb_power = 0;
-#if 0
-		/* for debugging purpose only */
-		ab8500_bm_ulpi_test();
-#endif
 	}
-#if 0
-	printk(KERN_INFO "Please implement ab8500_bm_usb_state_changed"
-	    "(%d AB8500_BM_USB_STATE_XXX, %d mA)\n",
-	    bm_usb_state, musb_power);
-#endif
-
 #ifdef CONFIG_AB8500_BM
 	ab8500_bm_usb_state_changed(bm_usb_state, musb_power);
 #endif
@@ -206,7 +170,8 @@ static u8 ulpi_read_register(struct musb *musb, u8 address)
 	/* check for time-out */
 	if (!(val & OTG_UREGCTRL_REGCMP) && (count == 0)) {
 		spin_unlock_irqrestore(&musb_ulpi_spinlock, flags);
-		printk(KERN_ALERT "U8500 USB : ULPI read timed out\n");
+		if (printk_ratelimit())
+			printk(KERN_ALERT "U8500 USB : ULPI read timed out\n");
 		return 0;
 	}
 
@@ -265,7 +230,8 @@ static u8 ulpi_write_register(struct musb *musb, u8 address, u8 data)
 	/* check for time-out */
 	if (!(val & OTG_UREGCTRL_REGCMP) && (count == 0)) {
 		spin_unlock_irqrestore(&musb_ulpi_spinlock, flags);
-		printk(KERN_ALERT "U8500 USB : ULPI write timed out\n");
+		if (printk_ratelimit())
+			printk(KERN_ALERT "U8500 USB : ULPI write timed out\n");
 		return 0;
 	}
 
@@ -438,10 +404,15 @@ static void set_vbus(struct musb *musb, int is_on)
  */
 static int set_power(struct otg_transceiver *x, unsigned mA)
 {
-	musb_power = mA;
-
-	ab8500_bm_usb_state_changed_wrapper(AB8500_BM_USB_STATE_CONFIGURED);
-
+	/*
+	* It appears we get some bad events having mA == 0.
+	* Mask away those events.
+	*/
+	if (mA != 0) {
+		musb_power = mA;
+		ab8500_bm_usb_state_changed_wrapper(
+			AB8500_BM_USB_STATE_CONFIGURED);
+	}
 	return 0;
 }
 /**
@@ -480,22 +451,7 @@ int musb_platform_set_mode(struct musb *musb, u8 musb_mode)
  */
 static void funct_host_notify_timer(unsigned long data)
 {
-	struct musb *musb = (struct musb *)data;
-	uint8_t *reg_base = (uint8_t *)musb->mregs;
-	uint8_t temp = 0;
-	uint8_t devctl = 0;
-
-	if (musb->xceiv->state != OTG_STATE_A_HOST) {
-		temp = ulpi_read_register(musb, 0x13);
-		if (temp & 0x08) {
-			devctl = musb_readb(reg_base, MUSB_DEVCTL);
-			DBG(1, "devctl = %x\n", devctl);
-			musb_writeb(reg_base, MUSB_DEVCTL,
-					devctl | MUSB_DEVCTL_SESSION);
-		}
-		mod_timer(&notify_timer, jiffies + msecs_to_jiffies(1000));
-	} else
-		del_timer(&notify_timer);
+	/* TODO: Cleanup this timer */
 }
 /**
  * musb_platform_init() - Initialize the platform USB driver.

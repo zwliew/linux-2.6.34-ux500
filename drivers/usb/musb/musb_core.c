@@ -377,6 +377,7 @@ void musb_hnp_stop(struct musb *musb)
  */
 
 #define STAGE0_MASK (MUSB_INTR_RESUME | MUSB_INTR_SESSREQ \
+		| MUSB_INTR_SUSPEND \
 		| MUSB_INTR_VBUSERROR | MUSB_INTR_CONNECT \
 		| MUSB_INTR_RESET)
 
