@@ -444,10 +444,10 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 	struct musb_ep		*musb_ep = &musb->endpoints[epnum].ep_in;
 	void __iomem		*epio = musb->endpoints[epnum].regs;
 	struct dma_channel	*dma;
+	u16 bytes_left = 0;
 
 	musb_ep_select(mbase, epnum);
 	request = next_request(musb_ep);
-
 	csr = musb_readw(epio, MUSB_TXCSR);
 	DBG(4, "<== %s, txcsr %04x\n", musb_ep->end_point.name, csr);
 
@@ -486,12 +486,40 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 
 		if (dma && (csr & MUSB_TXCSR_DMAENAB)) {
 			is_dma = 1;
-			csr |= MUSB_TXCSR_P_WZC_BITS;
-			csr &= ~(MUSB_TXCSR_DMAENAB | MUSB_TXCSR_P_UNDERRUN |
-				 MUSB_TXCSR_TXPKTRDY);
-			musb_writew(epio, MUSB_TXCSR, csr);
-			/* Ensure writebuffer is empty. */
+			int count = 0;
+
+			/* ensure writebuffer is empty */
 			csr = musb_readw(epio, MUSB_TXCSR);
+			bytes_left = request->length
+				-musb_ep->dma->actual_len;
+			for (count = 0; count < MAX_COUNT; count++) {
+				if (!(csr&MUSB_TXCSR_FIFONOTEMPTY))
+					break;
+				csr = musb_readw(epio, MUSB_TXCSR);
+			}
+
+			csr |= MUSB_TXCSR_P_WZC_BITS;
+#ifdef CONFIG_ARCH_U8500
+			csr &= ~(MUSB_TXCSR_DMAENAB | MUSB_TXCSR_MODE
+					| MUSB_TXCSR_AUTOSET
+					| MUSB_TXCSR_P_UNDERRUN
+					| MUSB_TXCSR_DMAMODE
+					| MUSB_TXCSR_TXPKTRDY);
+#else
+			csr &= ~(MUSB_TXCSR_DMAENAB | MUSB_TXCSR_P_UNDERRUN |
+				 MUSB_TXCSR_DMAMODE | MUSB_TXCSR_TXPKTRDY);
+#endif
+			musb_writew(epio, MUSB_TXCSR, csr);
+			if (bytes_left) {
+				musb_write_fifo(musb_ep->hw_ep,
+				bytes_left,
+				(u8 *) (request->buf +
+				musb_ep->dma->actual_len));
+				musb_writew(epio, MUSB_TXCSR,
+					MUSB_TXCSR_TXPKTRDY);
+				request->actual += bytes_left;
+			}
+
 			request->actual += musb_ep->dma->actual_len;
 			DBG(4, "TXCSR%d %04x, DMA off, len %zu, req %p\n",
 				epnum, csr, musb_ep->dma->actual_len, request);
@@ -535,7 +563,12 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 			 */
 			musb_ep_select(mbase, epnum);
 			csr = musb_readw(epio, MUSB_TXCSR);
+#ifdef CONFIG_ARCH_U8500
+			if ((csr & MUSB_TXCSR_FIFONOTEMPTY) &&
+				!(musb_ep->hw_ep->tx_double_buffered))
+#else
 			if (csr & MUSB_TXCSR_FIFONOTEMPTY)
+#endif
 				return;
 
 			request = musb_ep->desc ? next_request(musb_ep) : NULL;
@@ -794,6 +827,7 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 	struct musb_ep		*musb_ep = &musb->endpoints[epnum].ep_out;
 	void __iomem		*epio = musb->endpoints[epnum].regs;
 	struct dma_channel	*dma;
+	u16 bytes_left = 0;
 
 	musb_ep_select(mbase, epnum);
 
@@ -842,9 +876,15 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 				| MUSB_RXCSR_DMAMODE);
 		musb_writew(epio, MUSB_RXCSR,
 			MUSB_RXCSR_P_WZC_BITS | csr);
-
+		csr = musb_readw(epio, MUSB_RXCSR);
+		bytes_left = request->length-musb_ep->dma->actual_len;
+		if (bytes_left) {
+			musb_read_fifo(musb_ep->hw_ep, bytes_left,
+			(u8 *) (request->buf + musb_ep->dma->actual_len));
+			musb_writew(epio, MUSB_RXCSR, csr|~MUSB_RXCSR_RXPKTRDY);
+			request->actual += bytes_left;
+		}
 		request->actual += musb_ep->dma->actual_len;
-
 		DBG(4, "RXCSR%d %04x, dma off, %04x, len %zu, req %p\n",
 			epnum, csr,
 			musb_readw(epio, MUSB_RXCSR),

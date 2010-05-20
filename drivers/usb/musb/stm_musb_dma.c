@@ -21,41 +21,7 @@
 #include "musb_core.h"
 #include <mach/dma.h>
 #include "ste_config.h"
-
-#define MUSB_HSDMA_CHANNELS	 16
-
-
-void musb_rx_dma_controller_handler(void *private_data, int error);
-void musb_tx_dma_controller_handler(void *private_data, int error);
-struct musb_dma_controller;
-
-struct musb_dma_channel {
-	struct dma_channel              channel;
-	struct musb_dma_controller      *controller;
-	struct  stm_dma_pipe_info   *info;
-	struct musb_hw_ep       *hw_ep;
-	u32                             start_addr;
-	u32                             len;
-	u32                             is_pipe_allocated;
-	u16                             max_packet_sz;
-	u8                              idx;
-	unsigned int                            id;
-	unsigned int cur_len;
-	u8                              epnum;
-	u8                              last_xfer;
-	u8                              transmit;
-};
-
-
-struct musb_dma_controller {
-	struct dma_controller		controller;
-	struct musb_dma_channel		channel[MUSB_HSDMA_CHANNELS];
-	void				*private_data;
-	void __iomem			*base;
-	u8				channel_count;
-	u8				used_channels;
-	u8				irq;
-};
+#include "stm_musb_dma.h"
 
 /**
  * dma_controller_start() - creates the logical channels pool and registers callbacks
@@ -98,8 +64,7 @@ static int dma_controller_start(struct dma_controller *c)
 		info->flow_cntlr = DMA_IS_FLOW_CNTLR;
 #if 1
 #ifndef CONFIG_USB_U8500_DMA
-		if (bit)
-			{
+		if (bit) {
 #else
 		if ((bit >= TX_CHANNEL_1) && (bit <= TX_CHANNEL_7)) {
 #endif
@@ -210,9 +175,13 @@ static int dma_controller_start(struct dma_controller *c)
 		if ((bit >= TX_CHANNEL_1) && (bit <= TX_CHANNEL_7)) {
 #endif
 			stm_set_callback_handler(musb_channel->id, &musb_tx_dma_controller_handler, (void *)channel);
+			INIT_WORK(&musb_channel->channel_data_tx,
+				musb_channel_work_tx);
 			DBG(2, "channel allocted for TX, id %d\n", musb_channel->id);
-		} else{
+		} else {
 			stm_set_callback_handler(musb_channel->id, &musb_rx_dma_controller_handler, (void *)channel);
+			INIT_WORK(&musb_channel->channel_data_rx,
+				musb_channel_work_rx);
 			DBG(2, "channel allocted for RX, id %d\n", musb_channel->id);
 		}
 
@@ -411,9 +380,7 @@ static void configure_channel(struct dma_channel *channel,
 #ifdef CONFIG_NOMADIK_NDK20
 			musb_memcpy((void *)musb->tx_dma_log, urb->transfer_buffer, dma_count);
 #endif
-		}
-		else
-		{
+		} else {
 			dma_addr = musb->rx_dma_phy;
 		}
 	}
@@ -438,8 +405,7 @@ static void configure_channel(struct dma_channel *channel,
 		DBG(2, "dma_sel val for RX = %x\n", dma_sel);
 		musb_writew(musb->mregs, MUSB_O_HDRC_DMASEL, dma_sel);
 		DBG(2, "DMASEL reg = %x\n", musb_readw(musb->mregs, MUSB_O_HDRC_DMASEL));
-	}
-	else
+	} else
 	{
 		uint32_t dma_sel = 0;
 
@@ -478,9 +444,7 @@ static int dma_channel_program(struct dma_channel *channel,
 	if (len < packet_sz)
 		return false;
 	if (!musb_channel->transmit && len < packet_sz)
-	{
 		return false;
-	}
 	channel->actual_len = 0;
 	musb_channel->start_addr = dma_addr;
 	musb_channel->len = len;
@@ -552,35 +516,26 @@ void musb_rx_dma_controller_handler(void *private_data, int error)
 {
 	struct dma_channel      *channel = (struct dma_channel *)private_data;
 	struct musb_dma_channel *musb_channel = channel->private_data;
+#ifndef CONFIG_USB_U8500_DMA
 	struct musb_hw_ep       *hw_ep = musb_channel->hw_ep;
 	struct musb *musb = hw_ep->musb;
 	void __iomem *mbase = musb->mregs;
 	unsigned long flags, pio;
 	unsigned int rxcsr;
-#ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh = hw_ep->in_qh;
 	struct urb              *urb;
-#endif
 	spin_lock_irqsave(&musb->lock, flags);
-#ifndef CONFIG_USB_U8500_DMA
 	urb = next_urb(qh);
-#endif
 	musb_ep_select(mbase, hw_ep->epnum);
 	channel->actual_len = musb_channel->cur_len;
 	pio = musb_channel->len - channel->actual_len;
-#ifndef CONFIG_USB_U8500_DMA
-	if (!(urb->transfer_flags & URB_NO_TRANSFER_DMA_MAP))
-	{
-#ifdef CONFIG_NOMADIK_NDK15
-			memcpy(urb->transfer_buffer, (void *)musb->rx_dma_log, channel->actual_len);
-#endif
-#ifdef CONFIG_NOMADIK_NDK20
-			musb_memcpy(urb->transfer_buffer, (void *)musb->rx_dma_log, channel->actual_len);
-#endif
+	if (!(urb->transfer_flags & URB_NO_TRANSFER_DMA_MAP)) {
+		memcpy(urb->transfer_buffer,
+			(void *)musb->rx_dma_log, channel->actual_len);
+		musb_memcpy(urb->transfer_buffer,
+			(void *)musb->rx_dma_log, channel->actual_len);
 	}
-#endif
-	if (!pio)
-	{
+	if (!pio) {
 		channel->status = MUSB_DMA_STATUS_FREE;
 		musb_dma_completion(musb, musb_channel->epnum,
 			musb_channel->transmit);
@@ -590,6 +545,9 @@ void musb_rx_dma_controller_handler(void *private_data, int error)
 		channel->last_xfer = 1;
 	}*/
 	spin_unlock_irqrestore(&musb->lock, flags);
+#else
+	schedule_work(&musb_channel->channel_data_rx);
+#endif
 }
 
 /**
@@ -604,31 +562,27 @@ void musb_tx_dma_controller_handler(void *private_data, int error)
 {
 	struct dma_channel      *channel = (struct dma_channel *)private_data;
 	struct musb_dma_channel *musb_channel = channel->private_data;
+#ifndef CONFIG_USB_U8500_DMA
 	struct musb_hw_ep       *hw_ep = musb_channel->hw_ep;
 	struct musb *musb = hw_ep->musb;
 	void __iomem *mbase = musb->mregs;
 	unsigned long flags, pio;
 	unsigned int txcsr;
-#ifndef CONFIG_USB_U8500_DMA
 	struct musb_qh          *qh = hw_ep->out_qh;
 	struct urb              *urb;
-#endif
 	spin_lock_irqsave(&musb->lock, flags);
 	musb_ep_select(mbase, hw_ep->epnum);
 	channel->actual_len = musb_channel->cur_len;
 	pio = musb_channel->len - channel->actual_len;
-
 	if (!pio)
 	{
 		channel->status = MUSB_DMA_STATUS_FREE;
 		musb_dma_completion(musb, musb_channel->epnum,
 			musb_channel->transmit);
 	}
-
 	if (pio)
 	{
 		channel->status = MUSB_DMA_STATUS_FREE;
-#ifndef CONFIG_USB_U8500_DMA
 		urb = next_urb(qh);
 		qh->offset += channel->actual_len;
 		buf = urb->transfer_buffer + qh->offset;
@@ -636,10 +590,11 @@ void musb_tx_dma_controller_handler(void *private_data, int error)
 		qh->segsize = pio;
 		musb_writew(hw_ep->regs, MUSB_TXCSR, MUSB_TXCSR_TXPKTRDY);
 		//channel->last_xfer = 1;
-#endif
 	}
-
 	spin_unlock_irqrestore(&musb->lock, flags);
+#else
+	schedule_work(&musb_channel->channel_data_tx);
+#endif
 }
 
 /**
@@ -664,6 +619,55 @@ void dma_controller_destroy(struct dma_controller *c)
 		free_irq(controller->irq, c);
 
 	kfree(controller);
+}
+
+/**
+ * musb_channel_work_tx() - Invoked by worker thread
+ * @data: worker queue data
+ *
+ * This function is invoked by worker thread when the DMA transfer
+ * is completed in the transmit direction.
+*/
+
+static void musb_channel_work_tx(struct work_struct *data)
+{
+	struct musb_dma_channel *musb_channel = container_of(data,
+		struct musb_dma_channel, channel_data_tx);
+	struct musb_hw_ep       *hw_ep = musb_channel->hw_ep;
+	struct musb *musb = hw_ep->musb;
+	unsigned long flags;
+	spin_lock_irqsave(&musb->lock, flags);
+	musb_channel->channel.actual_len = musb_channel->cur_len;
+	musb_channel->channel.status = MUSB_DMA_STATUS_FREE;
+	musb_ep_select(musb->mregs, hw_ep->epnum);
+	musb_dma_completion(musb, musb_channel->epnum,
+	musb_channel->transmit);
+	spin_unlock_irqrestore(&musb->lock, flags);
+}
+
+/**
+ * musb_channel_work_tx() - Invoked by worker thread
+ * @data: worker queue data
+ *
+ * This function is invoked by worker thread when the
+ * DMA transfer is completed in the receive direction.
+*/
+
+static void musb_channel_work_rx(struct work_struct *data)
+{
+	struct musb_dma_channel *musb_channel = container_of(data,
+		struct musb_dma_channel, channel_data_rx);
+	struct musb_hw_ep       *hw_ep = musb_channel->hw_ep;
+	struct musb *musb = hw_ep->musb;
+	void __iomem *mbase = musb->mregs;
+	unsigned long flags;
+	spin_lock_irqsave(&musb->lock, flags);
+	musb_channel->channel.actual_len = musb_channel->cur_len;
+	musb_channel->channel.status = MUSB_DMA_STATUS_FREE;
+	musb_ep_select(mbase, hw_ep->epnum);
+	musb_dma_completion(musb, musb_channel->epnum,
+		musb_channel->transmit);
+	spin_unlock_irqrestore(&musb->lock, flags);
 }
 
 /**

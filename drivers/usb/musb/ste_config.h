@@ -28,6 +28,7 @@
 #define DMA_PACKET_THRESHOLD 512
 #define RX_END_POINT_OFFSET 6
 #define DELAY_IN_MICROSECONDS 10
+#define MAX_COUNT 35000
 
 enum nmdk_dma_tx_rx_channel {
 	TX_CHANNEL_1 = 0,
