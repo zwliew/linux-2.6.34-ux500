@@ -76,7 +76,8 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 		 * AB8500_PWM_OUT_CTRL2_REG[0:1]
 		 */
 		higher_val = ((pwm_val & 0x0300) >> 8);
-		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, ENABLE_PWM1);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
+								ENABLE_PWM1);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, lower_val);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, higher_val);
 		break;
