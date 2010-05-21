@@ -694,6 +694,15 @@ static int check_rect(const struct b2r2_blt_img *img,
 		goto error;
 	}
 
+	/* Check so the intersected rectangle isn't empty */
+	if ((l == r) || (t == b)) {
+		printk(KERN_ERR LOG_TAG "::%s: "
+			"rect is empty (width or height zero)\n",
+			__func__);
+		ret = -EINVAL;
+		goto error;
+	}
+
 	return 0;
 error:
 	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
@@ -2960,7 +2969,12 @@ static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 
 	        sf = (src - min_step) / (dst - 1)
 	*/
-	u32 sf = ((from << 10) - 1) / (to - 1);
+	u32 sf;
+
+	if (to > 1)
+		sf = ((from << 10) - 1) / (to - 1);
+	else
+		sf = (from << 10);
 
 	if ((sf & 0xffff0000) != 0) {
 		/* Overflow error */
@@ -3028,12 +3042,17 @@ static inline s32 rescale(s32 dim, u16 sf)
  */
 static inline s32 inv_rescale(s32 dim, u16 sf)
 {
-	s32 new_dim = (dim - 1) * (s32)sf + 1;
+	s32 tmp;
 
-	if (new_dim & 0x3FF)
-		new_dim += (1 << 10);
+	if (dim == 1)
+		tmp = sf;
+	else
+		tmp = (dim - 1) * (s32)sf + 1;
 
-	return new_dim >> 10;
+	if (tmp & 0x3FF)
+		tmp += (1 << 10);
+
+	return tmp >> 10;
 }
 
 /**
