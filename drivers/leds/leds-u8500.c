@@ -25,7 +25,11 @@
 static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 	enum led_brightness value)
 {
-	if (value == LED_OFF) {
+	int  pwm_val;
+	int higher_val, lower_val;
+
+	switch (value) {
+	case LED_OFF:
 		/* Putting off the backlight */
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
 				(DISABLE_PWM1 | DISABLE_PWM2 | DISABLE_PWM3));
@@ -33,7 +37,8 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 						PWM_DUTY_LOW_1024_1024);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
 						PWM_DUTY_HI_1024_1024);
-	} else if ((value > LED_OFF) && (value <= LED_HALF)) {
+		break;
+	case LED_HALF:
 		/* Putting on the backlight at half brightness */
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
 						ENABLE_PWM1);
@@ -41,7 +46,8 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 						PWM_DUTY_LOW_1024_1024);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
 						PWM_DUTY_HI_512_1025);
-	} else if ((value > LED_HALF) && (value <= LED_FULL)) {
+		break;
+	case LED_FULL:
 		/* Putting on the backlight in full brightness */
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
 						ENABLE_PWM1);
@@ -49,23 +55,61 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 						PWM_DUTY_LOW_1024_1024);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
 						PWM_DUTY_HI_1024_1024);
+		break;
+	default:
+		/*
+		 * DutyPWMOut[9:0]: 0000000000 = 1/1024; 0000000001 = 2/1024;..
+		 * 1111111110 = 1023/1024; 1111111111 = 1024/1024.
+		 * Intensity that can be set through sysfs 0 - 255
+		 * for 255 it corresponds to 1024/1024
+		 * for value ?
+		 * This can be calculated as (1024 * value) / 255
+		 */
+		pwm_val = ((1024 * value) / 255);
+		/*
+		 * get the first 8 bits that are be written to
+		 * AB8500_PWM_OUT_CTRL1_REG[0:7]
+		 */
+		lower_val = pwm_val & 0x00FF;
+		/*
+		 * get bits [9:10] that are to be written to
+		 * AB8500_PWM_OUT_CTRL2_REG[0:1]
+		 */
+		higher_val = ((pwm_val & 0x0300) >> 8);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, ENABLE_PWM1);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, lower_val);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, higher_val);
+		break;
 	}
 }
 
 enum led_brightness (lcd_backlight_brightness_get)(struct led_classdev *led_cdev)
 {
-	int value = 0;
+	int value = 0, high_val, low_val, pwm_val;
+
 	value = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG);
 	if (!(value & ENABLE_PWM1))
 		return 0;
 
-	value = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG);
-	if ((value & 0x03) == PWM_DUTY_HI_1024_1024)
-		return PWM_FULL;
-	else if ((value & 0x03) == PWM_DUTY_HI_512_1025)
-		return PWM_HALF;
+	low_val = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG);
+	high_val = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG);
+	/*
+	 * PWM value is of 10bit length bits, hence combining the
+	 * lower AB8500_PWM_OUT_CTRL1_REG and higher
+	 * AB8500_PWM_OUT_CTRL2_REG register.
+	 */
+	high_val = high_val << 8 | low_val;
+	/*
+	 * DutyPWMOut[9:0]: 0000000000 = 1/1024; 0000000001 = 2/1024;..
+	 * 1111111110 = 1023/1024; 1111111111 = 1024/1024.
+	 * Intensity that can be set through sysfs 0 - 255
+	 * for 255 it corresponds to 1024/1024
+	 * for ? it corresponds to high_val
+	 * This can be calculated as (255 * higi_val) / 1024
+	 */
+	pwm_val = (255 * high_val) / 1024;
 
-	return 0;
+	return pwm_val;
 }
 
 /*
