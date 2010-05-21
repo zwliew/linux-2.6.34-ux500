@@ -1909,7 +1909,7 @@ static int halt_bulk_in_endpoint(struct fsg_dev *fsg)
 			return -EINTR;
 		rc = usb_ep_set_halt(fsg->bulk_in);
 	}
-#ifdef CONFIG_USB_U8500
+#ifdef CONFIG_ARCH_U8500
 	/* temporary HACK: There is a problem using mass storage with
 	 * the musb driver. The problem is that the status command
 	 * wrapper block gets queued in hardware before the clear-stall
