@@ -50,8 +50,7 @@ int ab8500_gpadc_conversion(int input)
 	mutex_lock(&di->ab8500_gpadc_lock);
 	/* Enable VTVout LDO this is required for GPADC */
 #if defined(CONFIG_REGULATOR)
-	if (!regulator_is_enabled(di->regu))
-		regulator_enable(di->regu);
+	regulator_enable(di->regu);
 #else
 	val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 	ret = ab8500_write(AB8500_REGU_CTRL1,
