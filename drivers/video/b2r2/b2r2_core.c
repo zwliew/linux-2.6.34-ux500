@@ -53,7 +53,7 @@
 #include <linux/jiffies.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
-
+#include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/err.h>
 
