@@ -17,6 +17,7 @@
 #include <linux/input.h>
 #include <linux/i2c/lp5521.h>
 #include <linux/power_supply.h>
+#include <linux/mfd/abx500.h>
 #include <linux/lsm303dlh.h>
 #include <linux/bu21013.h>
 
@@ -742,6 +743,19 @@ static struct lsm303dlh_platform_data __initdata lsm303dlh_pdata = {
 };
 #endif
 
+static struct ab3550_platform_data ab3550_plf_data = {
+	.irq = {
+		.base = 0,
+		.count = 0,
+	},
+	.dev_data = {
+	},
+	.dev_data_sz = {
+	},
+	.init_settings = NULL,
+	.init_settings_sz = 0,
+};
+
 static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
 	{
 		I2C_BOARD_INFO("stmpe1601", 0x40),
@@ -773,6 +787,8 @@ static struct i2c_board_info __initdata u8500_i2c1_devices[] = {
 	{
 		/* AB3550 */
 		I2C_BOARD_INFO("ab3550", 0x4A),
+		.irq = -1,
+		.platform_data = &ab3550_plf_data,
 	}
 };
 
