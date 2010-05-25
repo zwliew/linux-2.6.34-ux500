@@ -457,7 +457,7 @@ static int start_ldisc(char *tty_name)
 
 	f->f_op->unlocked_ioctl(f, TCFLSH, 0x2);
 	memset(&tio, 0, sizeof(tio));
-	tio.c_cflag = B115200 | CRTSCTS | CS8 | CLOCAL | CREAD;
+	tio.c_cflag = B115200 | CS8 | CLOCAL | CREAD;
 	if (hw_flow_ctrl)
 		tio.c_cflag |=  CRTSCTS;
 	f->f_op->unlocked_ioctl(f, TCSETS, (long unsigned int)&tio);
