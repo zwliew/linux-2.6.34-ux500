@@ -71,11 +71,47 @@
 #define CG2900_BT_SESSION_PAUSE				0x02
 #define CG2900_BT_SESSION_RESUME			0x03
 
+/* VS_Session_Configuration MediaType param */
+#define CG2900_BT_SESSION_MEDIA_TYPE_AUDIO		0x00
+
+/* VS_Session_Configuration MediaConfiguration param */
+#define CG2900_BT_MEDIA_CONFIG_MONO			0x00
+#define CG2900_BT_MEDIA_CONFIG_STEREO			0x01
+#define CG2900_BT_MEDIA_CONFIG_JOINT_STEREO		0x02
+#define CG2900_BT_MEDIA_CONFIG_DUAL_CHANNEL		0x03
+
+/* VS_Session_Configuration VP Type param */
+#define CG2900_BT_VP_TYPE_PCM				0x00
+#define CG2900_BT_VP_TYPE_I2S				0x01
+#define CG2900_BT_VP_TYPE_SLIMBUS			0x02
+#define CG2900_BT_VP_TYPE_FM				0x03
+#define CG2900_BT_VP_TYPE_BT_SCO			0x04
+#define CG2900_BT_VP_TYPE_BT_A2DP			0x05
+#define CG2900_BT_VP_TYPE_ANALOG			0x07
+
+/* VS_Session_Configuration I2S Index param */
+#define CG2900_BT_SESSION_I2S_INDEX_I2S			0x00
+#define CG2900_BT_SESSION_I2S_INDEX_PCM_I2S		0x01
+
+/* VS_Session_Configuration PCM Index param */
+#define CG2900_BT_SESSION_PCM_INDEX_PCM_I2S		0x00
+
+/* VS_Session_Configuration Macros */
+#define CG2900_BT_SESSION_CONF_SET_SAMPLE_RATE(__rate)	(__rate << 4)
+#define CG2900_BT_SESSION_CONF_SET_PCM_SLOT_USE(__slot)	(0x01 << __slot)
+
 /* BT command lengths. Header is always first 3 bytes */
 #define CG2900_BT_LEN_VS_SET_HARDWARE_CONFIGURATION	10
 #define CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION	37
 #define CG2900_BT_LEN_VS_SESSION_CONTROL		5
 #define CG2900_BT_LEN_VS_RESET_SESSION_CONFIGURATION	4
+
+/* BT command parameter lengths, i.e. command length minus header length (3 bytes) */
+#define CG2900_BT_PARAM_LEN_VS_SET_SESSION_CONFIG	(CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION - 3)
+#define CG2900_BT_PARAM_LEN_VS_SESSION_CONTROL		(CG2900_BT_LEN_VS_SESSION_CONTROL - 3)
+
+/* BT parameter lengths */
+#define CG2900_BT_PARAM_LEN_SESSION_ID			1
 
 /*
  *	FM
@@ -208,6 +244,13 @@
 #define CG2900_FM_CMD_LEN_AIP_SET_MODE			8
 #define CG2900_FM_CMD_LEN_AIP_BT_SET_CONTROL		8
 #define CG2900_FM_CMD_LEN_AIP_BT_SET_MODE		8
+
+/* FM Parameter Lengths = FM command length - length field (1 byte) */
+#define CG2900_FM_CMD_PARAM_LEN_AUP_EXT_SET_MODE	(CG2900_FM_CMD_LEN_AUP_EXT_SET_MODE - 1)
+#define CG2900_FM_CMD_PARAM_LEN_AUP_EXT_SET_CONTROL	(CG2900_FM_CMD_LEN_AUP_EXT_SET_CONTROL - 1)
+#define CG2900_FM_CMD_PARAM_LEN_AIP_SET_MODE		(CG2900_FM_CMD_LEN_AIP_SET_MODE - 1)
+#define CG2900_FM_CMD_PARAM_LEN_AIP_BT_SET_CONTROL	(CG2900_FM_CMD_LEN_AIP_BT_SET_CONTROL - 1)
+#define CG2900_FM_CMD_PARAM_LEN_AIP_BT_SET_MODE		(CG2900_FM_CMD_LEN_AIP_BT_SET_MODE - 1)
 
 /* Following defines should be used by users of STE_CONN, i.e. having no H:4 header */
 #define CG2900_FM_USER_GEN_OPCODE_OFFSET_CMD_CMPL	(CG2900_FM_GEN_OPCODE_OFFSET_CMD_CMPL - HCI_H4_SIZE)

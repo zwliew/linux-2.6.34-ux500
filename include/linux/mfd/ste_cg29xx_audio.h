@@ -167,17 +167,29 @@ enum ste_cg29xx_dai_port_protocol {
 };
 
 /**
+ * enum ste_cg29xx_dai_channel_selection - The channel selection alternatives.
+ *  @STE_CG29XX_DAI_CHANNEL_SELECTION_RIGHT: Right channel used.
+ *  @STE_CG29XX_DAI_CHANNEL_SELECTION_LEFT: Left channel used.
+ *  @STE_CG29XX_DAI_CHANNEL_SELECTION_BOTH: Both channels used.
+ */
+enum ste_cg29xx_dai_channel_selection {
+  STE_CG29XX_DAI_CHANNEL_SELECTION_RIGHT = 0x00,
+  STE_CG29XX_DAI_CHANNEL_SELECTION_LEFT = 0x01,
+  STE_CG29XX_DAI_CHANNEL_SELECTION_BOTH = 0x02
+};
+
+/**
  * struct ste_cg29xx_dai_port_conf_i2s_pcm - Port configuration structure.
  *  @mode: Operational mode of the port configured.
  *  @slot_0_dir: Direction of slot 0.
  *  @slot_1_dir: Direction of slot 1.
  *  @slot_2_dir: Direction of slot 2.
  *  @slot_3_dir: Direction of slot 3.
- *  @sco_slots_used: True if SCO slots are used.
- *  @a2dp_slots_used: True if A2DP slots are used.
- *  @fm_right_slot_used: True if FM right slot is used.
- *  @fm_left_slot_used:  True if FM left slot is used.
- *  @ring_tone_slots_used: True is ring tone slots are used.
+ *  @i2s_channel_selection: I2S channels used. Only valid if used in I2S mode.
+ *  @sco_slot_0_used: True if SCO slot 0 is used.
+ *  @sco_slot_1_used: True if SCO slot 1 is used.
+ *  @sco_slot_2_used: True if SCO slot 2 is used.
+ *  @sco_slot_3_used: True if SCO slot 3 is used.
  *  @slot_0_start: Slot 0 start (relative to the PCM frame sync).
  *  @slot_1_start: Slot 1 start (relative to the PCM frame sync)
  *  @slot_2_start: Slot 2 start (relative to the PCM frame sync)
@@ -194,11 +206,11 @@ struct ste_cg29xx_dai_port_conf_i2s_pcm {
   enum ste_cg29xx_dai_direction slot_1_dir;
   enum ste_cg29xx_dai_direction slot_2_dir;
   enum ste_cg29xx_dai_direction slot_3_dir;
-  bool sco_slots_used;
-  bool a2dp_slots_used;
-  bool fm_right_slot_used;
-  bool fm_left_slot_used;
-  bool ring_tone_slots_used;
+  enum ste_cg29xx_dai_channel_selection i2s_channel_selection;
+  bool sco_slot_0_used;
+  bool sco_slot_1_used;
+  bool sco_slot_2_used;
+  bool sco_slot_3_used;
   unsigned char slot_0_start;
   unsigned char slot_1_start;
   unsigned char slot_2_start;
@@ -241,18 +253,6 @@ enum ste_cg29xx_dai_half_period_duration {
   STE_CG29XX_DAI_HALF_PERIOD_DURATION_128 = 0x09,
   STE_CG29XX_DAI_HALF_PERIOD_DURATION_150 = 0x0A,
   STE_CG29XX_DAI_HALF_PERIOD_DURATION_192 = 0x0B
-};
-
-/**
- * enum ste_cg29xx_dai_channel_selection - The channel selection alternatives.
- *  @STE_CG29XX_DAI_CHANNEL_SELECTION_RIGHT: Right channel used.
- *  @STE_CG29XX_DAI_CHANNEL_SELECTION_LEFT: Left channel used.
- *  @STE_CG29XX_DAI_CHANNEL_SELECTION_BOTH: Both channels used.
- */
-enum ste_cg29xx_dai_channel_selection {
-  STE_CG29XX_DAI_CHANNEL_SELECTION_RIGHT = 0x00,
-  STE_CG29XX_DAI_CHANNEL_SELECTION_LEFT = 0x01,
-  STE_CG29XX_DAI_CHANNEL_SELECTION_BOTH = 0x02
 };
 
 /**

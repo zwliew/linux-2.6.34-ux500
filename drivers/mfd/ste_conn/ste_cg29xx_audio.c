@@ -46,11 +46,10 @@
 #define CG29XX_AUDIO_MAX_NBR_OF_USERS			10
 #define CG29XX_AUDIO_FIRST_USER				1
 
-#define FM_RX_STREAM_HANDLE				10
-#define FM_TX_STREAM_HANDLE				20
-
 #define SET_RESP_STATE(__state_var, __new_state) \
 	STE_CONN_SET_STATE("resp_state", __state_var, __new_state)
+
+#define CG29XX_DEFAULT_SCO_HANDLE			0x0008
 
 /**
  * enum chip_response_state - State when communicating with the CG29XX controller.
@@ -192,7 +191,7 @@ static void flush_endpoint_list(struct endpoint_list *list);
 static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigned int *stream_handle);
 static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigned int *stream_handle);
 static int conn_start_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned int *stream_handle);
-static int conn_stop_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned int stream_handle);
+static int conn_stop_stream(struct cg29xx_audio_user *audio_user, unsigned int stream_handle);
 
 /* Character device functions for userspace module test */
 static int ste_cg29xx_audio_char_device_open(struct inode *inode,
@@ -612,6 +611,7 @@ finished:
 static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigned int *stream_handle)
 {
 	int err = 0;
+	uint8_t temp_session_id;
 	union ste_cg29xx_audio_endpoint_configuration_union *fm_config;
 	struct sk_buff *skb;
 	uint8_t *data;
@@ -631,6 +631,7 @@ static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigne
 
 	/* Use mutex to assure that only ONE command is sent at any time on each channel */
 	mutex_lock(&cg29xx_audio_info->fm_channel_mutex);
+	mutex_lock(&cg29xx_audio_info->bt_channel_mutex);
 
 	/*
 	 * Now set the output mode of the External Sample Rate Converter by
@@ -648,7 +649,7 @@ static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigne
 	/* Enter data into the skb */
 	data = skb_put(skb, CG2900_FM_CMD_LEN_AUP_EXT_SET_MODE);
 
-	data[0] = CG2900_FM_CMD_LEN_AUP_EXT_SET_MODE - 1; /* Length */
+	data[0] = CG2900_FM_CMD_PARAM_LEN_AUP_EXT_SET_MODE;
 	data[1] = CG2900_FM_GEN_OPCODE_LEGACY_API;
 	data[2] = CG2900_FM_CMD_LEG_PARAMETERS_WRITE;
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
@@ -692,7 +693,7 @@ static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigne
 	/* Enter data into the skb */
 	data = skb_put(skb, CG2900_FM_CMD_LEN_AUP_EXT_SET_CONTROL);
 
-	data[0] = CG2900_FM_CMD_LEN_AUP_EXT_SET_CONTROL - 1; /* Length */
+	data[0] = CG2900_FM_CMD_PARAM_LEN_AUP_EXT_SET_CONTROL;
 	data[1] = CG2900_FM_GEN_OPCODE_LEGACY_API;
 	data[2] = CG2900_FM_CMD_LEG_PARAMETERS_WRITE;
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
@@ -723,9 +724,104 @@ static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigne
 		goto finished_unlock_mutex;
 	}
 
-	/* So far we only support one FM RX stream. Set that handle. */
-	*stream_handle = FM_RX_STREAM_HANDLE;
+	/*
+	 * Now send HCI_VS_Set_Session_Configuration command
+	 */
+	STE_CONN_DBG("BT: HCI_VS_Set_Session_Configuration");
+
+	skb = ste_conn_alloc_skb(CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION, GFP_KERNEL);
+	if (!skb) {
+		STE_CONN_ERR("Could not allocate skb");
+		err = -ENOMEM;
+		goto finished_unlock_mutex;
+	}
+
+	/* Enter data into the skb */
+	data = skb_put(skb, CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION);
+	/* Default all bytes to 0 so we don't have to set reserved bytes below. */
+	memset(data, 0, CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION);
+
+	data[0] = CG2900_BT_VS_SET_SESSION_CONFIGURATION_LSB;
+	data[1] = CG2900_BT_VS_SET_SESSION_CONFIGURATION_MSB;
+	data[2] = CG2900_BT_PARAM_LEN_VS_SET_SESSION_CONFIG;
+	data[3] = 1; /* Number of streams */
+	data[4] = CG2900_BT_SESSION_MEDIA_TYPE_AUDIO;
+	/* Media configuration: Set sample rate and audio channel setup */
+	data[5] = CG2900_BT_SESSION_CONF_SET_SAMPLE_RATE(fm_config->fm.sample_rate);
+	if (cg29xx_audio_info->i2s_config.channel_selection == STE_CG29XX_DAI_CHANNEL_SELECTION_BOTH) {
+		data[5] |= CG2900_BT_MEDIA_CONFIG_STEREO;
+	} else {
+		data[5] |= CG2900_BT_MEDIA_CONFIG_MONO;
+	}
+	/* data[6] - data[10] SBC codec params (not used for FM RX) */
+	/* Input Virtual Port (VP) configuration */
+	data[11] = CG2900_BT_VP_TYPE_FM;
+	/* data[12] - data[23] reserved */
+	/* Output Virtual Port (VP) configuration */
+	data[24] = CG2900_BT_VP_TYPE_I2S;
+	data[25] = CG2900_BT_SESSION_I2S_INDEX_I2S;
+	data[26] = cg29xx_audio_info->i2s_config.channel_selection;
+	/* data[27] - data[36] reserved */
+
+	cb_info_bt.user = audio_user;
+	SET_RESP_STATE(audio_user->resp_state, WAITING);
+
+	/* Send packet to controller */
+	err = ste_conn_write(cg29xx_audio_info->ste_conn_dev_bt, skb);
+	if (err) {
+		STE_CONN_ERR("Error occurred while waiting for return packet.");
+		goto error_handling_free_skb;
+	}
+
+	err = receive_bt_cmd_complete(audio_user,
+				      CG2900_BT_VS_SET_SESSION_CONFIGURATION_LSB,
+				      CG2900_BT_VS_SET_SESSION_CONFIGURATION_MSB,
+				      &temp_session_id, CG2900_BT_PARAM_LEN_SESSION_ID);
+	if (err) {
+		goto finished_unlock_mutex;
+	}
+
+	/* Store the stream handle (used for start and stop stream) */
+	*stream_handle = temp_session_id;
 	STE_CONN_DBG("stream_handle set to %d", *stream_handle);
+
+	SET_RESP_STATE(audio_user->resp_state, IDLE);
+
+	/*
+	 * Now start the stream by sending HCI_VS_Session_Control command
+	 */
+	STE_CONN_DBG("BT: HCI_VS_Session_Control");
+
+	skb = ste_conn_alloc_skb(CG2900_BT_LEN_VS_SESSION_CONTROL, GFP_KERNEL);
+	if (!skb) {
+		STE_CONN_ERR("Could not allocate skb");
+		err = -ENOMEM;
+		goto finished_unlock_mutex;
+	}
+
+	/* Enter data into the skb */
+	data = skb_put(skb, CG2900_BT_LEN_VS_SESSION_CONTROL);
+
+	data[0] = CG2900_BT_VS_SESSION_CONTROL_LSB;
+	data[1] = CG2900_BT_VS_SESSION_CONTROL_MSB;
+	data[2] = CG2900_BT_PARAM_LEN_VS_SESSION_CONTROL;
+	data[3] = (uint8_t)(*stream_handle); /* Session ID */
+	data[4] = CG2900_BT_SESSION_START;
+
+	cb_info_bt.user = audio_user;
+	SET_RESP_STATE(audio_user->resp_state, WAITING);
+
+	/* Send packet to controller */
+	err = ste_conn_write(cg29xx_audio_info->ste_conn_dev_bt, skb);
+	if (err) {
+		STE_CONN_ERR("Error occurred while waiting for return packet.");
+		goto error_handling_free_skb;
+	}
+
+	err = receive_bt_cmd_complete(audio_user,
+				      CG2900_BT_VS_SESSION_CONTROL_LSB,
+				      CG2900_BT_VS_SESSION_CONTROL_MSB,
+				      NULL, 0);
 
 	goto finished_unlock_mutex;
 
@@ -733,6 +829,7 @@ error_handling_free_skb:
 	kfree_skb(skb);
 finished_unlock_mutex:
 	SET_RESP_STATE(audio_user->resp_state, IDLE);
+	mutex_unlock(&cg29xx_audio_info->bt_channel_mutex);
 	mutex_unlock(&cg29xx_audio_info->fm_channel_mutex);
 finished:
 	return err;
@@ -757,6 +854,7 @@ finished:
 static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigned int *stream_handle)
 {
 	int err = 0;
+	uint8_t temp_session_id;
 	union ste_cg29xx_audio_endpoint_configuration_union *fm_config;
 	struct sk_buff *skb;
 	uint8_t *data;
@@ -776,6 +874,7 @@ static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigne
 
 	/* Use mutex to assure that only ONE command is sent at any time on each channel */
 	mutex_lock(&cg29xx_audio_info->fm_channel_mutex);
+	mutex_lock(&cg29xx_audio_info->bt_channel_mutex);
 
 	/*
 	 * Select Audio Input Source by sending HCI_Write command with
@@ -793,7 +892,7 @@ static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigne
 	/* Enter data into the skb */
 	data = skb_put(skb, CG2900_FM_CMD_LEN_AIP_SET_MODE);
 
-	data[0] = CG2900_FM_CMD_LEN_AIP_SET_MODE - 1; /* Length */
+	data[0] = CG2900_FM_CMD_PARAM_LEN_AIP_SET_MODE;
 	data[1] = CG2900_FM_GEN_OPCODE_LEGACY_API;
 	data[2] = CG2900_FM_CMD_LEG_PARAMETERS_WRITE;
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
@@ -837,7 +936,7 @@ static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigne
 	/* Enter data into the skb */
 	data = skb_put(skb, CG2900_FM_CMD_LEN_AIP_BT_SET_CONTROL);
 
-	data[0] = CG2900_FM_CMD_LEN_AIP_BT_SET_CONTROL - 1; /* Length */
+	data[0] = CG2900_FM_CMD_PARAM_LEN_AIP_BT_SET_CONTROL;
 	data[1] = CG2900_FM_GEN_OPCODE_LEGACY_API;
 	data[2] = CG2900_FM_CMD_LEG_PARAMETERS_WRITE;
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
@@ -887,7 +986,7 @@ static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigne
 	/* Enter data into the skb */
 	data = skb_put(skb, CG2900_FM_CMD_LEN_AIP_BT_SET_MODE);
 
-	data[0] = CG2900_FM_CMD_LEN_AIP_BT_SET_MODE - 1; /* Length */
+	data[0] = CG2900_FM_CMD_PARAM_LEN_AIP_BT_SET_MODE;
 	data[1] = CG2900_FM_GEN_OPCODE_LEGACY_API;
 	data[2] = CG2900_FM_CMD_LEG_PARAMETERS_WRITE;
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
@@ -913,9 +1012,104 @@ static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigne
 		goto finished_unlock_mutex;
 	}
 
-	/* So far we only support one FM TX stream. Set that handle. */
-	*stream_handle = FM_TX_STREAM_HANDLE;
+	/*
+	 * Now send HCI_VS_Set_Session_Configuration command
+	 */
+	STE_CONN_DBG("BT: HCI_VS_Set_Session_Configuration");
+
+	skb = ste_conn_alloc_skb(CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION, GFP_KERNEL);
+	if (!skb) {
+		STE_CONN_ERR("Could not allocate skb");
+		err = -ENOMEM;
+		goto finished_unlock_mutex;
+	}
+
+	/* Enter data into the skb */
+	data = skb_put(skb, CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION);
+	/* Default all bytes to 0 so we don't have to set reserved bytes below. */
+	memset(data, 0, CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION);
+
+	data[0] = CG2900_BT_VS_SET_SESSION_CONFIGURATION_LSB;
+	data[1] = CG2900_BT_VS_SET_SESSION_CONFIGURATION_MSB;
+	data[2] = CG2900_BT_PARAM_LEN_VS_SET_SESSION_CONFIG;
+	data[3] = 1; /* Number of streams */
+	data[4] = CG2900_BT_SESSION_MEDIA_TYPE_AUDIO;
+	/* Media configuration: Set sample rate and audio channel setup */
+	data[5] = CG2900_BT_SESSION_CONF_SET_SAMPLE_RATE(fm_config->fm.sample_rate);
+	if (cg29xx_audio_info->i2s_config.channel_selection == STE_CG29XX_DAI_CHANNEL_SELECTION_BOTH) {
+		data[5] |= CG2900_BT_MEDIA_CONFIG_STEREO;
+	} else {
+		data[5] |= CG2900_BT_MEDIA_CONFIG_MONO;
+	}
+	/* data[6] - data[10] SBC codec params (not used for FM TX) */
+	/* Input Virtual Port (VP) configuration */
+	data[11] = CG2900_BT_VP_TYPE_I2S;
+	data[12] = CG2900_BT_SESSION_I2S_INDEX_I2S;
+	data[13] = cg29xx_audio_info->i2s_config.channel_selection;
+	/* data[14] - data[23] reserved */
+	/* Output Virtual Port (VP) configuration */
+	data[24] = CG2900_BT_VP_TYPE_FM;
+	/* data[25] - data[36] reserved */
+
+	cb_info_bt.user = audio_user;
+	SET_RESP_STATE(audio_user->resp_state, WAITING);
+
+	/* Send packet to controller */
+	err = ste_conn_write(cg29xx_audio_info->ste_conn_dev_bt, skb);
+	if (err) {
+		STE_CONN_ERR("Error occurred while waiting for return packet.");
+		goto error_handling_free_skb;
+	}
+
+	err = receive_bt_cmd_complete(audio_user,
+				      CG2900_BT_VS_SET_SESSION_CONFIGURATION_LSB,
+				      CG2900_BT_VS_SET_SESSION_CONFIGURATION_MSB,
+				      &temp_session_id, CG2900_BT_PARAM_LEN_SESSION_ID);
+	if (err) {
+		goto finished_unlock_mutex;
+	}
+
+	/* Store the stream handle (used for start and stop stream) */
+	*stream_handle = temp_session_id;
 	STE_CONN_DBG("stream_handle set to %d", *stream_handle);
+
+	SET_RESP_STATE(audio_user->resp_state, IDLE);
+
+	/*
+	 * Now start the stream by sending HCI_VS_Session_Control command
+	 */
+	STE_CONN_DBG("BT: HCI_VS_Session_Control");
+
+	skb = ste_conn_alloc_skb(CG2900_BT_LEN_VS_SESSION_CONTROL, GFP_KERNEL);
+	if (!skb) {
+		STE_CONN_ERR("Could not allocate skb");
+		err = -ENOMEM;
+		goto finished_unlock_mutex;
+	}
+
+	/* Enter data into the skb */
+	data = skb_put(skb, CG2900_BT_LEN_VS_SESSION_CONTROL);
+
+	data[0] = CG2900_BT_VS_SESSION_CONTROL_LSB;
+	data[1] = CG2900_BT_VS_SESSION_CONTROL_MSB;
+	data[2] = CG2900_BT_PARAM_LEN_VS_SESSION_CONTROL;
+	data[3] = (uint8_t)(*stream_handle); /* Session ID */
+	data[4] = CG2900_BT_SESSION_START;
+
+	cb_info_bt.user = audio_user;
+	SET_RESP_STATE(audio_user->resp_state, WAITING);
+
+	/* Send packet to controller */
+	err = ste_conn_write(cg29xx_audio_info->ste_conn_dev_bt, skb);
+	if (err) {
+		STE_CONN_ERR("Error occurred while waiting for return packet.");
+		goto error_handling_free_skb;
+	}
+
+	err = receive_bt_cmd_complete(audio_user,
+				      CG2900_BT_VS_SESSION_CONTROL_LSB,
+				      CG2900_BT_VS_SESSION_CONTROL_MSB,
+				      NULL, 0);
 
 	goto finished_unlock_mutex;
 
@@ -923,6 +1117,7 @@ error_handling_free_skb:
 	kfree_skb(skb);
 finished_unlock_mutex:
 	SET_RESP_STATE(audio_user->resp_state, IDLE);
+	mutex_unlock(&cg29xx_audio_info->bt_channel_mutex);
 	mutex_unlock(&cg29xx_audio_info->fm_channel_mutex);
 finished:
 	return err;
@@ -987,28 +1182,41 @@ static int conn_start_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned 
 
 	data[0] = CG2900_BT_VS_SET_SESSION_CONFIGURATION_LSB;
 	data[1] = CG2900_BT_VS_SET_SESSION_CONFIGURATION_MSB;
-	data[2] = CG2900_BT_LEN_VS_SET_SESSION_CONFIGURATION - 3; /* Parameter length */
+	data[2] = CG2900_BT_PARAM_LEN_VS_SET_SESSION_CONFIG;
 	data[3] = 1; /* Number of streams */
-	data[4] = 0; /* Media type: Audio */
-	data[5] = bt_config->sco.sample_rate << 4; /* Media configuration: Stored sample rate, Mono */
+	data[4] = CG2900_BT_SESSION_MEDIA_TYPE_AUDIO;
+	/* Media configuration: Set sample rate and audio channel setup */
+	data[5] = CG2900_BT_SESSION_CONF_SET_SAMPLE_RATE(bt_config->sco.sample_rate);
+	data[5] |= CG2900_BT_MEDIA_CONFIG_MONO;
 	/* data[6] - data[10] SBC codec params (not used for SCO) */
 	/* Input Virtual Port (VP) configuration */
-	data[11] = 0x04; /* VP Type: BT SCO */
-	data[12] = 0x08; /* SCO handle: DUMMY LSB */
-	data[13] = 0x00; /* SCO handle: DUMMY MSB */
+	data[11] = CG2900_BT_VP_TYPE_BT_SCO;
+	/*
+	 * As SCO handle we just use a default value.
+	 * The chip will automatically connect the right SCO handle
+	 */
+	data[12] = HCI_SET_U16_DATA_LSB(CG29XX_DEFAULT_SCO_HANDLE);
+	data[13] = HCI_SET_U16_DATA_MSB(CG29XX_DEFAULT_SCO_HANDLE);
 	/* data[14] - data[23] reserved */
 	/* Output Virtual Port (VP) configuration */
-	data[24] = 0x00; /* VP Type: PCM */
-	data[25] = 0x00; /* PCM index: PCM bus 0 */
-	if (cg29xx_audio_info->i2s_pcm_config.sco_slots_used) {
-		data[26] = 0x01; /* PCM slots used */
-	} else {
-		data[26] = 0x00; /* PCM slots used */
+	data[24] = CG2900_BT_VP_TYPE_PCM;
+	data[25] = CG2900_BT_SESSION_PCM_INDEX_PCM_I2S;
+	if (cg29xx_audio_info->i2s_pcm_config.sco_slot_0_used) {
+		data[26] |= CG2900_BT_SESSION_CONF_SET_PCM_SLOT_USE(0);
 	}
-	data[27] = cg29xx_audio_info->i2s_pcm_config.slot_0_start; /* Slot 0 start */
-	data[28] = cg29xx_audio_info->i2s_pcm_config.slot_1_start; /* Slot 1 start */
-	data[29] = cg29xx_audio_info->i2s_pcm_config.slot_2_start; /* Slot 2 start */
-	data[30] = cg29xx_audio_info->i2s_pcm_config.slot_3_start; /* Slot 3 start */
+	if (cg29xx_audio_info->i2s_pcm_config.sco_slot_1_used) {
+		data[26] |= CG2900_BT_SESSION_CONF_SET_PCM_SLOT_USE(1);
+	}
+	if (cg29xx_audio_info->i2s_pcm_config.sco_slot_2_used) {
+		data[26] |= CG2900_BT_SESSION_CONF_SET_PCM_SLOT_USE(2);
+	}
+	if (cg29xx_audio_info->i2s_pcm_config.sco_slot_3_used) {
+		data[26] |= CG2900_BT_SESSION_CONF_SET_PCM_SLOT_USE(3);
+	}
+	data[27] = cg29xx_audio_info->i2s_pcm_config.slot_0_start;
+	data[28] = cg29xx_audio_info->i2s_pcm_config.slot_1_start;
+	data[29] = cg29xx_audio_info->i2s_pcm_config.slot_2_start;
+	data[30] = cg29xx_audio_info->i2s_pcm_config.slot_3_start;
 	/* data[31] - data[36] reserved */
 
 	cb_info_bt.user = audio_user;
@@ -1024,7 +1232,7 @@ static int conn_start_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned 
 	err = receive_bt_cmd_complete(audio_user,
 				      CG2900_BT_VS_SET_SESSION_CONFIGURATION_LSB,
 				      CG2900_BT_VS_SET_SESSION_CONFIGURATION_MSB,
-				      &temp_session_id, 1);
+				      &temp_session_id, CG2900_BT_PARAM_LEN_SESSION_ID);
 	if (err) {
 		goto finished_unlock_mutex;
 	}
@@ -1035,7 +1243,7 @@ static int conn_start_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned 
 	SET_RESP_STATE(audio_user->resp_state, IDLE);
 
 	/*
-	 * Now start the stream by sending HCI_VS_Session_Control comman
+	 * Now start the stream by sending HCI_VS_Session_Control command
 	 */
 	STE_CONN_DBG("BT: HCI_VS_Session_Control");
 
@@ -1051,7 +1259,7 @@ static int conn_start_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned 
 
 	data[0] = CG2900_BT_VS_SESSION_CONTROL_LSB;
 	data[1] = CG2900_BT_VS_SESSION_CONTROL_MSB;
-	data[2] = CG2900_BT_LEN_VS_SESSION_CONTROL - 3; /* Parameter length */
+	data[2] = CG2900_BT_PARAM_LEN_VS_SESSION_CONTROL;
 	data[3] = (uint8_t)(*stream_handle); /* Session ID */
 	data[4] = CG2900_BT_SESSION_START;
 
@@ -1083,11 +1291,11 @@ finished:
 
 
 /**
- * conn_stop_pcm_to_sco() - Stops an audio stream connecting Bluetooth (e)SCO to PCM_I2S.
+ * conn_stop_stream() - Stops an audio stream defined by @stream_handle.
  * @audio_user:  Audio user to check for.
  * @stream_handle: Handle of the audio stream.
  *
- * This function stops a BT to_from PCM_I2S stream.
+ * This function stops an audio stream defined by a stream handle.
  * It does this by first stopping the Audio Stream and then resetting the
  * Session configuration.
  *
@@ -1098,7 +1306,7 @@ finished:
  *   Errors from @ste_conn_write and @receive_bt_cmd_complete.
  *   -EIO for other errors.
  */
-static int conn_stop_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned int stream_handle)
+static int conn_stop_stream(struct cg29xx_audio_user *audio_user, unsigned int stream_handle)
 {
 	int err = 0;
 	union ste_cg29xx_audio_endpoint_configuration_union *bt_config;
@@ -1132,7 +1340,7 @@ static int conn_stop_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned i
 
 	data[0] = CG2900_BT_VS_SESSION_CONTROL_LSB;
 	data[1] = CG2900_BT_VS_SESSION_CONTROL_MSB;
-	data[2] = CG2900_BT_LEN_VS_SESSION_CONTROL - 3; /* Parameter length */
+	data[2] = CG2900_BT_PARAM_LEN_VS_SESSION_CONTROL;
 	data[3] = (uint8_t)stream_handle; /* Session ID */
 	data[4] = CG2900_BT_SESSION_STOP;
 
@@ -1174,7 +1382,7 @@ static int conn_stop_pcm_to_sco(struct cg29xx_audio_user *audio_user, unsigned i
 
 	data[0] = CG2900_BT_VS_RESET_SESSION_CONFIGURATION_LSB;
 	data[1] = CG2900_BT_VS_RESET_SESSION_CONFIGURATION_MSB;
-	data[2] = CG2900_BT_LEN_VS_RESET_SESSION_CONFIGURATION - 3; /* Parameter length */
+	data[2] = CG2900_BT_PARAM_LEN_VS_SET_SESSION_CONFIG;
 	data[3] = (uint8_t)stream_handle; /* Session ID */
 
 	cb_info_bt.user = audio_user;
@@ -1764,14 +1972,7 @@ int ste_cg29xx_audio_stop_stream(unsigned int session,
 		goto finished;
 	}
 
-	if (stream_handle == FM_RX_STREAM_HANDLE) {
-		/* Nothing to do here at the moment */
-	} else if (stream_handle == FM_TX_STREAM_HANDLE) {
-		/* Nothing to do here at the moment */
-	} else {
-		/* BT SCO stream */
-		err = conn_stop_pcm_to_sco(audio_user, stream_handle);
-	}
+	err = conn_stop_stream(audio_user, stream_handle);
 
 finished:
 	return err;
