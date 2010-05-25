@@ -32,6 +32,29 @@ static int u8500_pm_prepare(void)
 	return 0;
 }
 
+/* poweroff support */
+#include <linux/signal.h>
+#include <mach/ab8500.h>
+/*
+ * This function is used from pm.h to shut down the u8500 system by
+ * turning off the ab8500
+ */
+void u8500_pm_poweroff(void)
+{
+	sigset_t old, all;
+	int val;
+
+	sigfillset(&all);
+	if (!sigprocmask(SIG_BLOCK, &all, &old)) {
+		val = ab8500_read(AB8500_SYS_CTRL1_BLOCK, AB8500_CTRL1_REG);
+		val |= 0x1;
+		ab8500_write(AB8500_SYS_CTRL1_BLOCK, AB8500_CTRL1_REG, val);
+		(void) sigprocmask(SIG_SETMASK, &old, NULL);
+	}
+	return;
+}
+
+
 /* GPIO context */
 static struct ux500_gpio_regs gpio_context[UX500_NR_GPIO_BANKS];
 
@@ -826,6 +849,9 @@ static int __init u8500_pm_init(void)
 		printk(KERN_WARNING "ux500-pm: couldnt allocate backup ptr\n");
 		return -ENOMEM;
 	}
+
+	/* register the global power off hook */
+	pm_power_off = u8500_pm_poweroff;
 
 	suspend_set_ops(&u8500_pm_ops);
 
