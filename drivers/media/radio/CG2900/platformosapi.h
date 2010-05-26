@@ -1,6 +1,4 @@
 /*
- * file platformosapi.h
- *
  * Copyright (C) ST-Ericsson SA 2010
  *
  * Linux Platform and OS Dependent File for FM Driver
@@ -16,8 +14,6 @@
 #include <linux/module.h>	/* Modules                        */
 #include <linux/init.h>		/* Initdata                       */
 #include <linux/uaccess.h>	/* copy to/from user              */
-#include <linux/videodev2.h>	/* v4l2 radio structs           */
-#include <media/v4l2-common.h>	/* v4l2 common structs           */
 #include <linux/smp_lock.h>	/* Lock & Unlock Kernel		  */
 #include <linux/semaphore.h>	/* Semaphores */
 #include <linux/version.h>      /* for KERNEL_VERSION MACRO     */
@@ -63,6 +59,7 @@ int os_fm_driver_init(void);
  */
 void os_fm_driver_deinit(void);
 
+
 /**
  * os_mem_alloc() - Allocates requested bytes to a pointer.
  * @num_bytes: Number of bytes to be allocated.
@@ -71,7 +68,7 @@ void os_fm_driver_deinit(void);
  *   Pointer pointing to the memory allocated.
  */
 void *os_mem_alloc(
-		uint32_t num_bytes
+		u32 num_bytes
 		);
 
 /**
@@ -84,17 +81,15 @@ void os_mem_free(
 
 /**
  * os_mem_copy() - Copy memory of fixed bytes from Source to Destination.
- * @dest: Pointer pointing to the memory location where the data has
- * to be copied.
- * @src: Pointer pointing to the memory location from where the data has
- * to be copied.
+ * @dest: Memory location where the data has to be copied.
+ * @src: Memory location from where the data hasto be copied.
  * @num_bytes: Number of bytes to be copied from Source pointer to
  * Destination pointer.
  */
 void os_mem_copy(
 		void *dest,
 		void *src,
-		uint32_t num_bytes
+		u32 num_bytes
 		);
 
 /**
@@ -102,7 +97,7 @@ void os_mem_copy(
  * @milli_sec: Time in ms to suspend the task
  */
 void os_sleep(
-		uint32_t milli_sec
+		u32 milli_sec
 		);
 
 /**
@@ -166,6 +161,18 @@ void os_get_rds_sem(void);
 void os_set_rds_sem(void);
 
 /**
+ * os_get_interrupt_sem() - Block on Interrupt Semaphore.
+ * Till Interrupt is received, Interrupt Task is blocked.
+ */
+void os_get_interrupt_sem(void);
+
+/**
+ * os_set_interrupt_sem() - Unblock on Interrupt Semaphore.
+ * on receiving  Interrupt, Interrupt Task is un-blocked.
+ */
+void os_set_interrupt_sem(void);
+
+/**
  * os_start_rds_thread() - Starts the RDS Thread for receiving RDS Data.
  * This is started by Application when it wants to receive RDS Data.
  * @cb_func: Callback function for receiving RDS Data
@@ -175,7 +182,7 @@ void os_start_rds_thread(
 		);
 
 /**
- * os_stop_rds_thread() - Stops the RDS Thread when Application doesnot
+ * os_stop_rds_thread() - Stops the RDS Thread when Application does not
  * want to receive RDS.
  */
 void os_stop_rds_thread(void);
@@ -184,15 +191,15 @@ void os_stop_rds_thread(void);
  * ste_fm_send_packet() - Sends the FM HCI Packet to the STE Protocol Driver.
  * @num_bytes: Number of bytes of Data to be sent including
  * Channel Identifier (08)
- * @send_buffer: Pointer to Buffer containing the Data to be sent to Chip.
+ * @send_buffer: Buffer containing the Data to be sent to Chip.
  *
  * Returns:
  * 0 if packet was sent successfully to STE Protocol Driver, otherwise the
  * corresponding error.
  */
 int ste_fm_send_packet(
-		uint16_t num_bytes,
-		uint8_t *send_buffer
+		u16 num_bytes,
+		u8 *send_buffer
 		);
 
 #endif /* PLATFORM_OSAPI_H */

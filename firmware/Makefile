@@ -144,8 +144,8 @@ fw-shipped-$(CONFIG_MFD_STE_CONN) += ste_conn_patch_info.fw ste_conn_settings_in
 
 fw-shipped-$(CONFIG_RADIO_CG2900) += ste_fm_bt_src_coeff_info.fw ste_fm_ext_src_coeff_info.fw \
 					ste_fm_fm_coeff_info.fw ste_fm_fm_prog_info.fw \
-					R1e2v10BT_src_coeff_11.fw R1e2v10FM_coeff.fw \
-					R1e2v10FM_prog.fw R1e2v10EXT_src_coeff_11.fw
+					BT_src_coeff_1.1.fw EXT_src_coeff_1.1.fw \
+					Cobra_FM_SOC1_coef.fw Cobra_FM_SOC1_prog.fw
 
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 

@@ -160,7 +160,7 @@
          <term>Switching On FM</term>
          <listitem>
          <para>
-           For switching on FM the character device /dev/radio0 should be opened from user space.
+           To switch on the FM the character device, /dev/radio0 should be opened from user space. This sets the FM Radio to Idle mode. To configure the FM Radio in Rx or Tx mode use the IOCTL's VIDIOC_S_TUNER and VIDIOC_S_MODULATOR respectively.
            <programlisting>
 
 		int fd;
@@ -190,11 +190,71 @@
          <term>Switching Off FM</term>
          <listitem>
          <para>
-           For switching on FM the character device /dev/radio0 should be opened from user space.
+           To switch on the FM the character device /dev/radio0 should be opened from user space.
            <programlisting>
 
 		if(fd &gt;= 0)
 			close(fd);
+
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="Rx-Mode">
+     <title>Switching To FM Rx Mode</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Switching To FM Rx Mode</term>
+         <listitem>
+         <para>
+           To switch on the FM Rx mode the IOCTL VIDIOC_S_TUNER should be called with appropriate parameters.
+           <programlisting>
+
+			memset(&amp;tuner, 0, sizeof(tuner));
+			tuner.index = 0;
+			tuner.rxsubchans |= V4L2_TUNER_SUB_STEREO;
+			if (ioctl(fd, VIDIOC_S_TUNER, &amp;tuner) &lt; 0) {
+				  printf("VIDIOC_S_TUNER:error!!\n");
+				  return;
+
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="Tx-Mode">
+     <title>Switching To FM Tx Mode</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>Switching To FM Tx Mode</term>
+         <listitem>
+         <para>
+           To switch on the FM Tx mode the IOCTL VIDIOC_S_MODULATOR should be called with appropriate parameters.
+           <programlisting>
+
+			memset(&amp;modulator, 0, sizeof(modulator));
+			modulator.index = 0;
+			modulator.txsubchans |= V4L2_TUNER_SUB_STEREO;
+			if (ioctl(fd, VIDIOC_S_MODULATOR, &amp;modulator) &lt; 0) {
+				  printf("VIDIOC_S_MODULATOR:error!!\n");
+				  return;
 
            </programlisting>
          </para>
@@ -213,17 +273,17 @@
      </para>
      <variablelist>
        <varlistentry>
-         <term>Making the FM Radio go in Standby Mode</term>
+         <term>Making the FM Radio go into Standby Mode</term>
          <listitem>
          <para>
-           For making the FM Radio go in Standby mode, the IOCLT VIDIOC_S_CTRL should be used. The id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_CHIP_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_STANDBY.
+           To make the FM Radio go in Standby mode, the IOCTL VIDIOC_S_CTRL should be used. The id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_CHIP_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_STANDBY.
            <programlisting>
 
 		struct v4l2_control sctrl;
 		int ret;
 		sctrl.id = V4L2_CID_CG2900_RADIO_CHIP_STATE;
                 sctrl.value = V4L2_CG2900_RADIO_STANDBY;
-                ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+                ret = ioctl(fd, VIDIOC_S_CTRL, &amp;sctrl);
 		if (ret &lt; 0) {
 			printf("VIDIOC_S_CTRL:error!!\n");
 		}
@@ -247,14 +307,14 @@
          <term>Powering Up FM Radio from Standby Mode</term>
          <listitem>
          <para>
-           For powering up FM radio again from standby mode, the IOCLT VIDIOC_S_CTRL should be used. The id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_CHIP_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_POWERUP.
+           To power up the FM radio from standby mode, the IOCTL VIDIOC_S_CTRL should be used. The id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_CHIP_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_POWERUP.
            <programlisting>
 
 		struct v4l2_control sctrl;
 		int ret;
 		sctrl.id = V4L2_CID_CG2900_RADIO_CHIP_STATE;
                 sctrl.value = V4L2_CG2900_RADIO_POWERUP;
-                ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+                ret = ioctl(fd, VIDIOC_S_CTRL, &amp;sctrl);
 		if (ret &lt; 0) {
 			printf("VIDIOC_S_CTRL:error!!\n");
 		}
@@ -278,14 +338,14 @@
          <term>Tune to a particular station</term>
          <listitem>
          <para>
-           for tuning to a particular station, the IOCLT VIDIOC_S_FREQUENCY should be used. The frequency of the v4l2_frequency structure should be converted to V4L2 format.
+           To tune to a particular station, the IOCTL VIDIOC_S_FREQUENCY should be used. The frequency of the v4l2_frequency structure should be converted to V4L2 format.
            <programlisting>
 		struct v4l2_frequency freq;
 		int ret;
 
 		/* Convert frequency in Hz to V4L2 Format */
 		freq.frequency = (frequency * 2)/ 125;
-                ret = ioctl(fd, VIDIOC_S_FREQUENCY, &amp; freq);
+                ret = ioctl(fd, VIDIOC_S_FREQUENCY, &amp;freq);
 		if (ret &lt; 0) {
 			printf("VIDIOC_S_FREQUENCY:error!!\n");
 		}
@@ -309,12 +369,12 @@
          <term>Get the Currently tuned Station Frequncy</term>
          <listitem>
          <para>
-           for tuning to a particular station, the IOCLT VIDIOC_G_FREQUENCY should be used. The frequency returened in the v4l2_frequency structure would be in V4L2 format.
+           To tune to a particular station, the IOCTL VIDIOC_G_FREQUENCY should be used. The frequency returned in the v4l2_frequency structure will be in V4L2 format.
            <programlisting>
 		struct v4l2_frequency freq;
 		int ret;
 
-                ret = ioctl(fd, VIDIOC_G_FREQUENCY, &amp; freq);
+                ret = ioctl(fd, VIDIOC_G_FREQUENCY, &amp;freq);
 		if (ret &lt; 0) {
 			printf("VIDIOC_G_FREQUENCY:error!!\n");
 			*frequency = 0;
@@ -329,8 +389,8 @@
      </variablelist>
    </section>
 
-   <section id="seek-up-down">
-     <title>Seek</title>
+   <section id="get-signal-strength">
+     <title>Retreive Signal Strength</title>
      <para>
        <!-- TODO: Describe parameters that can be specified at kernel
             driver loading with insmod or modprobe. If the driver
@@ -339,32 +399,25 @@
      </para>
      <variablelist>
        <varlistentry>
-         <term>Seek Up/Down</term>
+         <term>Retreive Signal Strength</term>
          <listitem>
          <para>
-           For searching next available channel in upward or downward direction, IOCTL VIDIOC_S_HW_FREQ_SEEK should be used with parameter seek_upward of v4l2_hw_freq_seek structure be filled with direct of search. For searching upwards use 1 and for searching downwards use 0 as the value respectively. If the IOCTL returns successfully, a thread should be created to start polling to FM driver, to wait till search is complete. When poll is complete, the tuned frequency should be retrived from FM Driver by using the IOCTL VIDIOC_G_FREQUENCY.
+           To retreive the signal strength of the currently tuned channel in FM Rx mode, IOCTL VIDIOC_G_TUNER should be called. The current signal strength would be represented by the parameter signal of the v4l2_tuner structure.
            <programlisting>
-		void search()
+		void get_signal_strength(int *rssi)
 		{
-			struct v4l2_hw_freq_seek seek;
+			struct v4l2_tuner tuner;
 			int ret;
 
-			if(1 == direction) {
-				seek.seek_upward = 1;
-			}
-			else if(0 == direction) {
-				seek.seek_upward = 0;
-			}
-			else {
-				printf("Invalid direction = %d\n", direction);
-				return;
-			}
-			seek.wrap_around = 0;
-			ret = ioctl(fd, VIDIOC_S_HW_FREQ_SEEK, &amp; seek);
+			memset(&amp;tuner, 0, sizeof(tuner));
+			tuner.index = 0;
+			ret = ioctl(fd, VIDIOC_G_TUNER, &amp;tuner);
 			if (ret &lt; 0) {
-				printf("VIDIOC_S_HW_FREQ_SEEK:error!!\n");
+				printf("VIDIOC_G_TUNER:error!!\n");
+				*rssi = 0;
 				return;
 			}
+			*rssi = tuner.signal;
 		}
            </programlisting>
          </para>
@@ -386,7 +439,7 @@
          <term>Band Scan</term>
          <listitem>
          <para>
-           For doing a band scan, ie search for all available stations in the entire FM band, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_BANDSCAN and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_BANDSCAN_START. If the IOCTL returns successfully, a thread should be created to start polling to FM driver, to wait till scan is complete. When poll is complete, the found stations along with RSSI should be retrived using the IOCTL VIDIOC_G_EXT_CTRLS should be used with parameters as described in example code.
+           To conduct a band scan, which searches for all available stations in the entire FM band, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_BANDSCAN and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_BANDSCAN_START. If the IOCTL returns successfully, a thread should be created to start polling to FM driver, to wait till scan is complete. When poll is complete, the found stations along with RSSI should be retrived using the IOCTL VIDIOC_G_EXT_CTRLS should be used with parameters as described in example code.
            <programlisting>
 		void scan()
 		{
@@ -396,11 +449,11 @@
 			sctrl.id = V4L2_CID_CG2900_RADIO_BANDSCAN;
 			sctrl.value = V4L2_CG2900_RADIO_BANDSCAN_START;
 
-			ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+			ret = ioctl(fd, VIDIOC_S_CTRL, &amp;sctrl);
 			if (ret &lt; 0) {
 				printf("VIDIOC_S_CTRL:error!!\n");
 			}
-			pthread_create(&amp; fmScanThread, NULL, FmScanThread, NULL);
+			pthread_create(&amp;fmScanThread, NULL, FmScanThread, NULL);
 		}
 		static void *FmScanThread(void *param)
 		{
@@ -412,20 +465,22 @@
 
 			pollFd.fd = fd;
 			pollFd.events = POLLRDBAND;
-			ret = poll(&amp; pollFd, 1, 1000);
+			ret = poll(&amp;pollFd, 1, 1000);
 
-			if(pollFd.revents &amp;  POLLRDBAND)
+			if(ret)
 			{
-				/* Get the Number OF Channels */
-				scanResult.count = 0;
-				scanResult.ctrl_class = V4L2_CTRL_CLASS_USER;
-				scanResult.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
-				scanResult.controls->id = V4L2_CID_CG2900_RADIO_BANDSCAN_GET_RESULTS;
-				scanResult.controls->size = 0;
-				scanResult.controls->string = NULL;
-				err = ioctl(fd, VIDIOC_G_EXT_CTRLS, &amp; scanResult);
+				if(pollFd.revents &amp; POLLRDBAND)
+				{
+					/* Get the Number OF Channels */
+					scanResult.count = 0;
+					scanResult.ctrl_class = V4L2_CTRL_CLASS_USER;
+					scanResult.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+					scanResult.controls->id = V4L2_CID_CG2900_RADIO_BANDSCAN_GET_RESULTS;
+					scanResult.controls->size = 0;
+					scanResult.controls->string = NULL;
+					err = ioctl(fd, VIDIOC_G_EXT_CTRLS, &amp; scanResult);
 
-				if (err &lt; 0 &amp; &amp;  errno !=  ENOSPC) {
+				if (err &lt; 0 &amp; &amp; errno !=  ENOSPC) {
 					printf("VIDIOC_G_EXT_CTRLS:error!!\n");
 					goto err;
 				}
@@ -436,25 +491,27 @@
 					p = scanResult.controls->string;
 					printf("\nNumber of Channels Found = %d \n", scanResult.controls->size);
 					/* Retrieve the Data now */
-					ret = ioctl(fd, VIDIOC_G_EXT_CTRLS, &amp; scanResult);
+					ret = ioctl(fd, VIDIOC_G_EXT_CTRLS, &amp;scanResult);
 					if (ret &lt; 0) {
 						printf("VIDIOC_G_EXT_CTRLS:error!!\n");
 						goto err;
 					}
 					for (index = 0, count = 0; index &lt; scanResult.controls->size; index ++, count +=2) {
-						printf("%d   	 %d.%d   	%d\n", index + 1, MEGAHRTZ((*(p +count + 0) * 125) / 2), *(p + count + 1));
+						printf("%d	 %d.%d		%d\n", index + 1, MEGAHRTZ((*(p +count + 0) * 125) / 2), *(p + count + 1));
 					}
 					err:
 					free(p);
 					free(scanResult.controls);
 				}
+				else if( pollFd.revents &amp; POLLHUP)
+				{
+					printf("\nScan Cancelled By User!!\n");
+				}
+				free(scanResult.controls);
 			}
-			else if( pollFd.revents &amp;  POLLHUP)
-			{
-				printf("\nScan Cancelled By User!!\n");
-			}
-			else if( pollFd.revents &amp;  POLLERR){
-				printf("\nError in Scaning, Timeout!!!\n");
+
+			else if( ret == 0){
+				printf("\nError in Scanning, Timeout!!!\n");
 			}
 			return 0;
 		}
@@ -479,7 +536,7 @@
          <term>Cancel Scan/Seek</term>
          <listitem>
          <para>
-           For cancelling an ongoing Band Scan or Seek, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_BANDSCAN and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_BANDSCAN_STOP.
+           To cancell an ongoing Band Scan or Seek, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_BANDSCAN and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_BANDSCAN_STOP.
            <programlisting>
 		struct v4l2_control sctrl;
 		int ret;
@@ -487,7 +544,7 @@
 		sctrl.id = V4L2_CID_CG2900_RADIO_BANDSCAN;
 		sctrl.value = V4L2_CG2900_RADIO_BANDSCAN_STOP;
 
-		ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
+		ret = ioctl(fd, VIDIOC_S_CTRL, &amp;sctrl);
 		if (ret &lt; 0) {
 			printf("VIDIOC_S_CTRL:error!!\n");
 		}
@@ -508,21 +565,264 @@
      </para>
      <variablelist>
        <varlistentry>
-         <term>Receive RDS Data</term>
+         <term>RDS Receive</term>
          <listitem>
          <para>
-           By default rds is disabled in FM driver, IOCTL VIDIOC_S_CTRL should be used with parameter id of the v4l2_control structure should be set to V4L2_CID_CG2900_RADIO_RDS_STATE and the value of v4l2_control structure should be set as V4L2_CG2900_RADIO_RDS_ON if rds needs to be enabled and V4L2_CG2900_RADIO_RDS_OFF in case rds is to be disabled. A thread should be created and read() should be called to receive RDS data from driver. The RDS data received from FM Driver should be parsed in user space to retrive RDS information.
+           To enable or disable RDS for FM Rx, IOCTL VIDIOC_S_TUNER should be used with parameter rxsubchans of the v4l2_tuner structure set to V4L2_TUNER_SUB_RDS if rds needs to be enabled and the same value must not be set in case rds is to be disabled. A thread should be created and read() should be called to receive RDS data from driver. The RDS data received from FM Driver should be parsed in user space to retrive RDS information i.e Radio Text, Program Service Name, Program Identification, Program Type, Alternate Frequency, etc.
            <programlisting>
-		struct v4l2_control sctrl;
+           void rds_rx_set(bool enable_rds)
+           {
+		struct v4l2_tuner tuner;
 		int ret;
 
-		sctrl.id = V4L2_CID_CG2900_RADIO_RDS_STATE;
-		sctrl.value = V4L2_CG2900_RADIO_RDS_ON; // or V4L2_CG2900_RADIO_RDS_OFF
+		memset(&amp;tuner, 0, sizeof(tuner));
+		tuner.index = 0;
+		if(enable_rds)
+			tuner.rxsubchans |= V4L2_TUNER_SUB_RDS;
+		else
+			tuner.rxsubchans &amp; = ~V4L2_TUNER_SUB_RDS;
+		ret = ioctl(fd, VIDIOC_S_TUNER, &amp;tuner);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_TUNER:error!!\n");
+		}
+	   }
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="af-update_switch">
+     <title>AF Update and Switching</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>AF Update &amp; Switching</term>
+         <listitem>
+
+	 <para>Alternate Frequency (AF) Handling needs to be done in user space.
+	 </para>
+	 <para>The application should use the AF RDS group data to compose a list of AFs when tuned to a new channel.
+	 </para>
+	 <para>When the reception of the currently tuned frequency falls below a set threshold, it can decide to switch to one of the alternative frequencies for this channel.
+	 </para>
+	 <para>The application can perform an AF Update, which returns the RSSI value for all or some of the channel's AFs. Thus allowing the hardware to switch to the AF with the highest RSSI.  The AF Update could be designed to stop as soon as it finds an AF with an acceptable RSSI level. In the event that all the AF RSSI values are lower than the base channel, the AF Switch would not be necessary.
+	 </para>
+	 <para>To know the RSSI of the alternative frequencies, the application can use the IOCTL VIDIOC_S_CTRL with parameter id set to V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_START, and the parameter value be set as the frequency in Hz for a channel from the AF List. If this call returns successfully,  the RSSI of the frequency can then be retrieved. Using IOCTL VIDIOC_G_CTRL, with the parameter id set to V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_GET_RESULT, and the output parameter value will contain the RSSI of the AF frequency.
+	 </para>
+	 <para>If it is still deemed necessary to switch channels, the next step is then to switch to an alternative frequency in the AF list. This can be done using the IOCTL VIDIOC_S_EXT_CTRLS, with:
+	 </para>
+	   <itemizedlist>
+
+	   <listitem><para>Parameter id set to V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_START</para></listitem>
+	   <listitem><para>Parameter size set to 2</para></listitem>
+	   <listitem><para>Parameters filled as below (string field of the parameter) </para></listitem>
+	         <listitem><para>Control class parameter set to V4L2_CTRL_CLASS_USER</para></listitem>
+	         <listitem><para>The AF switch frequency in Hz</para></listitem>
+	         <listitem><para>Expected PI code </para></listitem>
+           </itemizedlist>
+         <para>The application can check if the AF switch succeeded or not using the IOCTL VIDIOC_G_CTRL, with parameter id set to V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_GET_RESULT, and the output parameter value will contain the AF switch conclusion.
+         </para>
+
+	 <para> The example code below illustrates both the aforementioned functionalities.
+	 </para>
+	 <para>
+
+           <programlisting>
+           void PerformAFUpdate(long AF_Frequency, int *AF_Rssi)
+           {
+		struct v4l2_control sctrl, gctrl;
+		int ret;
+
+		sctrl.id = V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_START;
+		sctrl.value = AF_Frequency;
 
 		ret = ioctl(fd, VIDIOC_S_CTRL, &amp; sctrl);
 		if (ret &lt; 0) {
 			printf("VIDIOC_S_CTRL:error!!\n");
 		}
+		gctrl.id = V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_GET_RESULT;
+		ret = ioctl(fd, VIDIOC_G_CTRL, &amp; gctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_G_CTRL:error!!\n");
+		}
+		*AF_Rssi = gctrl.value;
+	   }
+           void PerformAFSwitch(long AF_BestFrequency, int AF_ExpectedPI, int *AF_SwitchConclusion)
+           {
+		struct v4l2_control gctrl;
+		struct v4l2_ext_controls ext_ctrl;
+		int ret;
+
+		int conclusion;
+		long freq;
+		long *p = NULL;
+
+		ext_ctrl.ctrl_class = V4L2_CTRL_CLASS_USER;
+		ext_ctrl.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+
+		ext_ctrl.count = 0;
+		ext_ctrl.controls->id = V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_START;
+		ext_ctrl.controls->size = 2;
+		ext_ctrl.controls->string = (long *)malloc(sizeof(long) * ext_ctrl.controls->size);
+		p = ext_ctrl.controls->string;
+		memcpy(p, &amp; AF_BestFrequency, sizeof(long));
+		memcpy(p + sizeof(long), &amp; AF_ExpectedPI, sizeof(int));
+
+
+		ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &amp; ext_ctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_EXT_CTRLS:error!!\n");
+		}
+		free(ext_ctrl.controls->string);
+		free(ext_ctrl.controls);
+
+		gctrl.id = V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_GET_RESULT;
+		ret = ioctl(fd, VIDIOC_G_CTRL, &amp; gctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_G_CTRL:error!!\n");
+		}
+		*AF_SwitchConclusion = gctrl.value;
+	   }
+           </programlisting>
+         </para>
+         </listitem>
+       </varlistentry>
+     </variablelist>
+   </section>
+
+   <section id="rds-transmit">
+     <title>RDS Transmit</title>
+     <para>
+       <!-- TODO: Describe parameters that can be specified at kernel
+            driver loading with insmod or modprobe. If the driver
+            has no parameters to be specified at load time, replace this
+            text with "Not Applicable". -->
+     </para>
+     <variablelist>
+       <varlistentry>
+         <term>RDS Transmit</term>
+         <listitem>
+         <para>
+           To enable or disable RDS during FM Tx, IOCTL VIDIOC_S_MODULATOR should be used with parameter txsubchans of the v4l2_modulator structure set to V4L2_TUNER_SUB_RDS if rds needs to be enabled and the same value must not be set in case rds is to be disabled. For Trasmitting RDS Data like PI, PTY, PSN, RT, VIDIOC_S_EXT_CTRLS IOCTL should be used with the id set to V4L2_CID_RDS_TX_PI, V4L2_CID_RDS_TX_PTY, V4L2_CID_RDS_TX_PS_NAME and V4L2_CID_RDS_TX_RADIO_TEXT respectively. Below example shows how to transmit various RDS functionalities.
+           <programlisting>
+           void rds_tx_set(bool enable_rds)
+           {
+		struct v4l2_modulator modulator;
+		int ret;
+
+		memset(&amp;modulator, 0, sizeof(modulator));
+		modulator.index = 0;
+		if(enable_rds)
+			modulator.txsubchans |= V4L2_TUNER_SUB_RDS;
+		else
+			modulator.txsubchans &amp; = ~V4L2_TUNER_SUB_RDS;
+		ret = ioctl(fd, VIDIOC_S_MODULATOR, &amp; modulator);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_MODULATOR:error!!\n");
+		}
+	   }
+           void rds_tx_PI(void *value)
+           {
+		struct v4l2_ext_controls ext_ctrl;
+		int ret;
+		unsigned short *pi_code = (unsigned short *)value;
+
+		ext_ctrl.ctrl_class = V4L2_CTRL_CLASS_FM_TX;
+		ext_ctrl.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+
+
+		ext_ctrl.count = 0;
+		ext_ctrl.controls->id = V4L2_CID_RDS_TX_PI;
+		ext_ctrl.controls->size = 0;
+		ext_ctrl.controls->string = NULL;
+		ext_ctrl.controls->value = *pi_code;
+
+		ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &amp; ext_ctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_EXT_CTRLS:error!!\n");
+		}
+		free(ext_ctrl.controls);
+	   }
+           void rds_tx_PTY(void *value)
+           {
+		struct v4l2_ext_controls ext_ctrl;
+		int ret;
+		unsigned short *pty_code = (unsigned short *)value;
+
+		ext_ctrl.ctrl_class = V4L2_CTRL_CLASS_FM_TX;
+		ext_ctrl.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+
+
+		ext_ctrl.count = 0;
+		ext_ctrl.controls->id = V4L2_CID_RDS_TX_PTY;
+		ext_ctrl.controls->size = 0;
+		ext_ctrl.controls->string = NULL;
+		ext_ctrl.controls->value = *pty_code;
+
+		ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &amp; ext_ctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_EXT_CTRLS:error!!\n");
+		}
+		free(ext_ctrl.controls);
+	   }
+           void rds_tx_PSN(void *value)
+           {
+		struct v4l2_ext_controls ext_ctrl;
+		int ret;
+		char *psn = (char *)value;
+
+		ext_ctrl.ctrl_class = V4L2_CTRL_CLASS_FM_TX;
+		ext_ctrl.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+
+
+		ext_ctrl.count = 0;
+		ext_ctrl.controls->id = V4L2_CID_RDS_TX_PS_NAME;
+		ext_ctrl.controls->size = strlen(psn);
+		ext_ctrl.controls->value = 0;
+		ext_ctrl.controls->string = (char *)malloc(ext_ctrl.controls->size);
+		memcpy(ext_ctrl.controls->string, psn, ext_ctrl.controls->size);
+
+		ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &amp; ext_ctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_EXT_CTRLS:error!!\n");
+		}
+		free(ext_ctrl.controls->string);
+		free(ext_ctrl.controls);
+
+	   }
+           void rds_tx_RT(void *value)
+           {
+		struct v4l2_ext_controls ext_ctrl;
+		int ret;
+		char *radio_text = (char *)value;
+
+		ext_ctrl.ctrl_class = V4L2_CTRL_CLASS_FM_TX;
+		ext_ctrl.controls = (struct v4l2_ext_control *) malloc(sizeof(struct v4l2_ext_control));
+
+
+		ext_ctrl.count = 0;
+		ext_ctrl.controls->id = V4L2_CID_RDS_TX_RADIO_TEXT;
+		ext_ctrl.controls->size = strlen(radio_text);
+		ext_ctrl.controls->value = 0;
+		ext_ctrl.controls->string = (char *)malloc(ext_ctrl.controls->size);
+		memcpy(ext_ctrl.controls->string, radio_text, ext_ctrl.controls->size);
+
+		ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &amp; ext_ctrl);
+		if (ret &lt; 0) {
+			printf("VIDIOC_S_EXT_CTRLS:error!!\n");
+		}
+		free(ext_ctrl.controls->string);
+		free(ext_ctrl.controls);
+
+	   }
+
            </programlisting>
          </para>
          </listitem>
@@ -530,7 +830,6 @@
      </variablelist>
    </section>
  </chapter>
-
 
  <chapter id="driver-configuration">
    <title>Driver Configuration and Interaction</title>
@@ -651,7 +950,7 @@
              </varlistentry>
              <varlistentry>
                <term>Runtime readable/modifiable</term>
-               <listitem><para>Modifiable</para></listitem>
+               <listitem><para>Readable</para></listitem>
              </varlistentry>
              <varlistentry>
                <term>Description</term>
@@ -659,9 +958,9 @@
                <para>
                  The parameter grid in radio-CG2900.c defines the spacing to be used in Khz while switching on FM Radio.
                  <itemizedlist>
-                   <listitem><para>0: 200 kHz (USA)</para></listitem>
+                   <listitem><para>0:  50 kHz (China)</para></listitem>
                    <listitem><para>1: 100 kHz (Europe, Japan)</para></listitem>
-                   <listitem><para>2:  50 kHz (China)</para></listitem>
+                   <listitem><para>2: 200 kHz (USA)</para></listitem>
                 </itemizedlist>
                </para>
                </listitem>
@@ -678,6 +977,12 @@
 		suitable for Europe. The change is applicable before
 		switching on FM Radio, otherwise the change takes effect
 		from next FM switch on.
+               </para>
+               <para>
+		Note: The Grid parameter cannot be changed during FM radio is operational.
+               </para>
+               <para>
+		The user must change the grid value and restart the FM radio when moving into a different radio region.
                </para>
                </listitem>
              </varlistentry>
@@ -714,7 +1019,7 @@
              </varlistentry>
              <varlistentry>
                <term>Runtime readable/modifiable</term>
-               <listitem><para>Modifiable</para></listitem>
+               <listitem><para>Readable</para></listitem>
              </varlistentry>
              <varlistentry>
                <term>Description</term>
@@ -723,8 +1028,8 @@
                  The parameter band in radio-CG2900.c defines the band to be used while switching on FM Radio.
                  <itemizedlist>
                    <listitem><para>0: 87.5 - 108 MHz (USA, Europe)</para></listitem>
-                   <listitem><para>1: 70   - 108 MHz (China wide band)</para></listitem>
-                   <listitem><para>2: 76   -  90 MHz (Japan)</para></listitem>
+                   <listitem><para>1: 76   -  90 MHz (Japan)</para></listitem>
+                   <listitem><para>2: 70   - 108 MHz (China wide band)</para></listitem>
                 </itemizedlist>
                </para>
                </listitem>
@@ -740,6 +1045,12 @@
 		In this case, it sets the FM band 87.5 - 100 MHz.
 		The change is applicable before switching on FM Radio,
 		otherwise the change takes effect from next FM switch on.
+               </para>
+               <para>
+		Note: The band parameter cannot be changed during FM radio is operational.
+               </para>
+               <para>
+		The user must change the band value and restart the FM radio when moving into a different radio region.
                </para>
                </listitem>
              </varlistentry>
@@ -774,7 +1085,7 @@
              </varlistentry>
              <varlistentry>
                <term>Runtime readable/modifiable</term>
-               <listitem><para>Modifiable</para></listitem>
+               <listitem><para>Readable</para></listitem>
              </varlistentry>
              <varlistentry>
                <term>Description</term>
@@ -852,7 +1163,7 @@
              <term>Description</term>
              <listitem>
              <para>
-               The <constant>VIDIOC_QUERYCAP</constant> IOCTL is used to query the capabilities supported by FM Driver. IF the FM Driver supports FM Rx it should set the capabilities field bit should be ored with V4L2_CAP_TUNER, otherwise if it supports FM Tx, the capabilities field bit should be ored with V4L2_CAP_MODULATOR.
+               The <constant>VIDIOC_QUERYCAP</constant> IOCTL is used to query the capabilities supported by FM Driver. IF the FM Driver supports FM Rx it should set the capabilities field bit should be bitwise OR'd with V4L2_CAP_TUNER, otherwise if it supports FM Tx, the capabilities field bit should  be bitwise OR'd with V4L2_CAP_MODULATOR.
                Returned values are:
                <itemizedlist>
                  <listitem><para>If IOCTL is able to retrive the Capabilities successfully without errors the IOCTL function will return 0.</para></listitem>
@@ -881,7 +1192,7 @@
              <term>Description</term>
              <listitem>
              <para>
-               The <constant>VIDIOC_G_TUNER</constant> IOCTL gets the FM Radio Tuner properties supported.
+               The <constant>VIDIOC_G_TUNER</constant> IOCTL gets the FM Radio Tuner properties supported by FM Radio. It is also used to retrieve RDS status, mono/stereo status and Signal strength of the tuned channel. These values are valid when FM is configured using IOCTL VIDIOC_S_TUNER, i.e in FM Rx mode.
                Returned values are:
                <itemizedlist>
                  <listitem><para>If IOCTL is able to retrive the tuner properties successfully without errors the IOCTL function will return 0.</para></listitem>
@@ -914,6 +1225,35 @@
                Returned values are:
                <itemizedlist>
                  <listitem><para>If IOCTL is able to set the tuner properties successfully without errors the IOCTL function will return 0.</para></listitem>
+                 <listitem><para>A negative value will indicate error.</para></listitem>
+               </itemizedlist>
+             </para>
+             </listitem>
+           </varlistentry>
+         </variablelist>
+         </listitem>
+       </varlistentry>
+
+	<varlistentry>
+         <term><constant>VIDIOC_G_MODULATOR</constant></term>
+         <listitem>
+         <variablelist>
+           <varlistentry>
+             <term>Direction</term>
+             <listitem><para>Get</para></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Parameter</term>
+             <listitem><synopsis><type>v4l2_tuner</type></synopsis></listitem>
+           </varlistentry>
+           <varlistentry>
+             <term>Description</term>
+             <listitem>
+             <para>
+                The <constant>VIDIOC_G_MODULATOR</constant> IOCTL gets the FM Radio Modulator properties supported by FM Radio. It is also used to retrieve RDS status and mono/stereo status. These values are valid when FM is configured using IOCTL VIDIOC_S_MODULATOR, i.e in FM Tx mode.
+               Returned values are:
+               <itemizedlist>
+                 <listitem><para>If IOCTL is able to retrive the tuner properties successfully without errors the IOCTL function will return 0.</para></listitem>
                  <listitem><para>A negative value will indicate error.</para></listitem>
                </itemizedlist>
              </para>
@@ -1058,30 +1398,33 @@
                The <constant>VIDIOC_G_CTRL</constant> IOCTL to retrive value of a paticular control. The following controls are supported by FM Driver:
                <itemizedlist>
                <listitem><para>
-               V4L2_CID_CG2900_RADIO_RSSI_LEVEL
+               V4L2_CID_AUDIO_VOLUME
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_AUDIO_MUTE
+               </para></listitem>
+               <listitem><para>
+               V4L2_CID_AUDIO_BALANCE
                </para></listitem>
                <listitem><para>
                V4L2_CID_CG2900_RADIO_RSSI_THRESHOLD
                </para></listitem>
                <listitem><para>
-               V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_GET_RESULTS
+               V4L2_CID_CG2900_RADIO_SELECT_ANTENNA
                </para></listitem>
                <listitem><para>
-               V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_GET_RESULTS
+               V4L2_CID_CG2900_RADIO_RDS_AF_UPDATE_GET_RESULT
                </para></listitem>
                <listitem><para>
-               V4L2_CID_CG2900_RADIO_RSSI_LEVEL
-               </para></listitem>
-               <listitem><para>
-               V4L2_CID_CG2900_RADIO_RSSI_LEVEL
+               V4L2_CID_CG2900_RADIO_RDS_AF_SWITCH_GET_RESULT
                </para></listitem>
                </itemizedlist>
-               Returned values are:
+               Common Returned values are:
                <itemizedlist>
                  <listitem><para>If IOCTL is able to retrive the value of the control successfully without errors the IOCTL function will return 0.</para></listitem>
                  <listitem><para>A negative value will indicate error.</para></listitem>
                </itemizedlist>
-             </para>
+              </para>
              </listitem>
            </varlistentry>
          </variablelist>
@@ -1108,9 +1451,6 @@
                <itemizedlist>
                <listitem><para>
                V4L2_CID_CG2900_RADIO_CHIP_STATE
-               </para></listitem>
-               <listitem><para>
-               V4L2_CID_CG2900_RADIO_RDS_STATE
                </para></listitem>
                <listitem><para>
                V4L2_CID_CG2900_RADIO_BANDSCAN
@@ -1313,7 +1653,7 @@
  </chapter>
 
  <chapter id="bugs">
-   <title>Known Bugs And Assumptions</title>
+   <title>Known Bugs And Limitations</title>
    <!--  Do NOT change the chapter id or title! -->
    <para>
      <variablelist>
@@ -1322,6 +1662,25 @@
        <listitem>
          <para>
            During Band Scan many stations are found, when the Headset Wire is plugged into headset jack of Platform, which are not actual FM Stations but noise. The same issue comes while trying to do search up/down. This issue is under investiigation.
+           <!-- TODO: Briefly describe the limitation, unless all
+              information is already present in the title.
+              Use full english sentences.
+              Repeat the varlistentry for each limitation.
+              If none are known, replace this varlistentry
+              with the one below. -->
+           <!-- TODO: This guideline for this chapter may be extended
+              during the user-guide guidelines drop. -->
+         </para>
+       </listitem>
+     </varlistentry>
+     </variablelist>
+
+     <variablelist>
+     <varlistentry>
+       <term>Problems in Block Scan to retreive RSSI of channels in FM Band</term>
+       <listitem>
+         <para>
+           The Block Scan retrives many stations which are not actual FM stations, this is currently under investigation.
            <!-- TODO: Briefly describe the limitation, unless all
               information is already present in the title.
               Use full english sentences.

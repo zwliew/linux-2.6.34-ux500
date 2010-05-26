@@ -1,6 +1,4 @@
 /*
- * file fmdriver.c
- *
  * Copyright (C) ST-Ericsson SA 2010
  *
  * Linux FM Driver for CG2900 FM Chip
@@ -15,612 +13,636 @@
 #include "fmdriver.h"
 #include "platformosapi.h"
 
-/** the count of interrupt sources of the system */
 #define MAX_COUNT_OF_IRQS 16
+#define CHANNEL_FREQUENCY_CONVERTER 50
+#define MAX_NAME_SIZE	50
+#define MIN_POWER_LEVEL 88
+#define MAX_POWER_LEVEL 123
+#define DEFAULT_RDS_DEVIATION 200
+#define MAX_RDS_DEVIATION 750
+#define DEFAULT_PILOT_DEVIATION 675
+#define MAX_PILOT_DEVIATION 1000
+#define DEFAULT_RSSI_THRESHOLD 0x0100
 
 #define ASCVAL(x)(((x) <= 9) ? (x) + '0' : (x) - 10 + 'a')
 
-/** Variable for state of library */
-static bool g_fmd_initalized = STE_FALSE;
-
-/** Variables for synchronization of Interrupts to other function calls */
-static bool g_fmd_interrupt_mutex = STE_FALSE;
-static int  g_fmd_interrupt_semaphore;
-/** STE_TRUE if an interrupt needs to be handled */
-static bool g_interrupt_received[MAX_COUNT_OF_IRQS] = {STE_FALSE};
-/** forward declaration of the interrupt handler function */
-static char g_tempstring[50];
-
 /**
- * enum fmd_gocmd_e - FM Driver Command state .
- * @fmd_gocmd_none: FM Driver in Idle state
- * @fmd_gocmd_setmode: FM Driver in setmode state
- * @fmd_gocmd_setfrequency: FM Driver in Set frequency state.
- * @fmd_gocmd_setantenna: FM Driver in Setantenna state
- * @fmd_gocmd_setmute: FM Driver in Setmute state
- * @fmd_gocmd_seek: FM Driver in seek mode
- * @fmd_gocmd_seekstop: FM Driver in seek stop level state.
- * @fmd_gocmd_scanband: FM Driver in Scanband mode
- * @fmd_gocmd_stepfrequency: FM Driver in StepFreq state
- * @fmd_gocmd_genpowerup: FM Driver in Power UP state
+ * enum fmd_gocmd_t - FM Driver Command state.
+ * @FMD_STATE_NONE: FM Driver in Idle state
+ * @FMD_STATE_MODE: FM Driver in setmode state
+ * @FMD_STATE_FREQUENCY: FM Driver in Set frequency state.
+ * @FMD_STATE_PA: FM Driver in SetPA state.
+ * @FMD_STATE_PA_LEVEL: FM Driver in Setpalevl state.
+ * @FMD_STATE_ANTENNA: FM Driver in Setantenna state
+ * @FMD_STATE_MUTE: FM Driver in Setmute state
+ * @FMD_STATE_SEEK: FM Driver in seek mode
+ * @FMD_STATE_SEEK_STOP: FM Driver in seek stop level state.
+ * @FMD_STATE_SCAN_BAND: FM Driver in Scanband mode
+ * @FMD_STATE_TX_SET_CTRL: FM Driver in RDS control state
+ * @FMD_STATE_TX_SET_THRSHLD: FM Driver in RDS threshld state
+ * @FMD_STATE_GEN_POWERUP: FM Driver in Power UP state.
+ * @FMD_STATE_SELECT_REF_CLK: FM Driver in Select Reference clock state.
+ * @FMD_STATE_SET_REF_CLK_PLL: FM Driver in Set Reference Freq state.
+ * @FMD_STATE_BLOCK_SCAN: FM Driver in Block Scan state.
+ * @FMD_STATE_AF_UPDATE: FM Driver in AF Update State.
+ * @FMD_STATE_AF_SWITCH: FM Driver in AF Switch State.
+ * @FMD_STATE_MONOSTEREO_TRANSITION:FM Driver in Monostereo transition state.
+ * Various states of the FM driver.
  */
-enum fmd_gocmd_e {
-		fmd_gocmd_none,
-		fmd_gocmd_setmode,
-		fmd_gocmd_setfrequency,
-		fmd_gocmd_setantenna,
-		fmd_gocmd_setmute,
-		fmd_gocmd_seek,
-		fmd_gocmd_seekstop,
-		fmd_gocmd_scanband,
-		fmd_gocmd_stepfrequency,
-		fmd_gocmd_genpowerup,
+enum fmd_gocmd_t {
+	FMD_STATE_NONE,
+	FMD_STATE_MODE,
+	FMD_STATE_FREQUENCY,
+	FMD_STATE_PA,
+	FMD_STATE_PA_LEVEL,
+	FMD_STATE_ANTENNA,
+	FMD_STATE_MUTE,
+	FMD_STATE_SEEK,
+	FMD_STATE_SEEK_STOP,
+	FMD_STATE_SCAN_BAND,
+	FMD_STATE_TX_SET_CTRL,
+	FMD_STATE_TX_SET_THRSHLD,
+	FMD_STATE_GEN_POWERUP,
+	FMD_STATE_SELECT_REF_CLK,
+	FMD_STATE_SET_REF_CLK_PLL,
+	FMD_STATE_BLOCK_SCAN,
+	FMD_STATE_AF_UPDATE,
+	FMD_STATE_AF_SWITCH,
+	FMD_STATE_MONOSTEREO_TRANSITION
 };
 
 /**
- * struct fmd_rdsgroup_s - Main rds group structure.
+ * struct fmd_rdsgroup_t - Rds group structure.
  * @block: Array for RDS Block(s) received.
  * @status: Array of Status of corresponding RDS block(s).
+ * It stores the value and status of a particular RDS group
+ * received.
  */
-struct fmd_rdsgroup_s {
-		unsigned short block[4];
-		unsigned char  status[4];
-} ;
+struct fmd_rdsgroup_t {
+	u16 block[NUM_OF_RDS_BLOCKS];
+	u8 status[NUM_OF_RDS_BLOCKS];
+} __attribute__ ((packed));
 
 /**
- * struct struct fmd_state_info_s - Main FM state info structure.
- * @mode: fm mode(idle/RX/TX).
- * @logginglevel: 0 = off, 1 = basic, 2 = all.
- * @rx_grid:  Rceiver Grid
+ * struct struct fmd_state_info_t - Main FM state info structure.
+ * @fmd_initalized: Flag indicating FM Driver is initialized or not
  * @rx_freqrange: Receiver freq range
- * @rx_stereomode: Rceiver Stereo mode
  * @rx_volume:  Receiver volume level
- * @rx_balance: Rceiver Balance level
- * @rx_mute: Receiver Mute
  * @rx_antenna: Receiver Antenna
- * @rx_deemphasis: Receiver Deemphasis
- * @rx_rdson:  Receiver RDS ON
- * @rx_seek_stoplevel:  RDS seek stop Level
- * @gocmd:  pipe line Command
- * @rdsgroup:  Array of RDS group Buffer
  * @rdsbufcnt:  Number of RDS Groups available
- * @callback:  Callback registered by upper layers.
+ * @rx_seek_stoplevel:  RDS seek stop Level
+ * @rx_rdson:  Receiver RDS ON
+ * @rx_stereomode: Receiver Stereo mode
+ * @max_channels_to_scan: Maximum Number of channels to Scan.
+ * @tx_freqrange: Transmitter freq Range
+ * @tx_preemphasis: Transmitter Pre emphiasis level
+ * @tx_stereomode: Transmitter stero mode
+ * @tx_rdson:  Enable RDS
+ * @tx_pilotdev: PIlot freq deviation
+ * @tx_rdsdev:  RDS deviation
+ * @tx_strength:  TX Signal Stregnth
+ * @irq_index:  Index where last interrupt is added to Interrupt queue
+ * @interrupt_available_for_processing:  Flag indicating if interrupt is
+ * available for processing or not.
+ * @interrupt_queue: Circular Queue to store the received interrupt from chip.
+ * @gocmd:  Command which is in progress.
+ * @rdsgroup:  Array of RDS group Buffer
+ * @callback: Callback registered by upper layers.
  */
-struct fmd_state_info_s {
-		uint8_t			mode;
-		uint8_t    		logginglevel;
-		uint8_t			rx_grid;
-		uint8_t			rx_freqrange;
-		uint32_t    		rx_stereomode;
-		uint8_t			rx_volume;
-		int8_t			rx_balance;
-		bool			rx_mute;
-		uint8_t    		rx_antenna;
-		uint8_t			rx_deemphasis;
-		bool   			rx_rdson;
-		uint16_t		rx_seek_stoplevel;
+struct fmd_state_info_t {
+	bool fmd_initalized;
+	u8 rx_freqrange;
+	u8 rx_volume;
+	u8 rx_antenna;
+	u8 rdsbufcnt;
+	u16 rx_seek_stoplevel;
+	bool rx_rdson;
+	u8 rx_stereomode;
+	u8 tx_freqrange;
+	u8 tx_preemphasis;
+	bool tx_stereomode;
+	u8 max_channels_to_scan;
 
-		enum fmd_gocmd_e 	gocmd;
-		struct fmd_rdsgroup_s  	rdsgroup[22];
-		uint8_t    		rdsbufcnt;
-		fmd_radio_cb 	callback;
-} fmd_state_info;
+	bool tx_rdson;
+	u16 tx_pilotdev;
+	u16 tx_rdsdev;
+	u16 tx_strength;
+
+	u8 irq_index;
+	bool interrupt_available_for_processing;
+	u16 interrupt_queue[MAX_COUNT_OF_IRQS];
+	enum fmd_gocmd_t gocmd;
+	struct fmd_rdsgroup_t rdsgroup[MAX_RDS_GROUPS];
+	fmd_radio_cb callback;
+} __attribute__ ((packed));
 
 /**
- * struct fmd_data_s - Main structure for FM data exchange.
+ * struct fmd_data_t - Main structure for FM data exchange.
  * @cmd_id: Command Id of the command being exchanged.
  * @num_parameters: Number of parameters
- * @parameters: Pointer to FM data parameters.
+ * @parameters: FM data parameters.
  */
-struct fmd_data_s {
-		uint32_t cmd_id;
-		uint16_t num_parameters;
-		uint8_t *parameters;
-} fmd_data;
+struct fmd_data_t {
+	u32 cmd_id;
+	u16 num_parameters;
+	u8 *parameters;
+} __attribute__ ((packed));
+
+static struct fmd_state_info_t fmd_state_info;
+static struct fmd_data_t fmd_data;
+
+static char event_name[FMD_EVENT_LAST_ELEMENT][MAX_NAME_SIZE] = {
+	"FMD_EVENT_ANTENNA_STATUS_CHANGED",
+	"FMD_EVENT_FREQUENCY_CHANGED",
+	"FMD_EVENT_SEEK_COMPLETED",
+	"FMD_EVENT_SCAN_BAND_COMPLETED",
+	"FMD_EVENT_BLOCK_SCAN_COMPLETED",
+	"FMD_EVENT_AF_UPDATE_SWITCH_COMPLETE",
+	"FMD_EVENT_MONOSTEREO_TRANSITION_COMPLETE",
+	"FMD_EVENT_SEEK_STOPPED",
+	"FMD_EVENT_GEN_POWERUP",
+	"FMD_EVENT_RDSGROUP_RCVD",
+};
+
+static char interrupt_name[MAX_COUNT_OF_IRQS][MAX_NAME_SIZE] = {
+	"irpt_OperationSucceeded",
+	"irpt_OperationFailed",
+	"-",
+	"irpt_BufferFull/Empty",
+	"irpt_SignalQualityLow/MuteStatusChanged",
+	"irpt_MonoStereoTransition",
+	"irpt_RdsSyncFound/InputOverdrive",
+	"irpt_RdsSyncLost",
+	"irpt_PiCodeChanged",
+	"irpt_RequestedBlockAvailable",
+	"-",
+	"-",
+	"-",
+	"-",
+	"irpt_WarmBootReady",
+	"irpt_ColdBootReady",
+};
 
 /* ------------------ Internal function declarations ---------------------- */
-static void fmd_criticalsection_enter(void);
-static void fmd_criticalsection_leave(void);
-static void fmd_event_name(
-		unsigned long event,
-		char *str
-		);
-static void fmd_interrupt_name(
-		unsigned long interrupt,
-		char *str
-		);
-static void fmd_interrupt_handler(
-		const unsigned long interrupt
-		);
-static void fmd_handle_interrupt(void);
-static void fmd_handle_synchronized_interrupt(
-		unsigned long interrupt
-		);
-static void fmd_callback(
-		void *context,
-		uint32_t event,
-		uint32_t event_int_data,
-		bool event_boolean_data
-		);
-static unsigned short fmd_rx_frequency_to_channel(
-		void *context,
-		uint32_t freq
-		);
-static uint32_t fmd_rx_channel_to_frequency(
-		void *context,
-		unsigned short chan
-		);
+static void fmd_event_name(u8 event, char *event_name);
+static void fmd_interrupt_name(u16 interrupt, char *interrupt_name);
+static void fmd_add_interrupt_to_queue(u16 interrupt);
+static void fmd_process_interrupt(u16 interrupt);
+static void fmd_callback(void *context, u8 event, bool event_successful);
+static u16 fmd_rx_frequency_to_channel(void *context, u32 freq);
+static u32 fmd_rx_channel_to_frequency(void *context, u16 channel_number);
+static u16 fmd_tx_frequency_to_channel(void *context, u32 freq);
+static u32 fmd_tx_channel_to_frequency(void *context, u16 channel_number);
 static bool fmd_go_cmd_busy(void);
-static unsigned int fmd_send_cmd_and_read_resp(
-		const unsigned long cmd_id,
-		const unsigned int num_parameters,
-		const unsigned short *parameters,
-		unsigned int *resp_num_parameters,
-		unsigned short *resp_parameters
-		);
-static unsigned int fmd_send_cmd(
-		const unsigned long cmd_id ,
-		const unsigned int num_parameters,
-		const unsigned short *parameters
-		);
-static unsigned int fmd_read_resp(
-		unsigned long *cmd_id,
-		unsigned int *num_parameters,
-		unsigned short *parameters
-		);
-static void fmd_process_fm_function(
-		uint8_t *packet_buffer
-		);
-static unsigned int fmd_st_write_file_block(
-		uint32_t file_block_id,
-		uint8_t *file_block,
-		uint16_t file_block_length
-		);
+static u8 fmd_send_cmd_and_read_resp(const u16 cmd_id,
+				     const u16 num_parameters,
+				     const u16 *parameters,
+				     u16 *resp_num_parameters,
+				     u16 *resp_parameters);
+static u8 fmd_send_cmd(const u16 cmd_id,
+		       const u16 num_parameters, const u16 *parameters);
+static u8 fmd_read_resp(u16 *cmd_id, u16 *num_parameters, u16 *parameters);
+static void fmd_process_fm_function(u8 *packet_buffer);
+static u8 fmd_write_file_block(u32 file_block_id,
+			       u8 *file_block, u16 file_block_length);
 
 /* ------------------ Internal function definitions ---------------------- */
 
 /**
-  * fmd_criticalsection_enter() - Critical Section for FM Driver.
-  * This is used for interrupt syncronisation.
+  * fmd_event_name() - Converts the event to a displayable string.
+  * @event: Event that has occurred.
+  * @eventname: (out) Buffer to store event name.
   */
-static void fmd_criticalsection_enter(void)
+static void fmd_event_name(u8 event, char *eventname)
 {
-	g_fmd_interrupt_semaphore++;
-	g_fmd_interrupt_mutex = STE_TRUE;
-}
-
-/**
-  * fmd_criticalsection_leave() - Critical Section for FM Driver.
-  * This is used for interrupt syncronisation.
-  */
-static void fmd_criticalsection_leave(void)
-{
-	g_fmd_interrupt_semaphore--;
-	if (g_fmd_interrupt_semaphore == 0)
-		g_fmd_interrupt_mutex = STE_FALSE;
-	fmd_handle_interrupt(); /* execute buffered interrupts */
-}
-
-/**
-  * fmd_event_name() - Converts the event to a Displayable String
-  * @event: event that has occurred.
-  * @str: (out) Pointer to the buffer to store event Name.
-  */
-static void fmd_event_name(
-		unsigned long event,
-		char *str
-		)
-{
-	switch (event) 	{
-	case FMD_EVENT_ANTENNA_STATUS_CHANGED:
-		strcpy(str, "FMD_EVENT_ANTENNA_STATUS_CHANGED");
-		break;
-	case FMD_EVENT_FREQUENCY_CHANGED:
-		strcpy(str, "FMD_EVENT_FREQUENCY_CHANGED");
-		break;
-	case FMD_EVENT_FREQUENCY_RANGE_CHANGED:
-		strcpy(str, "FMD_EVENT_FREQUENCY_RANGE_CHANGED");
-		break;
-	case FMD_EVENT_PRESET_CHANGED:
-		strcpy(str, "FMD_EVENT_PRESET_CHANGED");
-		break;
-	case FMD_EVENT_SEEK_COMPLETED:
-		strcpy(str, "FMD_EVENT_SEEK_COMPLETED");
-		break;
-	case FMD_EVENT_ACTION_FINISHED:
-		strcpy(str, "FMD_EVENT_ACTION_FINISHED");
-		break;
-	case FMD_EVENT_RDSGROUP_RCVD:
-		strcpy(str, "FMD_EVENT_RDSGROUP_RCVD");
-		break;
-	case FMD_EVENT_SEEK_STOPPED:
-		strcpy(str, "FMD_EVENT_SEEK_STOPPED");
-		break;
-	default:
-		strcpy(str, "Unknown Event");
-		break;
+	if (eventname != NULL) {
+		if (event < FMD_EVENT_LAST_ELEMENT)
+			strcpy(eventname, event_name[event]);
+		else
+			strcpy(eventname, "FMD_EVENT_UNKNOWN");
+	} else {
+		FM_ERR_REPORT("fmd_event_name: Output Buffer is NULL!!!");
 	}
 }
 
 /**
-  * fmd_interrupt_name() - Converts the interrupt to a Displayable String
+  * fmd_interrupt_name() - Converts the interrupt to a displayable string.
   * @interrupt: interrupt received from FM Chip
-  * @str:  (out) Pointer to the buffer to store interrupt Name.
+  * @interruptname: (out) Buffer to store interrupt name.
   */
-static void fmd_interrupt_name(
-		unsigned long interrupt,
-		char *str
-		)
+static void fmd_interrupt_name(u16 interrupt, char *interruptname)
 {
-	switch (interrupt) {
-	case 0:
-		strcpy(str, "irpt_OperationSucceeded");
-		break;
-	case 1:
-		strcpy(str, "irpt_OperationFailed");
-		break;
-	case 2:
-	case 10:
-	case 11:
-	case 12:
-	case 13:
-		strcpy(str, "-");
-		break;
-	case 3:
-		strcpy(str, "irpt_BufferFull/Empty");
-		break;
-	case 4:
-		strcpy(str, "irpt_SignalQualityLow/MuteStatusChanged");
-		break;
-	case 5:
-		strcpy(str, "irpt_MonoStereoTransition");
-		break;
-	case 6:
-		strcpy(str, "irpt_RdsSyncFound/InputOverdrive");
-		break;
-	case 7:
-		strcpy(str, "irpt_RdsSyncLost");
-		break;
-	case 8:
-		strcpy(str, "irpt_PiCodeChanged");
-		break;
-	case 9:
-		strcpy(str, "irpt_RequestedBlockAvailable");
-		break;
-	case 14:
-		strcpy(str, "irpt_WarmBootReady");
-		break;
-	case 15:
-		strcpy(str, "irpt_ColdBootReady");
-		break;
-	default:
-		strcpy(str, "IRPT Unknown");
-		break;
-	}
-}
+	int index;
 
-/**
-  * fmd_interrupt_handler() - The function is implemented to get the
-  * interrupt indication from device.
-  * @interrupt: interrupt received from FM Chip
-  */
-static void fmd_interrupt_handler(
-		const unsigned long interrupt
-		)
-{
-	int i;
-	for (i = 0; i < MAX_COUNT_OF_IRQS; i++) {
-		if (interrupt & (1 << i)) {
-			g_interrupt_received[i] = STE_TRUE;
-			fmd_handle_interrupt();
-		}
-	}
-}
-
-/**
-  * fmd_handle_interrupt() - This function synchronizes Interupts in that
-  * way that it is only executed when no criticalsection is active.
-  * This is also the function that executes the interrupt handlers
-  */
-static void fmd_handle_interrupt(void)
-{
-	int i;
-	if (!g_fmd_interrupt_mutex) {
-		/* only execute when there is no other function executed */
-
-		/* check if an interrupt was requested */
-		for (i = 0; i < MAX_COUNT_OF_IRQS; i++) {
-			if (g_interrupt_received[i]) {
-				/*handle interrupt(now the irq is
-				 * synchronized!)
-				 */
-				fmd_handle_synchronized_interrupt(i);
+	if (interruptname != NULL) {
+		/* Convert Interrupt to Bit */
+		for (index = 0; index < MAX_COUNT_OF_IRQS; index++) {
+			if (interrupt & (1 << index)) {
+				/* Match found, break the loop */
+				break;
 			}
 		}
+		if (index < MAX_COUNT_OF_IRQS)
+			strcpy(interruptname, interrupt_name[index]);
+		else
+			strcpy(interruptname, "irpt_Unknown");
+	} else {
+		FM_ERR_REPORT("fmd_interrupt_name: Output Buffer is NULL!!!");
 	}
 }
 
 /**
-  * fmd_handle_synchronized_interrupt() - This function processes the
-  * interrupt received from FM Chip and calls the corresponding callback
-  * register by upper layers with proper parameters.
+  * fmd_add_interrupt_to_queue() - Add interrupt to IRQ Queue.
   * @interrupt: interrupt received from FM Chip
   */
-static void fmd_handle_synchronized_interrupt(
-		unsigned long interrupt
-		)
+static void fmd_add_interrupt_to_queue(u16 interrupt)
 {
-	char			irpt_name[50];
+	FM_DEBUG_REPORT("fmd_add_interrupt_to_queue : "
+			"Interrupt Received = %04x", (u16) interrupt);
 
-	fmd_criticalsection_enter();
+	/* Reset the index if it reaches the array limit */
+	if (fmd_state_info.irq_index > MAX_COUNT_OF_IRQS - 1) {
+		os_lock();
+		fmd_state_info.irq_index = 0;
+		os_unlock();
+	}
+
+	os_lock();
+	fmd_state_info.interrupt_queue[fmd_state_info.irq_index] = interrupt;
+	fmd_state_info.irq_index++;
+	os_unlock();
+	if (STE_FALSE == fmd_state_info.interrupt_available_for_processing) {
+		os_lock();
+		fmd_state_info.interrupt_available_for_processing = STE_TRUE;
+		os_unlock();
+		os_set_interrupt_sem();
+	}
+}
+
+/**
+  * fmd_process_interrupt() - Processes the Interrupt.
+  * This function processes the interrupt received from FM Chip
+  * and calls the corresponding callback registered by upper layers with
+  * proper parameters.
+  * @interrupt: interrupt received from FM Chip
+  */
+static void fmd_process_interrupt(u16 interrupt)
+{
+	char irpt_name[MAX_NAME_SIZE];
 
 	fmd_interrupt_name(interrupt, irpt_name);
 	FM_DEBUG_REPORT("%s", irpt_name);
 
-	switch (interrupt) {
-	case IRPT_OPERATIONSUCCEEDED:
-	{
+	if (interrupt & IRPT_OPERATIONSUCCEEDED) {
 		switch (fmd_state_info.gocmd) {
-		case fmd_gocmd_setantenna:
-		/* Signal host */
-		fmd_state_info.gocmd = fmd_gocmd_none;
-		fmd_callback((void *)&fmd_state_info,
-			FMD_EVENT_ACTION_FINISHED , 0,
-			STE_TRUE);
-		fmd_callback((void *)&fmd_state_info,
-			FMD_EVENT_ANTENNA_STATUS_CHANGED ,
-			0, STE_FALSE);
-			break;
-		case fmd_gocmd_setmode:
+		case FMD_STATE_ANTENNA:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd &= ~FMD_STATE_ANTENNA;
+			os_set_cmd_sem();
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
+				     FMD_EVENT_ANTENNA_STATUS_CHANGED,
+				     STE_TRUE);
 			break;
-		case fmd_gocmd_setmute:
+		case FMD_STATE_MODE:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
+			fmd_state_info.gocmd &= ~FMD_STATE_MODE;
+			os_set_cmd_sem();
 			break;
-		case fmd_gocmd_setfrequency:
+		case FMD_STATE_MUTE:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd &= ~FMD_STATE_MUTE;
+			os_set_cmd_sem();
+			break;
+		case FMD_STATE_FREQUENCY:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_FREQUENCY;
+			os_set_cmd_sem();
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
+				     FMD_EVENT_FREQUENCY_CHANGED, STE_TRUE);
+			break;
+		case FMD_STATE_SEEK:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_SEEK;
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_FREQUENCY_CHANGED , 0,
-				STE_FALSE);
+				     FMD_EVENT_SEEK_COMPLETED, STE_TRUE);
+			break;
+		case FMD_STATE_SCAN_BAND:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_SCAN_BAND;
+			fmd_callback((void *)&fmd_state_info,
+				     FMD_EVENT_SCAN_BAND_COMPLETED, STE_TRUE);
+			break;
+		case FMD_STATE_SEEK_STOP:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_SEEK_STOP;
+			os_set_cmd_sem();
+			fmd_callback((void *)&fmd_state_info,
+				     FMD_EVENT_SEEK_STOPPED, STE_TRUE);
+			break;
+		case FMD_STATE_PA:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_PA;
+			os_set_cmd_sem();
+			break;
+		case FMD_STATE_PA_LEVEL:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_PA_LEVEL;
+			os_set_cmd_sem();
 			break;
 
-		case fmd_gocmd_seek:
+		case FMD_STATE_GEN_POWERUP:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_SEEK_COMPLETED , 0,
-				STE_FALSE);
+			fmd_state_info.gocmd &= ~FMD_STATE_GEN_POWERUP;
+			os_set_cmd_sem();
 			break;
-
-		case fmd_gocmd_scanband:
+		case FMD_STATE_SELECT_REF_CLK:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_SCAN_BAND_COMPLETED , 0,
-				STE_FALSE);
+			fmd_state_info.gocmd &= ~FMD_STATE_SELECT_REF_CLK;
+			os_set_cmd_sem();
 			break;
-
-		case fmd_gocmd_stepfrequency:
+		case FMD_STATE_SET_REF_CLK_PLL:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_FREQUENCY_CHANGED , 0,
-				STE_FALSE);
+			fmd_state_info.gocmd &= ~FMD_STATE_SET_REF_CLK_PLL;
+			os_set_cmd_sem();
 			break;
-
-		case fmd_gocmd_seekstop:
+		case FMD_STATE_BLOCK_SCAN:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd &= ~FMD_STATE_BLOCK_SCAN;
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_SEEK_STOPPED , 0,
-				STE_FALSE);
+				     FMD_EVENT_BLOCK_SCAN_COMPLETED, STE_TRUE);
 			break;
-
-		case fmd_gocmd_genpowerup:
+		case FMD_STATE_AF_UPDATE:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd &= ~FMD_STATE_AF_UPDATE;
+			os_set_cmd_sem();
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_TRUE);
+				     FMD_EVENT_AF_UPDATE_SWITCH_COMPLETE,
+				     STE_TRUE);
 			break;
-
+		case FMD_STATE_AF_SWITCH:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_AF_SWITCH;
+			os_set_cmd_sem();
+			fmd_callback((void *)&fmd_state_info,
+				     FMD_EVENT_AF_UPDATE_SWITCH_COMPLETE,
+				     STE_TRUE);
+			break;
+		case FMD_STATE_TX_SET_CTRL:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_TX_SET_CTRL;
+			os_set_cmd_sem();
+			break;
+		case FMD_STATE_TX_SET_THRSHLD:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_TX_SET_THRSHLD;
+			os_set_cmd_sem();
+			break;
 		default:
 			/* Clear the variable */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd = FMD_STATE_NONE;
 			break;
 
 		}
-		break;
 	}
 
-	case IRPT_OPERATIONFAILED:
-	{
+	if (interrupt & IRPT_OPERATIONFAILED) {
 		switch (fmd_state_info.gocmd) {
 
-		case fmd_gocmd_seek:
+		case FMD_STATE_SEEK:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd = FMD_STATE_NONE;
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_FALSE);
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_SEEK_COMPLETED , 0,
-				STE_FALSE);
+				     FMD_EVENT_SEEK_COMPLETED, STE_FALSE);
 			break;
 
-		case fmd_gocmd_scanband:
+		case FMD_STATE_SCAN_BAND:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd = FMD_STATE_NONE;
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_FALSE);
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_SCAN_BAND_COMPLETED , 0,
-				STE_FALSE);
+				     FMD_EVENT_SCAN_BAND_COMPLETED, STE_FALSE);
 			break;
 
-		case fmd_gocmd_seekstop:
+		case FMD_STATE_SEEK_STOP:
 			/* Signal host */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd = FMD_STATE_NONE;
+			os_set_cmd_sem();
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_ACTION_FINISHED , 0,
-				STE_FALSE);
+				     FMD_EVENT_SEEK_STOPPED, STE_FALSE);
+			break;
+
+		case FMD_STATE_BLOCK_SCAN:
+			/* Signal host */
+			fmd_state_info.gocmd = FMD_STATE_NONE;
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_SEEK_STOPPED , 0,
-				STE_FALSE);
+				     FMD_EVENT_BLOCK_SCAN_COMPLETED, STE_FALSE);
+			break;
+
+		case FMD_STATE_AF_UPDATE:
+		case FMD_STATE_AF_SWITCH:
+			/* Signal host */
+			fmd_state_info.gocmd = FMD_STATE_NONE;
+			os_set_cmd_sem();
+			fmd_callback((void *)&fmd_state_info,
+				     FMD_EVENT_AF_UPDATE_SWITCH_COMPLETE,
+				     STE_FALSE);
 			break;
 
 		default:
 			/* Clear */
-			fmd_state_info.gocmd = fmd_gocmd_none;
+			fmd_state_info.gocmd = FMD_STATE_NONE;
 			break;
 		}
-		break;
 	}
 
-	case IRPT_BUFFERFULL:
-	{
-		switch (fmd_state_info.mode)	{
-		case FMD_MODE_RX:
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_RDSGROUP_RCVD , 0,
-				STE_FALSE);;
-			break;
-
-		default:
-		/* Do Nothing */
-		break;
-		}
-		break;
+	if (interrupt & IRPT_RX_BUFFERFULL_TX_BUFFEREMPTY) {
+		fmd_callback((void *)&fmd_state_info,
+			     FMD_EVENT_RDSGROUP_RCVD, STE_TRUE);
 	}
 
-	case IRPT_COLDBOOTREADY:
-	case IRPT_WARMBOOTREADY:
-	{
+	if (interrupt & IRPT_RX_MONOSTEREO_TRANSITION) {
 		switch (fmd_state_info.gocmd) {
-		case fmd_gocmd_genpowerup:
+		case FMD_STATE_MONOSTEREO_TRANSITION:
+			/* Signal host */
+			fmd_state_info.gocmd &=
+			    ~FMD_STATE_MONOSTEREO_TRANSITION;
+			os_set_cmd_sem();
+			fmd_callback((void *)&fmd_state_info,
+				     FMD_EVENT_MONOSTEREO_TRANSITION_COMPLETE,
+				     STE_TRUE);
+			break;
+		default:
+
+			break;
+		}
+	}
+	if (interrupt & IRPT_COLDBOOTREADY) {
+		switch (fmd_state_info.gocmd) {
+		case FMD_STATE_GEN_POWERUP:
 			/* Signal host */
 			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_GEN_POWERUP ,
-				0, STE_TRUE);
+				     FMD_EVENT_GEN_POWERUP, STE_TRUE);
 			break;
 		default:
 			/* Do Nothing */
 			break;
 		}
-		break;
 	}
+
+	if (interrupt & IRPT_WARMBOOTREADY) {
+		switch (fmd_state_info.gocmd) {
+		case FMD_STATE_GEN_POWERUP:
+			/* Signal host */
+			fmd_state_info.gocmd &= ~FMD_STATE_GEN_POWERUP;
+			os_set_cmd_sem();
+			fmd_callback((void *)&fmd_state_info,
+				     FMD_EVENT_GEN_POWERUP, STE_TRUE);
+			break;
+		default:
+			/* Do Nothing */
+			break;
+		}
 	}
-	g_interrupt_received[interrupt] = STE_FALSE;
-	fmd_criticalsection_leave();
 }
 
 /**
   * fmd_callback() - Callback function for upper layers.
   * Callback function that calls the registered callback of upper
   * layers with proper parameters.
-  * @context: Pointer to the Context of the FM Driver
-  * @event: event for which the callback function was caled
+  * @context: Context of the FM Driver
+  * @event: event for which the callback function was called
   * from FM Driver.
-  * @event_int_data: Data corresponding the event (if any),
-  * otherwise it is 0.
-  * @event_boolean_data: Signifying whether the event is called from FM Driver
-  * on receiving irpt_OperationSucceeded or irpt_OperationFailed.
+  * @event_successful: Signifying whether the event is called from FM
+  * Driver on receiving irpt_OperationSucceeded or irpt_OperationFailed.
   */
-static void fmd_callback(
-		void *context,
-		uint32_t event,
-		uint32_t event_int_data,
-		bool event_boolean_data
-		)
+static void fmd_callback(void *context, u8 event, bool event_successful)
 {
-	fmd_event_name(event, g_tempstring);
-	FM_DEBUG_REPORT("%s %x, %x %d", g_tempstring,
-		(unsigned int)event , (unsigned int)event_int_data,
-		(unsigned int)event_boolean_data);
+	char event_name_string[40];
+	fmd_event_name(event, event_name_string);
+	FM_DEBUG_REPORT("%s %x, %d", event_name_string,
+			(unsigned int)event, (unsigned int)event_successful);
 
 	if (fmd_state_info.callback)
 		fmd_state_info.callback((void *)&context,
-				event,
-				event_int_data,
-				event_boolean_data);
+					event, event_successful);
 }
 
 /**
   * fmd_rx_frequency_to_channel() - Converts frequency to channel number.
-  * Converts the Frequency in Khz to corresponding
-  * Channel number. This is used for FM Rx
-  * @context: Pointer to the Context of the FM Driver
-  * @freq: Frequency in Khz
+  * Converts the Frequency in kHz to corresponding Channel number.
+  * This is used for FM Rx.
+  * @context: Context of the FM Driver.
+  * @freq: Frequency in kHz.
   *
   * Returns:
   *   Channel Number corresponding to the given Frequency.
   */
-static unsigned short fmd_rx_frequency_to_channel(
-		void *context,
-		uint32_t freq
-		)
+static u16 fmd_rx_frequency_to_channel(void *context, u32 freq)
 {
-	uint8_t		 range;
-	uint32_t     minfreq, maxfreq, freq_interval;
+	u8 range;
+	u32 minfreq;
+	u32 maxfreq;
 
 	fmd_get_freq_range(context, &range);
-	fmd_get_freq_range_properties(context, range, &minfreq,
-		&maxfreq, &freq_interval);
+	fmd_get_freq_range_properties(context, range, &minfreq, &maxfreq);
 
 	if (freq > maxfreq)
 		freq = maxfreq;
 	else if (freq < minfreq)
 		freq = minfreq;
-	return (unsigned short)((freq - minfreq) / 50);
+
+	/* Frequency in kHz needs to be divided with 50 kHz to get
+	 * channel number for all FM Bands */
+
+	return (u16) ((freq - minfreq) / CHANNEL_FREQUENCY_CONVERTER);
 }
 
 /**
   * fmd_rx_channel_to_frequency() - Converts Channel number to frequency.
-  * Converts the Channel Number to corresponding
-  * Frequency in Khz. This is used for FM Rx
-  * @context: Pointer to the Context of the FM Driver
-  * @chan: Channel Number to be converted
+  * Converts the Channel Number to corresponding Frequency in kHz.
+  * This is used for FM Rx.
+  * @context: Context of the FM Driver.
+  * @channel_number: Channel Number to be converted.
   *
   * Returns:
-  *   Frequency corresponding to the corresponding channel.
+  *   Frequency corresponding to the corresponding channel in kHz.
   */
-static uint32_t fmd_rx_channel_to_frequency(
-		void *context,
-		unsigned short chan
-		)
+static u32 fmd_rx_channel_to_frequency(void *context, u16 channel_number)
 {
-	uint8_t		 range;
-	uint32_t     freq, minfreq, maxfreq, freq_interval;
+	u8 range;
+	u32 freq;
+	u32 minfreq;
+	u32 maxfreq;
 
 	fmd_get_freq_range(context, &range);
-	fmd_get_freq_range_properties(context, range, &minfreq,
-		&maxfreq, &freq_interval);
-	freq = minfreq + (chan*50);
+	fmd_get_freq_range_properties(context, range, &minfreq, &maxfreq);
+
+	/* Channel Number needs to be multiplied with 50 kHz to get
+	 * frequency in kHz for all FM Bands */
+
+	freq = minfreq + (channel_number * CHANNEL_FREQUENCY_CONVERTER);
+
+	if (freq > maxfreq)
+		freq = maxfreq;
+	else if (freq < minfreq)
+		freq = minfreq;
+
+	return freq;
+}
+
+/**
+  * fmd_tx_frequency_to_channel() - Converts frequency to channel number.
+  * Converts the Frequency in kHz to corresponding Channel number.
+  * This is used for FM Tx.
+  * @context: Context of the FM Driver.
+  * @freq: Frequency in kHz.
+  *
+  * Returns:
+  *   Channel Number corresponding to the given Frequency.
+  */
+static u16 fmd_tx_frequency_to_channel(void *context, u32 freq)
+{
+	u8 range;
+	u32 minfreq;
+	u32 maxfreq;
+
+	fmd_tx_get_freq_range(context, &range);
+	fmd_get_freq_range_properties(context, range, &minfreq, &maxfreq);
+
+	if (freq > maxfreq)
+		freq = maxfreq;
+	else if (freq < minfreq)
+		freq = minfreq;
+
+	/* Frequency in kHz needs to be divided with 50 kHz to get
+	 * channel number for all FM Bands */
+
+	return (u16) ((freq - minfreq) / CHANNEL_FREQUENCY_CONVERTER);
+}
+
+/**
+  * fmd_tx_channel_to_frequency() - Converts Channel number to frequency.
+  * Converts the Channel Number to corresponding Frequency in kHz.
+  * This is used for FM Tx.
+  * @context: Context of the FM Driver.
+  * @channel_number: Channel Number to be converted.
+  *
+  * Returns:
+  *   Frequency corresponding to the corresponding channel in kHz.
+  */
+static u32 fmd_tx_channel_to_frequency(void *context, u16 channel_number)
+{
+	u8 range;
+	u32 freq;
+	u32 minfreq;
+	u32 maxfreq;
+
+	fmd_tx_get_freq_range(context, &range);
+	fmd_get_freq_range_properties(context, range, &minfreq, &maxfreq);
+
+	/* Channel Number needs to be multiplied with 50 kHz to get
+	 * frequency in kHz for all FM Bands */
+
+	freq = minfreq + (channel_number * CHANNEL_FREQUENCY_CONVERTER);
 
 	if (freq > maxfreq)
 		freq = maxfreq;
@@ -635,42 +657,41 @@ static uint32_t fmd_rx_channel_to_frequency(
   *
   * Returns:
   *   0 if FM Driver is Idle
-  *   	1 otherwise
+  *   1 otherwise
   */
 static bool fmd_go_cmd_busy(void)
 {
-	return (fmd_state_info.gocmd != fmd_gocmd_none);
+	return (fmd_state_info.gocmd != FMD_STATE_NONE);
 }
 
 /**
-  * fmd_send_cmd_and_read_resp() - This function sends the HCI Command
-  * to Protocol Driver and Reads back the Response Packet.
+  * fmd_send_cmd_and_read_resp() - Send command and read response.
+  * This function sends the HCI Command to Protocol Driver and
+  * Reads back the Response Packet.
   * @cmd_id: Command Id to be sent to FM Chip.
   * @num_parameters: Number of parameters of the command sent.
-  * @parameters: Pointer to buffer containing the Buffer to be sent.
+  * @parameters: Buffer containing the Buffer to be sent.
   * @resp_num_parameters: (out) Number of paramters of the response packet.
-  * @resp_parameters: (out) Pointer to the buffer of the response packet.
+  * @resp_parameters: (out) Buffer of the response packet.
   *
   * Returns:
-  *   FMD_RESULT_SUCCESS: If the command is sent successfully and the response
-  * 			  receioved is also correct.
+  *   FMD_RESULT_SUCCESS: If the command is sent successfully and the
+  *   response received is also correct.
   *   FMD_RESULT_RESPONSE_WRONG: If the received response is not correct.
   */
-static unsigned int fmd_send_cmd_and_read_resp(
-		const unsigned long cmd_id,
-		const unsigned int num_parameters,
-		const unsigned short *parameters,
-		unsigned int *resp_num_parameters,
-		unsigned short *resp_parameters
-		)
+static u8 fmd_send_cmd_and_read_resp(const u16 cmd_id,
+				     const u16 num_parameters,
+				     const u16 *parameters,
+				     u16 *resp_num_parameters,
+				     u16 *resp_parameters)
 {
-	unsigned int	result;
-	unsigned long readCmdID;
+	u8 result;
+	u16 readCmdID;
 
 	result = fmd_send_cmd(cmd_id, num_parameters, parameters);
 	if (result == FMD_RESULT_SUCCESS) {
 		result = fmd_read_resp(&readCmdID, resp_num_parameters,
-				resp_parameters);
+				       resp_parameters);
 		if (result == FMD_RESULT_SUCCESS) {
 			/* Check that the response belongs to the sent
 			 * command */
@@ -678,8 +699,7 @@ static unsigned int fmd_send_cmd_and_read_resp(
 				result = FMD_RESULT_RESPONSE_WRONG;
 		}
 	}
-	FM_DEBUG_REPORT("fmd_send_cmd_and_read_resp: "\
-		"returning %d", result);
+	FM_DEBUG_REPORT("fmd_send_cmd_and_read_resp: " "returning %d", result);
 	return result;
 }
 
@@ -688,44 +708,46 @@ static unsigned int fmd_send_cmd_and_read_resp(
   * to Protocol Driver.
   * @cmd_id: Command Id to be sent to FM Chip.
   * @num_parameters: Number of parameters of the command sent.
-  * @parameters: Pointer to buffer containing the Buffer to be sent.
+  * @parameters: Buffer containing the Buffer to be sent.
   *
   * Returns:
   *   0: If the command is sent successfully to Lower Layers.
   *   1: Otherwise
   */
-static unsigned int fmd_send_cmd(
-		const unsigned long cmd_id ,
-		const unsigned int num_parameters,
-		const unsigned short *parameters
-		)
+static u8 fmd_send_cmd(const u16 cmd_id,
+		       const u16 num_parameters, const u16 *parameters)
 {
-	uint32_t TotalLength = 2 + num_parameters * 2  + 5;
-	uint8_t *FMData = (uint8_t *)os_mem_alloc(TotalLength);
-	uint32_t CmdIDtemp;
-	unsigned int err = 0;
+	/* Total Length includes 5 bytes HCI Header, 2 bytes to store
+	 * number of parameters and remaining bytes depending on
+	 * number of paramters */
+	u16 total_length = 2 + num_parameters * sizeof(u16) + 5;
+	u8 *fm_data = (u8 *) os_mem_alloc(total_length);
+	u16 cmd_id_temp;
+	u8 err = 1;
 
-	/* Wait till response of the last command is received */
-	os_get_hal_sem();
+	if (fm_data != NULL) {
+		/* Wait till response of the last command is received */
+		os_get_hal_sem();
+		/* HCI encapsulation */
+		fm_data[0] = HCI_PACKET_INDICATOR_FM_CMD_EVT;
+		fm_data[1] = total_length - 2;
+		fm_data[2] = CATENA_OPCODE;
+		fm_data[3] = FM_WRITE;
+		fm_data[4] = FM_FUNCTION_WRITECOMMAND;
 
-	/* HCI encapsulation */
-	FMData[0] = HCI_PACKET_INDICATOR_FM_CMD_EVT;
-	FMData[1] = TotalLength - 2 ;
-	FMData[2] = CATENA_OPCODE;
-	FMData[3] = FM_WRITE ;
-	FMData[4] = FM_FUNCTION_WRITECOMMAND;
+		cmd_id_temp = cmd_id << 3;
+		fm_data[5] = (u8) cmd_id_temp;
+		fm_data[6] = cmd_id_temp >> 8;
+		fm_data[5] |= num_parameters;
 
-	CmdIDtemp = cmd_id << 3;
-	FMData[5] = (uint8_t)CmdIDtemp;
-	FMData[6] = CmdIDtemp >> 8 ;
-	FMData[5] |= num_parameters;
+		os_mem_copy((fm_data + 7),
+			    (void *)parameters, num_parameters * sizeof(u16));
 
-	os_mem_copy((FMData + 7), (void *)parameters, num_parameters * 2);
+		/* Send the Packet */
+		err = ste_fm_send_packet(total_length, fm_data);
 
-	/* Send the Packet */
-	err = ste_fm_send_packet(TotalLength , FMData);
-
-	os_mem_free(FMData);
+		os_mem_free(fm_data);
+	}
 
 	return err;
 }
@@ -733,19 +755,15 @@ static unsigned int fmd_send_cmd(
 /**
   * fmd_read_resp() - This function reads the response packet of the previous
   * command sent to FM Chip and copies it to the buffer provided as parameter.
-  * @cmd_id: (out) Pointer to Command Id received from FM Chip.
+  * @cmd_id: (out) Command Id received from FM Chip.
   * @num_parameters: (out) Number of paramters of the response packet.
-  * @parameters: (out) Pointer to the buffer of the response packet.
+  * @parameters: (out) Buffer of the response packet.
   *
   * Returns:
   *   0: If the response buffer is copied successfully.
   *   1: Otherwise
   */
-static unsigned int fmd_read_resp(
-		unsigned long *cmd_id,
-		unsigned int *num_parameters,
-		unsigned short *parameters
-		)
+static u8 fmd_read_resp(u16 *cmd_id, u16 *num_parameters, u16 *parameters)
 {
 	/* Wait till response of the last command is received */
 	os_get_read_response_sem();
@@ -755,10 +773,10 @@ static unsigned int fmd_read_resp(
 	*num_parameters = fmd_data.num_parameters;
 	if (*num_parameters)
 		os_mem_copy(parameters, fmd_data.parameters,
-			(fmd_data.num_parameters * 2));
+			    (fmd_data.num_parameters * 2));
 
 	/* Response received, release semaphore so that a new command
-	* could be sent to chip */
+	 * could be sent to chip */
 	os_set_hal_sem();
 
 	return 0;
@@ -769,51 +787,49 @@ static unsigned int fmd_read_resp(
   * This function processes the Response buffer received
   * from lower layers for the FM function and performs the necessary action to
   * parse the same.
-  * @packet_buffer: Pointer to the received Buffer.
+  * @packet_buffer: Received Buffer.
   */
-static void fmd_process_fm_function(
-		uint8_t *packet_buffer
-		)
+static void fmd_process_fm_function(u8 *packet_buffer)
 {
 	switch (packet_buffer[0]) {
 	case FM_FUNCTION_ENABLE:
 		{
-			FM_DEBUG_REPORT("FM_FUNCTION_ENABLE ,"\
-				"command successed received");
-				os_set_cmd_sem();
+			FM_DEBUG_REPORT("FM_FUNCTION_ENABLE ,"
+					"command success received");
+			os_set_cmd_sem();
 		}
 		break;
 	case FM_FUNCTION_DISABLE:
 		{
-			FM_DEBUG_REPORT("FM_FUNCTION_DISABLE ,"\
-				"command successed received");
-				os_set_cmd_sem();
+			FM_DEBUG_REPORT("FM_FUNCTION_DISABLE ,"
+					"command success received");
+			os_set_cmd_sem();
 		}
 		break;
 	case FM_FUNCTION_RESET:
 		{
-			FM_DEBUG_REPORT("FM_FUNCTION_RESET ,"\
-				"command successed received");
-				os_set_cmd_sem();
+			FM_DEBUG_REPORT("FM_FUNCTION_RESET ,"
+					"command success received");
+			os_set_cmd_sem();
 		}
 		break;
 	case FM_FUNCTION_WRITECOMMAND:
 		{
 			/* flip the header bits to take into account
-			* of little endian format */
+			 * of little endian format */
 			fmd_data.cmd_id = packet_buffer[2] << 8 |
-				packet_buffer[1];
-			fmd_data.num_parameters =  fmd_data.cmd_id & 0x07;
+			    packet_buffer[1];
+			fmd_data.num_parameters = fmd_data.cmd_id & 0x07;
 			fmd_data.cmd_id = fmd_data.cmd_id >> 3;
 
-			if (fmd_data.num_parameters)	{
+			if (fmd_data.num_parameters) {
 				fmd_data.parameters = &packet_buffer[3];
-				os_mem_copy(fmd_data.parameters ,
-					&packet_buffer[3] ,
-					fmd_data.num_parameters * 2);
+				os_mem_copy(fmd_data.parameters,
+					    &packet_buffer[3],
+					    fmd_data.num_parameters * 2);
 			}
 			/* Release the semaphore so that upper layer
-			* can process the received event */
+			 * can process the received event */
 			os_set_read_response_sem();
 		}
 		break;
@@ -821,9 +837,9 @@ static void fmd_process_fm_function(
 		break;
 	case FM_FUNCTION_GETINTMASKALL:
 		{
-			FM_DEBUG_REPORT("FM_FUNCTION_GETINTMASKALL ,"\
-				"command successed received");
-				os_set_cmd_sem();
+			FM_DEBUG_REPORT("FM_FUNCTION_GETINTMASKALL ,"
+					"command success received");
+			os_set_cmd_sem();
 		}
 		break;
 
@@ -831,54 +847,50 @@ static void fmd_process_fm_function(
 		break;
 	case FM_FUNCTION_GETINTMASK:
 		{
-			FM_DEBUG_REPORT("FM_FUNCTION_GETINTMASK ,"\
-				"command successed received");
-				os_set_cmd_sem();
+			FM_DEBUG_REPORT("FM_FUNCTION_GETINTMASK ,"
+					"command success received");
+			os_set_cmd_sem();
 		}
 		break;
 
 	case FM_FUNCTION_FMFWDOWNLOAD:
 		{
-			FM_DEBUG_REPORT("fmd_process_fm_function: "\
-				"FM_FUNCTION_FMFWDOWNLOAD,"\
-				"Block Id = %02x",
-				packet_buffer[1]);
+			FM_DEBUG_REPORT("fmd_process_fm_function: "
+					"FM_FUNCTION_FMFWDOWNLOAD,"
+					"Block Id = %02x", packet_buffer[1]);
 			os_set_cmd_sem();
 		}
 		break;
 
 	default:
 		{
-			FM_DEBUG_REPORT("fmd_process_fm_function: "\
-				"default case, FM Func = %d",
-				packet_buffer[0]);
+			FM_DEBUG_REPORT("fmd_process_fm_function: "
+					"default case, FM Func = %d",
+					packet_buffer[0]);
 		}
 		break;
 	}
 }
 
 /**
-  * fmd_st_write_file_block() - download firmware.
+  * fmd_write_file_block() - download firmware.
   * This Function adds the header for downloading
   * the firmware and coeffecient files and sends it to Protocol Driver.
   * @file_block_id: Block ID of the F/W to be transmitted to FM Chip
-  * @file_block: Pointer to the buffer containing the bytes to be sent.
+  * @file_block: Buffer containing the bytes to be sent.
   * @file_block_length: Size of the Firmware buffer.
   */
-static unsigned int fmd_st_write_file_block(
-		uint32_t file_block_id,
-		uint8_t *file_block,
-		uint16_t file_block_length
-		)
+static u8 fmd_write_file_block(u32 file_block_id,
+			       u8 *file_block, u16 file_block_length)
 {
-	unsigned int err = 0;
+	u8 err = 0;
 
 	file_block[0] = HCI_PACKET_INDICATOR_FM_CMD_EVT;
 	file_block[1] = file_block_length + 4;
 	file_block[2] = CATENA_OPCODE;
-	file_block[3] = FM_WRITE ;
-	file_block[4] = FM_FUNCTION_FMFWDOWNLOAD ;
-	file_block[5] = file_block_id ;
+	file_block[3] = FM_WRITE;
+	file_block[4] = FM_FUNCTION_FMFWDOWNLOAD;
+	file_block[5] = file_block_id;
 	/* Send the Packet */
 	err = ste_fm_send_packet(file_block_length + 6, file_block);
 
@@ -890,763 +902,527 @@ static unsigned int fmd_st_write_file_block(
 
 /* ------------------ External function definitions ---------------------- */
 
-uint8_t fmd_init(
-		void **context
-		)
+void fmd_isr(void)
+{
+	int index = 0;
+
+	FM_DEBUG_REPORT("+fmd_isr");
+
+	if (fmd_state_info.interrupt_available_for_processing == STE_FALSE &&
+	    fmd_state_info.fmd_initalized == STE_TRUE) {
+		FM_DEBUG_REPORT("fmd_isr: Waiting on irq sem "
+				"interrupt_available_for_processing = %d "
+				"fmd_state_info.fmd_initalized = %d",
+				fmd_state_info.
+				interrupt_available_for_processing,
+				fmd_state_info.fmd_initalized);
+		os_get_interrupt_sem();
+		FM_DEBUG_REPORT("fmd_isr: Waiting on irq sem "
+				"interrupt_available_for_processing = %d "
+				"fmd_state_info.fmd_initalized = %d",
+				fmd_state_info.
+				interrupt_available_for_processing,
+				fmd_state_info.fmd_initalized);
+	}
+
+	if (fmd_state_info.interrupt_available_for_processing == STE_TRUE
+	    && fmd_state_info.fmd_initalized == STE_TRUE) {
+		while (index < MAX_COUNT_OF_IRQS) {
+			if (fmd_state_info.interrupt_queue[index]
+			    != IRPT_INVALID) {
+				FM_DEBUG_REPORT("fmd_process_interrupt "
+						"Interrupt = %04x",
+						fmd_state_info.
+						interrupt_queue[index]);
+				fmd_process_interrupt(fmd_state_info.
+						      interrupt_queue[index]);
+				fmd_state_info.interrupt_queue[index]
+				    = IRPT_INVALID;
+			}
+			index++;
+		}
+	}
+	fmd_state_info.interrupt_available_for_processing = STE_FALSE;
+
+	FM_DEBUG_REPORT("-fmd_isr");
+}
+
+u8 fmd_init(void **context)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
 
 	*context = (void *)&fmd_state_info;
-	fmd_state_info.logginglevel = 2;
-
-	fmd_criticalsection_enter();
 
 	if (os_fm_driver_init() == 0) {
-		g_fmd_initalized = STE_TRUE;
-		fmd_state_info.mode = FMD_MODE_IDLE;
-		fmd_state_info.rx_freqrange = FMD_FREQRANGE_FMEUROAMERICA;
-		fmd_state_info.rx_grid = FMD_GRID_100KHZ;
-		fmd_state_info.rx_stereomode = FMD_STEREOMODE_AUTO;
-		fmd_state_info.rx_volume = 20;
-		fmd_state_info.rx_balance = 0;
-		fmd_state_info.rx_mute = STE_FALSE;
-		fmd_state_info.rx_antenna = FMD_ANTENNA_EMBEDDED;
-		fmd_state_info.rx_deemphasis = FMD_EMPHASIS_75US;
-		fmd_state_info.rx_rdson = STE_FALSE;
-		fmd_state_info.rx_seek_stoplevel = 0x0100;
-		fmd_state_info.gocmd = fmd_gocmd_none;
+		memset(&fmd_state_info, 0, sizeof(fmd_state_info));
+		fmd_state_info.fmd_initalized = STE_TRUE;
+		fmd_state_info.gocmd = FMD_STATE_NONE;
 		fmd_state_info.callback = NULL;
+		fmd_state_info.rx_freqrange = FMD_FREQRANGE_EUROAMERICA;
+		fmd_state_info.rx_stereomode = FMD_STEREOMODE_BLENDING;
+		fmd_state_info.rx_volume = MAX_ANALOG_VOLUME;
+		fmd_state_info.rx_antenna = FMD_ANTENNA_EMBEDDED;
+		fmd_state_info.rx_rdson = STE_FALSE;
+		fmd_state_info.rx_seek_stoplevel = DEFAULT_RSSI_THRESHOLD;
+		fmd_state_info.tx_freqrange = FMD_FREQRANGE_EUROAMERICA;
+		fmd_state_info.tx_preemphasis = FMD_EMPHASIS_75US;
+		fmd_state_info.tx_pilotdev = DEFAULT_PILOT_DEVIATION;
+		fmd_state_info.tx_rdsdev = DEFAULT_RDS_DEVIATION;
+		fmd_state_info.tx_strength = MAX_POWER_LEVEL;
+		fmd_state_info.max_channels_to_scan = DEFAULT_CHANNELS_TO_SCAN;
+		fmd_state_info.tx_stereomode = STE_TRUE;
+		fmd_state_info.irq_index = 0;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
 
 	FM_DEBUG_REPORT("fmd_init returning = %d", err);
 	return err;
 }
 
-uint8_t fmd_register_callback(
-		void *context,
-		fmd_radio_cb callback
-		)
+void fmd_deinit(void)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
+	os_set_interrupt_sem();
+	os_fm_driver_deinit();
+	memset(&fmd_state_info, 0, sizeof(fmd_state_info));
+}
 
-	if (fmd_go_cmd_busy())
+u8 fmd_register_callback(void *context, fmd_radio_cb callback)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	} else if (fmd_state_info.fmd_initalized) {
 		state->callback = callback;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_get_version(
-		void *context,
-		uint16_t version[]
-		)
+u8 fmd_get_version(void *context, u16 version[7]
+    )
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) 	{
-		unsigned int	IOresult;
-		unsigned int    response_count;
-		unsigned short  response_data[32];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[32];
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_GEN_GETVERSION, 0,
-			NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else 	{
-			os_mem_copy(version, response_data,
-				sizeof(unsigned short)*7);
+		io_result = fmd_send_cmd_and_read_resp(CMD_GEN_GETVERSION, 0,
+						       NULL, &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			os_mem_copy(version, response_data, sizeof(u16) * 7);
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
+	}
 
 	return err;
 }
 
-uint8_t fmd_set_mode(
-		void *context,
-		uint8_t mode
-		)
+u8 fmd_set_mode(void *context, u8 mode)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	unsigned int   IOresult;
-	unsigned int   response_count;
-	unsigned short response_data[32];
-	fmd_criticalsection_enter();
-	if (g_fmd_initalized) {
-		unsigned short parameters[1];
-		switch (mode) {
-		case FMD_MODE_RX:
-			parameters[0] = 0x01;
-			break;
-		case FMD_MODE_TX:
-			parameters[0] = 0x02;
-			break;
-		case FMD_MODE_IDLE:
-		default:
-			parameters[0] = 0x00;
-			break;
-		}
+	u8 io_result;
+	u16 response_count;
+	u16 response_data[32];
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_GEN_GOTOMODE, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+	if (mode > FMD_MODE_TX) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u16 parameters[1];
+		parameters[0] = mode;
+
+		state->gocmd = FMD_STATE_MODE;
+		io_result = fmd_send_cmd_and_read_resp(CMD_GEN_GOTOMODE, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
 		} else {
-			state->mode = mode;
-			state->gocmd = fmd_gocmd_setmode;
-			err = FMD_RESULT_WAIT;
-		}
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_get_mode(
-		void *context,
-		uint8_t *mode
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
-		IOresult = fmd_send_cmd_and_read_resp(CMD_GEN_GETMODE, 0,
-			NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else {
-			switch (response_data[0]) {
-			case 0x00:
-			default:
-				*mode = FMD_MODE_IDLE;
-				break;
-			case 0x01:
-				*mode = FMD_MODE_RX;
-				break;
-			case 0x02:
-				*mode = FMD_MODE_TX;
-				break;
-			}
+			os_get_cmd_sem();
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
+	}
 
 	return err;
 }
 
-uint8_t fmd_is_freq_range_supported(
-		void *context,
-		uint8_t range,
-		bool *supported
-		)
+u8 fmd_get_freq_range_properties(void *context,
+				 u8 range, u32 *minfreq, u32 *maxfreq)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		switch (range)	{
-		case FMD_FREQRANGE_FMEUROAMERICA:
-		case FMD_FREQRANGE_FMJAPAN:
-		case FMD_FREQRANGE_FMCHINA:
-			*supported = STE_TRUE;
-			break;
-		default:
-			*supported = STE_FALSE;
-			break;
-		}
-
-		err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_get_freq_range_properties(
-		void *context,
-		uint8_t range,
-		uint32_t *minfreq,
-		uint32_t *maxfreq,
-		uint32_t *freqinterval
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		switch (range)	{
-		case FMD_FREQRANGE_FMEUROAMERICA:
-			*minfreq =  87500;
+	} else if (fmd_state_info.fmd_initalized) {
+		switch (range) {
+		case FMD_FREQRANGE_EUROAMERICA:
+			*minfreq = 87500;
 			*maxfreq = 108000;
-			*freqinterval = 50;
 			break;
-		case FMD_FREQRANGE_FMJAPAN:
+		case FMD_FREQRANGE_JAPAN:
 			*minfreq = 76000;
 			*maxfreq = 90000;
-			*freqinterval = 50;
 			break;
-		case FMD_FREQRANGE_FMCHINA:
-			*minfreq =  70000;
+		case FMD_FREQRANGE_CHINA:
+			*minfreq = 70000;
 			*maxfreq = 108000;
-			*freqinterval = 100;
 			break;
 		default:
 			break;
 		}
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_set_antenna(
-		void *context,
-		uint8_t ant
-		)
+u8 fmd_set_antenna(void *context, u8 antenna)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[32];
+	} else if (antenna > FMD_ANTENNA_WIRED) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[32];
 
-		switch (ant) {
-		case FMD_ANTENNA_EMBEDDED:
-			parameters[0] = 0x0000;
-			break;
-		case FMD_ANTENNA_WIRED:
-		default:
-			parameters[0] = 0x0001;
-			break;
-		}
+		parameters[0] = antenna;
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_SETANTENNA, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+		state->gocmd |= FMD_STATE_ANTENNA;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_SETANTENNA, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
 		} else {
-			state->rx_antenna = ant;
-			state->gocmd = fmd_gocmd_setantenna;
-			err = FMD_RESULT_WAIT;
-		}
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_get_antenna(
-		void *context,
-		uint8_t *ant
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		*ant = state->rx_antenna;
-		err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_set_freq_range(
-		void *context,
-		uint8_t range
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[8];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		parameters[1] = 0;
-		parameters[2] = 760;
-		switch (range) {
-		case FMD_FREQRANGE_FMEUROAMERICA:
-		default:
-			parameters[0] = 0;
-			break;
-		case FMD_FREQRANGE_FMJAPAN:
-			parameters[0] = 1;
-			break;
-		case FMD_FREQRANGE_FMCHINA:
-			parameters[0] = 2;
-			break;
-		}
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_TN_SETBAND, 3,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else {
-			state->rx_freqrange = range;
-			fmd_callback((void *)&fmd_state_info,
-				FMD_EVENT_FREQUENCY_RANGE_CHANGED ,
-				0, STE_FALSE);
+			state->rx_antenna = antenna;
+			os_get_cmd_sem();
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_get_freq_range(
-		void *context,
-		uint8_t *range
-		)
+u8 fmd_get_antenna(void *context, u8 * antenna)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*antenna = state->rx_antenna;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_set_freq_range(void *context, u8 range)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (range > FMD_FREQRANGE_CHINA) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = range;
+		parameters[1] = 0;
+		parameters[2] = 760;
+
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_TN_SETBAND, 3,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			state->rx_freqrange = range;
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_get_freq_range(void *context, u8 * range)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
 
 	if (fmd_go_cmd_busy())
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	else if (fmd_state_info.fmd_initalized) {
 		*range = state->rx_freqrange;
 
 		err = FMD_RESULT_SUCCESS;
 	} else
 		err = FMD_RESULT_IO_ERROR;
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_rx_set_grid(
-		void *context,
-		uint8_t grid
-		)
+u8 fmd_rx_set_grid(void *context, u8 grid)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[32];
+	} else if (grid > FMD_GRID_200KHZ) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[32];
 
-		switch (grid) {
-		case FMD_GRID_50KHZ:
-		default:
-			parameters[0] = 0;
-			break;
-		case FMD_GRID_100KHZ:
-			parameters[0] = 1;
-			break;
-		case FMD_GRID_200KHZ:
-			parameters[0] = 2;
-			break;
-		}
+		parameters[0] = grid;
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_TN_SETGRID, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else {
-			state->rx_grid = grid;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_TN_SETGRID, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
+		else
 			err = FMD_RESULT_SUCCESS;
-		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_rx_get_grid(
-		void *context,
-		uint8_t *grid
-		)
+u8 fmd_rx_set_frequency(void *context, u32 freq)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		*grid = state->rx_grid;
-		err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_rx_set_deemphasis(
-		void *context,
-		uint8_t deemphasis
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[32];
-
-		switch (deemphasis) {
-		case FMD_EMPHASIS_50US:
-			parameters[0] = 1;
-			break;
-		case FMD_EMPHASIS_75US:
-		default:
-			parameters[0] = 2;
-			break;
-		}
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_RP_SETDEEMPHASIS,
-			1, parameters, &response_count,
-			response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else {
-			state->rx_deemphasis = deemphasis;
-			err = FMD_RESULT_SUCCESS;
-		}
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_rx_get_deemphasis(
-		void *context,
-		uint8_t *deemphasis
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		*deemphasis = state->rx_deemphasis;
-		err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_rx_set_frequency(
-		void *context,
-		uint32_t freq
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
 
 		parameters[0] = fmd_rx_frequency_to_channel(context, freq);
 
-		IOresult = fmd_send_cmd_and_read_resp(
-				CMD_FMR_SP_TUNE_SETCHANNEL,
-				1, parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+		state->gocmd |= FMD_STATE_FREQUENCY;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_TUNE_SETCHANNEL, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
 		} else {
-			state->gocmd = fmd_gocmd_setfrequency;
-			err = FMD_RESULT_WAIT;
-		}
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_rx_get_frequency(
-		void *context,
-		uint32_t *freq
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[32];
-
-		IOresult = fmd_send_cmd_and_read_resp(
-				CMD_FMR_SP_TUNE_GETCHANNEL,
-				0, NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else {
-			*freq = fmd_rx_channel_to_frequency(context,
-				response_data[0]);
+			os_get_cmd_sem();
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_rx_set_stereo_mode(
-		void *context,
-		uint32_t mode
-		)
+u8 fmd_rx_get_frequency(void *context, u32 * freq)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[8];
-		unsigned int   response_count;
-		unsigned short response_data[32];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[32];
 
-		switch (mode) {
-		case FMD_STEREOMODE_MONO:
-			parameters[0] = 1;
-			break;
-		case FMD_STEREOMODE_STEREO:
-			parameters[0] = 0;
-			break;
-		case FMD_STEREOMODE_AUTO:
-			parameters[0] = 2;
-			break;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_TUNE_GETCHANNEL, 0,
+					       NULL, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			*freq = fmd_rx_channel_to_frequency(context,
+							    response_data[0]);
+			err = FMD_RESULT_SUCCESS;
 		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_RP_STEREO_SETMODE,
-				1, parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+	return err;
+}
+
+u8 fmd_rx_set_stereo_mode(void *context, u8 mode)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (mode > FMD_STEREOMODE_BLENDING) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[32];
+
+		parameters[0] = mode;
+
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_RP_STEREO_SETMODE, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
 		} else {
 			state->rx_stereomode = mode;
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_rx_get_stereo_mode(
-		void *context,
-		uint32_t *mode
-		)
+u8 fmd_rx_get_stereo_mode(void *context, u8 * mode)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	} else if (fmd_state_info.fmd_initalized) {
 		*mode = state->rx_stereomode;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_rx_get_signal_strength(
-		void *context,
-		uint32_t *strength
-		)
+u8 fmd_rx_get_signal_strength(void *context, u16 * strength)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[8];
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_RP_GETRSSI,
-			0, NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_RP_GETRSSI,
+						       0, NULL, &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
 		} else {
 			*strength = response_data[0];
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_get_pilot_state(
-		void *context,
-		bool *on
-		)
+u8 fmd_rx_set_stop_level(void *context, u16 stoplevel)
 {
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_RP_GETSTATE,
-			0, NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
-		} else {
-			*on = (response_data[0] == 0x0001);
-			err = FMD_RESULT_SUCCESS;
-		}
-	} else
-		err = FMD_RESULT_IO_ERROR;
-
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_rx_set_stop_level(
-		void *context,
-		uint16_t stoplevel
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	} else if (fmd_state_info.fmd_initalized) {
 		state->rx_seek_stoplevel = stoplevel;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
+	}
 
-	fmd_criticalsection_leave();
 	return err;
 }
 
-uint8_t fmd_rx_get_stop_level(
-		void *context,
-		uint16_t *stoplevel
-		)
+u8 fmd_rx_get_stop_level(void *context, u16 * stoplevel)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	} else if (fmd_state_info.fmd_initalized) {
 		*stoplevel = state->rx_seek_stoplevel;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_seek(
-		void *context,
-		bool upwards
-		)
+u8 fmd_rx_seek(void *context, bool upwards)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[8];
-		unsigned int   response_count;
-		unsigned short response_data[32];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[32];
 
 		if (upwards)
 			parameters[0] = 0x0000;
@@ -1654,87 +1430,106 @@ uint8_t fmd_rx_seek(
 			parameters[0] = 0x0001;
 		parameters[1] = state->rx_seek_stoplevel;
 		parameters[2] = 0x7FFF;
-		/*0x7FFF disables "running snr" criterion for search*/
+		/*0x7FFF disables "running snr" criterion for search */
 		parameters[3] = 0x7FFF;
-		/*0x7FFF disables "final snr" criterion for search*/
+		/*0x7FFF disables "final snr" criterion for search */
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_SP_SEARCH_START,
-				4, parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
-			state->gocmd = fmd_gocmd_seek;
+		state->gocmd |= FMD_STATE_SEEK;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_SP_SEARCH_START,
+						       4, parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
 			err = FMD_RESULT_ONGOING;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_scan_band(
-		void *context
-		)
+u8 fmd_rx_scan_band(void *context, u8 max_channels_to_scan)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[8];
-		unsigned int   response_count;
-		unsigned short response_data[32];
+	} else if (max_channels_to_scan > MAX_CHANNELS_TO_SCAN) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[32];
 
-		parameters[0] = 0x0020;
+		parameters[0] = max_channels_to_scan;
 		parameters[1] = state->rx_seek_stoplevel;
 		parameters[2] = 0x7FFF;
 		parameters[3] = 0x7FFF;
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_SP_SCAN_START,
-			4, parameters, &response_count,
-			response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
-			state->gocmd = fmd_gocmd_scanband;
+		state->gocmd |= FMD_STATE_SCAN_BAND;
+		state->max_channels_to_scan = max_channels_to_scan;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_SP_SCAN_START,
+						       4, parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
 			err = FMD_RESULT_ONGOING;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_get_scan_band_info(
-		void *context,
-		uint32_t index,
-		uint16_t *numchannels,
-		uint16_t *channels,
-		uint16_t *rssi
-		)
+u8 fmd_rx_get_max_channels_to_scan(void *context, u8 *max_channels_to_scan)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[32];
+	} else if (fmd_state_info.fmd_initalized) {
+		*max_channels_to_scan = fmd_state_info.max_channels_to_scan;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_get_scan_band_info(void *context,
+			     u32 index,
+			     u16 *numchannels, u16 *channels, u16 *rssi)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[32];
 
 		parameters[0] = index;
 
-		IOresult = fmd_send_cmd_and_read_resp(
-			CMD_FMR_SP_SCAN_GETRESULT, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_SCAN_GETRESULT, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
 			*numchannels = response_data[0];
 			channels[0] = response_data[1];
 			rssi[0] = response_data[2];
@@ -1744,216 +1539,363 @@ uint8_t fmd_rx_get_scan_band_info(
 			rssi[2] = response_data[6];
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_step_frequency(
-		void *context,
-		bool upwards
-		)
+u8 fmd_rx_block_scan(void *context, u32 start_freq, u32 stop_freq, u8 antenna)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	u16 start_channel;
+	u16 stop_channel;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		if (upwards)
-			parameters[0] = 0x0000;
-		else
-			parameters[0] = 0x0001;
-
-		IOresult = fmd_send_cmd_and_read_resp(
-				CMD_FMR_SP_TUNE_STEPCHANNEL,
-				1, parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[32];
+		start_channel = fmd_rx_frequency_to_channel(context,
+							    start_freq);
+		stop_channel = fmd_rx_frequency_to_channel(context, stop_freq);
+		if (antenna > 1) {
+			err = FMD_RESULT_PARAMETER_INVALID;
 		} else {
-			state->gocmd = fmd_gocmd_stepfrequency;
-			err = FMD_RESULT_WAIT;
-		}
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
+			parameters[0] = start_channel;
+			parameters[1] = stop_channel;
+			parameters[2] = antenna;
 
-uint8_t fmd_rx_stop_seeking(
-		void *context
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (g_fmd_initalized) {
-		if ((state->gocmd == fmd_gocmd_seek)
-			|| (state->gocmd == fmd_gocmd_scanband)) {
-			unsigned int   IOresult;
-			unsigned int   response_count;
-			unsigned short response_data[32];
-
-			IOresult = fmd_send_cmd_and_read_resp(
-				CMD_FMR_SP_STOP, 0,
-				NULL, &response_count, response_data);
-			if (IOresult != FMD_RESULT_SUCCESS)
-				err = IOresult;
-			else {
-				state->gocmd = fmd_gocmd_seekstop;
-				err = FMD_RESULT_WAIT;
+			state->gocmd |= FMD_STATE_BLOCK_SCAN;
+			io_result =
+			    fmd_send_cmd_and_read_resp
+			    (CMD_FMR_SP_BLOCKSCAN_START, 3, parameters,
+			     &response_count, response_data);
+			if (io_result != FMD_RESULT_SUCCESS) {
+				state->gocmd = FMD_STATE_NONE;
+				err = io_result;
+			} else {
+				err = FMD_RESULT_ONGOING;
 			}
-		} else
-			err = FMD_RESULT_PRECONDITIONS_VIOLATED;
-	} else
+		}
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_get_rds(
-		void *context,
-		bool *on
-		)
+u8 fmd_rx_get_block_scan_result(void *context,
+				u32 index, u16 *numchannels, u16 *rssi)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		*on = fmd_state_info.rx_rdson;
-		err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[32];
 
-uint8_t fmd_rx_query_rds_signal(
-		void *context,
-		bool *is_signal
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
+		parameters[0] = index;
 
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_GETSTATE, 0,
-			NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
-			*is_signal = (response_data[3] == 0x0001);
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_BLOCKSCAN_GETRESULT,
+					       1, parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			*numchannels = response_data[0];
+			rssi[0] = response_data[1];
+			rssi[1] = response_data[2];
+			rssi[2] = response_data[3];
+			rssi[3] = response_data[4];
+			rssi[4] = response_data[5];
+			rssi[5] = response_data[6];
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_buffer_set_size(
-		void *context,
-		uint8_t size
-		)
+u8 fmd_rx_stop_seeking(void *context)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_state_info.fmd_initalized) {
+		if ((state->gocmd & FMD_STATE_SEEK)
+		    || (state->gocmd & FMD_STATE_SCAN_BAND)) {
+			u8 io_result;
+			u16 response_count;
+			u16 response_data[32];
+
+			state->gocmd &= ~FMD_STATE_SCAN_BAND;
+			state->gocmd &= ~FMD_STATE_SEEK;
+			state->gocmd |= FMD_STATE_SEEK_STOP;
+			io_result =
+			    fmd_send_cmd_and_read_resp(CMD_FMR_SP_STOP, 0, NULL,
+						       &response_count,
+						       response_data);
+			if (io_result != FMD_RESULT_SUCCESS) {
+				state->gocmd = FMD_STATE_NONE;
+				err = io_result;
+			} else {
+				os_get_cmd_sem();
+				err = FMD_RESULT_SUCCESS;
+			}
+		} else {
+			err = FMD_RESULT_PRECONDITIONS_VIOLATED;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_af_update_start(void *context, u32 freq)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = fmd_rx_frequency_to_channel(state, freq);
+
+		state->gocmd |= FMD_STATE_AF_UPDATE;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_AFUPDATE_START, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+			state->gocmd = FMD_STATE_NONE;
+		} else {
+			os_get_cmd_sem();
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_get_af_update_result(void *context, u16 * af_level)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int	IOresult;
-		unsigned short  parameters[1];
-		unsigned int    response_count;
-		unsigned short  response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[32];
 
-		if (size > 22)
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_AFUPDATE_GETRESULT, 0,
+					       NULL, &response_count,
+					       response_data);
+
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+
+			*af_level = response_data[0];
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_af_switch_start(void *context, u32 freq, u16 picode)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = fmd_rx_frequency_to_channel(state, freq);
+		parameters[1] = picode;
+		parameters[2] = 0xFFFF;
+		parameters[3] = state->rx_seek_stoplevel;
+		parameters[4] = 0x0000;
+
+		state->gocmd |= FMD_STATE_AF_SWITCH;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_AFSWITCH_START, 5,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
+			os_get_cmd_sem();
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_get_af_switch_results(void *context,
+				u16 *afs_conclusion,
+				u16 *afs_level, u16 *afs_pi)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[32];
+
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_SP_AFSWITCH_GETRESULT, 0,
+					       NULL, &response_count,
+					       response_data);
+
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+
+			*afs_conclusion = response_data[0];
+			*afs_level = response_data[1];
+			*afs_pi = response_data[2];
+
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_get_rds(void *context, bool * on)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*on = fmd_state_info.rx_rdson;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_rx_buffer_set_size(void *context, u8 size)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+
+		if (size > MAX_RDS_GROUPS) {
 			err = FMD_RESULT_IO_ERROR;
-		else {
+		} else {
 			parameters[0] = size;
 
-			IOresult = fmd_send_cmd_and_read_resp(
-					CMD_FMR_DP_BUFFER_SETSIZE, 1,
-				parameters, &response_count, response_data);
-			if (IOresult != FMD_RESULT_SUCCESS)
-				err = IOresult;
+			io_result =
+			    fmd_send_cmd_and_read_resp
+			    (CMD_FMR_DP_BUFFER_SETSIZE, 1, parameters,
+			     &response_count, response_data);
+			if (io_result != FMD_RESULT_SUCCESS)
+				err = io_result;
 			else
 				err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_buffer_set_threshold(
-		void *context,
-		uint8_t threshold
-		)
+u8 fmd_rx_buffer_set_threshold(void *context, u8 threshold)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int	IOresult;
-		unsigned short  parameters[1];
-		unsigned int    response_count;
-		unsigned short  response_data[8];
-		if (threshold > 22)
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+		if (threshold > MAX_RDS_GROUPS) {
 			err = FMD_RESULT_IO_ERROR;
-		else {
+		} else {
 			parameters[0] = threshold;
 
-			IOresult = fmd_send_cmd_and_read_resp(
-					CMD_FMR_DP_BUFFER_SETTHRESHOLD, 1,
-				parameters, &response_count, response_data);
-			if (IOresult != FMD_RESULT_SUCCESS)
-				err = IOresult;
+			io_result =
+			    fmd_send_cmd_and_read_resp
+			    (CMD_FMR_DP_BUFFER_SETTHRESHOLD, 1, parameters,
+			     &response_count, response_data);
+			if (io_result != FMD_RESULT_SUCCESS)
+				err = io_result;
 			else
 				err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_set_ctrl(
-		void *context,
-		uint8_t onoffState
-		)
+u8 fmd_rx_set_rds(void *context, u8 on_off_state)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int	IOresult;
-		unsigned short  parameters[1];
-		unsigned int    response_count;
-		unsigned short  response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
 
-		switch (onoffState) {
-		case FMD_SWITCH_OFF_RDS_SIMULATOR:
+		switch (on_off_state) {
+		case FMD_SWITCH_ON_RDS_SIMULATOR:
 			parameters[0] = 0xFFFF;
 			break;
 		case FMD_SWITCH_OFF_RDS:
@@ -1971,44 +1913,42 @@ uint8_t fmd_rx_set_ctrl(
 			break;
 		}
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_FMR_DP_SETCONTROL, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMR_DP_SETCONTROL, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
 		else
 			err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_rx_get_low_level_rds_groups(
-		void *context,
-		uint8_t index,
-		uint8_t *rds_buf_count,
-		uint16_t *block1,
-		uint16_t *block2,
-		uint16_t *block3,
-		uint16_t *block4,
-		uint8_t *status1,
-		uint8_t *status2,
-		uint8_t *status3,
-		uint8_t *status4
-		)
+u8 fmd_rx_get_low_level_rds_groups(void *context,
+				   u8 index,
+				   u8 *rds_buf_count,
+				   u16 *block1,
+				   u16 *block2,
+				   u16 *block3,
+				   u16 *block4,
+				   u8 *status1,
+				   u8 *status2, u8 *status3, u8 *status4)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	} else if (fmd_state_info.fmd_initalized) {
 		*rds_buf_count = state->rdsbufcnt;
-		*block1  = state->rdsgroup[index].block[0];
-		*block2  = state->rdsgroup[index].block[1];
-		*block3  = state->rdsgroup[index].block[2];
-		*block4  = state->rdsgroup[index].block[3];
+		*block1 = state->rdsgroup[index].block[0];
+		*block2 = state->rdsgroup[index].block[1];
+		*block3 = state->rdsgroup[index].block[2];
+		*block4 = state->rdsgroup[index].block[3];
 		*status1 = state->rdsgroup[index].status[0];
 		*status2 = state->rdsgroup[index].status[1];
 		*status3 = state->rdsgroup[index].status[2];
@@ -2016,539 +1956,881 @@ uint8_t fmd_rx_get_low_level_rds_groups(
 		err = FMD_RESULT_SUCCESS;
 	} else
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+
 	return err;
 }
 
-uint8_t fmd_set_audio_dac(
-		void *context,
-		uint8_t dac_state
-		)
+u8 fmd_tx_set_pa(void *context, bool on)
 {
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
 
-		parameters[0] = dac_state;
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_SETAUDIODAC, 1,
-				parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
+		if (on)
+			parameters[0] = 0x0001;
 		else
-			err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
+			parameters[0] = 0x0000;
 
-uint8_t fmd_set_balance(
-		void *context,
-		int8_t balance
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-		parameters[0] = (((signed short)balance)*0x7FFF) / 100;
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_SETBALANCE, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
-			state->rx_balance = balance;
+		state->gocmd |= FMD_STATE_PA;
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMT_PA_SETMODE, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
+			os_get_cmd_sem();
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_get_balance(
-		void *context,
-		int8_t *balance
-		)
+u8 fmd_tx_set_signal_strength(void *context, u16 strength)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		*balance = state->rx_balance;
+	} else if (fmd_state_info.fmd_initalized) {
+		if ((strength >= MIN_POWER_LEVEL)
+		    && (strength <= MAX_POWER_LEVEL)) {
+			u8 io_result;
+			u16 parameters[1];
+			u16 response_count;
+			u16 response_data[8];
+
+			parameters[0] = strength;
+
+			state->gocmd |= FMD_STATE_PA_LEVEL;
+			io_result =
+			    fmd_send_cmd_and_read_resp(CMD_FMT_PA_SETCONTROL, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+			if (io_result != FMD_RESULT_SUCCESS) {
+				state->gocmd = FMD_STATE_NONE;
+				err = io_result;
+			} else {
+				state->tx_strength = strength;
+				os_get_cmd_sem();
+				err = FMD_RESULT_SUCCESS;
+			}
+		} else {
+			err = FMD_RESULT_PARAMETER_INVALID;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_signal_strength(void *context, u16 * strength)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*strength = state->tx_strength;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_set_volume(
-		void *context,
-		uint8_t volume
-		)
+u8 fmd_tx_set_freq_range(void *context, u8 range)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (range > FMD_FREQRANGE_CHINA) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[32];
 
-		parameters[0] = (((unsigned short)volume)*0x7FFF) / 100;
+		parameters[0] = range;
+		parameters[1] = 0;
+		parameters[2] = 760;
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_SETVOLUME, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMT_TN_SETBAND, 3,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			state->tx_freqrange = range;
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_freq_range(void *context, u8 * range)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*range = state->tx_freqrange;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_grid(void *context, u8 grid)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (grid > FMD_GRID_200KHZ) {
+		err = FMD_RESULT_PARAMETER_INVALID;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[32];
+
+		parameters[0] = grid;
+
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMT_TN_SETGRID, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
+		else
+			err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_preemphasis(void *context, u8 preemphasis)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[32];
+
+		switch (preemphasis) {
+		case FMD_EMPHASIS_50US:
+			parameters[0] = 1;
+			break;
+		case FMD_EMPHASIS_75US:
+		default:
+			parameters[0] = 2;
+			break;
+		}
+
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMT_RP_SETPREEMPHASIS, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			state->tx_preemphasis = preemphasis;
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_preemphasis(void *context, u8 * preemphasis)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*preemphasis = state->tx_preemphasis;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_frequency(void *context, u32 freq)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = fmd_tx_frequency_to_channel(context, freq);
+
+		state->gocmd |= FMD_STATE_FREQUENCY;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMT_SP_TUNE_SETCHANNEL, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
+			os_get_cmd_sem();
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_frequency(void *context, u32 * freq)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[8];
+
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMT_SP_TUNE_GETCHANNEL, 0,
+					       NULL, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			*freq = fmd_tx_channel_to_frequency(context,
+							    response_data[0]);
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_enable_stereo_mode(void *context, bool enable_stereo_mode)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[8];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = enable_stereo_mode;
+
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMT_RP_STEREO_SETMODE, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			state->tx_stereomode = enable_stereo_mode;
+			err = FMD_RESULT_SUCCESS;
+		}
+
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_stereo_mode(void *context, bool * stereo_mode)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*stereo_mode = state->tx_stereomode;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_pilot_deviation(void *context, u16 deviation)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		if (deviation <= MAX_PILOT_DEVIATION) {
+			u8 io_result;
+			u16 parameters[1];
+			u16 response_count;
+			u16 response_data[8];
+			parameters[0] = deviation;
+
+			io_result =
+			    fmd_send_cmd_and_read_resp
+			    (CMD_FMT_RP_SETPILOTDEVIATION, 1, parameters,
+			     &response_count, response_data);
+			if (io_result != FMD_RESULT_SUCCESS) {
+				err = io_result;
+			} else {
+				state->tx_pilotdev = deviation;
+				err = FMD_RESULT_SUCCESS;
+			}
+		} else {
+			err = FMD_RESULT_PARAMETER_INVALID;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_pilot_deviation(void *context, u16 * deviation)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*deviation = state->tx_pilotdev;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_rds_deviation(void *context, u16 deviation)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		if (deviation <= MAX_RDS_DEVIATION) {
+			u8 io_result;
+			u16 parameters[1];
+			u16 response_count;
+			u16 response_data[8];
+
+			parameters[0] = deviation;
+
+			io_result =
+			    fmd_send_cmd_and_read_resp
+			    (CMD_FMT_RP_SETRDSDEVIATION, 1, parameters,
+			     &response_count, response_data);
+			if (io_result != FMD_RESULT_SUCCESS) {
+				err = io_result;
+			} else {
+				state->tx_rdsdev = deviation;
+				err = FMD_RESULT_SUCCESS;
+			}
+		} else {
+			err = FMD_RESULT_PARAMETER_INVALID;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_get_rds_deviation(void *context, u16 * deviation)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*deviation = state->tx_rdsdev;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_rds(void *context, bool on)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+
+		if (on)
+			parameters[0] = 0x0001;
+		else
+			parameters[0] = 0x0000;
+
+		io_result = fmd_send_cmd_and_read_resp(CMD_FMT_DP_SETCONTROL, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
+			state->tx_rdson = on;
+			err = FMD_RESULT_SUCCESS;
+		}
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_set_group(void *context,
+		    u16 position,
+		    u8 block1[2], u8 block2[2], u8 block3[2], u8 block4[2]
+    )
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[5];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = position;
+		os_mem_copy(&parameters[1], block1, 2);
+		os_mem_copy(&parameters[2], block2, 2);
+		os_mem_copy(&parameters[3], block3, 2);
+		os_mem_copy(&parameters[4], block4, 2);
+
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMT_DP_BUFFER_SETGROUP, 5,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
+		else
+			err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_tx_buffer_set_size(void *context, u16 buffer_size)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+		parameters[0] = buffer_size;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMT_DP_BUFFER_SETSIZE, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
+		else
+			err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+
+}
+
+u8 fmd_tx_get_rds(void *context, bool * on)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		*on = state->tx_rdson;
+		err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_set_balance(void *context, s8 balance)
+{
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+		parameters[0] = (((signed short)balance) * 0x7FFF) / 100;
+		io_result = fmd_send_cmd_and_read_resp(CMD_AUP_SETBALANCE, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
+		else
+			err = FMD_RESULT_SUCCESS;
+	} else {
+		err = FMD_RESULT_IO_ERROR;
+	}
+
+	return err;
+}
+
+u8 fmd_set_volume(void *context, u8 volume)
+{
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
+	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
+
+	if (fmd_go_cmd_busy()) {
+		err = FMD_RESULT_BUSY;
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
+
+		parameters[0] = (((u16) volume) * 0x7FFF) / 100;
+
+		io_result = fmd_send_cmd_and_read_resp(CMD_AUP_SETVOLUME, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			err = io_result;
+		} else {
 			state->rx_volume = volume;
 			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_get_volume(
-		void *context,
-		uint8_t *volume
-		)
+u8 fmd_get_volume(void *context, u8 * volume)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
+	} else if (fmd_state_info.fmd_initalized) {
 		*volume = state->rx_volume;
 		err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_set_mute(
-		void *context,
-		bool mute_on
-		)
+u8 fmd_set_mute(void *context, bool mute_on)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[2];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[2];
+		u16 response_count;
+		u16 response_data[8];
 
-		state->rx_mute = mute_on;
 		if (!mute_on)
 			parameters[0] = 0x0000;
 		else
 			parameters[0] = 0x0001;
 		parameters[1] = 0x0001;
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_SETMUTE, 2,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else {
-			state->gocmd = fmd_gocmd_setmute;
-			err = FMD_RESULT_WAIT;
+		state->gocmd |= FMD_STATE_MUTE;
+		io_result = fmd_send_cmd_and_read_resp(CMD_AUP_SETMUTE, 2,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
+			os_get_cmd_sem();
+			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_get_mute(
-		void *context,
-		bool *mute_on
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		*mute_on = state->rx_mute;
-		err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_bt_set_ctrl(
-		void *context,
-		bool up_conversion
-		)
+u8 fmd_ext_set_mute(void *context, bool mute_on)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[2];
+		u16 response_count;
+		u16 response_data[8];
 
-		if (up_conversion)
-			parameters[0] = 0x0000;
-		else
-			parameters[0] = 0x0001;
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_BT_SETCONTROL, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else
-			err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_bt_set_mode(
-		void *context,
-		uint8_t output
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		switch (output) {
-		case FMD_OUTPUT_DISABLED:
-		default:
-			parameters[0] = 0x0000;
-			break;
-		case FMD_OUTPUT_I2S:
-			parameters[0] = 0x0001;
-			break;
-		case FMD_OUTPUT_PARALLEL:
-			parameters[0] = 0x0002;
-			break;
-		case FMD_OUTPUT_FIFO:
-			parameters[0] = 0x0003;
-			break;
-		}
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_BT_SETMODE, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else
-			err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_ext_set_mode(
-		void *context,
-		uint8_t output
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		switch (output) {
-		case FMD_OUTPUT_DISABLED:
-		default:
-			parameters[0] = 0x0000;
-			break;
-		case FMD_OUTPUT_I2S:
-			parameters[0] = 0x0001;
-			break;
-		case FMD_OUTPUT_PARALLEL:
-			parameters[0] = 0x0002;
-			break;
-		}
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_EXT_SETMODE, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else
-			err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_ext_set_ctrl(
-		void *context,
-		bool up_conversion
-		)
-{
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		if (up_conversion)
-			parameters[0] = 0x0000;
-		else
-			parameters[0] = 0x0001;
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_EXT_SETCONTROL, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else
-			err = FMD_RESULT_SUCCESS;
-	} else
-		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
-	return err;
-}
-
-uint8_t fmd_ext_set_mute(
-		void *context,
-		bool mute_on
-		)
-{
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
-	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
-
-	if (fmd_go_cmd_busy())
-		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[2];
-		unsigned int   response_count;
-		unsigned short response_data[8];
-
-		state->rx_mute = mute_on;
 		if (!mute_on)
 			parameters[0] = 0x0000;
 		else
 			parameters[0] = 0x0001;
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_AUP_EXT_SETMUTE, 1,
-			parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
+		io_result = fmd_send_cmd_and_read_resp(CMD_AUP_EXT_SETMUTE, 1,
+						       parameters,
+						       &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
 		else
 			err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_power_up(
-		void *context
-		)
+u8 fmd_power_up(void *context)
 {
-	struct fmd_state_info_s *state = (struct fmd_state_info_s *)context;
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[8];
 
-
-		IOresult = fmd_send_cmd_and_read_resp(CMD_GEN_POWERUP, 0,
-			NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS) {
-			err = IOresult;
+		state->gocmd |= FMD_STATE_GEN_POWERUP;
+		io_result = fmd_send_cmd_and_read_resp(CMD_GEN_POWERUP, 0,
+						       NULL, &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
 		} else {
-			state->gocmd = fmd_gocmd_genpowerup;
-			err = FMD_RESULT_WAIT;
+			os_get_cmd_sem();
+			err = FMD_RESULT_SUCCESS;
 		}
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_goto_standby(
-		void *context
-		)
+u8 fmd_goto_standby(void *context)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[8];
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_GEN_GOTOSTANDBY, 0,
-			NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
+		io_result = fmd_send_cmd_and_read_resp(CMD_GEN_GOTOSTANDBY, 0,
+						       NULL, &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
 		else
 			err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_goto_power_down(
-		void *context
-		)
+u8 fmd_goto_power_down(void *context)
 {
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 response_count;
+		u16 response_data[8];
 
-		IOresult = fmd_send_cmd_and_read_resp(CMD_GEN_GOTOPOWERDOWN, 0,
-				NULL, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
+		io_result = fmd_send_cmd_and_read_resp(CMD_GEN_GOTOPOWERDOWN, 0,
+						       NULL, &response_count,
+						       response_data);
+		if (io_result != FMD_RESULT_SUCCESS)
+			err = io_result;
 		else
 			err = FMD_RESULT_SUCCESS;
-	} else
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_select_ref_clk(
-		void *context,
-		uint16_t ref_clk
-		)
+u8 fmd_select_ref_clk(void *context, u16 ref_clk)
 {
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
 
 		parameters[0] = ref_clk;
 
-		IOresult = fmd_send_cmd_and_read_resp(
-				CMD_GEN_SELECTREFERENCECLOCK,
-				1, parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else
+		state->gocmd |= FMD_STATE_SELECT_REF_CLK;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_GEN_SELECTREFERENCECLOCK, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
+			os_get_cmd_sem();
 			err = FMD_RESULT_SUCCESS;
-	} else
+		}
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-uint8_t fmd_select_ref_clk_pll(
-		void *context,
-		uint16_t freq
-		)
+u8 fmd_set_ref_clk_pll(void *context, u16 freq)
 {
+	struct fmd_state_info_t *state = (struct fmd_state_info_t *)context;
 	int err = FMD_RESULT_FEATURE_UNSUPPORTED;
-	fmd_criticalsection_enter();
 
-	if (fmd_go_cmd_busy())
+	if (fmd_go_cmd_busy()) {
 		err = FMD_RESULT_BUSY;
-	else if (g_fmd_initalized) {
-		unsigned int   IOresult;
-		unsigned short parameters[1];
-		unsigned int   response_count;
-		unsigned short response_data[8];
+	} else if (fmd_state_info.fmd_initalized) {
+		u8 io_result;
+		u16 parameters[1];
+		u16 response_count;
+		u16 response_data[8];
 
 		parameters[0] = freq;
 
-		IOresult = fmd_send_cmd_and_read_resp(
-				CMD_GEN_SETREFERENCECLOCKPLL,
-				1, parameters, &response_count, response_data);
-		if (IOresult != FMD_RESULT_SUCCESS)
-			err = IOresult;
-		else
+		state->gocmd |= FMD_STATE_SET_REF_CLK_PLL;
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_GEN_SETREFERENCECLOCKPLL, 1,
+					       parameters, &response_count,
+					       response_data);
+		if (io_result != FMD_RESULT_SUCCESS) {
+			state->gocmd = FMD_STATE_NONE;
+			err = io_result;
+		} else {
+			os_get_cmd_sem();
 			err = FMD_RESULT_SUCCESS;
-	} else
+		}
+	} else {
 		err = FMD_RESULT_IO_ERROR;
-	fmd_criticalsection_leave();
+	}
+
 	return err;
 }
 
-unsigned int fmd_send_fm_ip_enable(void)
+u8 fmd_send_fm_ip_enable(void)
 {
-	uint8_t FMIP_EnableCmd[5];
-	unsigned int err = 0;
+	u8 FMIP_EnableCmd[5];
+	u8 err = 0;
 
 	FMIP_EnableCmd[0] = HCI_PACKET_INDICATOR_FM_CMD_EVT;
-	FMIP_EnableCmd[1] = 0x03 ; /* Length of following Bytes */
+	FMIP_EnableCmd[1] = 0x03;	/* Length of following Bytes */
 	FMIP_EnableCmd[2] = CATENA_OPCODE;
-	FMIP_EnableCmd[3] = FM_WRITE ;
+	FMIP_EnableCmd[3] = FM_WRITE;
 	FMIP_EnableCmd[4] = FM_FUNCTION_ENABLE;
 
 	/* Send the Packet */
-	err = ste_fm_send_packet(5 , FMIP_EnableCmd);
+	err = ste_fm_send_packet(5, FMIP_EnableCmd);
 
 	/* wait till response comes */
 	os_get_cmd_sem();
@@ -2556,19 +2838,19 @@ unsigned int fmd_send_fm_ip_enable(void)
 	return err;
 }
 
-unsigned int fmd_send_fm_ip_disable(void)
+u8 fmd_send_fm_ip_disable(void)
 {
-	uint8_t FMIP_DisableCmd[5];
-	unsigned int err = 0;
+	u8 FMIP_DisableCmd[5];
+	u8 err = 0;
 
 	FMIP_DisableCmd[0] = HCI_PACKET_INDICATOR_FM_CMD_EVT;
-	FMIP_DisableCmd[1] = 0x03 ; /* Length of following Bytes */
+	FMIP_DisableCmd[1] = 0x03;	/* Length of following Bytes */
 	FMIP_DisableCmd[2] = CATENA_OPCODE;
-	FMIP_DisableCmd[3] = FM_WRITE ;
+	FMIP_DisableCmd[3] = FM_WRITE;
 	FMIP_DisableCmd[4] = FM_FUNCTION_DISABLE;
 
 	/* Send the Packet */
-	err = ste_fm_send_packet(5 , FMIP_DisableCmd);
+	err = ste_fm_send_packet(5, FMIP_DisableCmd);
 
 	/* wait till response comes */
 	os_get_cmd_sem();
@@ -2576,36 +2858,13 @@ unsigned int fmd_send_fm_ip_disable(void)
 	return err;
 }
 
-unsigned int fmd_send_fm_ip_reset(void)
+u8 fmd_send_fm_firmware(u8 *fw_buffer, u16 fw_size)
 {
-	uint8_t FMIP_ResetCmd[5];
-	unsigned int err = 0;
-
-	FMIP_ResetCmd[0] = HCI_PACKET_INDICATOR_FM_CMD_EVT;
-	FMIP_ResetCmd[1] = 0x03 ; /* Length of following Bytes */
-	FMIP_ResetCmd[2] = CATENA_OPCODE;
-	FMIP_ResetCmd[3] = FM_WRITE ;
-	FMIP_ResetCmd[4] = FM_FUNCTION_RESET;
-
-	/* Send the Packet */
-	err = ste_fm_send_packet(5 , FMIP_ResetCmd);
-
-	/* wait till response comes */
-	os_get_cmd_sem();
-
-	return err;
-}
-
-unsigned int fmd_send_fm_firmware(
-		uint8_t *fw_buffer,
-		uint16_t fw_size
-		)
-{
-	unsigned int err = 0;
-	uint16_t bytes_to_write = ST_WRITE_FILE_BLK_SIZE - 4;
-	uint16_t bytes_remaining = fw_size;
-	uint8_t fm_firmware_data[ST_WRITE_FILE_BLK_SIZE + 6];
-	uint32_t block_id = 0;
+	u8 err = 0;
+	u16 bytes_to_write = ST_WRITE_FILE_BLK_SIZE - 4;
+	u16 bytes_remaining = fw_size;
+	u8 fm_firmware_data[ST_WRITE_FILE_BLK_SIZE + 6];
+	u32 block_id = 0;
 
 	while (bytes_remaining > 0) {
 		if (bytes_remaining < ST_WRITE_FILE_BLK_SIZE - 4)
@@ -2615,8 +2874,8 @@ unsigned int fmd_send_fm_firmware(
 		 * so shift the firmware data by 6 bytes
 		 */
 		os_mem_copy(fm_firmware_data + 6, fw_buffer, bytes_to_write);
-		err = fmd_st_write_file_block(block_id , fm_firmware_data ,
-			bytes_to_write);
+		err = fmd_write_file_block(block_id, fm_firmware_data,
+					   bytes_to_write);
 		if (!err) {
 			block_id++;
 			fw_buffer += bytes_to_write;
@@ -2625,84 +2884,106 @@ unsigned int fmd_send_fm_firmware(
 			if (block_id == 256)
 				block_id = 0;
 		} else {
-			FM_DEBUG_REPORT("fmd_send_fm_firmware: "\
-				"Failed to download %d"\
-				"Block, error = %d",
-				(unsigned int)block_id, err);
-				return err;
+			FM_DEBUG_REPORT("fmd_send_fm_firmware: "
+					"Failed to download %d"
+					"Block, error = %d",
+					(unsigned int)block_id, err);
+			return err;
 		}
 	}
 
 	return err;
 }
 
-void fmd_receive_data(
-		uint32_t packet_length,
-		uint8_t *packet_buffer
-		)
+void fmd_receive_data(u16 packet_length, u8 *packet_buffer)
 {
 	if (packet_buffer != NULL) {
-		if (packet_length == 0) {
-			uint32_t interrupt;
-			interrupt = ((uint32_t) *(packet_buffer + 1) << 8) |
-				((uint32_t) *packet_buffer) ;
+		if (packet_length == 0x04 &&
+		    packet_buffer[0] == CATENA_OPCODE &&
+		    packet_buffer[1] == FM_EVENT) {
+			/* PG 1.0 interrupt Handling */
+			u16 interrupt;
+			interrupt = (u16) (packet_buffer[3] << 8) |
+			    (u16) packet_buffer[2];
 			FM_DEBUG_REPORT("interrupt = %04x",
-				(unsigned int)interrupt);
-			fmd_interrupt_handler(interrupt);
-		} else {
-			switch (packet_buffer[0]) {
+					(unsigned int)interrupt);
+			fmd_add_interrupt_to_queue(interrupt);
+		} else if (packet_length == 0x06 &&
+			   packet_buffer[0] == 0x00 &&
+			   packet_buffer[1] == CATENA_OPCODE &&
+			   packet_buffer[2] == 0x01 &&
+			   packet_buffer[3] == FM_EVENT) {
+			/* PG 2.0 interrupt Handling */
+			u16 interrupt;
+			interrupt = (u16) (packet_buffer[5] << 8) |
+			    (u16) packet_buffer[4];
+			FM_DEBUG_REPORT("interrupt = %04x",
+					(unsigned int)interrupt);
+			fmd_add_interrupt_to_queue(interrupt);
+		} else if (packet_buffer[0] == 0x00 &&
+			   packet_buffer[1] == CATENA_OPCODE &&
+			   packet_buffer[2] == FM_WRITE) {
+			/* Command Complete or RDS Data Handling */
+			switch (packet_buffer[3]) {
 			case FM_CMD_STATUS_CMD_SUCCESS:
-			{
-				fmd_process_fm_function(packet_buffer+1);
-			}
-			break;
+				{
+					fmd_process_fm_function(&packet_buffer
+								[4]);
+				}
+				break;
 			case FM_CMD_STATUS_HCI_ERR_HW_FAILURE:
-			{
-				FM_DEBUG_REPORT(
-					"FM_CMD_STATUS_HCI_ERR_HW_FAILURE");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_HCI_ERR_HW_FAILURE"
+					    );
+				}
+				break;
 			case FM_CMD_STATUS_HCI_ERR_INVALID_PARAMETERS:
-			{
-				FM_DEBUG_REPORT(
-				"FM_CMD_STATUS_HCI_ERR_INVALID_PARAMETERS");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_HCI_ERR_INVALID_"
+					     "PARAMETERS");
+				}
+				break;
 			case FM_CMD_STATUS_IP_UNINIT:
-			{
-				FM_DEBUG_REPORT("FM_CMD_STATUS_IP_UNINIT");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_IP_UNINIT");
+				}
+				break;
 			case FM_CMD_STATUS_HCI_ERR_UNSPECIFIED_ERROR:
-			{
-				FM_DEBUG_REPORT(
-				"FM_CMD_STATUS_HCI_ERR_UNSPECIFIED_ERROR");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_HCI_ERR_UNSPECIFIED"
+					     "_ERROR");
+				}
+				break;
 			case FM_CMD_STATUS_HCI_ERR_CMD_DISALLOWED:
-			{
-				FM_DEBUG_REPORT(
-				"FM_CMD_STATUS_HCI_ERR_CMD_DISALLOWED");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_HCI_ERR_CMD_"
+					     "DISALLOWED");
+				}
+				break;
 			case FM_CMD_STATUS_WRONG_SEQ_NUM:
-			{
-				FM_DEBUG_REPORT(
-					"FM_CMD_STATUS_WRONG_SEQ_NUM");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_WRONG_SEQ_NUM");
+				}
+				break;
 			case FM_CMD_STATUS_UNKOWNFILE_TYPE:
-			{
-				FM_DEBUG_REPORT(
-					"FM_CMD_STATUS_UNKOWNFILE_TYPE");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_UNKOWNFILE_TYPE");
+				}
+				break;
 			case FM_CMD_STATUS_FILE_VERSION_MISMATCH:
-			{
-				FM_DEBUG_REPORT(
-					"FM_CMD_STATUS_FILE_VERSION_MISMATCH");
-			}
-			break;
+				{
+					FM_DEBUG_REPORT
+					    ("FM_CMD_STATUS_FILE_VERSION_"
+					     "MISMATCH");
+				}
+				break;
 			}
 		}
 	} else {
@@ -2712,48 +2993,44 @@ void fmd_receive_data(
 
 void fmd_int_bufferfull(void)
 {
-	unsigned int   response_count;
-	unsigned short response_data[16];
-	unsigned short cnt;
-	unsigned short index = 0;
-	unsigned int   IOresult;
-	struct fmd_rdsgroup_s rdsgroup;
+	u16 response_count;
+	u16 response_data[16];
+	u16 cnt;
+	u16 index = 0;
+	u8 io_result;
+	struct fmd_rdsgroup_t rdsgroup;
 
 	if (fmd_state_info.rx_rdson) {
-		/* get group count*/
-		IOresult = fmd_send_cmd_and_read_resp(
-			CMD_FMR_DP_BUFFER_GETGROUPCOUNT, 0, NULL,
-			&response_count, response_data);
-		if (IOresult == FMD_RESULT_SUCCESS) {
+		/* get group count */
+		io_result =
+		    fmd_send_cmd_and_read_resp(CMD_FMR_DP_BUFFER_GETGROUPCOUNT,
+					       0, NULL, &response_count,
+					       response_data);
+		if (io_result == FMD_RESULT_SUCCESS) {
 			/* read RDS groups */
 			cnt = response_data[0];
-			if (cnt > MAX_RDS_GROUPS_READ)
-				cnt = MAX_RDS_GROUPS_READ;
+			if (cnt > MAX_RDS_GROUPS)
+				cnt = MAX_RDS_GROUPS;
 			fmd_state_info.rdsbufcnt = cnt;
 			while (cnt-- && fmd_state_info.rx_rdson) {
-				IOresult = fmd_send_cmd_and_read_resp(
-					CMD_FMR_DP_BUFFER_GETGROUP, 0, NULL,
-					&response_count,
-					(unsigned short *)&rdsgroup);
-				if (IOresult == FMD_RESULT_SUCCESS) {
+				io_result =
+				    fmd_send_cmd_and_read_resp
+				    (CMD_FMR_DP_BUFFER_GETGROUP, 0, NULL,
+				     &response_count, (u16 *) &rdsgroup);
+				if (io_result == FMD_RESULT_SUCCESS)
 					if (fmd_state_info.rx_rdson)
 						fmd_state_info.rdsgroup[index++]
-						= rdsgroup;
-				}
+						    = rdsgroup;
 			}
 		}
 	}
 }
 
-void fmd_hexdump(
-		char prompt,
-		uint8_t *arr,
-		int num_bytes
-		)
+void fmd_hexdump(char prompt, u8 *arr, int num_bytes)
 {
 	int i;
-	uint8_t tmpVal;
-	static unsigned char pkt_write[512], *pkt_ptr;
+	u8 tmpVal;
+	static u8 pkt_write[512], *pkt_ptr;
 	sprintf(pkt_write, "\n[%04x] %c", num_bytes, prompt);
 	pkt_ptr = pkt_write + strlen(pkt_write);
 	if (arr != NULL) {
@@ -2776,4 +3053,3 @@ void fmd_hexdump(
 
 MODULE_AUTHOR("Hemant Gupta");
 MODULE_LICENSE("GPL v2");
-

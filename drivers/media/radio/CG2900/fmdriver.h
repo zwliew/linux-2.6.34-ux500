@@ -1,6 +1,4 @@
 /*
- * file fmdriver.h
- *
  * Copyright (C) ST-Ericsson SA 2010
  *
  * Linux FM Driver for CG2900 FM Chip
@@ -13,85 +11,83 @@
 #ifndef _FMDRIVER_H_
 #define _FMDRIVER_H_
 
-#define IRPT_OPERATIONSUCCEEDED         0
-#define IRPT_OPERATIONFAILED            1
-#define IRPT_BUFFERFULL                 3
-#define IRPT_SIGNALQUALITYLOW           4
-#define IRPT_MONOSTEREOTRANSITION       5
-#define IRPT_RDSSYNCFOUND               6
-#define IRPT_RDSSYNCLOST                7
-#define IRPT_PICODECHANGED              8
-#define IRPT_REQUESTEDBLOCKAVAILABLE    9
-#define IRPT_BUFFER_CLEARED            13
-#define IRPT_WARMBOOTREADY             14
-#define IRPT_COLDBOOTREADY             15
-#define IRPT_BUFFEREMPTY                3
-#define IRPT_MUTESTATUSCHANGED          4
-#define IRPT_OVERMODULATION             5
-#define IRPT_INPUTOVERDRIVE             6
+#define IRPT_INVALID					0x0000
+#define IRPT_OPERATIONSUCCEEDED				0x0001
+#define IRPT_OPERATIONFAILED				0x0002
+#define IRPT_RX_BUFFERFULL_TX_BUFFEREMPTY		0x0008
+#define IRPT_RX_SIGNALQUALITYLOW_MUTE_STATUS_CHANGED	0x0010
+#define IRPT_RX_MONOSTEREO_TRANSITION	0x0020
+#define IRPT_TX_OVERMODULATION	0x0030
+#define IRPT_RX_RDSSYNCFOUND_TX_OVERDRIVE		0x0040
+#define IRPT_RDSSYNCLOST				0x0080
+#define IRPT_PICODECHANGED				0x0100
+#define IRPT_REQUESTEDBLOCKAVAILABLE			0x0200
+#define IRPT_BUFFER_CLEARED				0x2000
+#define IRPT_WARMBOOTREADY				0x4000
+#define IRPT_COLDBOOTREADY				0x8000
 
-#define CMD_AIP_BT_SETCONTROL			0x01A6
-#define CMD_AIP_BT_SETMODE			0x01E6
-#define CMD_AIP_FADE_START			0x0046
-#define CMD_AIP_LEVEL_GETSTATUS			0x0106
-#define CMD_AIP_LEVEL_SETMODE			0x00E6
-#define CMD_AIP_OVERDRIVE_SETCONTROL		0x0166
-#define CMD_AIP_OVERDRIVE_SETMODE		0x0126
-#define CMD_AIP_SETAUDIOADC			0x00A6
-#define CMD_AIP_SETAUDIOADC_CONTROL		0x00C6
-#define CMD_AIP_SETBALANCE			0x0086
-#define CMD_AIP_SETGAIN				0x0066
-#define CMD_AIP_SETMIXER			0x0146
-#define CMD_AIP_SETMODE				0x01C6
-#define CMD_AUP_BT_SETBALANCE			0x0142
-#define CMD_AUP_BT_SETCONTROL			0x00E2
-#define CMD_AUP_BT_SETMODE			0x00C2
-#define CMD_AUP_BT_SETVOLUME			0x0122
-#define CMD_AUP_EXT_SETCONTROL			0x0182
-#define CMD_AUP_EXT_SETMODE			0x0162
-#define CMD_AUP_EXT_FADESTART			0x0102
-#define CMD_AUP_EXT_SETMUTE			0x01E2
-#define CMD_AUP_FADE_START			0x00A2
-#define CMD_AUP_SETAUDIODAC			0x0082
-#define CMD_AUP_SETBALANCE			0x0042
-#define CMD_AUP_SETMUTE				0x0062
-#define CMD_AUP_SETVOLUME			0x0022
-#define CMD_FMR_DP_BLOCKREQUEST_CONTROL		0x0583
-#define CMD_FMR_DP_BLOCKREQUEST_GETBLOCK	0x05A3
-#define CMD_FMR_DP_BUFFER_GETGROUP		0x0303
-#define CMD_FMR_DP_BUFFER_GETGROUPCOUNT		0x0323
-#define CMD_FMR_DP_BUFFER_SETSIZE		0x0343
-#define CMD_FMR_DP_BUFFER_SETTHRESHOLD		0x06C3
-#define CMD_FMR_DP_GETSTATE			0x0283
-#define CMD_FMR_DP_PICORRELATION_SETCONTROL	0x0363
-#define CMD_FMR_DP_QUALITY_GETRESULT		0x05E3
-#define CMD_FMR_DP_QUALITY_START		0x05C3
-#define CMD_FMR_DP_SETCONTROL			0x02A3
-#define CMD_FMR_DP_SETEBLOCKREJECTION		0x02E3
-#define CMD_FMR_DP_SETGROUPREJECTION		0x0543
-#define CMD_FMR_GETSTATE			0x04E3
-#define CMD_FMR_RP_GETRSSI			0x0083
-#define CMD_FMR_RP_GETSTATE			0x0063
-#define CMD_FMR_RP_HIGHCUT_SETCONTROL		0x0263
-#define CMD_FMR_RP_HIGHCUT_SETMODE		0x0243
-#define CMD_FMR_RP_SETDEEMPHASIS		0x00C3
-#define CMD_FMR_RP_SETRSSIQUALITYTHRESHOLD	0x00A3
-#define CMD_FMR_RP_SOFTMUTE_SETCONTROL		0x0223
-#define CMD_FMR_RP_SOFTMUTE_SETMODE		0x0203
-#define CMD_FMR_RP_STEREO_SETCONTROL_BLENDINGPILOT 0x0163
-#define CMD_FMR_RP_STEREO_SETCONTROL_BLENDINGRSSI 0x0143
-#define CMD_FMR_RP_STEREO_SETMODE		0x0123
-#define CMD_FMR_RP_THRESHOLDEXTENSION_SETCONTROL 0x0103
-#define CMD_FMR_RP_THRESHOLDEXTENSION_SETMODE	0x00E3
-#define CMD_FMR_RP_XSTEREO_SETCONTROL		0x01E3
-#define CMD_FMR_RP_XSTEREO_SETMODE		0x01C3
-#define CMD_FMR_SETANTENNA			0x0663
-#define CMD_FMR_SETCOEXFILTER			0x06E3
-#define CMD_FMR_SETPROCESSINGMODE		0x0643
-#define CMD_FMR_SP_AFSWITCH_GETRESULT		0x0603
-#define CMD_FMR_SP_AFSWITCH_START		0x04A3
-#define CMD_FMR_SP_AFUPDATE_GETRESULT		0x0483
-#define CMD_FMR_SP_AFUPDATE_START		0x0463
+#define CMD_AIP_BT_SETCONTROL				0x01A6
+#define CMD_AIP_BT_SETMODE				0x01E6
+#define CMD_AIP_FADE_START				0x0046
+#define CMD_AIP_LEVEL_GETSTATUS				0x0106
+#define CMD_AIP_LEVEL_SETMODE				0x00E6
+#define CMD_AIP_OVERDRIVE_SETCONTROL			0x0166
+#define CMD_AIP_OVERDRIVE_SETMODE			0x0126
+#define CMD_AIP_SETAUDIOADC				0x00A6
+#define CMD_AIP_SETAUDIOADC_CONTROL			0x00C6
+#define CMD_AIP_SETBALANCE				0x0086
+#define CMD_AIP_SETGAIN					0x0066
+#define CMD_AIP_SETMIXER				0x0146
+#define CMD_AIP_SETMODE					0x01C6
+#define CMD_AUP_BT_SETBALANCE				0x0142
+#define CMD_AUP_BT_SETCONTROL				0x00E2
+#define CMD_AUP_BT_SETMODE				0x00C2
+#define CMD_AUP_BT_SETVOLUME				0x0122
+#define CMD_AUP_EXT_SETCONTROL				0x0182
+#define CMD_AUP_EXT_SETMODE				0x0162
+#define CMD_AUP_EXT_FADESTART				0x0102
+#define CMD_AUP_EXT_SETMUTE				0x01E2
+#define CMD_AUP_FADE_START				0x00A2
+#define CMD_AUP_SETAUDIODAC				0x0082
+#define CMD_AUP_SETBALANCE				0x0042
+#define CMD_AUP_SETMUTE					0x0062
+#define CMD_AUP_SETVOLUME				0x0022
+#define CMD_FMR_DP_BLOCKREQUEST_CONTROL			0x0583
+#define CMD_FMR_DP_BLOCKREQUEST_GETBLOCK		0x05A3
+#define CMD_FMR_DP_BUFFER_GETGROUP			0x0303
+#define CMD_FMR_DP_BUFFER_GETGROUPCOUNT			0x0323
+#define CMD_FMR_DP_BUFFER_SETSIZE			0x0343
+#define CMD_FMR_DP_BUFFER_SETTHRESHOLD			0x06C3
+#define CMD_FMR_DP_GETSTATE				0x0283
+#define CMD_FMR_DP_PICORRELATION_SETCONTROL		0x0363
+#define CMD_FMR_DP_QUALITY_GETRESULT			0x05E3
+#define CMD_FMR_DP_QUALITY_START			0x05C3
+#define CMD_FMR_DP_SETCONTROL				0x02A3
+#define CMD_FMR_DP_SETEBLOCKREJECTION			0x02E3
+#define CMD_FMR_DP_SETGROUPREJECTION			0x0543
+#define CMD_FMR_GETSTATE				0x04E3
+#define CMD_FMR_RP_GETRSSI				0x0083
+#define CMD_FMR_RP_GETSTATE				0x0063
+#define CMD_FMR_RP_HIGHCUT_SETCONTROL			0x0263
+#define CMD_FMR_RP_HIGHCUT_SETMODE			0x0243
+#define CMD_FMR_RP_SETDEEMPHASIS			0x00C3
+#define CMD_FMR_RP_SETRSSIQUALITYTHRESHOLD		0x00A3
+#define CMD_FMR_RP_SOFTMUTE_SETCONTROL			0x0223
+#define CMD_FMR_RP_SOFTMUTE_SETMODE			0x0203
+#define CMD_FMR_RP_STEREO_SETCONTROL_BLENDINGPILOT 	0x0163
+#define CMD_FMR_RP_STEREO_SETCONTROL_BLENDINGRSSI 	0x0143
+#define CMD_FMR_RP_STEREO_SETMODE			0x0123
+#define CMD_FMR_RP_THRESHOLDEXTENSION_SETCONTROL 	0x0103
+#define CMD_FMR_RP_THRESHOLDEXTENSION_SETMODE		0x00E3
+#define CMD_FMR_RP_XSTEREO_SETCONTROL			0x01E3
+#define CMD_FMR_RP_XSTEREO_SETMODE			0x01C3
+#define CMD_FMR_SETANTENNA				0x0663
+#define CMD_FMR_SETCOEXFILTER				0x06E3
+#define CMD_FMR_SETPROCESSINGMODE			0x0643
+#define CMD_FMR_SP_AFSWITCH_GETRESULT			0x0603
+#define CMD_FMR_SP_AFSWITCH_START			0x04A3
+#define CMD_FMR_SP_AFUPDATE_GETRESULT			0x0483
+#define CMD_FMR_SP_AFUPDATE_START			0x0463
 #define CMD_FMR_SP_BLOCKSCAN_GETRESULT			0x06A3
 #define CMD_FMR_SP_BLOCKSCAN_START			0x0683
 #define CMD_FMR_SP_PRESETPI_GETRESULT			0x0623
@@ -167,500 +163,507 @@
 #define CMD_TST_TONE_SETPAR				0x0067
 #define CMD_TST_TX_RAMP_START				0x0147
 
-/* Error/return codes  */
-#define FMD_RESULT_SUCCESS				0x00
-#define FMD_RESULT_PRECONDITIONS_VIOLATED		0x01
-#define FMD_RESULT_PARAMETER_INVALID			0x02
-#define FMD_RESULT_IO_ERROR				0x04
-#define FMD_RESULT_FEATURE_UNSUPPORTED			0x05
-#define FMD_RESULT_BUSY					0x06
-#define FMD_RESULT_ONGOING				0x07
-#define FMD_RESULT_WAIT					0x08
-#define FMD_RESULT_RESPONSE_WRONG			0x09
+#define ST_WRITE_FILE_BLK_SIZE				254
+#define CATENA_OPCODE					0xFE
 
-/* Frequency ranges  */
-#define FMD_FREQRANGE_FMEUROAMERICA                 ((uint8_t) 0x01)
-#define FMD_FREQRANGE_FMJAPAN                       ((uint8_t) 0x02)
-#define FMD_FREQRANGE_FMCHINA                       ((uint8_t) 0x03)
-
-/* Callback event codes  */
-#define FMD_EVENT_ANTENNA_STATUS_CHANGED      ((uint32_t) 0x00000001)
-#define FMD_EVENT_FREQUENCY_CHANGED           ((uint32_t) 0x00000002)
-#define FMD_EVENT_FREQUENCY_RANGE_CHANGED     ((uint32_t) 0x00000003)
-#define FMD_EVENT_PRESET_CHANGED              ((uint32_t) 0x00000004)
-#define FMD_EVENT_SEEK_COMPLETED              ((uint32_t) 0x00000005)
-#define FMD_EVENT_SCAN_BAND_COMPLETED         ((uint32_t) 0x00000006)
-#define FMD_EVENT_ACTION_FINISHED             ((uint32_t) 0x00008001)
-#define FMD_EVENT_RDSGROUP_RCVD               ((uint32_t) 0x00008002)
-#define FMD_EVENT_SEEK_STOPPED		   ((uint32_t) 0x00008003)
-#define FMD_EVENT_GEN_POWERUP                 ((uint32_t) 0x00008004)
-
-/* Stereo modes  */
-#define FMD_STEREOMODE_MONO                         ((uint32_t) 0x00000000)
-#define FMD_STEREOMODE_STEREO                       ((uint32_t) 0x00000001)
-#define FMD_STEREOMODE_AUTO                         ((uint32_t) 0x00000002)
-
-/* Radio modes  */
-#define FMD_MODE_IDLE	0x00
-#define FMD_MODE_RX		0x01
-#define FMD_MODE_TX		0x02
-
-/* FM Antenna selection  */
-#define FMD_ANTENNA_EMBEDDED	0x00
-#define FMD_ANTENNA_WIRED		0x01
-
-/* FM tuning grid  */
-#define FMD_GRID_50KHZ	0x00
-#define FMD_GRID_100KHZ	0x01
-#define FMD_GRID_200KHZ	0x02
-
-/* FM Deemphasis settings  */
-#define FMD_EMPHASIS_50US	0x01
-#define FMD_EMPHASIS_75US	0x02
-
-/* Mixer modes  */
-#define FMD_MIXERMODE_PASS			((uint32_t) 0x00000000)
-#define FMD_MIXERMODE_SUM			((uint32_t) 0x00000001)
-#define FMD_MIXERMODE_LEFT			((uint32_t) 0x00000002)
-#define FMD_MIXERMODE_RIGHT                  	((uint32_t) 0x00000003)
-
-#define FMD_AUTOMUTEMODE_OFF			((uint32_t) 0x00000000)
-#define FMD_AUTOMUTEMODE_ON			((uint32_t) 0x00000001)
-#define FMD_AUTOMUTEMODE_AUTOMATIC		((uint32_t) 0x00000002)
-
-#define FMD_AUTOMUTETYPE_MUTE			((uint32_t) 0x00000000)
-#define FMD_AUTOMUTETYPE_RDS			((uint32_t) 0x00000001)
-
-/* Output of BT sample Rate Convertor  */
-#define FMD_OUTPUT_DISABLED  0x00
-#define FMD_OUTPUT_I2S  0x01
-#define FMD_OUTPUT_PARALLEL  0x02
-#define FMD_OUTPUT_FIFO  0x03
-
-/* on Off States for RDS   */
-#define FMD_SWITCH_OFF_RDS_SIMULATOR  0x00
-#define FMD_SWITCH_OFF_RDS  0x01
-#define FMD_SWITCH_ON_RDS  0x02
-#define FMD_SWITCH_ON_RDS_ENHANCED_MODE  0x03
-
-#define ST_WRITE_FILE_BLK_SIZE		254
-#define CATENA_OPCODE                 0xFE
-
-#define FM_WRITE 0x00
-#define FM_READ   0x01
+#define FM_WRITE					0x00
+#define FM_READ						0x01
 
 /* HCI Events  */
-#define HCI_COMMAND_COMPLETE_EVENT 0x0E
-#define HCI_VS_DBG_EVENT           0xFF
-
+#define HCI_COMMAND_COMPLETE_EVENT			0x0E
+#define HCI_VS_DBG_EVENT				0xFF
 
 /* HCI Packets indicators  */
-#define HCI_PACKET_INDICATOR_CMD            0x01
- #define HCI_PACKET_INDICATOR_EVENT          0x04
- #define HCI_PACKET_INDICATOR_FM_CMD_EVT     0x08
+#define HCI_PACKET_INDICATOR_CMD			0x01
+ #define HCI_PACKET_INDICATOR_EVENT			0x04
+ #define HCI_PACKET_INDICATOR_FM_CMD_EVT		0x08
 
 /* HCI Command opcodes  */
-#define HCI_CMD_FM                          0xFD50
-#define HCI_CMD_VS_WRITE_FILE_BLOCK         0xFC2E
-#define FM_EVENT                            0x15
+#define HCI_CMD_FM					0xFD50
+#define HCI_CMD_VS_WRITE_FILE_BLOCK			0xFC2E
+#define FM_EVENT					0x15
 
-#define FM_FUNCTION_ENABLE        0x00
-#define FM_FUNCTION_DISABLE       0x01
-#define FM_FUNCTION_RESET         0x02
-#define FM_FUNCTION_WRITECOMMAND  0x10
-#define FM_FUNCTION_SETINTMASKALL 0x20
-#define FM_FUNCTION_GETINTMASKALL 0x21
-#define FM_FUNCTION_SETINTMASK    0x22
-#define FM_FUNCTION_GETINTMASK    0x23
-#define FM_FUNCTION_FMFWDOWNLOAD  0x30
+#define FM_FUNCTION_ENABLE				0x00
+#define FM_FUNCTION_DISABLE				0x01
+#define FM_FUNCTION_RESET				0x02
+#define FM_FUNCTION_WRITECOMMAND			0x10
+#define FM_FUNCTION_SETINTMASKALL			0x20
+#define FM_FUNCTION_GETINTMASKALL			0x21
+#define FM_FUNCTION_SETINTMASK				0x22
+#define FM_FUNCTION_GETINTMASK				0x23
+#define FM_FUNCTION_FMFWDOWNLOAD			0x30
 
-/*  FM status in return parameter Size: 1 Byte  */
+/*  FM status in return parameter Size: 1 Byte */
 
-/* Command succeeded  */
-#define FM_CMD_STATUS_CMD_SUCCESS                0x00
-/* HCI_ERR_HW_FAILURE when no response from the IP.8  */
-#define FM_CMD_STATUS_HCI_ERR_HW_FAILURE         0x03
+/* Command succeeded */
+#define FM_CMD_STATUS_CMD_SUCCESS			0x00
+/* HCI_ERR_HW_FAILURE when no response from the IP */
+#define FM_CMD_STATUS_HCI_ERR_HW_FAILURE		0x03
 /* HCI_ERR_INVALID_PARAMETERS. */
-#define FM_CMD_STATUS_HCI_ERR_INVALID_PARAMETERS 0x12
+#define FM_CMD_STATUS_HCI_ERR_INVALID_PARAMETERS	0x12
 /* When the host tries to send a command to an IP that hasn't been
  * initialized.
  */
-#define FM_CMD_STATUS_IP_UNINIT                  0x15
-/* HCI_ERR_UNSPECIFIED_ERROR: any other error  */
-#define FM_CMD_STATUS_HCI_ERR_UNSPECIFIED_ERROR  0x1F
+#define FM_CMD_STATUS_IP_UNINIT				0x15
+/* HCI_ERR_UNSPECIFIED_ERROR: any other error */
+#define FM_CMD_STATUS_HCI_ERR_UNSPECIFIED_ERROR		0x1F
 /* HCI_ERR_CMD_DISALLOWED when the host asks for an unauthorized operation
  * (FM state transition for instance)
  */
-#define FM_CMD_STATUS_HCI_ERR_CMD_DISALLOWED     0x0C
-/* Wrong sequence number for FM FW download command  */
-#define FM_CMD_STATUS_WRONG_SEQ_NUM              0xF1
-/* Unknown file type for FM FW download command  */
-#define FM_CMD_STATUS_UNKOWNFILE_TYPE            0xF2
-/* File version mismatch for FM FW download command   */
-#define FM_CMD_STATUS_FILE_VERSION_MISMATCH      0xF3
+#define FM_CMD_STATUS_HCI_ERR_CMD_DISALLOWED		0x0C
+/* Wrong sequence number for FM FW download command */
+#define FM_CMD_STATUS_WRONG_SEQ_NUM			0xF1
+/* Unknown file type for FM FW download command */
+#define FM_CMD_STATUS_UNKOWNFILE_TYPE			0xF2
+/* File version mismatch for FM FW download command */
+#define FM_CMD_STATUS_FILE_VERSION_MISMATCH		0xF3
+
+/**
+ * enum fmd_status_t - Status of some operations.
+ * @FMD_RESULT_SUCCESS: Current operation is completed with success.
+ * @FMD_RESULT_PRECONDITIONS_VIOLATED: Frequency has been changed.
+ * @FMD_RESULT_PARAMETER_INVALID: Frequency Range has been changed.
+ * @FMD_RESULT_IO_ERROR: Seek operation has completed.
+ * @FMD_RESULT_FEATURE_UNSUPPORTED: Band Scan Completed.
+ * @FMD_RESULT_BUSY: Block Scan completed.
+ * @FMD_RESULT_ONGOING: Af Update or AF Switch is complete.
+ * stopped.
+ * @FMD_RESULT_RESPONSE_WRONG: FM IP Powerup has been powered up.
+ * Various status returned for any operation by FM Driver.
+ */
+enum fmd_status_t {
+	FMD_RESULT_SUCCESS,
+	FMD_RESULT_PRECONDITIONS_VIOLATED,
+	FMD_RESULT_PARAMETER_INVALID,
+	FMD_RESULT_IO_ERROR,
+	FMD_RESULT_FEATURE_UNSUPPORTED,
+	FMD_RESULT_BUSY,
+	FMD_RESULT_ONGOING,
+	FMD_RESULT_RESPONSE_WRONG
+};
+
+/**
+ * enum fmd_event_t - Events received.
+ * @FMD_EVENT_ANTENNA_STATUS_CHANGED: Antenna has been changed.
+ * @FMD_EVENT_FREQUENCY_CHANGED: Frequency has been changed.
+ * @FMD_EVENT_SEEK_COMPLETED: Seek operation has completed.
+ * @FMD_EVENT_SCAN_BAND_COMPLETED: Band Scan Completed.
+ * @FMD_EVENT_BLOCK_SCAN_COMPLETED: Block Scan completed.
+ * @FMD_EVENT_AF_UPDATE_SWITCH_COMPLETE: Af Update or AF Switch is complete.
+ * @FMD_EVENT_MONOSTEREO_TRANSITION_COMPLETE: Mono stereo transition is
+ * completed.
+ * @FMD_EVENT_SEEK_STOPPED: Previous Seek/Band Scan/ Block Scan operation is
+ * stopped.
+ * @FMD_EVENT_GEN_POWERUP: FM IP Powerup has been powered up.
+ * @FMD_EVENT_RDSGROUP_RCVD: RDS Groups Full interrupt.
+ * @FMD_EVENT_LAST_ELEMENT: Last event, used for keeping count of
+ * number of events.
+ * Various events received from Fm driver for Upper Layer(s) processing.
+ */
+enum fmd_event_t {
+	FMD_EVENT_ANTENNA_STATUS_CHANGED,
+	FMD_EVENT_FREQUENCY_CHANGED,
+	FMD_EVENT_SEEK_COMPLETED,
+	FMD_EVENT_SCAN_BAND_COMPLETED,
+	FMD_EVENT_BLOCK_SCAN_COMPLETED,
+	FMD_EVENT_AF_UPDATE_SWITCH_COMPLETE,
+	FMD_EVENT_MONOSTEREO_TRANSITION_COMPLETE,
+	FMD_EVENT_SEEK_STOPPED,
+	FMD_EVENT_GEN_POWERUP,
+	FMD_EVENT_RDSGROUP_RCVD,
+	FMD_EVENT_LAST_ELEMENT
+};
+
+/**
+ * enum fmd_mode_t - FM Driver Modes.
+ * @FMD_MODE_IDLE: FM Driver in Idle mode.
+ * @FMD_MODE_RX: FM Driver in Rx mode.
+ * @FMD_MODE_TX: FM Driver in Tx mode.
+ * Various Modes of FM Radio.
+ */
+enum fmd_mode_t {
+	FMD_MODE_IDLE,
+	FMD_MODE_RX,
+	FMD_MODE_TX
+};
+
+/**
+ * enum fmd_antenna_t - Antenna selection.
+ * @FMD_ANTENNA_EMBEDDED: Embedded Antenna.
+ * @FMD_ANTENNA_WIRED: Wired Antenna.
+ * Antenna to be used for FM Radio.
+ */
+enum fmd_antenna_t {
+	FMD_ANTENNA_EMBEDDED,
+	FMD_ANTENNA_WIRED
+};
+
+/**
+ * enum fmd_grid_t - Grid used on FM Radio.
+ * @FMD_GRID_50KHZ: 50  kHz grid spacing.
+ * @FMD_GRID_100KHZ: 100  kHz grid spacing.
+ * @FMD_GRID_200KHZ: 200  kHz grid spacing.
+ * Spacing used on FM Radio.
+ */
+enum fmd_grid_t {
+	FMD_GRID_50KHZ,
+	FMD_GRID_100KHZ,
+	FMD_GRID_200KHZ
+};
+
+/**
+ * enum fmd_emphasis_t - De-emphasis/Pre-emphasis level.
+ * @FMD_EMPHASIS_50US: 50 us de-emphasis/pre-emphasis level.
+ * @FMD_EMPHASIS_75US: 100 us de-emphasis/pre-emphasi level.
+ * De-emphasis/Pre-emphasis level used on FM Radio.
+ */
+enum fmd_emphasis_t {
+	FMD_EMPHASIS_50US,
+	FMD_EMPHASIS_75US
+};
+
+/**
+ * enum fmd_freq_range_t - Frequency range.
+ * @FMD_FREQRANGE_EUROAMERICA: EU/US Range (87.5 - 108 MHz).
+ * @FMD_FREQRANGE_JAPAN: Japan Range (76 - 90 MHz).
+ * @FMD_FREQRANGE_CHINA: China Range (70 - 108 MHz).
+ * Various Frequency range(s) supported by FM Radio.
+ */
+enum fmd_freq_range_t {
+	FMD_FREQRANGE_EUROAMERICA,
+	FMD_FREQRANGE_JAPAN,
+	FMD_FREQRANGE_CHINA
+};
+
+/**
+ * enum fmd_stereo_mode_t - FM Driver Stereo Modes.
+ * @FMD_STEREOMODE_OFF: Streo Blending Off.
+ * @FMD_STEREOMODE_MONO: Mono Mode.
+ * @FMD_STEREOMODE_BLENDING: Blending Mode.
+ * Various Stereo Modes of FM Radio.
+ */
+enum fmd_stereo_mode_t {
+	FMD_STEREOMODE_OFF,
+	FMD_STEREOMODE_MONO,
+	FMD_STEREOMODE_BLENDING
+};
+
+/*Remove the below two enum w.r.t audio_config redundancy*/
+
+ /**
+ * enum fmd_output_t - Output of Sample Rate Converter.
+ * @FMD_OUTPUT_DISABLED: Sample Rate converter in disabled.
+ * @FMD_OUTPUT_I2S: I2S Output from Sample rate converter.
+ * @FMD_OUTPUT_PARALLEL: Parallel output from sample rate converter.
+ * Sample Rate Converter's output to be set on Connectivity Controller.
+ */
+enum fmd_output_t {
+	FMD_OUTPUT_DISABLED,
+	FMD_OUTPUT_I2S,
+	FMD_OUTPUT_PARALLEL
+};
+
+ /**
+ * enum fmd_input_t - Audio Input to Sample Rate Converter.
+ * @FMD_INPUT_ANALOG: Selects the ADC's as audio source
+ * @FMD_INPUT_DIGITAL: Selects Digital Input as audio source.
+ * Audio Input source for Sample Rate Converter.
+ */
+enum fmd_input_t {
+	FMD_INPUT_ANALOG,
+	FMD_INPUT_DIGITAL
+};
+
+
+/**
+* enum fmd_rds_mode_t - RDS Mode to be selected for FM Rx.
+* @FMD_SWITCH_OFF_RDS: RDS Decoding disabled in FM Chip.
+* @FMD_SWITCH_ON_RDS: RDS Decoding enabled in FM Chip.
+* @FMD_SWITCH_ON_RDS_ENHANCED_MODE: Enhanced RDS Mode.
+* @FMD_SWITCH_ON_RDS_SIMULATOR: RDS Simulator switched on in FM Chip.
+* RDS Mode to be selected for FM Rx.
+*/
+enum fmd_rds_mode_t {
+	FMD_SWITCH_OFF_RDS,
+	FMD_SWITCH_ON_RDS,
+	FMD_SWITCH_ON_RDS_ENHANCED_MODE,
+	FMD_SWITCH_ON_RDS_SIMULATOR
+};
 
 /* Callback function to receive radio events. */
 typedef void(*fmd_radio_cb)(
 		void  *context,
-		uint32_t event,
-		uint32_t event_int_data,
-		bool event_boolean_data
+		u8 event,
+		bool event_successful
 		);
 
 /**
  * fmd_init() - Initialize the FM Driver internal structures.
- * @context: (out) Pointer to Pointer of FM Driver Context
+ * @context: (out) FM Driver Context
  * Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  */
-uint8_t fmd_init(
+u8 fmd_init(
 		void  **context
 		);
 
 /**
+ * fmd_deinit() - De-initialize the FM Driver.
+ */
+void fmd_deinit(void);
+
+/**
  * fmd_register_callback() - Function to register callback function.
- * This fucntion registers the callback function provided by upper layers.
- * @context: Pointer to FM Driver Context
+ * This function registers the callback function provided by upper layers.
+ * @context: FM Driver Context
  * @callback: Fmradio call back Function pointer
  * Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_register_callback(
+u8 fmd_register_callback(
 		void  *context,
 		fmd_radio_cb callback
 		);
 
 /**
- * fmd_get_version() - Retrives the FM HW and FW version.
- * @context: Pointer to FM Driver Context
- * @version: Version Array
+ * fmd_get_version() - Retrieves the FM HW and FW version.
+ * @context: FM Driver Context
+ * @version: (out) Version Array
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_get_version(
+u8 fmd_get_version(
 		void  *context,
-		uint16_t version[]
+		u16 version[7]
 		);
 
 /**
  * fmd_set_mode() - Starts a transition to the given mode.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @mode: Transition mode
  *  Returns:
- *	 FMD_RESULT_WAIT,  if no error.
+ *	 FMD_RESULT_SUCCESS,  if set mode done successfully.
+ *	 FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
 
-uint8_t fmd_set_mode(
+u8 fmd_set_mode(
 		void  *context,
-		uint8_t mode
+		u8 mode
 		);
 
 /**
- * fmd_get_mode() - Gets the current mode.
- * @context: Pointer to FM Driver Context
- * @mode: Current Transition mode
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-
-uint8_t fmd_get_mode(
-		void  *context,
-		uint8_t *mode
-		);
-
-/**
- * fmd_is_freq_range_supported() - Checks if Freq range is supported or not.
- * @context: Pointer to FM Driver Context
+ * fmd_get_freq_range_properties() - Retrieves Freq Range Properties.
+ * @context: FM Driver Context
  * @range: range of freq
- * @supported:Available freq range.
+ * @minfreq: (out) Minimum Frequency of the Band in kHz.
+ * @maxfreq: (out) Maximum Frequency of the Band in kHz
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_is_freq_range_supported(
+u8 fmd_get_freq_range_properties(
 		void  *context,
-		uint8_t range,
-		bool  *supported
-		);
-
-/**
- * fmd_get_freq_range_properties() - Retrives Freq Range Properties.
- * @context: Pointer to FM Driver Context
- * @range: range of freq
- * @minfreq: Pointer to Minimum Frequency of the Band
- * @maxfreq: Pointer to Maximum Frequency of the Band
- * @freqinterval: Pointer to the Frequency Interval
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
- */
-uint8_t fmd_get_freq_range_properties(
-		void  *context,
-		uint8_t range,
-		uint32_t  *minfreq,
-		uint32_t  *maxfreq,
-		uint32_t  *freqinterval
+		u8 range,
+		u32  *minfreq,
+		u32  *maxfreq
 		);
 
 /**
  * fmd_set_antenna() - Selects the antenna to be used in receive mode.
  * embedded - Selects the embedded antenna, wired- Selects the wired antenna.
- * @context: Pointer to FM Driver Context
- * @ant: Antenna Type
+ * @context: FM Driver Context
+ * @antenna: Antenna Type
  *  Returns:
- *	 FMD_RESULT_WAIT,  if set antenna started successfully.
+ *	 FMD_RESULT_SUCCESS,  if set antenna done successfully.
+ *	 FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_set_antenna(
+u8 fmd_set_antenna(
 		void  *context,
-		uint8_t ant
+		u8 antenna
 		);
 
 /**
- * fmd_get_antenna() - Retrives the currently used antenna type.
- * @context: Pointer to FM Driver Context
- * @ant: Pointer to Antenna
+ * fmd_get_antenna() - Retrieves the currently used antenna type.
+ * @context: FM Driver Context
+ * @antenna: (out) Antenna Selected on FM Radio.
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_get_antenna(
+u8 fmd_get_antenna(
 		void  *context,
-		uint8_t *ant
+		u8 *antenna
 		);
 
 /**
  * fmd_set_freq_range() - Sets the FM band.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @range: freq range
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
+ *	 FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_set_freq_range(
+u8 fmd_set_freq_range(
 		void  *context,
-		uint8_t range
+		u8 range
 		);
 
 /**
  * fmd_get_freq_range() - Gets the FM band currently in use.
- * @context: Pointer to FM Driver Context
- * @range: Pointer to base freq range.
+ * @context: FM Driver Context
+ * @range: (out) Frequency Range set on FM Radio.
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_get_freq_range(
+u8 fmd_get_freq_range(
 		void  *context,
-		uint8_t *range
+		u8 *range
 		);
 
 /**
  * fmd_rx_set_grid() - Sets the tuning grid.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @grid: Tuning grid size
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
+ *	 FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_set_grid(
+u8 fmd_rx_set_grid(
 		void  *context,
-		uint8_t grid
-		);
-
-/**
- * fmd_rx_get_grid() - Gets the current tuning grid.
- * @context: Pointer to FM Driver Context
- * @grid: pointer to base Grid to be retrieved.
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
- */
-uint8_t fmd_rx_get_grid(
-		void  *context,
-		uint8_t *grid
-		);
-
-/**
- * fmd_rx_set_deemphasis() - Sets the De-emphasis level.
- * Sets the de-emphasis characteristic of the receiver
- * FMD_EMPHASIS_50US &  FMD_EMPHASIS_75US.
- * @context: Pointer to FM Driver Context
- * @deemphasis: Char of Rx level.
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_rx_set_deemphasis(
-		void  *context,
-		uint8_t deemphasis
-		);
-
-/**
- * fmd_rx_get_deemphasis() - Get the De-emphasis level.
- * Gets the currently used de-emphasis characteristic
- * of the receiver FMD_EMPHASIS_50US &  FMD_EMPHASIS_75US.
- * @context: Pointer to FM Driver Context
- * @deemphasis: Pointer to base De-emphasis.
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
- */
-uint8_t fmd_rx_get_deemphasis(
-		void  *context,
-		uint8_t *deemphasis
+		u8 grid
 		);
 
 /**
  * fmd_rx_set_frequency() - Sets the FM Channel.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @freq: Frequency to Set in Khz
  *  Returns:
- *	 FMD_RESULT_WAIT,  if set frequency operation started
- * successfully.
+ *	 FMD_RESULT_SUCCESS,  if set frequency done successfully.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_set_frequency(
+u8 fmd_rx_set_frequency(
 		void  *context,
-		uint32_t freq
+		u32 freq
 		);
 
 /**
  * fmd_rx_get_frequency() - Gets the currently used FM Channel.
- * @context: Pointer to FM Driver Context
- * @freq: Pointer to base freq
+ * @context: FM Driver Context
+ * @freq: (out) Current Frequency set on FM Radio.
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_get_frequency(
+u8 fmd_rx_get_frequency(
 		void  *context,
-		uint32_t  *freq
+		u32  *freq
 		);
 
 /**
  * fmd_rx_set_stereo_mode() - Sets the stereomode functionality.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @mode: FMD_STEREOMODE_MONO, FMD_STEREOMODE_STEREO and
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
+ *	 FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_set_stereo_mode(
+u8 fmd_rx_set_stereo_mode(
 		void  *context,
-		uint32_t mode
+		u8 mode
 		);
 
 /**
  * fmd_rx_get_stereo_mode() - Gets the currently used FM mode.
  * FMD_STEREOMODE_MONO, FMD_STEREOMODE_STEREO and
  * FMD_STEREOMODE_AUTO.
- * @context: Pointer to FM Driver Context
- * @mode: Pointer to mode
+ * @context: FM Driver Context
+ * @mode: (out) Mode set on FM Radio, stereo or mono.
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_rx_get_stereo_mode(
+u8 fmd_rx_get_stereo_mode(
 		void  *context,
-		uint32_t  *mode
+		u8 *mode
 		);
 
 /**
  * fmd_rx_get_signal_strength() - Gets the RSSI level of current frequency.
- * @context: Pointer to FM Driver Context
- * @strength: Pointer to base Strength
+ * @context: FM Driver Context
+ * @strength: (out) RSSI level of current channel.
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_get_signal_strength(
+u8 fmd_rx_get_signal_strength(
 		void  *context,
-		uint32_t  *strength
-		);
-
-/**
- * fmd_rx_get_pilot_state() - Gets Pilot State.
- * @context: Pointer to FM Driver Context
- * @on: Pointer to Pilot state for FM Rx.
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_rx_get_pilot_state(
-		void  *context,
-		bool  *on
+		u16  *strength
 		);
 
 /**
  * fmd_rx_set_stop_level() - Sets the FM Rx Seek stop level.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @stoplevel: seek stop level
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_rx_set_stop_level(
+u8 fmd_rx_set_stop_level(
 		void  *context,
-		uint16_t stoplevel
+		u16 stoplevel
 		);
 
 /**
  * fmd_rx_get_stop_level() - Gets the current FM Rx Seek stop level.
- * @context: Pointer to FM Driver Context
- * @stoplevel: Pointer to base stop level
+ * @context: FM Driver Context
+ * @stoplevel: (out) RSSI Threshold set on FM Radio.
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_rx_get_stop_level(
+u8 fmd_rx_get_stop_level(
 		void  *context,
-		uint16_t  *stoplevel
+		u16  *stoplevel
 		);
 
 /**
  * fmd_rx_seek() - Perform FM Seek.
  * Starts searching relative to the actual channel with
  * a specific direction, stop.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  *  level and optional noise levels
  * @upwards: scan up
  *  Returns:
@@ -669,110 +672,207 @@ uint8_t fmd_rx_get_stop_level(
  *	 FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_seek(
+u8 fmd_rx_seek(
 		void  *context,
 		bool upwards
 		);
 
 /**
  * fmd_rx_stop_seeking() - Stops a currently active seek or scan band.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  *  Returns:
- *	 FMD_RESULT_WAIT,  if stop seek started successfully.
+ *	 FMD_RESULT_SUCCESS,  if stop seek done successfully.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *	 FMD_RESULT_PRECONDITIONS_VIOLATED, if FM Driver is
  * not currently in Seek or Scan State..
  *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_stop_seeking(
+u8 fmd_rx_stop_seeking(
 		void  *context
 		);
+
+/**
+ * fmd_rx_af_update_start() - Perform AF update.
+ * This is used to switch to a shortly tune to a AF freq,
+ * measure its RSSI and tune back to the original frequency.
+ * @context: FM Driver Context
+ * @freq: Alternative frequncy in KHz to be set for AF updation.
+ *  Returns:
+ * FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ * FMD_RESULT_SUCCESS,  if no error.
+ * FMD_RESULT_IO_ERROR, if there is an error.
+ */
+u8 fmd_rx_af_update_start(
+		 void *context,
+		 u32 freq
+		 );
+
+/**
+ * fmd_rx_get_af_update_result() - Retrive result of AF update.
+ * Retrive the RSSI level of the Alternative frequency.
+ * @context: FM Driver Context
+ * @af_level: RSSI level of the Alternative frequency.
+ * Returns:
+ * FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ * FMD_RESULT_SUCCESS,  if no error.
+ * FMD_RESULT_IO_ERROR, if there is an error.
+ */
+u8 fmd_rx_get_af_update_result(
+		 void *context,
+		 u16 *af_level
+		 );
+
+
+/**
+ * fmd_af_switch_start() -Performs AF switch.
+ * @context: FM Driver Context
+ * @freq: Frequency to Set in Khz.
+ * @picode:programable id,unique for each station.
+ *
+ *  Returns:
+ * FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ * FMD_RESULT_SUCCESS,  if no error.
+ * FMD_RESULT_SUCCESS, if AF switch started successfully.
+ * FMD_RESULT_IO_ERROR, if there is an error.
+ */
+u8 fmd_rx_af_switch_start(
+		void *context,
+		u32 freq,
+		u16  picode
+		);
+
+/**
+ * fmd_rx_get_af_switch_results() -Retrieves the results of AF Switch.
+ * @context: FM Driver Context
+ * @afs_conclusion: Conclusion of AF switch.
+ * @afs_level: RSSI level of the Alternative frequnecy.
+ * @afs_pi: PI code of the alternative channel (if found).
+ * Returns:
+ * FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ * FMD_RESULT_SUCCESS,  if no error.
+ * FMD_RESULT_IO_ERROR, if there is an error.
+ */
+u8 fmd_rx_get_af_switch_results(
+		 void *context,
+		 u16 *afs_conclusion,
+		 u16 *afs_level,
+		 u16 *afs_pi
+		 );
 
 /**
  * fmd_rx_scan_band() - Starts Band Scan.
  * Starts scanning the active band for the strongest
  * channels above a threshold.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
+ * @max_channels_to_scan: Maximum number of channels to scan.
  * Returns:
  *   FMD_RESULT_ONGOING,  if scan band started successfully.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_scan_band(
-		void  *context
+u8 fmd_rx_scan_band(
+		void  *context,
+		u8 max_channels_to_scan
+		);
+
+/**
+ * fmd_rx_get_max_channels_to_scan() - Retreives the maximum channels.
+ * Retrieves the maximum number of channels that can be found during
+ * band scann.
+ * @context: FM Driver Context
+ * @max_channels_to_scan: (out) Maximum number of channels to scan.
+ * Returns:
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_rx_get_max_channels_to_scan(
+		void *context,
+		u8 *max_channels_to_scan
 		);
 
 /**
  * fmd_rx_get_scan_band_info() - Retrieves Channels found during scanning.
- * Retrives the scanned active band
+ * Retrieves the scanned active band
  * for the strongest channels above a threshold.
- * @context: Pointer to FM Driver Context
- * @index: Index value to retrieve the channels.
- * @numchannels: Pointer to Number of channels found
- * @channels: Pointer to channels found
- * @rssi:  Pointer to rssi of channels found
+ * @context: FM Driver Context
+ * @index: (out) Index value to retrieve the channels.
+ * @numchannels: (out) Number of channels found during Band Scan.
+ * @channels: (out) Channels found during band scan.
+ * @rssi: (out) Rssi of channels found during Band scan.
  * Returns:
  *   FMD_RESULT_ONGOING,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_get_scan_band_info(
+u8 fmd_rx_get_scan_band_info(
 		void  *context,
-		uint32_t index,
-		uint16_t  *numchannels,
-		uint16_t  *channels,
-		uint16_t  *rssi
+		u32 index,
+		u16  *numchannels,
+		u16  *channels,
+		u16  *rssi
 		);
 
 /**
- * fmd_rx_step_frequency() - Steps one channel up or down.
- * @context: Pointer to FM Driver Context
- * @upwards: IF true step upwards else downwards.
+ * fmd_rx_block_scan() - Starts Block Scan.
+ * Starts block scan for retriving the RSSI level of channels
+ * in the given block.
+ * @context: FM Driver Context
+ * @start_freq: Starting frequency of the block from where scanning has
+ * to be started.
+ * @stop_freq: End frequency of the block to be scanned.
+ * @antenna: Antenna to be used during scanning.
  * Returns:
- *   FMD_RESULT_WAIT,  if step frequency started successfully.
+ *   FMD_RESULT_ONGOING,  if scan band started successfully.
+ *   FMD_RESULT_PARAMETER_INVALID,  if parameters are invalid.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_step_frequency(
-		void  *context,
-		bool upwards
+u8 fmd_rx_block_scan(
+		void *context,
+		u32 start_freq,
+		u32 stop_freq,
+		u8 antenna
+		);
+
+/**
+ * fmd_rx_get_block_scan_result() - Retrieves RSSI Level of channels.
+ * Retrieves the RSSI level of the channels in the block.
+ * @context: FM Driver Context
+ * @index: (out) Index value to retrieve the channels.
+ * @numchannels: (out) Number of channels found during Band Scan.
+ * @rssi: (out) Rssi of channels found during Band scan.
+ * Returns:
+ *   FMD_RESULT_ONGOING,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_rx_get_block_scan_result(
+		void *context,
+		u32 index,
+		u16 *numchannels,
+		u16 *rssi
 		);
 
 /**
  * fmd_rx_get_rds() - Gets the current status of RDS transmission.
- * @context: Pointer to FM Driver Context
- * @on: pointer to RDS status
+ * @context: FM Driver Context
+ * @on: (out) RDS status
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *       FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_rx_get_rds(
+u8 fmd_rx_get_rds(
 		void  *context,
 		bool  *on
 		);
 
 /**
- * fmd_rx_query_rds_signal() - Gets information about the transmitter.
- * @context: Pointer to FM Driver Context
- * @is_signal:TX RDS signal
- *  Returns:
- *	 FMD_RESULT_SUCCESS,  if no error.
- *	 FMD_RESULT_IO_ERROR, if there is an error.
- *       FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *	 FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_rx_query_rds_signal(
-		void  *context,
-		bool  *is_signal
-		);
-
-/**
  * fmd_rx_buffer_set_size() - Sets the number of groups that the data buffer.
  * can contain and clears the buffer.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @size: buffer size
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
@@ -780,16 +880,16 @@ uint8_t fmd_rx_query_rds_signal(
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_buffer_set_size(
+u8 fmd_rx_buffer_set_size(
 		void  *context,
-		uint8_t size
+		u8 size
 		);
 
 /**
- * fmd_rx_buffer_set_threshold() - Sets the group number at which the buffer.
- * full interrupt must be generated.
- * The interrupt will be set after reception of the group.
- * @context: Pointer to FM Driver Context
+ * fmd_rx_buffer_set_threshold() - RDS Buffer Threshold level in FM Chip.
+ * Sets the group number at which the RDS buffer full interrupt must be
+ * generated. The interrupt will be set after reception of the group.
+ * @context: FM Driver Context
  * @threshold: threshold level.
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
@@ -797,76 +897,377 @@ uint8_t fmd_rx_buffer_set_size(
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_buffer_set_threshold(
+u8 fmd_rx_buffer_set_threshold(
 		void  *context,
-		uint8_t threshold
+		u8 threshold
 		);
 
 /**
- * fmd_rx_set_ctrl() - Enables or disables demodulation of RDS data.
- * @context: Pointer to FM Driver Context
- * @onoffState : Rx Set ON /OFF control
+ * fmd_rx_set_rds() - Enables or disables demodulation of RDS data.
+ * @context: FM Driver Context
+ * @on_off_state : Rx Set ON /OFF control
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_rx_set_ctrl(
+u8 fmd_rx_set_rds(
 		void  *context,
-		uint8_t onoffState
+		u8 on_off_state
 		);
 
 /**
  * fmd_rx_get_low_level_rds_groups() - Gets Low level RDS group data.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @index: RDS group index
  * @rds_buf_count: Count for RDS buffer
- * @block1: RDS Block 1
- * @block2: RDS Block 2
- * @block3: RDS Block 3
- * @block4: RDS Block 4
- * @status1: RDS data status 1
- * @status2: RDS data status 2
- * @status3: RDS data status 3
- * @status4: RDS data status 4
+ * @block1: (out) RDS Block 1
+ * @block2: (out) RDS Block 2
+ * @block3: (out) RDS Block 3
+ * @block4: (out) RDS Block 4
+ * @status1: (out) RDS data status 1
+ * @status2: (out) RDS data status 2
+ * @status3: (out) RDS data status 3
+ * @status4: (out) RDS data status 4
  *  Returns:
  *	 FMD_RESULT_SUCCESS,  if no error.
  *	 FMD_RESULT_IO_ERROR, if there is an error.
  *       FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_rx_get_low_level_rds_groups(
+u8 fmd_rx_get_low_level_rds_groups(
 		void  *context,
-		uint8_t index,
-		uint8_t *rds_buf_count,
-		uint16_t  *block1,
-		uint16_t  *block2,
-		uint16_t  *block3,
-		uint16_t  *block4,
-		uint8_t  *status1,
-		uint8_t  *status2,
-		uint8_t  *status3,
-		uint8_t  *status4
+		u8 index,
+		u8 *rds_buf_count,
+		u16  *block1,
+		u16  *block2,
+		u16  *block3,
+		u16  *block4,
+		u8  *status1,
+		u8  *status2,
+		u8  *status3,
+		u8  *status4
 		);
 
 /**
- * fmd_set_audio_dac() - Enables or disables the audio DAC.
- * @context: Pointer to FM Driver Context
- * @dac_state: DAC state
+ * fmd_tx_set_pa() - Enables or disables the Power Amplifier.
+ * @context: FM Driver Context
+ * @on: Power Amplifier current state to set
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if set Power Amplifier done successfully.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_pa(
+		void  *context,
+		bool on
+		);
+
+/**
+ * fmd_tx_set_signal_strength() - Sets the RF-level of the output FM signal.
+ * @context: FM Driver Context
+ * @strength: Signal strength to be set for FM Tx in dBuV.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if set RSSI Level done successfully.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_signal_strength(
+		void  *context,
+		u16 strength
+		);
+
+/**
+ * fmd_tx_get_signal_strength() - Retrieves current RSSI of FM Tx.
+ * @context: FM Driver Context
+ * @strength: (out) Strength of signal being transmitted in dBuV.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_signal_strength(
+		void  *context,
+		u16  *strength
+		);
+
+/**
+ * fmd_tx_set_freq_range() - Sets the FM band and specifies the custom band.
+ * @context: FM Driver Context
+ * @range: Freq range to set on FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_freq_range(
+		void  *context,
+		u8 range
+		);
+
+/**
+ * fmd_tx_get_freq_range() - Gets the FM band currently in use.
+ * @context: FM Driver Context
+ * @range: (out) Frequency Range set on Fm Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_freq_range(
+		void  *context,
+		u8 *range
+		);
+
+/**
+ * fmd_tx_set_grid() - Sets the tuning grid size.
+ * @context: FM Driver Context
+ * @grid: FM Grid (50 Khz, 100 Khz, 200 Khz) to be set for FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_PARAMETER_INVALID, if parameter is invalid.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_grid(
+		void  *context,
+		u8 grid
+		);
+
+/**
+ * fmd_tx_get_grid() - Gets the current tuning grid size.
+ * @context: FM Driver Context
+ * @grid: (out) FM Grid (50 Khz, 100 Khz, 200 Khz) currently set on FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_grid(
+		void  *context,
+		u8 *grid
+		);
+
+/**
+ * fmd_tx_set_preemphasis() - Sets the Preemphasis characteristic of the Tx.
+ * @context: FM Driver Context
+ * @preemphasis: Pre-emphasis level to be set for FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_preemphasis(
+		void  *context,
+		u8 preemphasis
+		);
+
+/**
+ * fmd_tx_get_preemphasis() - Gets the currently used Preemphasis char of th FM Tx.
+ * @context: FM Driver Context.
+ * @preemphasis: (out) Preemphasis Level used for FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_preemphasis(
+		void  *context,
+		u8 *preemphasis
+		);
+
+/**
+ * fmd_tx_set_frequency() - Sets the FM Channel for Tx.
+ * @context: FM Driver Context
+ * @freq: Freq to be set for transmission.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if set frequency done successfully.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_frequency(
+		void  *context,
+		u32 freq
+		);
+
+/**
+ * fmd_rx_get_frequency() - Gets the currently used Channel for Tx.
+ * @context: FM Driver Context
+ * @freq: (out) Frequency set on FM Tx.
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_set_audio_dac(
+u8 fmd_tx_get_frequency(
 		void  *context,
-		uint8_t dac_state
+		u32  *freq
+		);
+
+/**
+ * fmd_tx_enable_stereo_mode() - Sets Stereo mode state for TX.
+ * @context: FM Driver Context
+ * @enable_stereo_mode: Flag indicating enabling or disabling Stereo mode.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_enable_stereo_mode(
+		void  *context,
+		bool enable_stereo_mode
+		);
+
+/**
+ * fmd_tx_get_stereo_mode() - Gets the currently used FM Tx stereo mode.
+ * @context: FM Driver Context
+ * @stereo_mode: (out) Stereo Mode state set on FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_stereo_mode(
+		void  *context,
+		bool  *stereo_mode
+		);
+
+/**
+ * fmd_tx_set_pilot_deviation() - Sets pilot deviation in HZ
+ * @context: FM Driver Context
+ * @deviation: Pilot deviation in HZ to set on FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_pilot_deviation(
+		void  *context,
+		u16 deviation
+		);
+
+/**
+ * fmd_tx_get_pilot_deviation() - Retrieves the current pilot deviation.
+ * @context: FM Driver Context
+ * @deviation: (out) Pilot deviation set on FM Tx.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_pilot_deviation(
+		void  *context,
+		u16  *deviation
+		);
+
+/**
+ * fmd_tx_set_rds_deviation() - Sets Rds deviation in HZ.
+ * @context: FM Driver Context
+ * @deviation: RDS deviation in HZ.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_rds_deviation(
+		void  *context,
+		u16 deviation
+		);
+
+/**
+ * fmd_tx_get_rds_deviation() - Retrieves the current Rds deviation.
+ * @context: FM Driver Context
+ * @deviation: (out) RDS deviation currently set.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_rds_deviation(
+		void  *context,
+		u16  *deviation
+		);
+
+/**
+ * fmd_tx_set_rds() - Enables or disables RDS transmission for Tx.
+ * @context: FM Driver Context
+ * @on: Boolean - RDS ON
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_rds(
+		void  *context,
+		bool on
+		);
+
+/**
+ * fmd_rx_get_rds() - Gets the current status of RDS transmission for FM Tx.
+ * @context: FM Driver Context
+ * @on: (out) Rds enabled or disabled.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ */
+u8 fmd_tx_get_rds(
+		void  *context,
+		bool  *on
+		);
+
+/**
+ * fmd_tx_set_group() - Programs a grp on a certain position in the RDS buffer.
+ * @context: FM Driver Context
+ * @position: RDS group position
+ * @block1: Data to be transmitted in Block 1
+ * @block2: Data to be transmitted in Block 2
+ * @block3: Data to be transmitted in Block 3
+ * @block4: Data to be transmitted in Block 4
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_set_group(
+		void  *context,
+		u16 position,
+		u8  block1[2],
+		u8  block2[2],
+		u8  block3[2],
+		u8  block4[2]
+		);
+
+/**
+ * fmd_tx_buffer_set_size() - Controls the size of the RDS buffer in groups.
+ * @context: FM Driver Context
+ * @buffer_size: RDS buffer size.
+ * Returns:
+ *   FMD_RESULT_SUCCESS,  if no error.
+ *   FMD_RESULT_IO_ERROR, if there is an error.
+ *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
+ *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
+ */
+u8 fmd_tx_buffer_set_size(
+		void  *context,
+		u16 buffer_size
 		);
 
 /**
  * fmd_set_volume() - Sets the receive audio volume.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @volume: Audio volume level
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
@@ -874,152 +1275,58 @@ uint8_t fmd_set_audio_dac(
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_set_volume(
+u8 fmd_set_volume(
 		void  *context,
-		uint8_t volume
+		u8 volume
 		);
 
 /**
  * fmd_get_volume() - Retrives the current audio volume.
- * @context: Pointer to FM Driver Context
- * @volume: Pointer to base type Volume
+ * @context: FM Driver Context
+ * @volume: Analog Volume level.
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  */
-uint8_t fmd_get_volume(
+u8 fmd_get_volume(
 		void  *context,
-		uint8_t *volume
+		u8 *volume
 		);
 
 /**
  * fmd_set_balance() - Controls the receiver audio balance.
- * @context: Pointer to FM Driver Context
- * @balance: Audiio balance level
+ * @context: FM Driver Context
+ * @balance: Audio balance level
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_set_balance(
+u8 fmd_set_balance(
 		void  *context,
-		int8_t balance
-		);
-
-/**
- * fmd_get_balance() - Retrives the receiver current audio balance level.
- * @context: Pointer to FM Driver Context
- * @balance: Pointer to Audio balance level
- * Returns:
- *   FMD_RESULT_SUCCESS,  if no error.
- *   FMD_RESULT_IO_ERROR, if there is an error.
- *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
- */
-uint8_t fmd_get_balance(
-		void  *context,
-		int8_t  *balance
+		s8 balance
 		);
 
 /**
  * fmd_set_mute() - Enables or disables muting of the analog audio(DAC).
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @mute_on: bool of mute on
  * Returns:
- *   FMD_RESULT_WAIT,  if no error.
+ *   FMD_RESULT_SUCCESS,  if mute done successfully.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_set_mute(
+u8 fmd_set_mute(
 		void  *context,
 		bool mute_on
 		);
 
 /**
- * fmd_get_mute() - Retrives the current state of analog audio(DAC).
- * @context: Pointer to FM Driver Context
- * @mute_on: Pointer to base type mute on
- * Returns:
- *   FMD_RESULT_SUCCESS,  if no error.
- *   FMD_RESULT_IO_ERROR, if there is an error.
- *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
- */
-uint8_t fmd_get_mute(
-		void  *context,
-		bool  *mute_on
-		);
-
-/**
- * fmd_bt_set_ctrl() - Sets parameters of the BT Sample Rate Converter.
- * The sample rate conversion type(up or down) of the digital output
- * should be set to "up" if the required audio output rate exceeds
- * 41.3 kHz, otherwise the conversion type is down"
- * @context: Pointer to FM Driver Context
- * @up_conversion: Rate convertor -up
- * Returns:
- *   FMD_RESULT_SUCCESS,  if no error.
- *   FMD_RESULT_IO_ERROR, if there is an error.
- *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_bt_set_ctrl(
-		void  *context,
-		bool up_conversion
-		);
-
-/**
- * fmd_bt_set_mode() - Sets the output of the BT Sample Rate Converter.
- * @context: Pointer to FM Driver Context
- * @output: output mode
- * Returns:
- *   FMD_RESULT_SUCCESS,  if no error.
- *   FMD_RESULT_IO_ERROR, if there is an error.
- *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_bt_set_mode(
-		void  *context,
-		uint8_t output
-		);
-
-/**
- * fmd_ext_set_mode() - Sets the output mode of the Ext Sample Rate Converter.
- * @context: Pointer to FM Driver Context
- * @output: output mode
- * Returns:
- *   FMD_RESULT_SUCCESS,  if no error.
- *   FMD_RESULT_IO_ERROR, if there is an error.
- *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_ext_set_mode(
-		void  *context,
-		uint8_t output
-		);
-
-/**
- * fmd_ext_set_ctrl() - Sets parameters of the Ext Sample Rate Converter.
- * The sample rate conversion type(up or down)
- * of the digital output should be set to "up" if the required audio
- * output rate exceeds 41.3 kHz, otherwise the conversion type is "down".
- * @context: Pointer to FM Driver Context
- * @up_conversion: boolean type-Upconversion for sample rate.
- * Returns:
- *   FMD_RESULT_SUCCESS,  if no error.
- *   FMD_RESULT_IO_ERROR, if there is an error.
- *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
- *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
- */
-uint8_t fmd_ext_set_ctrl(
-		void  *context,
-		bool up_conversion
-		);
-
-/**
  * fmd_ext_set_mute() - Enables or disables muting of the audio channel.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @mute_on: bool to Mute
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
@@ -1027,50 +1334,50 @@ uint8_t fmd_ext_set_ctrl(
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_ext_set_mute(
+u8 fmd_ext_set_mute(
 		void  *context,
 		bool mute_on
 		);
 
 /**
  * fmd_power_up() - Puts the system in Powerup state.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * Returns:
- *   FMD_RESULT_WAIT,  if power up command sent successfully to chip.
+ *   FMD_RESULT_SUCCESS,  if power up command sent successfully to chip.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_power_up(
+u8 fmd_power_up(
 		void  *context
 		);
 
 /**
  * fmd_goto_standby() - Puts the system in standby mode.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_goto_standby(
+u8 fmd_goto_standby(
 		void  *context
 		);
 
 /**
  * fmd_goto_power_down() - Puts the system in Powerdown mode.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_goto_power_down(
+u8 fmd_goto_power_down(
 		void  *context
 		);
 
 /**
  * fmd_select_ref_clk() - Selects the FM reference clock.
- * @context: Pointer to FM Driver Context
+ * @context: FM Driver Context
  * @ref_clk: Ref Clock.
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
@@ -1078,26 +1385,26 @@ uint8_t fmd_goto_power_down(
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_select_ref_clk(
+u8 fmd_select_ref_clk(
 		void  *context,
-		uint16_t ref_clk
+		u16 ref_clk
 		);
 
 /**
- * fmd_select_ref_clk_pll() - Selects the freq of Referece Clock.
+ * fmd_set_ref_clk_pll() - Sets the freq of Referece Clock.
  * Sets frequency and offset correction properties of the external
  * reference clock of the PLL
- * @context: Pointer to FM driver Lib.
- * @freq: PLL Frequency.
+ * @context: FM driver context.
+ * @freq: PLL Frequency/ 2 in kHz.
  * Returns:
  *   FMD_RESULT_SUCCESS,  if no error.
  *   FMD_RESULT_IO_ERROR, if there is an error.
  *   FMD_RESULT_BUSY, if FM Driver is not in idle state.
  *   FMD_RESULT_RESPONSE_WRONG, if wrong response received from chip.
  */
-uint8_t fmd_select_ref_clk_pll(
+u8 fmd_set_ref_clk_pll(
 		void  *context,
-		uint16_t freq
+		u16 freq
 		);
 
 /**
@@ -1106,7 +1413,7 @@ uint8_t fmd_select_ref_clk_pll(
  *   0,  if operation completed successfully.
  *   1, otherwise.
  */
-unsigned int fmd_send_fm_ip_enable(void);
+u8 fmd_send_fm_ip_enable(void);
 
 /**
  * fmd_send_fm_ip_disable()- Disables the FM IP.
@@ -1114,40 +1421,29 @@ unsigned int fmd_send_fm_ip_enable(void);
  *   0,  if operation completed successfully.
  *   1, otherwise.
  */
-unsigned int fmd_send_fm_ip_disable(void);
-
-/**
- * fmd_send_fm_ip_reset() - Resets the FM IP.
- * Returns:
- *   0,  if operation completed successfully.
- *   1, otherwise.
- */
-unsigned int fmd_send_fm_ip_reset(void);
+u8 fmd_send_fm_ip_disable(void);
 
 /**
  * fmd_send_fm_firmware() - Send the FM Firmware File to Device.
- * @fw_buffer: Pointer to the Firmware Array
- * @fw_size: Size of firmware to be downloaded
+ * @fw_buffer: Firmware to be downloaded.
+ * @fw_size: Size of firmware to be downloaded.
  * Returns:
  *   0,  if operation completed successfully.
  *   1, otherwise.
  */
-unsigned int fmd_send_fm_firmware(
-		uint8_t *fw_buffer,
-		uint16_t fw_size
+u8 fmd_send_fm_firmware(
+		u8 *fw_buffer,
+		u16 fw_size
 		);
 
 /**
  * fmd_receive_data() - Processes the FM data received from device.
  * @packet_length: Length of received Data Packet
- * @packet_buffer: Pointer to the received Data packet
- * Returns:
- *   0,  if operation completed successfully.
- *   1, otherwise.
+ * @packet_buffer: Received Data buffer.
  */
 void fmd_receive_data(
-		uint32_t packet_length,
-		uint8_t *packet_buffer
+		u16 packet_length,
+		u8 *packet_buffer
 		);
 
 /**
@@ -1160,13 +1456,21 @@ void fmd_int_bufferfull(void);
 /**
  * fmd_hexdump() - Displays the HCI Data Bytes exchanged with FM Chip.
  * @prompt: Prompt signifying the direction '<' for Rx '>' for Tx
- * @buffer: Pointer to the buffer to be displayed.
+ * @buffer: Buffer to be displayed.
  * @num_bytes: Number of bytes of the buffer.
  */
 void fmd_hexdump(
 		char prompt,
-		uint8_t *buffer,
+		u8 *buffer,
 		int num_bytes
 		);
+
+/**
+ * fmd_isr() - FM Interrupt Service Routine.
+ * This function processes the Interrupt received from chip and performs the
+ * necessary action.
+ */
+void fmd_isr(void);
+
 
 #endif /* _FMDRIVER_H_  */
