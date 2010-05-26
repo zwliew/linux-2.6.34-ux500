@@ -111,6 +111,15 @@
 #define MBOX_PAIR1_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 45
 #define MBOX_PAIR2_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 41
 
+/* This should be fixed properly when the U5500 interrupts are added */
+#ifdef CONFIG_AB5500_CORE
+#define AB5500_NR_IRQS		5
+#define IRQ_AB5500_BASE		(IRQ_MODEM_EVENTS_END + 1)
+#define IRQ_AB5500_END		(IRQ_AB5500_BASE + AB5500_NR_IRQS)
+#define NR_IRQS			(IRQ_AB5500_END)
+#else
+
 #define NR_IRQS			IRQ_MODEM_EVENTS_END
+#endif
 
 #endif /* ASM_ARCH_IRQS_H */

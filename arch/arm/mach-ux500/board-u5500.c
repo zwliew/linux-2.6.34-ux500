@@ -10,6 +10,7 @@
 #include <linux/platform_device.h>
 #include <linux/amba/bus.h>
 #include <linux/gpio.h>
+#include <linux/mfd/abx500.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -109,9 +110,46 @@ static struct amba_device *amba_board_devs[] __initdata = {
 	&ux500_uart2_device,
 };
 
+#ifdef CONFIG_AB5500_CORE
+static struct resource ab5500_resources[] = {
+	[0] = {
+		/*TODO Change this when prcmu driver arrives */
+		.start = IRQ_AB5500_BASE + 1,
+		.end = IRQ_AB5500_BASE + 1,
+		.flags = IORESOURCE_IRQ
+	}
+};
+
+static struct ab5500_platform_data ab5500_plf_data = {
+	.irq = {
+		.base = IRQ_AB5500_BASE,
+		.count = AB5500_NR_IRQS,
+	},
+	.dev_data = {
+	},
+	.dev_data_sz = {
+	},
+	.init_settings = NULL,
+	.init_settings_sz = 0,
+};
+
+struct platform_device u5500_ab5500_device = {
+	.name = "ab5500-core",
+	.id = 0,
+	.dev = {
+		.platform_data = &ab5500_plf_data,
+	},
+	.num_resources = 1,
+	.resource = ab5500_resources,
+};
+#endif
+
 static struct platform_device *u5500_platform_devices[] __initdata = {
 #ifdef CONFIG_U5500_MLOADER_HELPER
 	&mloader_helper_device,
+#endif
+#ifdef CONFIG_AB5500_CORE
+	&u5500_ab5500_device,
 #endif
 };
 
