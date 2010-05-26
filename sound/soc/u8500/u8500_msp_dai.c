@@ -371,6 +371,28 @@ cleanup:
 #define dai_resume NULL
 #define u8500_dai_set_dai_sysclk NULL
 
+struct snd_soc_dai_ops u8500_msp_dai_ops_0 =
+{
+	.set_sysclk=u8500_dai_set_dai_sysclk,
+	.set_fmt=u8500_dai_set_dai_fmt,
+	.startup = u8500_dai_startup,
+	.shutdown = u8500_dai_shutdown,
+	.prepare = u8500_dai_prepare,
+	.trigger = u8500_dai_trigger,
+	.hw_params = u8500_dai_hw_params,
+};
+
+struct snd_soc_dai_ops u8500_msp_dai_ops_1 =
+{
+	.set_sysclk=u8500_dai_set_dai_sysclk,
+	.set_fmt=u8500_dai_set_dai_fmt,
+	.startup = u8500_dai_startup,
+	.shutdown = u8500_dai_shutdown,
+	.prepare = u8500_dai_prepare,
+	.trigger = u8500_dai_trigger,
+	.hw_params = u8500_dai_hw_params,
+};
+
 struct snd_soc_dai u8500_msp_dai[U8500_NBR_OF_DAI] =
 {
 	{
@@ -389,15 +411,7 @@ struct snd_soc_dai u8500_msp_dai[U8500_NBR_OF_DAI] =
 			.channels_max = 2,
 			.rates = u8500_I2S_RATES,
 			.formats = u8500_I2S_FORMATS,},
-		.ops = {
-			.set_sysclk=u8500_dai_set_dai_sysclk,
-      .set_fmt=u8500_dai_set_dai_fmt,
-      .startup = u8500_dai_startup,
-			.shutdown = u8500_dai_shutdown,
-			.prepare = u8500_dai_prepare,
-			.trigger = u8500_dai_trigger,
-			.hw_params = u8500_dai_hw_params,
-     },
+		.ops = &u8500_msp_dai_ops_0,
 		.private_data = &msp_dai_private[0],
 	},
 	{
@@ -416,15 +430,7 @@ struct snd_soc_dai u8500_msp_dai[U8500_NBR_OF_DAI] =
 			.channels_max = 2,
 			.rates = u8500_I2S_RATES,
 			.formats = u8500_I2S_FORMATS,},
-		.ops = {
-			.set_sysclk=u8500_dai_set_dai_sysclk,
-      .set_fmt=u8500_dai_set_dai_fmt,
-      .startup = u8500_dai_startup,
-			.shutdown = u8500_dai_shutdown,
-			.prepare = u8500_dai_prepare,
-			.trigger = u8500_dai_trigger,
-			.hw_params = u8500_dai_hw_params,
-    },
+		.ops = &u8500_msp_dai_ops_1,
 		.private_data = &msp_dai_private[1],
 	},
 };

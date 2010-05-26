@@ -129,8 +129,6 @@ static int snd_u8500_alsa_hdmi_trigger(struct snd_pcm_substream *substream,
 				       int cmd);
 static snd_pcm_uframes_t snd_u8500_alsa_hdmi_pointer(struct snd_pcm_substream
 						     *substream);
-static int snd_u8500_alsa_hdmi_mmap(struct snd_pcm_substream *substream,
-				    struct vm_area_struct *vma);
 static int configure_hdmi_rate(struct snd_pcm_substream *);
 static int configure_msp_hdmi(int sampling_freq, int channel_count);
 
@@ -159,7 +157,6 @@ static struct snd_pcm_ops snd_u8500_alsa_hdmi_playback_ops = {
 	.prepare = snd_u8500_alsa_hdmi_prepare,
 	.trigger = snd_u8500_alsa_hdmi_trigger,
 	.pointer = snd_u8500_alsa_hdmi_pointer,
-	.mmap = snd_u8500_alsa_hdmi_mmap,
 };
 
 static struct snd_pcm_ops snd_u8500_alsa_hdmi_capture_ops = {
@@ -171,7 +168,6 @@ static struct snd_pcm_ops snd_u8500_alsa_hdmi_capture_ops = {
 	.prepare = snd_u8500_alsa_hdmi_prepare,
 	.trigger = snd_u8500_alsa_hdmi_trigger,
 	.pointer = snd_u8500_alsa_hdmi_pointer,
-	.mmap = snd_u8500_alsa_hdmi_mmap,
 };
 
 /* Hardware description , this structure (struct snd_pcm_hardware )
@@ -402,7 +398,8 @@ static int snd_u8500_alsa_hdmi_close(struct snd_pcm_substream *substream)
 static int snd_u8500_alsa_hdmi_hw_params(struct snd_pcm_substream *substream,
 					 struct snd_pcm_hw_params *hw_params)
 {
-	return devdma_hw_alloc(NULL, substream, params_buffer_bytes(hw_params));
+	return snd_pcm_lib_malloc_pages(substream,
+					params_buffer_bytes(hw_params));
 }				//END OF FUNCTION
 
 /**
@@ -416,20 +413,6 @@ static int snd_u8500_alsa_hdmi_hw_free(struct snd_pcm_substream *substream)
 {
 	stm_hw_free(substream);
 	return 0;
-}				//END OF FUNCTION
-
-/**
- * snd_u8500_alsa_hdmi_mmap
- * @substream - pointer to the playback/capture substream structure
- * @vma - pointer to an area of vitual memory of process
- *  This callback is called whene the pcm middle layer inquires the current
- *  hardware position on the buffer .The position is returned in frames
- *  ranged from 0 to buffer_size -1
- */
-static int snd_u8500_alsa_hdmi_mmap(struct snd_pcm_substream *substream,
-				    struct vm_area_struct *vma)
-{
-	return devdma_mmap(NULL, substream, vma);
 }				//END OF FUNCTION
 
 /**

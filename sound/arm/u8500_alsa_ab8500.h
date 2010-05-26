@@ -15,7 +15,6 @@
 #define _U8500_ALSA_H_
 
 #include <asm/dma.h>
-#include "devdma.h"
 
 #ifdef CONFIG_U8500_AB8500_CUT10
 #include <mach/ab8500_codec_v1_0.h>
@@ -134,7 +133,7 @@ static void inline stm_stop_alsa(audio_stream_t * stream)
 }
 static void inline stm_hw_free(struct snd_pcm_substream *substream)
 {
-	devdma_hw_free(NULL, substream);
+	snd_pcm_lib_free_pages(substream);
 }
 
 #define stm_close_alsa(x, y,z)

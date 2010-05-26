@@ -1996,7 +1996,8 @@ static int snd_u8500_alsa_pcm_open(struct snd_pcm_substream *substream)
 static int snd_u8500_alsa_pcm_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *hw_params)
 {
-	return devdma_hw_alloc(NULL, substream, params_buffer_bytes(hw_params));
+	return snd_pcm_lib_malloc_pages(substream,
+				params_buffer_bytes(hw_params));
 }
 
 /**
@@ -2158,20 +2159,6 @@ static snd_pcm_uframes_t snd_u8500_alsa_pcm_pointer(struct snd_pcm_substream
 	return offset;
 }
 
-/**
- * snd_u8500_alsa_pcm_mmap
- * @substream - pointer to the playback/capture substream structure
- * @vma - pointer to an area of vitual memory of process
- *  This callback is called whene the pcm middle layer inquires the current
- *  hardware position on the buffer .The position is returned in frames
- *  ranged from 0 to buffer_size -1
- */
-static int snd_u8500_alsa_pcm_mmap(struct snd_pcm_substream *substream,
-				   struct vm_area_struct *vma)
-{
-	return devdma_mmap(NULL, substream, vma);
-}
-
 static struct snd_pcm_ops snd_u8500_alsa_playback_ops = {
 	.open = snd_u8500_alsa_pcm_open,
 	.close = snd_u8500_alsa_pcm_close,
@@ -2181,7 +2168,6 @@ static struct snd_pcm_ops snd_u8500_alsa_playback_ops = {
 	.prepare = snd_u8500_alsa_pcm_prepare,
 	.trigger = snd_u8500_alsa_pcm_trigger,
 	.pointer = snd_u8500_alsa_pcm_pointer,
-	.mmap = snd_u8500_alsa_pcm_mmap,
 };
 
 static struct snd_pcm_ops snd_u8500_alsa_capture_ops = {
@@ -2193,7 +2179,6 @@ static struct snd_pcm_ops snd_u8500_alsa_capture_ops = {
 	.prepare = snd_u8500_alsa_pcm_prepare,
 	.trigger = snd_u8500_alsa_pcm_trigger,
 	.pointer = snd_u8500_alsa_pcm_pointer,
-	.mmap = snd_u8500_alsa_pcm_mmap,
 };
 
 #ifdef CONFIG_U8500_ACODEC_POLL
@@ -2603,10 +2588,10 @@ static int __init u8500_alsa_probe(struct platform_device *devptr)
 	/*Set currently active users to 0 */
 	active_user = 0;
 
-	card = snd_card_new(0, NULL, THIS_MODULE, sizeof(u8500_acodec_chip_t));
-	if (card == NULL) {
-		stm_error(": error in snd_card_new\n");
-		return -ENOMEM;
+	error = snd_card_create(0, NULL, THIS_MODULE, sizeof(u8500_acodec_chip_t), &card);
+	if (error < 0) {
+		stm_error(": error in snd_card_create\n");
+		return error;
 	}
 
 	u8500_chip = (u8500_acodec_chip_t *) card->private_data;
