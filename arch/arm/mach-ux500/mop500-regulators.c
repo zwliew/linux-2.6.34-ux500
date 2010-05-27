@@ -33,8 +33,9 @@ static struct regulator_init_data db8500_vape_init = {
 		.min_uV = U8500_VAPE_REGULATOR_MIN_VOLTAGE,
 		.max_uV = U8500_VAPE_REGULATOR_MAX_VOLTAGE,
 		.input_uV = 1, /* notional, for set_mode* */
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE|REGULATOR_CHANGE_DRMS,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_DRMS |
+			REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(db8500_vape_consumers),
@@ -89,7 +90,7 @@ static struct regulator_init_data db8500_vana_init = {
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_MODE,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL |
-				REGULATOR_MODE_IDLE,
+				REGULATOR_MODE_IDLE | REGULATOR_CHANGE_STATUS,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(db8500_vana_consumers),
 	.consumer_supplies = db8500_vana_consumers,
@@ -156,7 +157,7 @@ static struct regulator_init_data ab8500_vaux1_init = {
 		.min_uV = AB8500_VAUXN_LDO_MIN_VOLTAGE,
 		.max_uV = AB8500_VAUXN_LDO_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaux1_consumers),
@@ -255,7 +256,7 @@ static struct regulator_init_data ab8500_vtvout_init = {
 		.min_uV = AB8500_VTVOUT_LDO_MIN_VOLTAGE,
 		.max_uV = AB8500_VTVOUT_LDO_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vtvout_consumers),
@@ -287,7 +288,7 @@ static struct regulator_init_data ab8500_vbus_init = {
 		.min_uV = AB8500_VBUS_REGULATOR_MIN_VOLTAGE,
 		.max_uV = AB8500_VBUS_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vbus_consumers),
