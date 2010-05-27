@@ -864,7 +864,8 @@ int clk_set_parent(struct clk *clk, struct clk *new_parent)
 	} else if ((clk->parent_cluster == NULL) && (clk->parent_periph == NULL)) {
 			/* Clk itself is a PRCMU clk */
 			prcmu_clk = (struct clk *) clk;
-	}
+	} else
+		return -EINVAL;
 
 	/* Holding the lock so that val register is not modified in between */
 	/* NOTE : Dont use printk() further in the code untill the lock is held */
