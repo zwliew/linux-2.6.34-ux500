@@ -230,6 +230,61 @@ struct ab3550_platform_data {
 	unsigned int init_settings_sz;
 };
 
+enum ab5500_devid {
+	AB5500_DEVID_ADC,
+	AB5500_DEVID_LEDS,
+	AB5500_DEVID_POWER,
+	AB5500_DEVID_REGULATORS,
+	AB5500_DEVID_SIM,
+	AB5500_DEVID_RTC,
+	AB5500_DEVID_CHARGER,
+	AB5500_DEVID_FUELGAUGE,
+	AB5500_DEVID_VIBRATOR,
+	AB5500_DEVID_CODEC,
+	AB5500_DEVID_USB,
+	AB5500_DEVID_OTP,
+	AB5500_DEVID_VIDEO,
+	AB5500_DEVID_DBIECI,
+	AB5500_NUM_DEVICES,
+};
+
+enum ab5500_banks {
+	AB5500_BANK_VIT_IO_I2C_CLK_TST_OTP = 0,
+	AB5500_BANK_VDDDIG_IO_I2C_CLK_TST = 1,
+	AB5500_BANK_VDENC = 2,
+	AB5500_BANK_SIM_USBSIM  = 3,
+	AB5500_BANK_LED = 4,
+	AB5500_BANK_ADC  = 5,
+	AB5500_BANK_RTC  = 6,
+	AB5500_BANK_STARTUP  = 7,
+	AB5500_BANK_DBI_ECI  = 8,
+	AB5500_BANK_CHG  = 9,
+	AB5500_BANK_FG_BATTCOM_ACC = 10,
+	AB5500_BANK_USB = 11,
+	AB5500_BANK_IT = 12,
+	AB5500_BANK_VIBRA = 13,
+	AB5500_BANK_AUDIO_HEADSETUSB = 14,
+	AB5500_NUM_BANKS = 15,
+};
+
+/**
+ * struct ab5500_platform_data - Platform data for ab5500
+ * @irq: Interrupt base and count used for events to the subdrivers
+ * @dev_data: Device specific data
+ * @dev_data_sz: Size of dev_data in bytes
+ * @init_settings: Initial I2C register settings
+ * @init_settings_sz: Size of init_settings in bytes
+ *
+ * Data supplied to initialize board connections to the AB5500
+ */
+struct ab5500_platform_data {
+	struct {unsigned int base; unsigned int count; } irq;
+	void *dev_data[AB5500_NUM_DEVICES];
+	size_t dev_data_sz[AB5500_NUM_DEVICES];
+	struct abx500_init_settings *init_settings;
+	unsigned int init_settings_sz;
+};
+
 /**
  * abx500_set_register_interruptible() - Set one target register
  * @dev: The AB subdevice
