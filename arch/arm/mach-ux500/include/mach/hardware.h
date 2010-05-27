@@ -164,7 +164,11 @@
 /* B2R2 clock management register */
 #define PRCM_B2R2CLK_MGT_REG	0x80157078 /** B2R2 clock selection */
 
-#include <mach/mcde-base.h>
+#define U8500_DSI_LINK1_BASE 0xA0351000
+#define U8500_DSI_LINK_SIZE 0x1000
+#define U8500_DSI_LINK_COUNT 0x3
+#define U8500_DSI_LINK2_BASE (U8500_DSI_LINK1_BASE + U8500_DSI_LINK_SIZE)
+#define U8500_DSI_LINK3_BASE (U8500_DSI_LINK2_BASE + U8500_DSI_LINK_SIZE)
 
 #ifndef __ASSEMBLY__
 

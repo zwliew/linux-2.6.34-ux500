@@ -480,22 +480,11 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(tvclk,	"tv",		NULL),
 
 	/* With device names */
-	CLK(mcdeclk,	"U8500-MCDE.0",	"mcde"),
-	CLK(hdmiclk,	"U8500-MCDE.0",	"hdmi"),
-	CLK(tvclk,	"U8500-MCDE.0",	"tv"),
-	CLK(lcdclk,	"U8500-MCDE.0",	"lcd"),
-	CLK(mcdeclk,	"U8500-MCDE.1",	"mcde"),
-	CLK(hdmiclk,	"U8500-MCDE.1",	"hdmi"),
-	CLK(tvclk,	"U8500-MCDE.1",	"tv"),
-	CLK(lcdclk,	"U8500-MCDE.1",	"lcd"),
-	CLK(mcdeclk,	"U8500-MCDE.2",	"mcde"),
-	CLK(hdmiclk,	"U8500-MCDE.2",	"hdmi"),
-	CLK(tvclk,	"U8500-MCDE.2",	"tv"),
-	CLK(lcdclk,	"U8500-MCDE.2",	"lcd"),
-	CLK(mcdeclk,	"U8500-MCDE.3",	"mcde"),
-	CLK(hdmiclk,	"U8500-MCDE.3",	"hdmi"),
-	CLK(tvclk,	"U8500-MCDE.3",	"tv"),
-	CLK(lcdclk,	"U8500-MCDE.3",	"lcd"),
+
+	CLK(mcdeclk,	"mcde",	"mcde"),
+	CLK(hdmiclk,	"mcde",	"hdmi"),
+	CLK(tvclk,	"mcde",	"tv"),
+	CLK(lcdclk,	"mcde",	"lcd"),
 	CLK(b2r2clk,	"U8500-B2R2.0",	NULL),
 
 	/* Register the clock sources */

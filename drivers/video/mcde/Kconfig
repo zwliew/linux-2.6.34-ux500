@@ -1,18 +1,37 @@
 config FB_MCDE
-	tristate "MCDE display engine support"
+	tristate "MCDE support"
 	depends on FB
-	default y
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
-	help
-	  MCDE display engine offers multiple channel,multiple input, multiple
-	  overlay support for rendering on various types of display panels.
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_SYS_FOPS
+	---help---
+	  This enables support for MCDE based frame buffer driver.
 
-config FB_MCDE_MULTIBUFFER
-       bool "MCDE multibuffer support"
-       depends on FB && FB_MCDE
-       default y
-       help
-           Please disable this feature if multibuffer not required.
+	  Please read the file <file:Documentation/fb/mcde.txt>
 
+config MCDE_DISPLAY_GENERIC_DSI
+	tristate "Generic display driver"
+	depends on FB_MCDE
+
+config MCDE_DISPLAY_AV8100
+	tristate "AV8100 HDMI/CVBS display driver"
+	depends on FB_MCDE
+	select AV8100
+
+config MCDE_DISPLAY_AB8500_DENC
+	tristate "AB8500 CVBS display driver"
+	depends on FB_MCDE
+	select AB8500_DENC
+
+config FB_MCDE_DEBUG
+	bool "MCDE debug messages"
+	depends on FB_MCDE
+	---help---
+	  Say Y here if you want the MCDE driver to output debug messages
+
+config FB_MCDE_VDEBUG
+	bool "MCDE verbose debug messages"
+	depends on FB_MCDE_DEBUG
+	---help---
+	  Say Y here if you want the MCDE driver to output more debug messages

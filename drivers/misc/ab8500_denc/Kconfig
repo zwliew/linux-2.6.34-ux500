@@ -1,0 +1,6 @@
+config AB8500_DENC
+	tristate "AB8500_DENC driver support(CVBS)"
+	depends on AB8500
+	default n
+	help
+		Please enable this feature if tvout driver support is required.

@@ -59,30 +59,10 @@ static struct platform_device db8500_vape_regulator_dev = {
 #define U8500_VANA_REGULATOR_MAX_VOLTAGE	(1200000)
 
 static struct regulator_consumer_supply db8500_vana_consumers[] = {
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	{
-		.dev = &u8500_mcde0_device.dev,
+		.dev = &ux500_mcde_device.dev,
 		.supply = "v-ana",
 	},
-#endif
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
-	{
-		.dev = &u8500_mcde1_device.dev,
-		.supply = "v-ana",
-	},
-#endif
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-	{
-		.dev = &u8500_mcde2_device.dev,
-		.supply = "v-ana",
-	},
-#endif
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
-	{
-		.dev = &u8500_mcde3_device.dev,
-		.supply = "v-ana",
-	},
-#endif
 };
 
 static struct regulator_init_data db8500_vana_init = {
@@ -117,30 +97,10 @@ extern struct platform_device sensors1p_device;
 #define AB8500_VAUXN_LDO_MAX_VOLTAGE    (3300000)
 
 static struct regulator_consumer_supply ab8500_vaux1_consumers[] = {
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELA
 	{
-		.dev = &u8500_mcde0_device.dev,
-		.supply = "v-mcde",
+		.dev = NULL,
+		.supply = "v-display",
 	},
-#endif
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELB
-	{
-		.dev = &u8500_mcde1_device.dev,
-		.supply = "v-mcde",
-	},
-#endif
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC0
-	{
-		.dev = &u8500_mcde2_device.dev,
-		.supply = "v-mcde",
-	},
-#endif
-#ifdef CONFIG_FB_U8500_MCDE_CHANNELC1
-	{
-		.dev = &u8500_mcde3_device.dev,
-		.supply = "v-mcde",
-	},
-#endif
 #ifdef CONFIG_SENSORS1P_MOP
 	{
 		.dev = &sensors1p_device.dev,

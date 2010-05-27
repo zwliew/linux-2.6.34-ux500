@@ -1,16 +1,14 @@
-# Make file for compiling and loadable module MCDE
 
-obj- := mcde.o	# Dummy rule to force built-in.o to be made
+mcde-objs			:= mcde_mod.o mcde_hw.o mcde_dss.o mcde_display.o mcde_bus.o mcde_fb.o
+obj-$(CONFIG_FB_MCDE)		+= mcde.o
 
-obj-$(CONFIG_FB_MCDE) += mcde_hwaccess.o
+obj-$(CONFIG_MCDE_DISPLAY_GENERIC_DSI)	+= display-generic_dsi.o
+obj-$(CONFIG_MCDE_DISPLAY_AB8500_DENC)	+= display-ab8500.o
+obj-$(CONFIG_MCDE_DISPLAY_AV8100)	+= display-av8100.o
 
-obj-$(CONFIG_FB_MCDE) += dsi_hwaccess.o
-
-obj-$(CONFIG_FB_MCDE) += dsi_link_utils.o
-
-obj-$(CONFIG_FB_MCDE) += mcde_utils.o
-
-obj-$(CONFIG_FB_MCDE) += mcde.o
-
-clean-files := mcde_hwaccess.o dsi_hwaccess.o dsi_link_utils.o mcde_utils.o mcde.o modules.order built-in.o
-
+ifdef CONFIG_FB_MCDE_DEBUG
+EXTRA_CFLAGS += -DDEBUG
+endif
+ifdef CONFIG_FB_MCDE_VDEBUG
+EXTRA_CFLAGS += -DVERBOSE_DEBUG
+endif
