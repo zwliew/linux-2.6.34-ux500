@@ -476,6 +476,7 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(ipi2clk,	"ipi2",		NULL),
 	CLK(dmaclk,	"STM-DMA.0",	NULL),
 	CLK(b2r2clk,	"b2r2",		NULL),
+	CLK(b2r2clk,	"b2r2_bus",	NULL),
 	CLK(tvclk,	"tv",		NULL),
 
 	/* With device names */
