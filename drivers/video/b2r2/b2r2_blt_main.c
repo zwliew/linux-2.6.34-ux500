@@ -42,6 +42,7 @@
 #include <asm/dma-mapping.h>
 
 #include <linux/sched.h>
+#include <linux/err.h>
 
 #include "b2r2_internal.h"
 #include "b2r2_node_split.h"

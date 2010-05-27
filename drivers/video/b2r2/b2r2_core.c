@@ -55,6 +55,7 @@
 #include <linux/clk.h>
 
 #include <linux/sched.h>
+#include <linux/err.h>
 
 #include "b2r2_core.h"
 #include "b2r2_global.h"
