@@ -655,8 +655,8 @@ static int conn_start_i2s_to_fm_rx(struct cg29xx_audio_user *audio_user, unsigne
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
 	data[4] = CG2900_FM_CMD_ID_AUP_EXT_SET_MODE_LSB;
 	data[5] = CG2900_FM_CMD_ID_AUP_EXT_SET_MODE_MSB;
-	data[6] = HCI_SET_U16_DATA_LSB(CG2900_FM_CMD_AUP_EXT_SET_MODE_I2S);
-	data[7] = HCI_SET_U16_DATA_MSB(CG2900_FM_CMD_AUP_EXT_SET_MODE_I2S);
+	data[6] = HCI_SET_U16_DATA_LSB(CG2900_FM_CMD_AUP_EXT_SET_MODE_PARALLEL);
+	data[7] = HCI_SET_U16_DATA_MSB(CG2900_FM_CMD_AUP_EXT_SET_MODE_PARALLEL);
 
 	cb_info_fm.user = audio_user;
 	SET_RESP_STATE(audio_user->resp_state, WAITING);
@@ -992,8 +992,8 @@ static int conn_start_i2s_to_fm_tx(struct cg29xx_audio_user *audio_user, unsigne
 	data[3] = CG2900_FM_CMD_PARAMETERS_WRITECOMMAND;
 	data[4] = CG2900_FM_CMD_ID_AIP_BT_SET_MODE_LSB;
 	data[5] = CG2900_FM_CMD_ID_AIP_BT_SET_MODE_MSB;
-	data[6] = HCI_SET_U16_DATA_LSB(CG2900_FM_CMD_AIP_BT_SET_MODE_INPUT_I2S);
-	data[7] = HCI_SET_U16_DATA_MSB(CG2900_FM_CMD_AIP_BT_SET_MODE_INPUT_I2S);
+	data[6] = HCI_SET_U16_DATA_LSB(CG2900_FM_CMD_AIP_BT_SET_MODE_INPUT_PARALLEL);
+	data[7] = HCI_SET_U16_DATA_MSB(CG2900_FM_CMD_AIP_BT_SET_MODE_INPUT_PARALLEL);
 
 	cb_info_fm.user = audio_user;
 	SET_RESP_STATE(audio_user->resp_state, WAITING);
@@ -1627,7 +1627,11 @@ int ste_cg29xx_audio_set_dai_configuration(unsigned int session,
 			data[1] = STE_CG29XX_DAI_PORT_PROTOCOL_I2S;
 			data[2] = 0x00; /* Virtual port if multiple on vp, PCM /I2S index */
 			data[3] = i2s->half_period; /* WS Half period size */
-			data[4] = i2s->mode; /* WS Sel */
+			if (i2s->mode == STE_CG29XX_DAI_MODE_MASTER) {
+				data[4] = CG2900_BT_HW_CONFIG_I2S_WS_SEL_MASTER;
+			} else {
+				data[4] = CG2900_BT_HW_CONFIG_I2S_WS_SEL_SLAVE;
+			}
 
 			/* Store the new configuration */
 			mutex_lock(&cg29xx_audio_info->management_mutex);
@@ -1649,19 +1653,19 @@ int ste_cg29xx_audio_set_dai_configuration(unsigned int session,
 			if (i2s_pcm->protocol == STE_CG29XX_DAI_PORT_PROTOCOL_PCM) { /* PCM (logical) */
 				data[2] = 0x00; /* Virtual port if multiple on vp, PCM /I2S index */
 
-				if (i2s_pcm->slot_0_dir == STE_CG29XX_DAI_DIRECTION_PORT_B_TX_PORT_A_RX)
-					data[3] |= 0x10; /* Set bit 4 to 1 */
-				if (i2s_pcm->slot_1_dir == STE_CG29XX_DAI_DIRECTION_PORT_B_TX_PORT_A_RX)
-					data[3] |= 0x20; /* Set bit 5 to 1 */
-				if (i2s_pcm->slot_2_dir == STE_CG29XX_DAI_DIRECTION_PORT_B_TX_PORT_A_RX)
-					data[3] |= 0x40; /* Set bit 6 to 1 */
-				if (i2s_pcm->slot_3_dir == STE_CG29XX_DAI_DIRECTION_PORT_B_TX_PORT_A_RX)
-					data[3] |= 0x80; /* Set bit 7 to 1 */
-				if (i2s_pcm->mode == STE_CG29XX_DAI_MODE_MASTER)
-					data[3] |= 0x02; /* Set bit 1 to 1 for Master */
+				/* Set PCM direction and mode. They are a bit field in one byte */
+				data[3] = CG2900_BT_HW_CONFIG_PCM_SET_DIR(0, i2s_pcm->slot_0_dir);
+				data[3] |= CG2900_BT_HW_CONFIG_PCM_SET_DIR(1, i2s_pcm->slot_1_dir);
+				data[3] |= CG2900_BT_HW_CONFIG_PCM_SET_DIR(2, i2s_pcm->slot_2_dir);
+				data[3] |= CG2900_BT_HW_CONFIG_PCM_SET_DIR(3, i2s_pcm->slot_3_dir);
+				if (i2s_pcm->mode == STE_CG29XX_DAI_MODE_MASTER) {
+					data[3] |= CG2900_BT_HW_CONFIG_PCM_SET_MODE(CG2900_BT_HW_CONFIG_PCM_MODE_MASTER);
+				} else {
+					data[3] |= CG2900_BT_HW_CONFIG_PCM_SET_MODE(CG2900_BT_HW_CONFIG_PCM_MODE_SLAVE);
+				}
 				data[4] = i2s_pcm->clk;
-				data[5] = i2s_pcm->duration & 0x00FF;
-				data[6] = (i2s_pcm->duration >> 8) & 0x00FF;
+				data[5] = HCI_SET_U16_DATA_LSB(i2s_pcm->duration);
+				data[6] = HCI_SET_U16_DATA_MSB(i2s_pcm->duration);
 
 				/* Store the new configuration */
 				mutex_lock(&cg29xx_audio_info->management_mutex);

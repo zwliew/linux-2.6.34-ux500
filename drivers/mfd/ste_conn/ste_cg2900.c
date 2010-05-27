@@ -916,14 +916,9 @@ static bool cg2900_fm_is_do_cmd_irpt(uint16_t irpt_val)
 {
 	bool retval = false;
 
-	switch (irpt_val) {
-	case CG2900_FM_IRPT_OPERATION_SUCCEEDED:
-	case CG2900_FM_IRPT_OPERATION_FAILED:
+	if ((irpt_val & CG2900_FM_IRPT_OPERATION_SUCCEEDED) ||
+	    (irpt_val & CG2900_FM_IRPT_OPERATION_FAILED)) {
 		retval = true;
-		break;
-
-	default:
-		break;
 	}
 
 	if (retval) {

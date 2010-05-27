@@ -65,6 +65,14 @@
 
 /* BT HCI Command parameters */
 
+/* VS_Set_Hardware_configuration I2S WS Sel param */
+#define CG2900_BT_HW_CONFIG_I2S_WS_SEL_MASTER		0x00
+#define CG2900_BT_HW_CONFIG_I2S_WS_SEL_SLAVE		0x01
+
+/* VS_Set_Hardware_configuration PCM Mode param */
+#define CG2900_BT_HW_CONFIG_PCM_MODE_SLAVE		0x00
+#define CG2900_BT_HW_CONFIG_PCM_MODE_MASTER		0x01
+
 /* VS_Session_Control SessionControl param */
 #define CG2900_BT_SESSION_START				0x00
 #define CG2900_BT_SESSION_STOP				0x01
@@ -95,6 +103,10 @@
 
 /* VS_Session_Configuration PCM Index param */
 #define CG2900_BT_SESSION_PCM_INDEX_PCM_I2S		0x00
+
+/* VS_Set_Hardware_Configuration Macros */
+#define CG2900_BT_HW_CONFIG_PCM_SET_DIR(__slot, __val)	(__val << (__slot + 4))
+#define CG2900_BT_HW_CONFIG_PCM_SET_MODE(__mode)	(__mode << 1)
 
 /* VS_Session_Configuration Macros */
 #define CG2900_BT_SESSION_CONF_SET_SAMPLE_RATE(__rate)	(__rate << 4)
@@ -222,7 +234,7 @@
 /* AUP_EXT_SetMode Output enum */
 #define CG2900_FM_CMD_AUP_EXT_SET_MODE_DISABLED		0x0000
 #define CG2900_FM_CMD_AUP_EXT_SET_MODE_I2S		0x0001
-#define CG2900_FM_CMD_AUP_EXT_SET_MODE_PARALLELL	0x0002
+#define CG2900_FM_CMD_AUP_EXT_SET_MODE_PARALLEL		0x0002
 
 /* SetControl Conversion enum */
 #define CG2900_FM_CMD_SET_CONTROL_CONVERSION_UP		0x0000
