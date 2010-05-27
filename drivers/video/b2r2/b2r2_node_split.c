@@ -21,12 +21,11 @@
 #include <linux/kernel.h>
 #include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
-#include <asm/dma-mapping.h>
-
 
 #include "b2r2_node_split.h"
 #include "b2r2_internal.h"
 #include "b2r2_hw.h"
+#include "b2r2_debug.h"
 
 /******************
  * Debug printing
@@ -34,10 +33,10 @@
 static u32 debug;
 static u32 verbose;
 
-static u32 hf_coeffs_addr = 0;
-static u32 vf_coeffs_addr = 0;
-static void *hf_coeffs = NULL;
-static void *vf_coeffs = NULL;
+static u32 hf_coeffs_addr;
+static u32 vf_coeffs_addr;
+static void *hf_coeffs;
+static void *vf_coeffs;
 #define HF_TABLE_SIZE 64
 #define VF_TABLE_SIZE 40
 
@@ -192,8 +191,6 @@ static int constrain_window(struct b2r2_blt_rect *window,
 		enum b2r2_blt_fmt fmt, u32 max_size);
 static int setup_tmp_buf(struct b2r2_node_split_buf *this, u32 max_size,
 		enum b2r2_blt_fmt pref_fmt, u32 pref_width, u32 pref_height);
-static int calculate_tile_count(s32 area_width, s32 area_height, s32 tile_width,
-		s32 tile_height);
 
 static inline enum b2r2_ty get_alpha_range(enum b2r2_blt_fmt fmt);
 static inline u32 set_alpha(enum b2r2_blt_fmt fmt, u8 alpha, u32 color);
@@ -230,7 +227,6 @@ static void set_src_3(struct b2r2_node *node, u32 addr,
 static void set_ivmx(struct b2r2_node *node, const u32 *vmx_values);
 
 static void reset_nodes(struct b2r2_node *node);
-static void dump_nodes(struct b2r2_node *first);
 
 /********************
  * Public functions
@@ -271,7 +267,7 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 			&req->user_req.dst_img, &req->user_req.dst_rect, false,
 			0);
 
-	pdebug(KERN_INFO LOG_TAG "::%s:\n"
+	b2r2_log_info("%s:\n"
 		"\t\tsrc.rect=(%4d, %4d, %4d, %4d)\t"
 		"dst.rect=(%4d, %4d, %4d, %4d)\n", __func__, this->src.rect.x,
 		this->src.rect.y, this->src.rect.width, this->src.rect.height,
@@ -368,8 +364,10 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 		}
 	}
 
-	if (ret < 0) {
-		printk(KERN_ERR "%s: Analysis failed!\n", __func__);
+	if (ret == -ENOSYS) {
+		goto unsupported;
+	} else if (ret < 0) {
+		b2r2_log_warn("%s: Analysis failed!\n", __func__);
 		goto error;
 	}
 
@@ -408,7 +406,7 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 unsupported:
 	return ret;
 }
@@ -455,7 +453,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 		if (node == NULL) {
 			/* DOH! This is an internal error (to few nodes
 			   allocated) */
-			printk(KERN_ERR LOG_TAG "%s: "
+			b2r2_log_warn("%s: "
 				"Internal error! Out of nodes!\n",
 				__func__);
 			ret = -ENOMEM;
@@ -541,7 +539,7 @@ int b2r2_node_split_configure(struct b2r2_node_split_job *this,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 
 	{
 		int nbr_nodes = 0;
@@ -550,9 +548,9 @@ error:
 			first = first->next;
 		}
 
-		printk(KERN_ERR LOG_TAG "::%s: Asked for %d nodes, got %d\n",
+		b2r2_log_warn("%s: Asked for %d nodes, got %d\n",
 			__func__, this->node_count, nbr_nodes);
-		printk(KERN_ERR LOG_TAG "::%s: src.rect=(%4d, %4d, %4d, %4d)\t"
+		b2r2_log_warn("%s: src.rect=(%4d, %4d, %4d, %4d)\t"
 			"dst.rect=(%4d, %4d, %4d, %4d)\n", __func__,
 			this->src.rect.x, this->src.rect.y,
 			this->src.rect.width, this->src.rect.height,
@@ -588,23 +586,23 @@ int b2r2_node_split_assign_buffers(struct b2r2_node_split_job *this,
 		if (node->src_tmp_index) {
 			u32 addr = bufs[node->src_tmp_index - 1].phys_addr;
 
-			pverbose(KERN_INFO LOG_TAG "::%s: "
-				"%p Assigning %p as source", __func__,
+			b2r2_log_info("%s: "
+				"%p Assigning %p as source ", __func__,
 				node, (void *)addr);
 
 			BUG_ON(node->src_tmp_index > buf_count);
 
 			switch (node->src_index) {
 			case 1:
-				pverbose("1\n");
+				b2r2_log_info("1\n");
 				node->node.GROUP3.B2R2_SBA = addr;
 				break;
 			case 2:
-				pverbose("2\n");
+				b2r2_log_info("2\n");
 				node->node.GROUP4.B2R2_SBA = addr;
 				break;
 			case 3:
-				pverbose("3\n");
+				b2r2_log_info("3\n");
 				node->node.GROUP5.B2R2_SBA = addr;
 				break;
 			default:
@@ -613,7 +611,7 @@ int b2r2_node_split_assign_buffers(struct b2r2_node_split_job *this,
 			}
 		}
 
-		pverbose(KERN_INFO LOG_TAG "::%s: tba=%p\tsba=%p\n", __func__,
+		b2r2_log_info("%s: tba=%p\tsba=%p\n", __func__,
 			(void *)node->node.GROUP1.B2R2_TBA,
 			(void *)node->node.GROUP4.B2R2_SBA);
 
@@ -658,9 +656,9 @@ static int check_rect(const struct b2r2_blt_img *img,
 
 	/* Check rectangle dimensions*/
 	if ((rect->width <= 0) || (rect->height <= 0)) {
-		printk(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"Illegal rect (%d, %d, %d, %d)\n",
-			__func__, rect->x,rect->y, rect->width, rect->height);
+			__func__, rect->x, rect->y, rect->width, rect->height);
 		ret = -EINVAL;
 		goto error;
 	}
@@ -681,14 +679,14 @@ static int check_rect(const struct b2r2_blt_img *img,
 
 	/* Check so that the rect isn't outside the buffer */
 	if ((l < 0) || (t < 0)) {
-		printk(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"rect origin outside buffer\n", __func__);
 		ret = -EINVAL;
 		goto error;
 	}
 
 	if ((r > img->width) ||	(t > img->height)) {
-		printk(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"rect ends outside buffer\n", __func__);
 		ret = -EINVAL;
 		goto error;
@@ -696,7 +694,7 @@ static int check_rect(const struct b2r2_blt_img *img,
 
 	/* Check so the intersected rectangle isn't empty */
 	if ((l == r) || (t == b)) {
-		printk(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"rect is empty (width or height zero)\n",
 			__func__);
 		ret = -EINVAL;
@@ -705,7 +703,7 @@ static int check_rect(const struct b2r2_blt_img *img,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -763,7 +761,7 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 	/* Destination must be raster for raw fill to work */
 	if ((this->flags & B2R2_BLT_FLAG_SOURCE_FILL_RAW) &&
 			(this->dst.type != B2R2_FMT_TYPE_RASTER)) {
-		printk(KERN_ERR "%s: Raw fill requires raster destination\n",
+		b2r2_log_warn("%s: Raw fill requires raster destination\n",
 			__func__);
 		ret = -EINVAL;
 		goto error;
@@ -807,7 +805,7 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 				this->src.fmt =	B2R2_BLT_FMT_32_BIT_ARGB8888;
 			} else {
 				/* Wait, what? */
-				printk(KERN_ERR "%s: "
+				b2r2_log_warn("%s: "
 					"Illegal destination format for fill",
 					__func__);
 				ret = -EINVAL;
@@ -859,7 +857,7 @@ static int analyze_color_fill(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 
 }
@@ -959,7 +957,7 @@ static int analyze_transform(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 unsupported:
 	return ret;
 }
@@ -1035,7 +1033,7 @@ static int analyze_copy(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1082,12 +1080,12 @@ static int analyze_rot_scale(struct b2r2_node_split_job *this,
 	if (ret < 0)
 		goto error;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: tmp_width=%d\ttmp_height=%d\n",
+	b2r2_log_info("%s: tmp_width=%d\ttmp_height=%d\n",
 		__func__, tmp_width, tmp_height);
-	pdebug(KERN_INFO LOG_TAG "::%s: "
+	b2r2_log_info("%s: "
 		"tmp.rect.width=%d\ttmp.rect.height=%d\n", __func__,
 		tmp->rect.width, tmp->rect.height);
-	pdebug(KERN_INFO LOG_TAG "::%s: hsf=%d\tvsf=%d\n",
+	b2r2_log_info("%s: hsf=%d\tvsf=%d\n",
 		__func__, this->horiz_sf, this->vert_sf);
 
 	this->work_bufs[0].size = tmp->pitch * tmp->height;
@@ -1122,14 +1120,14 @@ static int analyze_rot_scale(struct b2r2_node_split_job *this,
 
 	this->type = B2R2_SCALE_AND_ROTATE;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: Rot scale:\n", __func__);
-	pdebug(KERN_INFO LOG_TAG "::%s: node_count=%d\n", __func__,
+	b2r2_log_info("%s: Rot scale:\n", __func__);
+	b2r2_log_info("%s: node_count=%d\n", __func__,
 		this->node_count);
 
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1180,13 +1178,13 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	else
 		dst_bottom_height = 0;
 
-	pdebug(KERN_INFO "dst.window=\t(%4d, %4d, %4d, %4d)\n",
+	b2r2_log_info("dst.window=\t(%4d, %4d, %4d, %4d)\n",
 		this->dst.window.x, this->dst.window.y, this->dst.window.width,
 		this->dst.window.height);
-	pdebug(KERN_INFO "src.window=\t(%4d, %4d, %4d, %4d)\n",
+	b2r2_log_info("src.window=\t(%4d, %4d, %4d, %4d)\n",
 		this->src.window.x, this->src.window.y, this->src.window.width,
 		this->src.window.height);
-	pdebug(KERN_INFO "right_width=%d, bottom_height=%d\n", dst_right_width,
+	b2r2_log_info("right_width=%d, bottom_height=%d\n", dst_right_width,
 		dst_bottom_height);
 
 	/* Update the rot_count and scale_count with all the "inner" tiles */
@@ -1195,7 +1193,7 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 	rot_count = tile_rots * nbr_full_cols * nbr_full_rows;
 	scale_count = nbr_full_cols * nbr_full_rows;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: inner=%d\n", __func__,
+	b2r2_log_info("%s: inner=%d\n", __func__,
 		tile_rots);
 
 	/* Update with "right tile" rotations (one tile per row) */
@@ -1204,7 +1202,7 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 		rot_count += tile_rots * nbr_full_rows;
 		scale_count += nbr_full_rows;
 
-		pdebug(KERN_INFO LOG_TAG "::%s: right=%d\n", __func__,
+		b2r2_log_info("%s: right=%d\n", __func__,
 			tile_rots);
 	}
 
@@ -1215,7 +1213,7 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 		rot_count += tile_rots * nbr_full_cols;
 		scale_count += nbr_full_cols;
 
-		pdebug(KERN_INFO LOG_TAG "::%s: bottom=%d\n", __func__,
+		b2r2_log_info("%s: bottom=%d\n", __func__,
 			tile_rots);
 	}
 
@@ -1225,22 +1223,22 @@ static int calculate_rot_scale_node_count(struct b2r2_node_split_job *this,
 		rot_count += tile_rots;
 		scale_count++;
 
-		pdebug(KERN_INFO LOG_TAG "::%s: bottom_right=%d\n", __func__,
+		b2r2_log_info("%s: bottom_right=%d\n", __func__,
 			tile_rots);
 	}
 
 	/* Finally calculate the total node count */
 	this->node_count = (scale_count + rot_count) * copy_count;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: nbr_full_cols=%d, nbr_full_rows=%d\n",
+	b2r2_log_info("%s: nbr_full_cols=%d, nbr_full_rows=%d\n",
 		__func__, nbr_full_cols, nbr_full_rows);
 
-	pdebug(KERN_INFO LOG_TAG "::%s: node_count=%d\n", __func__,
+	b2r2_log_info("%s: node_count=%d\n", __func__,
 		this->node_count);
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1355,7 +1353,7 @@ static int analyze_scaling(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 
 }
@@ -1452,7 +1450,7 @@ static int analyze_rotation(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1496,7 +1494,7 @@ static int analyze_scale_factors(struct b2r2_node_split_job *this)
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1609,7 +1607,7 @@ static int configure_tile(struct b2r2_node_split_job *this,
 			goto error;
 		break;
 	default:
-		printk(KERN_ERR "%s: Unsupported request\n", __func__);
+		b2r2_log_warn("%s: Unsupported request\n", __func__);
 		ret = -ENOSYS;
 		goto error;
 
@@ -1622,7 +1620,7 @@ static int configure_tile(struct b2r2_node_split_job *this,
 		/* Configure blending and clipping */
 		do {
 			if (node == NULL) {
-				printk(KERN_ERR LOG_TAG "::%s: "
+				b2r2_log_warn("%s: "
 					"Internal error! Out of nodes!\n",
 					__func__);
 				ret = -ENOMEM;
@@ -1647,7 +1645,7 @@ static int configure_tile(struct b2r2_node_split_job *this,
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1669,7 +1667,7 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 	struct b2r2_blt_rect dst_win;
 
 	if (node == NULL) {
-		printk(KERN_ERR LOG_TAG "::%s: Out of nodes!\n",
+		b2r2_log_warn("%s: Out of nodes!\n",
 			__func__);
 		ret = -ENOMEM;
 		goto error;
@@ -1683,8 +1681,8 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 	tmp->rect.height = this->dst.window.width;
 
 	memcpy(&tmp->window, &tmp->rect, sizeof(tmp->window));
-	pdebug(KERN_INFO LOG_TAG "::%s:Rot rescale:\n", __func__);
-	pdebug(KERN_INFO LOG_TAG "::%s:\tsrc=(%4d, %4d, %4d, %4d)\t"
+	b2r2_log_info("%s:Rot rescale:\n", __func__);
+	b2r2_log_info("%s:\tsrc=(%4d, %4d, %4d, %4d)\t"
 		"tmp=(%4d, %4d, %4d, %4d)\n", __func__, this->src.window.x,
 		this->src.window.y, this->src.window.width,
 		this->src.window.height, tmp->window.x, tmp->window.y,
@@ -1707,7 +1705,7 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 
 	rot_start = node;
 
-	pdebug(KERN_INFO LOG_TAG "::%s: tmp_rect=(%d, %d, %d, %d)\n", __func__,
+	b2r2_log_info("%s: tmp_rect=(%d, %d, %d, %d)\n", __func__,
 		tmp->rect.x, tmp->rect.y, tmp->rect.width, tmp->rect.height);
 	do {
 
@@ -1715,7 +1713,7 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 		last_row = tmp->window.y + tmp->dy >= tmp->rect.height;
 
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: Out of nodes!\n",
+			b2r2_log_warn("%s: Out of nodes!\n",
 				__func__);
 			ret = -ENOMEM;
 			goto error;
@@ -1731,7 +1729,7 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 			this->dst.window.width = tmp->window.height;
 		}
 
-		pdebug(KERN_INFO LOG_TAG "::%s: \ttmp=(%4d, %4d, %4d, %4d) "
+		b2r2_log_info("%s: \ttmp=(%4d, %4d, %4d, %4d) "
 			"\tdst=(%4d, %4d, %4d, %4d)\n", __func__, tmp->window.x,
 			tmp->window.y, tmp->window.width, tmp->window.height,
 			this->dst.window.x, this->dst.window.y,
@@ -1759,12 +1757,12 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 
 	/* Configure blending and clipping for the rotation nodes */
 	node = rot_start;
-	pdebug(KERN_INFO LOG_TAG "::%s: "
+	b2r2_log_info("%s: "
 		"Configuring clipping and blending. rot_start=%p, last=%p\n",
 		__func__, rot_start, last);
 	do {
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: Out of nodes!\n",
+			b2r2_log_warn("%s: Out of nodes!\n",
 				__func__);
 			ret = -ENOMEM;
 			goto error;
@@ -1786,7 +1784,7 @@ static int configure_rot_scale(struct b2r2_node_split_job *this,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1882,7 +1880,7 @@ static int configure_fill(struct b2r2_node *node, u32 color,
 
 	do {
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: "
+			b2r2_log_warn("%s: "
 			"Internal error! Out of nodes!\n", __func__);
 			ret = -ENOMEM;
 			goto error;
@@ -1939,7 +1937,7 @@ static int configure_fill(struct b2r2_node *node, u32 color,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -1980,7 +1978,7 @@ static int configure_copy(struct b2r2_node *node,
 	/* Configure the source for each node */
 	do {
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: "
+			b2r2_log_warn("%s: "
 			" Internal error! Out of nodes!\n", __func__);
 			ret = -ENOMEM;
 			goto error;
@@ -1999,7 +1997,7 @@ static int configure_copy(struct b2r2_node *node,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -2030,7 +2028,7 @@ static int configure_rotate(struct b2r2_node *node,
 
 	do {
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: "
+			b2r2_log_warn("%s: "
 				"Internal error! Out of nodes!\n", __func__);
 			ret = -ENOMEM;
 			goto error;
@@ -2047,7 +2045,7 @@ static int configure_rotate(struct b2r2_node *node,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -2075,7 +2073,7 @@ static int configure_scale(struct b2r2_node *node,
 	u32 rsf = 0;
 	u32 rzi = 0;
 
-	pdebug(KERN_INFO LOG_TAG "::%s:\n"
+	b2r2_log_info("%s:\n"
 		"\t\tsrc=(%4d, %4d, %4d, %4d)\tdst=(%4d, %4d, %4d, %4d)\n",
 		__func__, src->window.x, src->window.y, src->window.width,
 		src->window.height, dst->window.x, dst->window.y,
@@ -2103,7 +2101,7 @@ static int configure_scale(struct b2r2_node *node,
 
 	do {
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: "
+			b2r2_log_warn("%s: "
 				"Internal error! Out of nodes!\n", __func__);
 			ret = -ENOMEM;
 			goto error;
@@ -2159,7 +2157,7 @@ static int configure_scale(struct b2r2_node *node,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -2300,7 +2298,7 @@ static int configure_dst(struct b2r2_node *node,
 	for (i = 0; i < nbr_planes; i++) {
 
 		if (node == NULL) {
-			printk(KERN_ERR LOG_TAG "::%s: "
+			b2r2_log_warn("%s: "
 				"Internal error! Out of nodes!\n", __func__);
 			ret = -ENOMEM;
 			goto error;
@@ -2319,7 +2317,7 @@ static int configure_dst(struct b2r2_node *node,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 
 }
@@ -2510,7 +2508,7 @@ static int constrain_window(struct b2r2_blt_rect *window,
 		window->height = MIN(window->height, max_size / pitch);
 
 		if (window->height == 0) {
-			printk(KERN_ERR LOG_TAG "::%s: Not enough tmp mem\n",
+			b2r2_log_warn("%s: Not enough tmp mem\n",
 				__func__);
 			ret = -ENOMEM;
 			goto error;
@@ -2519,7 +2517,7 @@ static int constrain_window(struct b2r2_blt_rect *window,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 }
 
@@ -2547,7 +2545,7 @@ static int setup_tmp_buf(struct b2r2_node_split_buf *tmp, u32 max_size,
 		fmt = B2R2_BLT_FMT_32_BIT_AYUV8888;
 	} else {
 		/* Wait, what? */
-		printk(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"Cannot create tmp buf from this fmt (%d)\n", __func__,
 			pref_fmt);
 		ret = -EINVAL;
@@ -2570,7 +2568,7 @@ static int setup_tmp_buf(struct b2r2_node_split_buf *tmp, u32 max_size,
 
 	/* We should at least have enough room for one scanline */
 	if (height == 0) {
-		printk(KERN_ERR LOG_TAG "::%s: Not enough tmp mem!\n",
+		b2r2_log_warn("%s: Not enough tmp mem!\n",
 			__func__);
 		ret = -ENOMEM;
 		goto error;
@@ -2589,7 +2587,7 @@ static int setup_tmp_buf(struct b2r2_node_split_buf *tmp, u32 max_size,
 
 	return 0;
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
 
 }
@@ -2964,13 +2962,13 @@ static inline bool is_transform(const struct b2r2_blt_request *req)
 static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 {
 	int ret;
-
-	/* Assume normal nearest neighbor scaling:
-
-	        sf = (src - min_step) / (dst - 1)
-	*/
 	u32 sf;
 
+	/*
+	 * Assume normal nearest neighbor scaling:
+	 *
+	 *        sf = (src - min_step) / (dst - 1)
+	 */
 	if (to > 1)
 		sf = ((from << 10) - 1) / (to - 1);
 	else
@@ -2978,12 +2976,12 @@ static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 
 	if ((sf & 0xffff0000) != 0) {
 		/* Overflow error */
-		pverbose(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"Scale factor too large\n", __func__);
 		ret = -EINVAL;
 		goto error;
 	} else if (sf == 0) {
-		pverbose(KERN_ERR LOG_TAG "::%s: "
+		b2r2_log_warn("%s: "
 			"Scale factor too small\n", __func__);
 		ret = -EINVAL;
 		goto error;
@@ -2994,35 +2992,8 @@ static inline int calculate_scale_factor(u32 from, u32 to, u16 *sf_out)
 	return 0;
 
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return ret;
-}
-
-/**
- * calculate_tile_count() - calculates how many tiles will fit
- */
-static int calculate_tile_count(s32 area_width, s32 area_height, s32 tile_width,
-		s32 tile_height)
-{
-	int nbr_cols;
-	int nbr_rows;
-
-	pverbose(KERN_INFO LOG_TAG "::%s: area=(%d, %d) tile=(%d, %d)\n",
-			__func__, area_width, area_height, tile_width,
-			tile_height);
-
-	if (area_width == 0 || area_height == 0 || tile_width == 0 ||
-			tile_height == 0)
-		return 0;
-
-	nbr_cols = area_width / tile_width;
-	if (area_width % tile_width)
-		nbr_cols++;
-	nbr_rows = area_height / tile_height;
-	if (area_height % tile_height)
-		nbr_rows++;
-
-	return nbr_cols * nbr_rows;
 }
 
 /**
@@ -3319,15 +3290,12 @@ static void reset_nodes(struct b2r2_node *node)
 		if (node->next != NULL)
 			node->node.GROUP0.B2R2_NIP =
 					node->next->physical_address;
-/*
-		else
-			node->node.GROUP0.B2R2_INS =
-				B2R2_INS_BLITCOMPIRQ_ENABLED;
-*/
 		node = node->next;
 	}
 }
 
+/* Commented for now, will be useful later... */
+#if 0
 /**
  * dump_nodes() - prints the node list
  */
@@ -3415,6 +3383,7 @@ static void dump_nodes(struct b2r2_node *first)
 		node = node->next;
 	}
 }
+#endif
 
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *dir;
@@ -3442,7 +3411,7 @@ error_free_debug:
 error_free_dir:
 	debugfs_remove(dir);
 error:
-	printk(KERN_ERR LOG_TAG "::%s: ERROR!\n", __func__);
+	b2r2_log_warn("%s: Exit...\n", __func__);
 	return -1;
 }
 

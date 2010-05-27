@@ -3,22 +3,15 @@
 
 #include "b2r2_internal.h"
 #include "b2r2_global.h"
+#include "b2r2_debug.h"
 
 /******************
  * Debug printing
  ******************/
-static u32 debug = 0;
-static u32 debug_areas = 0;
-static u32 verbose = 0;
-static u32 errors = 1;
+static bool debug_areas;
+static bool verbose;
 
 #define B2R2_GENERIC_DEBUG
-
-#define pdebug(...) \
-	do { \
-		if (debug) \
-			printk(KERN_INFO __VA_ARGS__); \
-	} while (false)
 
 #define pdebug_areas(...) \
 	do { \
@@ -29,12 +22,6 @@ static u32 errors = 1;
 #define pverbose(...) \
 	do { \
 		if (verbose) \
-			printk(KERN_INFO __VA_ARGS__); \
-	} while (false)
-
-#define err_msg(...) \
-	do { \
-		if (errors) \
 			printk(KERN_INFO __VA_ARGS__); \
 	} while (false)
 
@@ -55,7 +42,7 @@ static u32 errors = 1;
  */
 static void reset_nodes(struct b2r2_node *node)
 {
-	pdebug("%s ENTRY\n", __func__);
+	b2r2_log_info("%s ENTRY\n", __func__);
 
 	while (node != NULL) {
 		memset(&(node->node), 0, sizeof(node->node));
@@ -68,7 +55,7 @@ static void reset_nodes(struct b2r2_node *node)
 
 		node = node->next;
 	}
-	pdebug("%s DONE\n", __func__);
+	b2r2_log_info("%s DONE\n", __func__);
 }
 
 /**
@@ -79,7 +66,7 @@ static void dump_nodes(struct b2r2_node *first)
 	struct b2r2_node *node = first;
 	pverbose("%s ENTRY\n", __func__);
 	while (node != NULL) {
-		pverbose( "\nNODE START:\n=============\n");
+		pverbose("\nNODE START:\n=============\n");
 		pverbose("B2R2_ACK: \t0x%.8x\n",
 				node->node.GROUP0.B2R2_ACK);
 		pverbose("B2R2_INS: \t0x%.8x\n",
@@ -300,7 +287,7 @@ static unsigned int get_pitch(enum b2r2_blt_fmt format, u32 width)
 		return width;
 		break;
 	default:
-		err_msg("%s: Unable to determine pitch "
+		b2r2_log_warn("%s: Unable to determine pitch "
 			"for fmt=%#010x width=%d\n", __func__,
 			format, width);
 		return 0;
@@ -313,7 +300,7 @@ static s32 validate_buf(const struct b2r2_blt_img *image)
 	u32 pitch;
 
 	if (image->width <= 0 || image->height <= 0) {
-		err_msg("%s Error: width=%d or height=%d negative.\n", __func__,
+		b2r2_log_warn("%s: width=%d or height=%d negative.\n", __func__,
 			image->width, image->height);
 		return -EINVAL;
 	}
@@ -359,14 +346,14 @@ static s32 validate_buf(const struct b2r2_blt_img *image)
 	}
 
 	if (image->buf.len < expect_buf_size) {
-		err_msg("%s Error: Invalid buffer size:"
+		b2r2_log_warn("%s: Invalid buffer size:"
 			"\nfmt=%#010x buf.len=%d expect_buf_size=%d\n", __func__,
 			image->fmt, image->buf.len, expect_buf_size);
 		return -EINVAL;
 	}
 
 	if (image->buf.type == B2R2_BLT_PTR_VIRTUAL) {
-		err_msg("%s Error: Virtual pointers not supported yet.\n",
+		b2r2_log_warn("%s: Virtual pointers not supported yet.\n",
 			__func__);
 		return -EINVAL;
 	}
@@ -399,7 +386,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 	bool yuv_planar = src_img->fmt == B2R2_BLT_FMT_YUV420_PACKED_PLANAR ||
 		src_img->fmt == B2R2_BLT_FMT_YUV422_PACKED_PLANAR;
 
-	pdebug("%s ENTRY\n", __func__);
+	b2r2_log_info("%s ENTRY\n", __func__);
 
 	if ((req->user_req.flags &
 			(B2R2_BLT_FLAG_SOURCE_FILL | B2R2_BLT_FLAG_SOURCE_FILL_RAW)) != 0) {
@@ -407,7 +394,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 		u32 src_color = req->user_req.src_color;
 
 		/* Determine format in src_color */
-		switch(dst_img->fmt) {
+		switch (dst_img->fmt) {
 		/* ARGB formats */
 		case B2R2_BLT_FMT_16_BIT_ARGB4444:
 		case B2R2_BLT_FMT_16_BIT_ARGB1555:
@@ -486,7 +473,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 
 		node->node.GROUP0.B2R2_ACK |= B2R2_ACK_MODE_BYPASS_S2_S3;
 
-		pdebug("%s DONE\n", __func__);
+		b2r2_log_info("%s DONE\n", __func__);
 		return;
 	}
 
@@ -497,7 +484,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 		src_pitch = src_img->pitch;
 	}
 
-	pdebug("%s transform=%#010x\n", __func__, req->user_req.transform);
+	b2r2_log_info("%s transform=%#010x\n", __func__, req->user_req.transform);
 	if (req->user_req.transform & B2R2_BLT_TRANSFORM_CCW_ROT_90) {
 		h_scf = (src_rect->width << 10) / dst_rect->height;
 		v_scf = (src_rect->height << 10) / dst_rect->width;
@@ -508,7 +495,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 
 	/* Configure horizontal rescale */
 	if (h_scf != (1 << 10)) {
-		pdebug("%s: Scaling horizontally by 0x%.8x"
+		b2r2_log_info("%s: Scaling horizontally by 0x%.8x"
 				"\ns(%d, %d)->d(%d, %d)\n", __func__,
 				h_scf, src_rect->width, src_rect->height,
 				dst_rect->width, dst_rect->height);
@@ -520,7 +507,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 
 	/* Configure vertical rescale */
 	if (v_scf != (1 << 10)) {
-		pdebug("%s: Scaling vertically by 0x%.8x"
+		b2r2_log_info("%s: Scaling vertically by 0x%.8x"
 				"\ns(%d, %d)->d(%d, %d)\n", __func__,
 				v_scf, src_rect->width, src_rect->height,
 				dst_rect->width, dst_rect->height);
@@ -726,7 +713,7 @@ static void setup_input_stage(const struct b2r2_blt_request *req,
 
 	node->node.GROUP0.B2R2_ACK |= B2R2_ACK_MODE_BYPASS_S2_S3;
 
-	pdebug("%s DONE\n", __func__);
+	b2r2_log_info("%s DONE\n", __func__);
 }
 
 static void setup_transform_stage(const struct b2r2_blt_request *req,
@@ -738,7 +725,7 @@ static void setup_transform_stage(const struct b2r2_blt_request *req,
 	enum b2r2_ty dst_vso = B2R2_TY_VSO_TOP_TO_BOTTOM;
 	enum b2r2_blt_transform transform = req->user_req.transform;
 
-	pdebug("%s ENTRY\n", __func__);
+	b2r2_log_info("%s ENTRY\n", __func__);
 
 	if (transform & B2R2_BLT_TRANSFORM_CCW_ROT_90) {
 		/* Scan order must be flipped otherwise contents will
@@ -770,7 +757,7 @@ static void setup_transform_stage(const struct b2r2_blt_request *req,
 	node->node.GROUP0.B2R2_INS |= B2R2_INS_SOURCE_2_FETCH_FROM_MEM;
 	node->node.GROUP0.B2R2_ACK |= B2R2_ACK_MODE_BYPASS_S2_S3;
 
-	pdebug("%s DONE\n", __func__);
+	b2r2_log_info("%s DONE\n", __func__);
 }
 
 /*
@@ -793,10 +780,10 @@ static void setup_dst_read_stage(const struct b2r2_blt_request *req,
 		dst_pitch = dst_img->pitch;
 	}
 
-	pdebug("%s ENTRY\n", __func__);
+	b2r2_log_info("%s ENTRY\n", __func__);
 
 	if (dst_img->fmt == B2R2_BLT_FMT_32_BIT_ABGR8888) {
-		pdebug("%s ABGR on dst_read\n", __func__);
+		b2r2_log_info("%s ABGR on dst_read\n", __func__);
 		/* Set up IVMX */
 		node->node.GROUP0.B2R2_INS |= B2R2_INS_IVMX_ENABLED;
 
@@ -829,7 +816,7 @@ static void setup_dst_read_stage(const struct b2r2_blt_request *req,
 	node->node.GROUP0.B2R2_INS |=
 		B2R2_INS_SOURCE_2_FETCH_FROM_MEM;
 
-	pdebug("%s DONE\n", __func__);
+	b2r2_log_info("%s DONE\n", __func__);
 }
 
 static void setup_blend_stage(const struct b2r2_blt_request *req,
@@ -838,7 +825,7 @@ static void setup_blend_stage(const struct b2r2_blt_request *req,
 							  struct b2r2_work_buf *fg_buf)
 {
 	u32 global_alpha = req->user_req.global_alpha;
-	pdebug("%s ENTRY\n", __func__);
+	b2r2_log_info("%s ENTRY\n", __func__);
 
 	node->node.GROUP0.B2R2_ACK = 0;
 
@@ -927,7 +914,7 @@ static void setup_blend_stage(const struct b2r2_blt_request *req,
 			B2R2_TY_VSO_TOP_TO_BOTTOM;
 	}
 
-	pdebug("%s DONE\n", __func__);
+	b2r2_log_info("%s DONE\n", __func__);
 }
 
 static void setup_writeback_stage(const struct b2r2_blt_request *req,
@@ -943,10 +930,10 @@ static void setup_writeback_stage(const struct b2r2_blt_request *req,
 		dst_pitch = dst_img->pitch;
 	}
 
-	pdebug("%s ENTRY\n", __func__);
+	b2r2_log_info("%s ENTRY\n", __func__);
 
 	if (dst_img->fmt == B2R2_BLT_FMT_32_BIT_ABGR8888) {
-		pdebug("%s ABGR on writeback\n", __func__);
+		b2r2_log_info("%s ABGR on writeback\n", __func__);
 		/* Set up OVMX */
 		node->node.GROUP0.B2R2_INS |= B2R2_INS_OVMX_ENABLED;
 
@@ -980,7 +967,7 @@ static void setup_writeback_stage(const struct b2r2_blt_request *req,
 		B2R2_TY_HSO_LEFT_TO_RIGHT |
 		B2R2_TY_VSO_TOP_TO_BOTTOM;
 
-	pdebug("%s DONE\n", __func__);
+	b2r2_log_info("%s DONE\n", __func__);
 }
 
 /*******************
@@ -1008,7 +995,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 
 	if (req == NULL || work_buf_width == NULL || work_buf_height == NULL ||
 			work_buf_count == NULL || node_count == NULL) {
-		err_msg("%s Error: Invalid in or out pointers:\n"
+		b2r2_log_warn("%s: Invalid in or out pointers:\n"
 				"req=0x%p\n"
 				"work_buf_width=0x%p work_buf_height=0x%p work_buf_count=0x%p\n"
 				"node_count=0x%p.\n",
@@ -1033,7 +1020,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 
 	if ((req->user_req.flags & B2R2_BLT_FLAG_SOURCE_COLOR_KEY) != 0 &&
 			(req->user_req.flags & B2R2_BLT_FLAG_DEST_COLOR_KEY) != 0) {
-		printk(KERN_INFO "%s Error: Invalid combination: source and "
+		b2r2_log_warn("%s: Invalid combination: source and "
 				"destination color keying.\n", __func__);
 		return -EINVAL;
 	}
@@ -1044,7 +1031,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 			(req->user_req.flags &
 			(B2R2_BLT_FLAG_SOURCE_COLOR_KEY |
 			B2R2_BLT_FLAG_DEST_COLOR_KEY))) {
-		printk(KERN_INFO "%s Error: Invalid combination: source_fill and color keying.\n",
+		b2r2_log_warn("%s: Invalid combination: source_fill and color keying.\n",
 				__func__);
 		return -EINVAL;
 	}
@@ -1055,7 +1042,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 			(req->user_req.flags &
 			(B2R2_BLT_FLAG_DEST_COLOR_KEY |
 			B2R2_BLT_FLAG_SOURCE_COLOR_KEY))) {
-		printk(KERN_INFO "%s Error: Invalid combination: blending and color keying.\n",
+		b2r2_log_warn("%s: Invalid combination: blending and color keying.\n",
 				__func__);
 		return -EINVAL;
 	}
@@ -1064,7 +1051,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 			(req->user_req.flags &
 			(B2R2_BLT_FLAG_DEST_COLOR_KEY |
 			B2R2_BLT_FLAG_SOURCE_COLOR_KEY))) {
-		printk(KERN_INFO "%s Error: Invalid combination: source mask and color keying.\n",
+		b2r2_log_warn("%s: Invalid combination: source mask and color keying.\n",
 				__func__);
 		return -EINVAL;
 	}
@@ -1073,7 +1060,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 			(B2R2_BLT_FLAG_DEST_COLOR_KEY |
 			B2R2_BLT_FLAG_SOURCE_COLOR_KEY |
 			B2R2_BLT_FLAG_SOURCE_MASK)) {
-		printk(KERN_INFO "%s Error: Unsupported: source mask, color keying.\n", __func__);
+		b2r2_log_warn("%s: Unsupported: source mask, color keying.\n", __func__);
 		return -ENOSYS;
 	}
 
@@ -1084,7 +1071,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 	if (!is_src_fill && (src_rect.x < 0 || src_rect.y < 0 ||
 		src_rect.x + src_rect.width > req->user_req.src_img.width ||
 		src_rect.y + src_rect.height > req->user_req.src_img.height)) {
-		printk(KERN_INFO "%s Error: src_rect outside src_img:\n"
+		b2r2_log_warn("%s: src_rect outside src_img:\n"
 				"src(x,y,w,h)=(%d, %d, %d, %d) src_img(w,h)=(%d, %d).\n",
 				__func__,
 				src_rect.x, src_rect.y, src_rect.width, src_rect.height,
@@ -1093,7 +1080,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 	}
 
 	if (!is_src_fill && (src_rect.width <= 0 || src_rect.height <= 0)) {
-		printk(KERN_INFO "%s Error: Invalid source dimensions:\n"
+		b2r2_log_warn("%s: Invalid source dimensions:\n"
 				"src(w,h)=(%d, %d).\n",
 				__func__,
 				src_rect.width, src_rect.height);
@@ -1101,7 +1088,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 	}
 
 	if (dst_rect.width <= 0 || dst_rect.height <= 0) {
-		printk(KERN_INFO "%s Error: Invalid dest dimensions:\n"
+		b2r2_log_warn("%s: Invalid dest dimensions:\n"
 				"dst(w,h)=(%d, %d).\n",
 				__func__,
 				dst_rect.width, dst_rect.height);
@@ -1123,7 +1110,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 		*work_buf_count = n_work_bufs;
 		*node_count = n_nodes;
 		/* EMACSOC TODO: Account for multi-buffer format during writeback stage */
-		pdebug("%s DONE buf_w=%d buf_h=%d buf_count=%d node_count=%d\n",
+		b2r2_log_info("%s DONE buf_w=%d buf_h=%d buf_count=%d node_count=%d\n",
 				__func__,
 				*work_buf_width, *work_buf_height, *work_buf_count, *node_count);
 		return 0;
@@ -1145,7 +1132,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 	 * Check for degenerate/out_of_range scaling factors.
 	 */
 	if (h_scf <= 0 || v_scf <= 0 || h_scf > 0x7C00 || v_scf > 0x7C00) {
-		err_msg("%s Error: Dimensions result in degenerate or "
+		b2r2_log_warn("%s: Dimensions result in degenerate or "
 				"out of range scaling:\n"
 				"src(w,h)=(%d, %d) "
 				"dst(w,h)=(%d,%d).\n"
@@ -1162,7 +1149,7 @@ int b2r2_generic_analyze(const struct b2r2_blt_request *req,
 	*work_buf_count = n_work_bufs;
 	*node_count = n_nodes;
 	/* EMACSOC TODO: Account for multi-buffer format during writeback stage */
-	pdebug("%s DONE buf_w=%d buf_h=%d buf_count=%d node_count=%d\n",
+	b2r2_log_info("%s DONE buf_w=%d buf_h=%d buf_count=%d node_count=%d\n",
 			__func__,
 			*work_buf_width, *work_buf_height, *work_buf_count, *node_count);
 	return 0;
@@ -1189,7 +1176,7 @@ int b2r2_generic_configure(const struct b2r2_blt_request *req,
 	int invalid_req = b2r2_generic_analyze(req, &work_buf_width, &work_buf_height,
 											&needed_bufs, &needed_nodes);
 	if (invalid_req < 0) {
-		err_msg("%s Error: Invalid request supplied, error=%d\n",
+		b2r2_log_warn("%s: Invalid request supplied, ec=%d\n",
 				__func__, invalid_req);
 		return -EINVAL;
 	} else {
@@ -1200,13 +1187,13 @@ int b2r2_generic_configure(const struct b2r2_blt_request *req,
 			node = node->next;
 		}
 		if (n_nodes < needed_nodes) {
-			err_msg("%s Error: Not enough nodes %d < %d.\n",
+			b2r2_log_warn("%s: Not enough nodes %d < %d.\n",
 					__func__, n_nodes, needed_nodes);
 			return -EINVAL;
 		}
 
 		if (buf_count < needed_bufs) {
-			err_msg("%s Error: Not enough buffers %d < %d.\n",
+			b2r2_log_warn("%s: Not enough buffers %d < %d.\n",
 					__func__, buf_count, needed_bufs);
 			return -EINVAL;
 		}

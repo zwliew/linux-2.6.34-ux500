@@ -343,4 +343,14 @@ struct b2r2_node *b2r2_blt_alloc_nodes(int node_count);
  */
 void b2r2_blt_free_nodes(struct b2r2_node *first_node);
 
+/**
+ * b2r2_blt_module_init() - Initialize the B2R2 blt module
+ */
+int b2r2_blt_module_init(void);
+
+/**
+ * b2r2_blt_module_exit() - Un-initialize the B2R2 blt module
+ */
+void b2r2_blt_module_exit(void);
+
 #endif
