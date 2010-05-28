@@ -662,6 +662,14 @@ struct dma_half_channel_info {
  * manage state of a DMA channel.
  *
  * @device_id: Name of the device
+ * @src_cfg: Value to be written to the Standard channel
+ * 	source configuration register.
+ * @dst_cfg: Value to be written to the Standard channel
+ * 	destination configuration register.
+ * @dmac_lcsp3: Value to be written to the Logical channel
+ * 	standard param register3.
+ * @dmac_lcsp1: Value to be written to the Logical channel
+ * 	standard param register1.
  * @pipe_id: Pipe Id allocated to the client driver.
  * @channel_id: Channel Id allocated for the client,
  *	used internally by DMA Driver(when interrupt comes)
@@ -674,6 +682,8 @@ struct dma_half_channel_info {
  * @src_addr:	Src address for single DMA
  * @dst_addr:	Dest address for single DMA
  * @xfer_len:	Length of transfer  expressed in Bytes
+ * @src_xfer_elem: Number of source elements to be transferred.
+ * @dst_xfer_elem: Number of destination elements to be transferred.
  * @current_sg:	Pointer to current SG element being used for xfer(only active
  *		if TIM_MASK is set)
  * @lli_interrupt: 1 if interrupts generated for each LLI
@@ -698,11 +708,14 @@ struct dma_half_channel_info {
  * @priority:	Priority for this channel
  * @security:	security for this channel
  * @bytes_xfred: Number of Bytes xfered till now
- * @ch_status:
+ * @ch_status: DMA channel status.
  * @src_dev_type: Device type of Source
  * @dst_dev_type: Device type of Dest
  * @src_info:	Parameters describing source half channel
  * @dst_info:	Parameters describing dest half channel
+ * @infinite_xfer: Perform an infinite dma transfer.
+ * @cfg_lock: Lock to synchronise access to struct dma_channel_info
+ * 	elements.
  * This is a private data structure of DMA driver used to maintain
  * state information of a particular channel
  */

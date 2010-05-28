@@ -65,6 +65,8 @@ struct dma_addr {
 /**
  * struct elem_pool - Structure of element pool
  * @name:	Name of the Element pool
+ * @pool_lock: Lock to synchronise access to struct elem_pool
+ * 	variables.
  * @allocation_map: Whether  a pool element is allocated or not
  * @lchan_allocation_map: Pool allocation map for Logical channels,
  *			  (for each phy res)
@@ -91,6 +93,7 @@ struct elem_pool {
 /**
  * struct dma_driver_data - DMA driver private data structure
  * @reg_base: pointer to DMA controller Register area
+ * @clk: clock for the DMA device.
  * @dma_chan_info: Array of pointer to channel info structure.
  *	It is used by DMA driver internally to access information
  *	of each channel (Physical or Logical). It is accessed in
@@ -99,7 +102,7 @@ struct elem_pool {
  *	access channel info structure when client makes a request.
  *	pipe_id used by client in all requests is an entry
  *	in this array.
- * @pipe_id_map: Map from where we allocate ID's to client drivers.
+ * pipe_id_map: Map from where we allocate ID's to client drivers.
  *	If a particular bit is set in this map, it means that
  *	particular id can be given to a client.
  * @pipe_id_lock: Mutex to provide access to pipe_id_map
@@ -107,12 +110,12 @@ struct elem_pool {
  *	whether physical channel or Logical channel.
  *	If Logical then count of how many channels are there
  * @pr_info_lock: Lock to synchronise access to pr_info
- * @cfg_lock: Lock to synchronize access to write on DMA registers
  * @lchan_params_base: Base address where logical channel params are
  *	stored.
  * @pchan_lli_pool: Pool from where LLI's are allocated for phy channels
  * @sg_pool: Pool from where SG blocks are allocated to keep SG info
  * @lchan_lli_pool: Pool from where LLI's are allocated for Log channels
+ * @cfg_ch_lock: Lock to synchronize access to write on DMA registers
  * @backup_regs: Used to store and restore DMA regs during suspend resume.
  *
  **/
@@ -2383,8 +2386,8 @@ static int set_std_log_channel_params_mem(struct dma_channel_info *info)
 
 /**
  * process_dma_pipe_info() - process the DMA channel info sent by user
- * @pipe_id:	Channel Id for which this information is to be set
- * @pipe_info:	Information struct of the given channel given by user
+ * @info: Information of the channel parameters.
+ * @pipe_info: Information struct of the given channel given by user
  * This function processes info supplied by the client driver. It stores
  * the required info in to it;s internal data structure.
  * It returns 0 on success and -1 on failure

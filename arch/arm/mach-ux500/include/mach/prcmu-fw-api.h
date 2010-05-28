@@ -46,7 +46,8 @@ enum hw_acc_dev{
 
 /**
  * union sia_sva_pwron_enable_t - Power ON for SIA-SVA
- * @req_field:
+ * @req_field: requested state for hardware semaphore,
+ * 	ab4500 fifo.
  * @complete_field:
  *
  */

@@ -257,6 +257,7 @@
  * @level_shifter: variable for checking level shifter
  * @dma: ponter to dma_addr_t structure
  * @caps: host capabilities
+ * @bus_resume_flags: Type of MMC bus resume requested.
  * @sg_len: scatter gather length
  * @sg_off: offset address
  * @size: data size

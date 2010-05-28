@@ -940,7 +940,7 @@ static void flush_tx_fifo(struct msp_struct *msp)
 /**
  * stm_msp_configure_enable - configures and enables the MSP controller.
  * @i2s_cont: i2s controller sent by i2s device.
- * @config: specifies the configuration parameters.
+ * @configuration: specifies the configuration parameters.
  *
  * This function configures the msp controller with the client configuration.
  *
