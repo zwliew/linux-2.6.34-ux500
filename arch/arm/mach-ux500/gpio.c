@@ -20,7 +20,7 @@
 
 static struct gpio_altfun_data *altfun_table;
 static int altfun_table_size;
-static DEFINE_SPINLOCK(altfun_lock);
+static DEFINE_MUTEX(altfun_lock);
 
 /**
  * stm_gpio_set_altfunctable - set the alternate function table
@@ -29,21 +29,21 @@ static DEFINE_SPINLOCK(altfun_lock);
  */
 int stm_gpio_set_altfunctable(struct gpio_altfun_data *table, int size)
 {
-	unsigned long flags;
+	int ret = 0;
 
-	spin_lock_irqsave(&altfun_lock, flags);
+	mutex_lock(&altfun_lock);
 
 	if (altfun_table) {
-		spin_unlock_irqrestore(&altfun_lock, flags);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto out;
 	}
 
 	altfun_table = table;
 	altfun_table_size = size;
 
-	spin_unlock_irqrestore(&altfun_lock, flags);
-
-	return 0;
+out:
+	mutex_unlock(&altfun_lock);
+	return ret;
 }
 
 /**
@@ -56,11 +56,11 @@ int stm_gpio_set_altfunctable(struct gpio_altfun_data *table, int size)
  */
 int stm_gpio_altfuncenable(gpio_alt_function alt_func)
 {
-	unsigned long flags;
 	int i, j, found = false;
+	int ret = -EINVAL;
 	int start, end;
 
-	spin_lock_irqsave(&altfun_lock, flags);
+	mutex_lock(&altfun_lock);
 	for (i = 0; i < altfun_table_size; i++) {
 		if (altfun_table[i].altfun != alt_func)
 			continue;
@@ -79,8 +79,7 @@ int stm_gpio_altfuncenable(gpio_alt_function alt_func)
 			printk(KERN_ERR
 			       "%s: GPIO range %d-%d for %s is not valid for\n",
 			       __func__, start, end, altfun_table[i].dev_name);
-			spin_unlock_irqrestore(&altfun_lock, flags);
-			return -EINVAL;
+			goto out;
 		}
 
 		for (j = start; j <= end; j++) {
@@ -88,15 +87,20 @@ int stm_gpio_altfuncenable(gpio_alt_function alt_func)
 				printk(KERN_ERR
 				       "%s:Failed to set %s, GPIO %d is busy\n",
 				       __func__, altfun_table[i].dev_name, j);
-				spin_unlock_irqrestore(&altfun_lock, flags) ;
-				return -EBUSY;
+				ret = -EBUSY;
+				goto out;
 			}
 
 			nmk_gpio_set_mode(j, altfun_table[i].type);
 		}
 	}
-	spin_unlock_irqrestore(&altfun_lock, flags);
-	return found ? 0 : -EINVAL;
+
+	if (found)
+		ret = 0;
+
+out:
+	mutex_unlock(&altfun_lock);
+	return ret;
 }
 EXPORT_SYMBOL(stm_gpio_altfuncenable);
 
@@ -110,12 +114,12 @@ EXPORT_SYMBOL(stm_gpio_altfuncenable);
  **/
 int stm_gpio_altfuncdisable(gpio_alt_function alt_func)
 {
-	unsigned long flags;
 	bool found = false;
+	int ret = -EINVAL;
 	int i, j;
 	int start, end;
 
-	spin_lock_irqsave(&altfun_lock, flags);
+	mutex_lock(&altfun_lock);
 	for (i = 0; i < altfun_table_size; i++) {
 		if (altfun_table[i].altfun != alt_func)
 			continue;
@@ -133,8 +137,7 @@ int stm_gpio_altfuncdisable(gpio_alt_function alt_func)
 			printk(KERN_ERR
 			       "%s: GPIO range %d-%d for %s is out of bound\n",
 			       __func__, start, end, altfun_table[i].dev_name);
-			spin_unlock_irqrestore(&altfun_lock, flags);
-			return -EINVAL;
+			goto out;
 		}
 
 		for (j = start; j <= end; j++) {
@@ -150,7 +153,11 @@ int stm_gpio_altfuncdisable(gpio_alt_function alt_func)
 		       "%s: Didn't find any GPIO alt interface named '%s'\n",
 		       __func__, altfun_table[i].dev_name);
 
-	spin_unlock_irqrestore(&altfun_lock, flags);
-	return found ? 0 : -EINVAL;
+	if (found)
+		ret = 0;
+
+out:
+	mutex_unlock(&altfun_lock);
+	return ret;
 }
 EXPORT_SYMBOL(stm_gpio_altfuncdisable);
