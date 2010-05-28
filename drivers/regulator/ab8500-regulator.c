@@ -67,7 +67,7 @@
 #define MASK_LDO_VAUX3_SHIFT    (0x0)
 
 /* regulator voltages */
-#define VAUX1_VOLTAGE_3_3V	(0xf)
+#define VAUX1_VOLTAGE_2_5V	(0x8)
 #define VAUX2_VOLTAGE_2_9V	(0xd)
 #define VAUX3_VOLTAGE_2_9V	(0xd)
 
@@ -95,7 +95,7 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		if (!cpu_is_u8500v11()) {
 			ab8500_write(AB8500_REGU_CTRL2,
 					AB8500_REGU_VAUX1_SEL_REG,
-						VAUX1_VOLTAGE_3_3V);
+						VAUX1_VOLTAGE_2_5V);
 			break;
 		}
 		/* setting to 3.3V for MCDE */
@@ -103,7 +103,7 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 			AB8500_REGU_VAUX12_REGU_REG);
 		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX1_SEL_REG,
-					VAUX1_VOLTAGE_3_3V);
+					VAUX1_VOLTAGE_2_5V);
 		val = val & ~MASK_LDO_VAUX1;
 		val = val | (1 << MASK_LDO_VAUX1_SHIFT);
 		ab8500_write(AB8500_REGU_CTRL2,
