@@ -665,7 +665,7 @@ static int u8500_mmci_read(struct u8500_mmci_host *host, u32 * buffer,
 	unsigned int data_xfered = 0;
 	u8 *char_buf;
 	u16 *word_buf;
-	int temp;
+	unsigned int temp;
 	u32 flag = MCI_DATA_IRQ;
 
 	base = host->base;
@@ -727,8 +727,8 @@ static int u8500_mmci_write(struct u8500_mmci_host *host, u32 * buffer,
 			      unsigned int remain, u32 hoststatus)
 {
 	void __iomem *base;
-	int count, max_count, temp;
-	unsigned int data_xfered = 0;
+	int count, max_count;
+	unsigned int data_xfered = 0, temp;
 	u16 *buf16;
 	u8 *buf8;
 	u32 flag = MCI_DATA_IRQ;

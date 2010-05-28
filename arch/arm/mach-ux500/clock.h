@@ -103,8 +103,8 @@ struct clk {
 	/* The rest are only for PRCC clks */
 
 	int			cluster;
-	unsigned int		prcc_bus;
-	unsigned int		prcc_kernel;
+	int			prcc_bus;
+	int			prcc_kernel;
 
 	struct clk		*parent_cluster;
 	struct clk		*parent_periph;

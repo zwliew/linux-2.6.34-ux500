@@ -595,7 +595,7 @@ static void clk_register(struct clk *clk);
 
 static void clks_register(struct clk_lookup *clks, size_t num)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < num; i++) {
 		clkdev_add(&clks[i]);
@@ -637,7 +637,7 @@ struct clk *boot_clks[ARRAY_SIZE(u8500_boot_clk)];
  */
 static int __init u8500_boot_clk_disable(void)
 {
-	int i = 0;
+	unsigned int i = 0;
 
 	for (i = 0; i < ARRAY_SIZE(u8500_boot_clk); i++) {
 		if (!boot_clks[i])
@@ -653,7 +653,7 @@ late_initcall_sync(u8500_boot_clk_disable);
 
 static void u8500_amba_clk_enable(void)
 {
-	int i = 0;
+	unsigned int i = 0;
 
 	writel(~0x0  & ~(1 << 9), IO_ADDRESS(U8500_PER1_BASE + 0xF000 + 0x04));
 	writel(~0x0, IO_ADDRESS(U8500_PER1_BASE + 0xF000 + 0x0C));

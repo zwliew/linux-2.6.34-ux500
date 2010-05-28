@@ -1464,7 +1464,7 @@ struct scatterlist *generate_sg_list(struct dma_channel_info *info,
 static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
 				 struct std_log_memory_param *params)
 {
-	int idx = 0;
+	unsigned int idx = 0;
 	struct scatterlist *sg;
 	u32 step_size = 0;
 	u32 lli_count = 0;
@@ -1646,7 +1646,7 @@ static int map_lli_info_log_chan(struct dma_channel_info *info, int type,
  */
 static int map_lli_info_phys_chan(struct dma_channel_info *info, int type)
 {
-	int idx = 0;
+	unsigned int idx = 0;
 	struct dma_lli_info *lli_ptr = NULL;
 	u32 temp;
 	dma_addr_t phys_lli_addr = 0;

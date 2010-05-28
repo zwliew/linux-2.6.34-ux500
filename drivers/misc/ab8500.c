@@ -289,7 +289,8 @@ static irqreturn_t ab8500_interrupt_handler(int irq, void *dev_id)
  */
 static void ab8500_work(struct work_struct *work)
 {
-	int bit, i, count = 0;
+	int bit, count = 0;
+	unsigned int i;
 	unsigned long intl;
 	struct client_callbacks *cur_list_ptr = NULL;
 

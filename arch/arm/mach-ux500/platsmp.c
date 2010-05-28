@@ -134,7 +134,7 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 {
 	unsigned int ncores = get_core_count();
 	unsigned int cpu = smp_processor_id();
-	int i;
+	unsigned int i;
 
 	/* sanity check */
 	if (ncores == 0) {
