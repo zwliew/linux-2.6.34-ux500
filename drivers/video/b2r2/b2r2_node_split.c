@@ -3113,10 +3113,10 @@ static void set_target(struct b2r2_node *node, u32 addr,
 {
 	u32 buf_width = buf->pitch / fmt_bpp(buf->fmt);
 
-	u32 l;
-	u32 r;
-	u32 t;
-	u32 b;
+	s32 l;
+	s32 r;
+	s32 t;
+	s32 b;
 
 	PTRACE_ENTRY();
 

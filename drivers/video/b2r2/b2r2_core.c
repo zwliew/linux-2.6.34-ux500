@@ -1949,7 +1949,7 @@ static int debugfs_b2r2_reg_write(struct file *filp, const char __user *buf,
 	int ret = 0;
 
 	/* Adjust count */
-	if (count > sizeof(Buf))
+	if (count >= sizeof(Buf))
 		count = sizeof(Buf) - 1;
 	/* Get it from user space */
 	if (copy_from_user(Buf, buf, count))
@@ -2162,7 +2162,7 @@ static int debugfs_b2r2_clock_write(struct file *filp, const char __user *buf,
 	u32 reg_value;
 	int ret = 0;
 
-	if (count > sizeof(Buf))
+	if (count >= sizeof(Buf))
 		count = sizeof(Buf) - 1;
 	if (copy_from_user(Buf, buf, count))
 		return -EINVAL;
