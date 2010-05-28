@@ -687,6 +687,7 @@ int __init clk_init(void)
 	if (cpu_is_u8500ed()) {
 		clk_prcmu_ops.enable = clk_prcmu_ed_enable;
 		clk_prcmu_ops.disable = clk_prcmu_ed_disable;
+		clk_i2cclk.rate = 48000000;
 	} else if (cpu_is_u8500v1()) {
 		void __iomem *sdmmclkmgt = __io_address(U8500_PRCMU_BASE)
 					   + PRCM_SDMMCCLK_MGT;
