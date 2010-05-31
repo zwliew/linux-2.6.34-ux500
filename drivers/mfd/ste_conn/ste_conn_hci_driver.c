@@ -162,6 +162,17 @@ static struct ste_conn_callbacks ste_conn_cb = {
 
 struct ste_conn_hci_info *hci_info;
 
+/* time_1s - 1 second time struct.*/
+static struct timeval time_1s = {
+	.tv_sec = 1,
+	.tv_usec = 0
+};
+/* time_5s - 5 second time struct. */
+static struct timeval time_5s = {
+	.tv_sec = 5,
+	.tv_usec = 0
+};
+
 /*
  * ste_conn_hci_wait_queue - Main Wait Queue in HCI driver.
  */
@@ -616,11 +627,12 @@ static void read_cb(struct ste_conn_device *dev, struct sk_buff *skb)
 	} else if ((hci_info->enable_state == HCI_ENABLE_STATE_WAITING_BT_DISABLED_CC ||
 		hci_info->enable_state == HCI_ENABLE_STATE_WAITING_BT_ENABLED_CC) &&
 		hci_info->cpd_bt_evt->h4_channel == dev->h4_channel &&
-		skb->data[HCI_EVT_OP_CODE_POS] == HCI_BT_EVT_CMD_STATUS &&
-		skb->data[HCI_EVT_CMD_STATUS_CMD_LSB_POS] == bt_enable_cmd_lsb &&
-		skb->data[HCI_EVT_CMD_STATUS_CMD_MSB_POS] == bt_enable_cmd_msb ) {
+		   op_code == HCI_BT_EVT_CMD_STATUS &&
+		   status_lsb == bt_enable_cmd_lsb &&
+		   status_msb == bt_enable_cmd_msb) {
 		/* Clear the status events since the Bluez is not expecting them. */
-		STE_CONN_DBG("HCI Driver received Command Status(for BT enable):%x", skb->data[HCI_EVT_CMD_STATUS_STATUS_POS]);
+		STE_CONN_DBG("HCI Driver received Command Status(for BT enable):%x",
+			     skb->data[HCI_BT_EVT_CMD_STATUS_STATUS_OFFSET]);
 		/* This is the command status event for the HCI_Cmd_VS_Bluetooth_Enable.
 		 * Just free the packet.
 		 */
@@ -776,7 +788,7 @@ static int register_to_bluez(void)
 		goto finished;
 	}
 
-	hci_info->hdev->type = HCI_STE_CONN;
+	hci_info->hdev->bus = HCI_STE_CONN;
 	hci_info->hdev->driver_data = hci_info;
 	hci_info->hdev->owner = THIS_MODULE;
 	hci_info->hdev->open = open_from_hci;

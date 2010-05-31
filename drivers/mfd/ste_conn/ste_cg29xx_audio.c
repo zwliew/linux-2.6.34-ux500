@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <linux/skbuff.h>
 #include <linux/list.h>
+#include <linux/sched.h>
 
 #include <linux/mfd/ste_cg29xx_audio.h>
 #include "ste_conn_debug.h"
