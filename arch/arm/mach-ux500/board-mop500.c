@@ -933,6 +933,8 @@ struct mcde_display_generic_platform_data generic_display0_pdata = {
 	.reset_delay = 1,
 #ifdef CONFIG_REGULATOR
 	.regulator_id = "v-display",
+	.min_supply_voltage = 2500000, /* 2.5V */
+	.max_supply_voltage = 2700000 /* 2.7V */
 #endif
 };
 
@@ -978,6 +980,8 @@ static struct mcde_display_generic_platform_data generic_subdisplay_pdata = {
 	.reset_delay = 1,
 #ifdef CONFIG_REGULATOR
 	.regulator_id = "v-display",
+	.min_supply_voltage = 2500000, /* 2.5V */
+	.max_supply_voltage = 2700000 /* 2.7V */
 #endif
 };
 

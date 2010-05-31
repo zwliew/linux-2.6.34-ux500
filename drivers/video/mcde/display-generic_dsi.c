@@ -103,6 +103,9 @@ static int __devinit generic_probe(struct mcde_display_device *dev)
 				pdata->regulator = NULL;
 				goto regulator_get_failed;
 			}
+			regulator_set_voltage(pdata->regulator,
+					pdata->min_supply_voltage,
+					pdata->max_supply_voltage);
 		}
 		dev->platform_enable = generic_platform_enable;
 		dev->platform_disable = generic_platform_disable;

@@ -361,7 +361,6 @@ struct mcde_platform_data {
 	const char *clock_dsi_id;
 	const char *clock_dsi_lp_id;
 	const char *clock_mcde_id;
-
 };
 
 int mcde_init(void);

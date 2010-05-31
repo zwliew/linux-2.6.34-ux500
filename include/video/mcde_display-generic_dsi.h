@@ -26,6 +26,8 @@ struct mcde_display_generic_platform_data {
 	/* Driver data */
 	bool generic_platform_enable;
 	struct regulator *regulator;
+	int max_supply_voltage;
+	int min_supply_voltage;
 };
 
 #endif /* __MCDE_DISPLAY_GENERIC__H__ */
