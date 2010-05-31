@@ -1102,6 +1102,16 @@ int prcmu_ac_wake_req()
 
 	spin_lock_irqsave(&ac_wake_lock, flags);
 	prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
+
+	/*
+	 * check if the prcm_hostaccess_req is already high.
+	 * If yes, then simply return
+	 */
+	if (prcm_hostaccess & ARM_WAKEUP_MODEM) {
+		spin_unlock_irqrestore(&ac_wake_lock, flags);
+		return 0;
+	}
+
 	prcm_hostaccess = prcm_hostaccess | ARM_WAKEUP_MODEM;
 
 	/* write to the PRCMU host_port_req register */
