@@ -70,6 +70,7 @@
 #define VAUX2_VOLTAGE_2_9V	(0xd)
 #define VAUX3_VOLTAGE_2_9V	(0xd)
 
+
 static int ab8500_ldo_enable(struct regulator_dev *rdev)
 {
 	int regulator_id, ret, val;
@@ -97,12 +98,8 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 						VAUX1_VOLTAGE_2_5V);
 			break;
 		}
-		/* setting to 3.3V for MCDE */
 		val = ab8500_read(AB8500_REGU_CTRL2,
 			AB8500_REGU_VAUX12_REGU_REG);
-		ab8500_write(AB8500_REGU_CTRL2,
-				AB8500_REGU_VAUX1_SEL_REG,
-					VAUX1_VOLTAGE_2_5V);
 		val = val & ~MASK_LDO_VAUX1;
 		val = val | (1 << MASK_LDO_VAUX1_SHIFT);
 		ab8500_write(AB8500_REGU_CTRL2,
@@ -115,31 +112,20 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 					VAUX2_VOLTAGE_2_9V);
 			break;
 		}
-
-		/* setting to 2.9V for on-board eMMC */
 		val = ab8500_read(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX12_REGU_REG);
-		ab8500_write(AB8500_REGU_CTRL2,
-				AB8500_REGU_VAUX2_SEL_REG,
-				VAUX2_VOLTAGE_2_9V);
 		val = val & ~MASK_LDO_VAUX2;
 		val = val | (1 << MASK_LDO_VAUX2_SHIFT);
 		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VAUX12_REGU_REG, val);
 		break;
 	case AB8500_LDO_VAUX3:
-		/* setting to 2.9V for MMC-SD */
-		 val = ab8500_read(AB8500_REGU_CTRL2,
+		val = ab8500_read(AB8500_REGU_CTRL2,
 				AB8500_REGU_VRF1VAUX3_REGU_REG);
-		ab8500_write(AB8500_REGU_CTRL2,
-				AB8500_REGU_VRF1VAUX3_SEL_REG,
-				VAUX3_VOLTAGE_2_9V);
 		val = val & ~MASK_LDO_VAUX3;
 		val = val | (1 << MASK_LDO_VAUX1_SHIFT);
 		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VRF1VAUX3_REGU_REG, val);
-		val = ab8500_read(AB8500_REGU_CTRL2,
-				AB8500_REGU_VRF1VAUX3_REGU_REG);
 		break;
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
@@ -348,11 +334,25 @@ static int ab8500_ldo_is_enabled(struct regulator_dev *rdev)
 	if (regulator_id >= AB8500_NUM_REGULATORS)
 		return -EINVAL;
 
-	/* FIXME : once the APE_I2C read is supported, add code for RegBank2 */
 	switch (regulator_id) {
 	case AB8500_LDO_VAUX1:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG);
+		if (val & MASK_LDO_VAUX1)
+			return true;
+		break;
 	case AB8500_LDO_VAUX2:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX12_REGU_REG);
+		if (val & MASK_LDO_VAUX2)
+			return true;
+		break;
 	case AB8500_LDO_VAUX3:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+					AB8500_REGU_VRF1VAUX3_REGU_REG);
+		if (val & MASK_LDO_VAUX3)
+			return true;
+		break;
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
 		if (val & MASK_LDO_VTVOUT)
@@ -394,20 +394,209 @@ static int ab8500_ldo_is_enabled(struct regulator_dev *rdev)
 	return 0;
 }
 
-static ab8500_ldo_set_voltage(struct regulator_dev *rdev,
+/*
+ * regulator layout
+ * @voltage: supported voltage
+ * @regval: register value to be written
+ */
+static struct regulator_voltage {
+	int voltage;
+	int regval;
+};
+
+/* voltage table for VAUXn regulators */
+static struct regulator_voltage vauxn_table[] = {
+	{ .voltage = 1100000, .regval  = 0x0, },
+	{ .voltage = 1200000, .regval  = 0x1, },
+	{ .voltage = 1300000, .regval  = 0x2, },
+	{ .voltage = 1400000, .regval  = 0x3, },
+	{ .voltage = 1500000, .regval  = 0x4, },
+	{ .voltage = 1800000, .regval  = 0x5, },
+	{ .voltage = 1850000, .regval  = 0x6, },
+	{ .voltage = 1900000, .regval  = 0x7, },
+	{ .voltage = 2500000, .regval  = 0x8, },
+	{ .voltage = 2650000, .regval  = 0x9, },
+	{ .voltage = 2700000, .regval  = 0xa, },
+	{ .voltage = 2750000, .regval  = 0xb, },
+	{ .voltage = 2800000, .regval  = 0xc, },
+	{ .voltage = 2900000, .regval  = 0xd, },
+	{ .voltage = 3000000, .regval  = 0xe, },
+	{ .voltage = 3300000, .regval  = 0xf, },
+};
+
+/* voltage table for VINTCORE12 regulator */
+static struct regulator_voltage vintcore_table[] = {
+	{ .voltage = 1200000, .regval  = 0x0, },
+	{ .voltage = 1225000, .regval  = 0x1, },
+	{ .voltage = 1250000, .regval  = 0x2, },
+	{ .voltage = 1275000, .regval  = 0x3, },
+	{ .voltage = 1300000, .regval  = 0x4, },
+	{ .voltage = 1325000, .regval  = 0x5, },
+	{ .voltage = 1350000, .regval  = 0x6, },
+};
+
+/*
+ * get the supported voltage from the associated regulator table
+ * and return the corresponding register masks.
+ * In case of the un-supported voltage, return error
+ */
+static int ab8500_get_best_voltage(struct regulator_voltage *voltage_table,
+				int table_len, int min_uV, int max_uV)
+{
+	int i;
+	int bestmatch = INT_MAX;
+
+	/* check the supported voltage */
+	for (i = 0; i < table_len; i++) {
+		if ((voltage_table[i].voltage >= min_uV) &&
+		    (voltage_table[i].voltage <= max_uV) &&
+		    (voltage_table[i].voltage < bestmatch))
+			return i;
+	}
+
+	return -EINVAL;
+}
+
+static int ab8500_ldo_set_voltage(struct regulator_dev *rdev,
 					int min_uV, int max_uV)
-{}
+{
+	int regulator_id, val, val1, i;
 
-static ab8500_ldo_get_voltage(struct regulator_dev *rdev)
-{}
+	regulator_id = rdev_get_id(rdev);
+	if (regulator_id >= AB8500_NUM_REGULATORS)
+		return -EINVAL;
 
-/* operations for LDOs (VAUX1/2, TVOut) generalized */
+	switch (regulator_id) {
+	case AB8500_LDO_VAUX1:
+		val = ab8500_get_best_voltage(vauxn_table,
+				ARRAY_SIZE(vauxn_table), min_uV, max_uV);
+		if (val < 0) {
+			dev_dbg(rdev_get_dev(rdev), "%dvolts not supported\n",
+					max_uV);
+			return -EINVAL;
+		}
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX1_SEL_REG,
+				vauxn_table[val].regval);
+		break;
+	case AB8500_LDO_VAUX2:
+		val = ab8500_get_best_voltage(vauxn_table,
+				ARRAY_SIZE(vauxn_table), min_uV, max_uV);
+		if (val < 0) {
+			dev_dbg(rdev_get_dev(rdev), "%dvolts not supported\n",
+					max_uV);
+			return -EINVAL;
+		}
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX2_SEL_REG,
+				vauxn_table[val].regval);
+		break;
+	case AB8500_LDO_VAUX3:
+		val = ab8500_get_best_voltage(vauxn_table,
+				ARRAY_SIZE(vauxn_table), min_uV, max_uV);
+		if (val < 0) {
+			dev_dbg(rdev_get_dev(rdev), "%dvolts not supported\n",
+					max_uV);
+			return -EINVAL;
+		}
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_SEL_REG,
+				vauxn_table[val].regval);
+		break;
+	case AB8500_LDO_VINTCORE:
+		val = ab8500_get_best_voltage(vintcore_table,
+				ARRAY_SIZE(vintcore_table), min_uV, max_uV);
+		if (val < 0) {
+			dev_dbg(rdev_get_dev(rdev), "%dvolts not supported\n",
+					max_uV);
+			return -EINVAL;
+		}
+		val1 = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
+		val1 = val | (vintcore_table[val].regval << 0x3);
+		ab8500_write(AB8500_REGU_CTRL2,
+				AB8500_REGU_MISC1_REG, val1);
+		break;
+	default:
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/* fixed typical voltages */
+#define LDO_VTVOUT_VOLTAGE	(2000000) /* 2.0v typical */
+#define LDO_VAUDIO_VOLTAGE	(2000000) /* 2.0v typical */
+#define LDO_VDMIC_VOLTAGE	(1800000) /* 1.8V typical */
+#define LDO_VAMIC1_VOLTAGE	(2050000) /* 2.05V typical */
+#define LDO_VAMIC2_VOLTAGE	(2050000) /* 2.05V typical */
+
+/* masks for reading the regulator voltages */
+#define VAUXSEL_VOLTAGE_MASK	(0xf)
+#define VINTCORE_VOLTAGE_MASK	(0x38)
+
+static int ab8500_ldo_get_voltage(struct regulator_dev *rdev)
+{
+	int regulator_id, val;
+	struct ab8500_regulator_info *info = rdev_get_drvdata(rdev);
+
+	regulator_id = rdev_get_id(rdev);
+	if (regulator_id >= AB8500_NUM_REGULATORS)
+		return -EINVAL;
+
+	/*
+	 * for VAUXn/VINTCORE regulators, we read the configuration.
+	 * for the rest, we return the typical voltage for the LDOs
+	 */
+	switch (regulator_id) {
+	case AB8500_LDO_VAUX1:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX1_SEL_REG);
+		return vauxn_table[val & VAUXSEL_VOLTAGE_MASK].voltage;
+		break;
+	case AB8500_LDO_VAUX2:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VAUX2_SEL_REG);
+		return vauxn_table[val & VAUXSEL_VOLTAGE_MASK].voltage;
+		break;
+	case AB8500_LDO_VAUX3:
+		val = ab8500_read(AB8500_REGU_CTRL2,
+				AB8500_REGU_VRF1VAUX3_SEL_REG);
+		return vauxn_table[val & VAUXSEL_VOLTAGE_MASK].voltage;
+		break;
+	case AB8500_LDO_VTVOUT:
+		return LDO_VTVOUT_VOLTAGE;
+		break;
+	case AB8500_LDO_VINTCORE:
+		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
+		return vintcore_table[val & VINTCORE_VOLTAGE_MASK].voltage;
+		break;
+	case AB8500_LDO_VAUDIO:
+		return LDO_VAUDIO_VOLTAGE;
+		break;
+	case AB8500_LDO_VDMIC:
+		return LDO_VDMIC_VOLTAGE;
+		break;
+	case AB8500_LDO_VAMIC1:
+		return LDO_VAMIC1_VOLTAGE;
+		break;
+	case AB8500_LDO_VAMIC2:
+		return LDO_VAMIC2_VOLTAGE;
+		break;
+	default:
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static struct regulator_ops ab8500_ldo_ops = {
 	.enable			= ab8500_ldo_enable,
 	.disable		= ab8500_ldo_disable,
 	.is_enabled		= ab8500_ldo_is_enabled,
-	.set_voltage		= ab8500_ldo_set_voltage, /* TODO */
-	.get_voltage		= ab8500_ldo_get_voltage, /* TODO */
+	.set_voltage		= ab8500_ldo_set_voltage,
+	.get_voltage		= ab8500_ldo_get_voltage,
 };
 
 static int ab8500_dcdc_enable(struct regulator_dev *rdev)
