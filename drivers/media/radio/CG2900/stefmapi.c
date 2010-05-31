@@ -10,6 +10,7 @@
  * License terms: GNU General Public License (GPL), version 2
  */
 
+#include <linux/slab.h>
 #include "stefmapi.h"
 #include "platformosapi.h"
 #include "fmdriver.h"
