@@ -128,7 +128,8 @@ static struct mmc_board mmc_data = {
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_SD_HIGHSPEED |
 					MMC_CAP_MMC_HIGHSPEED,
 #ifdef CONFIG_REGULATOR
-	.supply = "v-MMC-SD" /* tying to VAUX3 regulator */
+	.supply = "v-MMC-SD", /* tying to VAUX3 regulator */
+	.supply_voltage = 2900000 /* 2.9V */
 #endif
 };
 
@@ -245,7 +246,8 @@ static struct mmc_board emmc_data = {
 	.dma_fifo_dev_type_tx = DMA_DEV_SD_MM4_TX,
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA | MMC_CAP_MMC_HIGHSPEED,
 #ifdef CONFIG_REGULATOR
-	.supply = "v-eMMC" /* tying to VAUX1 regulator */
+	.supply = "v-eMMC", /* tying to VAUX1 regulator */
+	.supply_voltage = 2900000 /* 2.9V */
 #endif
 };
 

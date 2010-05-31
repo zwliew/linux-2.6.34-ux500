@@ -59,7 +59,6 @@
 #include <mach/dma_40-8500.h>
 #include "mmc-u8500.h"
 
-
 /* Workaround for SDIO Multibyte mode, not suuported in H/W */
 #ifdef SDIO_MULTIBYTE_WORKAROUND
 #undef SDIO_MULTIBYTE_WORKAROUND
@@ -1543,6 +1542,8 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 			ret = PTR_ERR(host->regulator);
 			goto host_free;
 		}
+		regulator_set_voltage(host->regulator, board->supply_voltage,
+						board->supply_voltage);
 		regulator_enable(host->regulator);
 	}
 #endif

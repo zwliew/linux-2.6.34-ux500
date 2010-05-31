@@ -365,6 +365,7 @@ struct mmc_board {
 	int is_sdio;		/* To check if the bus is SD/MMC or sdio */
 #ifdef CONFIG_REGULATOR
 	const char *supply;
+	int supply_voltage;
 #endif
 };
 
