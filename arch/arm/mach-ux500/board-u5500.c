@@ -109,6 +109,12 @@ static struct amba_device *amba_board_devs[] __initdata = {
 	&ux500_uart2_device,
 };
 
+static struct platform_device *u5500_platform_devices[] __initdata = {
+#ifdef CONFIG_U5500_MLOADER_HELPER
+	&mloader_helper_device,
+#endif
+};
+
 static void __init u5500_init_machine(void)
 {
 	stm_gpio_set_altfunctable(gpio_altfun_table,
@@ -121,6 +127,9 @@ static void __init u5500_init_machine(void)
 	u8500_register_device(&ux500_i2c_controller1, &u8500_i2c_1);
 	u8500_register_device(&ux500_i2c_controller2, &u8500_i2c_2);
 	u8500_register_device(&ux500_i2c_controller3, &u8500_i2c_3);
+
+	platform_add_devices(u5500_platform_devices,
+			     ARRAY_SIZE(u5500_platform_devices));
 }
 
 MACHINE_START(NOMADIK, "ST-Ericsson U5500 Platform")

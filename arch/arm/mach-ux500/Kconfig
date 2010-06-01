@@ -78,4 +78,12 @@ config FORCE_MAX_ZONEORDER
     int "Maximum zone order"
     default "12"
 
+config U5500_MLOADER_HELPER
+	bool "mLoader helper, mem config from kernel boot args exported to sysfs"
+	default n
+	depends on MACH_U5500_SIMULATOR
+	help
+	    Link between boot args and user space program that loads the modem ELF
+
+
 endif

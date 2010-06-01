@@ -727,6 +727,13 @@ struct amba_device ux500_uart2_device = {
 
 #endif
 
+#if defined(CONFIG_U5500_MLOADER_HELPER)
+struct platform_device mloader_helper_device = {
+	.name		= "mloader_helper",
+	.id		= -1,
+};
+#endif
+
 void __init amba_add_devices(struct amba_device *devs[], int num)
 {
 	int i;

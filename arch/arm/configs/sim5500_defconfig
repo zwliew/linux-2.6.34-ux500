@@ -231,6 +231,7 @@ CONFIG_UX500_SOC_DB5500=y
 # CONFIG_MACH_U8500_SIMULATOR is not set
 CONFIG_MACH_U5500_SIMULATOR=y
 # CONFIG_MACH_U8500_MOP is not set
+CONFIG_U5500_MLOADER_HELPER=y
 CONFIG_ARCH_HAS_CPU_IDLE_WAIT=y
 CONFIG_SENSORS1P_MOP=y
 # CONFIG_MCDE_ENABLE_FEATURE_HW_V1_SUPPORT is not set
@@ -358,7 +359,7 @@ CONFIG_ALIGNMENT_TRAP=y
 #
 CONFIG_ZBOOT_ROM_TEXT=0
 CONFIG_ZBOOT_ROM_BSS=0
-CONFIG_CMDLINE="cachepolicy=writealloc root=/dev/ram0 init=init  rw console=ttyAMA2,115200n8 mem=256M initrd=0x800000,60M earlyprintk"
+CONFIG_CMDLINE="cachepolicy=writealloc root=/dev/ram0 init=init  rw console=ttyAMA2,115200n8 mem=256M initrd=0x800000,60M earlyprintk memmap=0x02000000$0x01700000 mloader_helper.sml_total_size=0x00100000"
 # CONFIG_XIP_KERNEL is not set
 # CONFIG_KEXEC is not set
 

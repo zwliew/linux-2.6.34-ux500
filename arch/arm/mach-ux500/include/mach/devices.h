@@ -51,6 +51,10 @@ extern struct amba_device ux500_uart0_device;
 extern struct amba_device ux500_uart1_device;
 extern struct amba_device ux500_uart2_device;
 
+#ifdef CONFIG_U5500_MLOADER_HELPER
+extern struct platform_device mloader_helper_device;
+#endif
+
 /*
  * Do not use inside drivers.  Check it in the board file and alter platform
  * data.
