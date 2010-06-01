@@ -104,6 +104,7 @@ enum ccd_transport {
 #define CCD_BAUD_RATE_4000000		0x2B
 
 /* Baud rate defines */
+#define CCD_ZERO_BAUD_RATE		0
 #define CCD_DEFAULT_BAUD_RATE		115200
 #define CCD_HIGH_BAUD_RATE		921600
 
@@ -470,48 +471,52 @@ void ste_conn_ccd_set_chip_power(bool chip_on)
 	STE_CONN_INFO("ste_conn_ccd_set_chip_power: %s", (chip_on ? "ENABLE" : "DISABLE"));
 
 	switch (ste_conn_transport) {
-	case CCD_TRANSPORT_UART:
+	case CCD_TRANSPORT_UART: {
+		int uart_baudrate = uart_default_baud;
+		struct ktermios *old_termios;
+		struct tty_struct *tty = NULL;
+
 		if (chip_on) {
 			ste_conn_devices_enable_chip();
 		} else {
-			struct ktermios *old_termios;
-			struct tty_struct *tty = NULL;
-
 			ste_conn_devices_disable_chip();
-
-			/* Now we have to put the digital baseband UART back
-			 * to default baudrate since we have powered off the
-			 * chip
-			 */
-			if (ccd_info->c_uart && ccd_info->c_uart->tty) {
-				tty = ccd_info->c_uart->tty;
-			} else {
-				STE_CONN_ERR("Important structs not allocated!");
-				return;
-			}
-
-			old_termios = kzalloc(sizeof(*old_termios), GFP_ATOMIC);
-			if (!old_termios) {
-				STE_CONN_ERR("Could not allocate termios");
-				return;
-			}
-
-			mutex_lock(&(tty->termios_mutex));
-			/* Now set the termios struct to the default baudrate.
-			 * Start by storing the old termios.
-			 */
-			memcpy(old_termios, tty->termios, sizeof(*old_termios));
-			/* Now set the default baudrate */
-			tty_encode_baud_rate(tty, uart_default_baud,
-						uart_default_baud);
-			/* Finally inform the driver */
-			if (tty->ops->set_termios) {
-				tty->ops->set_termios(tty, old_termios);
-			}
-			mutex_unlock(&(tty->termios_mutex));
-			kfree(old_termios);
+			/* Setting baud rate to 0 will tell UART driver to shut off its clocks.*/
+			uart_baudrate = CCD_ZERO_BAUD_RATE;
 		}
+
+		/* Now we have to set the digital baseband UART
+		 * to default baudrate if chip is ON or to zero baudrate if
+		 * chip is turning OFF.
+		 */
+		if (ccd_info->c_uart && ccd_info->c_uart->tty) {
+			tty = ccd_info->c_uart->tty;
+		} else {
+			STE_CONN_ERR("Important structs not allocated!");
+			return;
+		}
+
+		old_termios = kmalloc(sizeof(*old_termios), GFP_ATOMIC);
+		if (!old_termios) {
+			STE_CONN_ERR("Could not allocate termios");
+			return;
+		}
+
+		mutex_lock(&(tty->termios_mutex));
+		/* Now set the termios struct to the default or zero baudrate.
+		 * Start by storing the old termios.
+		 */
+		memcpy(old_termios, tty->termios, sizeof(*old_termios));
+		/* Now set the default baudrate or zero if chip is turning OFF.*/
+		tty_encode_baud_rate(tty, uart_baudrate,
+					uart_baudrate);
+		/* Finally inform the driver */
+		if (tty->ops->set_termios) {
+			tty->ops->set_termios(tty, old_termios);
+		}
+		mutex_unlock(&(tty->termios_mutex));
+		kfree(old_termios);
 		break;
+	}
 	case CCD_TRANSPORT_CHAR_DEV:
 		/* Nothing to be done in test mode. */
 		break;
