@@ -595,49 +595,18 @@ config TOUCHSCREEN_PCAP
 	  To compile this driver as a module, choose M here: the
 	  module will be called pcap_ts.
 
-config U8500_TSC
-	tristate "BU21013 based capcitive based sensors for U8500 platform"
-	depends on ARCH_U8500 && I2C_NOMADIK
-	default m
-	help
-	  Say Y here if you have a touchscreen interface using the
-	  BU21013 controller for U8500 platform.
-
-	  If unsure, say N (but it's safe to say "Y").
-
-	  To compile this driver as a module, choose M here:
-	choice
-		prompt "TOUCH MODE"
-		depends on U8500_TSC
-		default U8500_TSC_SINGLETOUCH
-
-		config U8500_TSC_SINGLETOUCH
-		depends on U8500_TSC
-		bool   "Single Touch Mode"
-
-		config U8500_TSC_MULTITOUCH
-		depends on U8500_TSC
-		bool   "Multi Touch Mode"
-	endchoice
-
-config U8500_TSC_X_FLIP
-	bool "Enable x flip for U8500 touch panel in portrait mode"
-	depends on U8500_TSC && FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
-
-config U8500_TSC_Y_FLIP
-	bool "Enable y flip for U8500 touch panel in portrait mode"
-	depends on U8500_TSC && FB_U8500_MCDE_CHANNELC0_DISPLAY_WVGA_PORTRAIT
+config TOUCHSCREEN_BU21013
+	tristate "BU21013 based touch panel controllers"
+	depends on I2C_NOMADIK && FB_MCDE
 	default y
 
-config U8500_TSC_EXT_CLK_9_6
-	bool "Enable external clock for U8500 touch panel tuning"
-	depends on U8500_TSC
+config BU21013_TSC_CNTL1
+	bool "Touch panel1 with BU21013 controller"
+	depends on TOUCHSCREEN_BU21013
+	default y
 
-config U8500_TSC_EXT_CLK_SHARE
-	bool "Clock shared between Camera and touch panel"
-	depends on U8500_TSC_EXT_CLK_9_6
+config BU21013_TSC_CNTL2
+	bool "Touch panel2 with BU21013 controller2"
+	depends on TOUCHSCREEN_BU21013
 
-config TOUCHP_TUNING
-	bool "Enable sysfs for U8500 touch panel tuning"
-	depends on U8500_TSC
 endif

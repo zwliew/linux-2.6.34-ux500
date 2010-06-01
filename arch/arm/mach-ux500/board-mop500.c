@@ -18,6 +18,7 @@
 #include <linux/i2c/lp5521.h>
 #include <linux/power_supply.h>
 #include <linux/lsm303dlh.h>
+#include <linux/bu21013.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
@@ -37,7 +38,6 @@
 #include <mach/mmc.h>
 #include <mach/setup.h>
 #include <mach/i2c.h>
-#include <mach/u8500_tsc.h>
 
 #include <video/mcde_display.h>
 #include <video/mcde_display-generic_dsi.h>
@@ -179,243 +179,250 @@ static struct i2c_board_info __initdata nmdk_i2c0_egpio1_devices[] = {
 /**
  * Touch panel related platform specific initialization
  */
-#if defined(CONFIG_U8500_TSC)
 
 /**
- * tp_gpio_board_init : configures the touch panel.
+ * bu21013_gpio_board_init : configures the touch panel.
+ * @ext_clk_en: external clcok enable
+ * @reset_pin: reset pin number
  * This function can be used to configures
  * the voltage and reset the touch panel controller.
  */
-int tp_gpio_board_init(void)
+static int bu21013_gpio_board_init(int reset_pin)
 {
 #ifndef CONFIG_REGULATOR
 	int val;
 #endif
 	int retval = 0;
-#if (defined CONFIG_U8500_TSC_EXT_CLK_9_6 && !defined CONFIG_U8500_TSC_EXT_CLK_SHARE)
 	void __iomem *clk_base;
 	unsigned int clk_value;
-#endif
+
+	static bool config_set;
 #ifndef CONFIG_REGULATOR
-	/** Set the voltage for Bu21013 controller */
+	/* Set the voltage for Bu21013 controller */
 	val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG);
 
 	retval = ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX12_REGU_REG,
-				(val | 0x1));
+				(val | TSC_AVDD_AUX1_REGULATOR));
 	if (retval < 0)
-		return -1;
+		return retval;
 	val = ab8500_read(AB8500_REGU_CTRL2, AB8500_REGU_VAUX1_SEL_REG);
 
 	retval = ab8500_write(AB8500_REGU_CTRL2, AB8500_REGU_VAUX1_SEL_REG,
-				0x0C);
+				TSC_AVDD_VOLTAGE_2_5);
 	if (retval < 0)
-		return -1;
+		return retval;
 #endif
-#ifdef CONFIG_U8500_TSC_EXT_CLK_9_6
-#ifndef CONFIG_U8500_TSC_EXT_CLK_SHARE
-	retval = stm_gpio_altfuncenable(GPIO_ALT_TP_SET_EXT_CLK);
-	if (retval < 0) {
-		printk(KERN_ERR " ext clock stm_gpio_altfuncenable failed  \n");
-		return -1;
-	}
-	clk_base = (void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + 0x1CC);
-	clk_value = readl(clk_base);
-	writel(0x840000, clk_base);
-#endif
-#endif
-	if (platform_id == MOP500_PLATFORM_ID) {
-		retval = gpio_request(TOUCHP_CS0, "touchp_cs0");
-		if (retval) {
-			printk(KERN_ERR "Unable to request gpio TOUCHP_CS0");
-			return retval;
-		}
-		/** why set directtion is not working ~ FIXME */
-		/* gpio_direction_output(270,1); */
-		gpio_set_value(TOUCHP_CS0, 1);
-	} else if (platform_id == HREF_PLATFORM_ID) {
-		retval = gpio_request(EGPIO_PIN_13, "touchp_cs0");
-		if (retval) {
-			printk(KERN_ERR "Unable to request gpio TOUCHP_CS0");
-			return retval;
-		}
-
-		retval = gpio_direction_output(EGPIO_PIN_13, 1);
+	if (!config_set) {
+		retval = stm_gpio_altfuncenable(GPIO_ALT_TP_SET_EXT_CLK);
 		if (retval < 0) {
-			printk(KERN_ERR " reset gpio_direction_output init failed  \n");
-			return -1;
+			printk(KERN_ERR "%s: gpio alternate failed\n", __func__);
+			return retval;
 		}
-		gpio_set_value(EGPIO_PIN_13, 1);
+		clk_base = (void __iomem *)IO_ADDRESS(U8500_PRCMU_BASE + PRCMU_CLOCK_OCR);
+		clk_value = readl(clk_base);
+		writel(TSC_EXT_CLOCK_9_6MHZ, clk_base);
+	}
+	if (platform_id == MOP500_PLATFORM_ID) {
+		gpio_set_value(EGPIO_PIN_2, 1);
+	} else if (platform_id == HREF_PLATFORM_ID) {
+		if (!config_set) {
+			retval = gpio_direction_output(reset_pin, 1);
+			if (retval < 0) {
+				printk(KERN_ERR "%s: gpio direction failed\n", __func__);
+				return retval;
+			}
+			gpio_set_value(reset_pin, 1);
+			config_set = true;
+		}
 	}
 	return retval;
 }
 
 /**
- * tp_gpio_board_exit : deconfigures the touch panel controller
+ * bu21013_gpio_board_exit : deconfigures the touch panel controller
+ * @reset_pin: reset pin number
  * This function can be used to deconfigures the chip selection
  * for touch panel controller.
  */
-int tp_gpio_board_exit(void)
+static int bu21013_gpio_board_exit(int reset_pin)
 {
 	int retval = 0;
+	static bool config_disable_set;
 	if (platform_id == MOP500_PLATFORM_ID) {
-		/** why set directtion is not working ~ FIXME */
-		/* gpio_direction_output(270,1); */
-		gpio_set_value(TOUCHP_CS0, 0);
+		gpio_set_value(EGPIO_PIN_2, 0);
 	} else if (platform_id == HREF_PLATFORM_ID) {
-		retval = gpio_direction_output(EGPIO_PIN_13, 0);
-		if (retval < 0) {
-			printk(KERN_ERR " reset gpio_direction_output exit failed  \n");
-			return -1;
+		if (!config_disable_set) {
+			retval = gpio_direction_output(reset_pin, 0);
+			if (retval < 0) {
+				printk(KERN_ERR "%s: gpio direction failed\n", __func__);
+				return retval;
+			}
+			gpio_set_value(reset_pin, 0);
+			config_disable_set = true;
 		}
-		gpio_set_value(EGPIO_PIN_13, 0);
 	}
 	return retval;
 }
 
 /**
- * tp_init_irq : sets the callback for touch panel controller
+ * bu21013_init_irq : sets the callback for touch panel controller
  * @parameter: function pointer for touch screen callback handler.
  * @data: data to be passed for touch panel callback handler.
  * This function can be used to set the callback handler for
  * touch panel controller.
  */
-int tp_init_irq(void (*callback)(void *parameter), void *data)
+static int bu21013_init_irq(void (*callback)(void *parameter), void *data)
 {
 	int retval = 0;
-
 	if (platform_id == MOP500_PLATFORM_ID) {
-		retval = stmpe2401_set_callback(TOUCHP_IRQ, callback,
+		retval = stmpe2401_set_callback(EGPIO_PIN_3, callback,
 				(void *)data);
 		if (retval < 0)
-			printk(KERN_ERR " stmpe2401_set_callback failed \n");
+			printk(KERN_ERR "%s: set callback failed\n", __func__);
 	} else if (platform_id == HREF_PLATFORM_ID) {
-		if (href_v1_board == 0) {
+		if (!href_v1_board) {
 			retval = tc35892_set_callback(EGPIO_PIN_12, callback,
 					(void *)data);
 			if (retval < 0)
-				printk(KERN_ERR " tc35892_set_callback failed \n");
-		}
-	}
-	return retval;
-}
-
-/**
- * tp_exit_irq : removes the callback for touch panel controller
- * This function can be used to removes the callback handler for
- * touch panel controller.
- */
-int tp_exit_irq(void)
-{
-	int retval = 0;
-	if (platform_id == MOP500_PLATFORM_ID) {
-		retval = stmpe2401_remove_callback(TOUCHP_IRQ);
-		if (retval < 0)
-			printk(KERN_ERR " stmpe2401_remove_callback failed \n");
-	} else if (platform_id == HREF_PLATFORM_ID) {
-		if (href_v1_board == 0) {
-			retval = tc35892_remove_callback(EGPIO_PIN_12);
-			if (retval < 0)
-				printk(KERN_ERR " tc35892_remove_callback failed \n");
-		}
-	}
-	return retval;
-}
-
-/**
- * tp_pen_down_irq_enable : enable the interrupt for touch panel controller
- * This function can be used to enable the interrupt for touch panel controller.
- */
-int tp_pen_down_irq_enable(void)
-{
-	int retval = 0;
-	if (platform_id == MOP500_PLATFORM_ID) {
-		/* do nothing */
-	} else if (platform_id == HREF_PLATFORM_ID) {
-		if (href_v1_board == 0) {
+				printk(KERN_ERR "%s: set callback failed\n", __func__);
 			retval = tc35892_set_gpio_intr_conf(EGPIO_PIN_12,
 				EDGE_SENSITIVE,	TC35892_FALLING_EDGE_OR_LOWLEVEL);
 			if (retval < 0)
-				printk(KERN_ERR " tc35892_set_gpio_intr_conf failed\n");
-			retval = tc35892_set_intr_enable(EGPIO_PIN_12,
-				ENABLE_INTERRUPT);
-			if (retval < 0)
-				printk(KERN_ERR " tc35892_set_intr_enable failed \n");
+				printk(KERN_ERR "%s: config failed\n", __func__);
 		}
 	}
 	return retval;
 }
 
 /**
- * tp_pen_down_irq_disable : disable the interrupt
- * This function can be used to disable the interrupt for
+ * bu21013_exit_irq : removes the callback for touch panel controller
+ * This function can be used to removes the callback handler for
  * touch panel controller.
  */
-int tp_pen_down_irq_disable(void)
+static int bu21013_exit_irq(void)
 {
 	int retval = 0;
 	if (platform_id == MOP500_PLATFORM_ID) {
-		/* do nothing */
+		retval = stmpe2401_remove_callback(EGPIO_PIN_3);
+		if (retval < 0)
+			printk(KERN_ERR "%s: remove callback failed\n", __func__);
 	} else if (platform_id == HREF_PLATFORM_ID) {
-		if (href_v1_board == 0) {
-			retval = tc35892_set_intr_enable(EGPIO_PIN_12,
-					DISABLE_INTERRUPT);
+		if (!href_v1_board) {
+			retval = tc35892_remove_callback(EGPIO_PIN_12);
 			if (retval < 0)
-				printk(KERN_ERR " tc35892_set_intr_enable failed \n");
+				printk(KERN_ERR "%s: remove calllback failed\n", __func__);
 		}
 	}
 	return retval;
 }
 
 /**
- * tp_read_pin_val : get the interrupt pin value
+ * bu21013_pen_down_irq_enable : enable the interrupt for touch panel controller
+ * This function can be used to enable the interrupt for touch panel controller.
+ */
+static int bu21013_pen_down_irq_enable(void)
+{
+	int retval = 0;
+	if (platform_id == HREF_PLATFORM_ID) {
+		if (!href_v1_board) {
+			retval = tc35892_set_intr_enable(EGPIO_PIN_12,
+				ENABLE_INTERRUPT);
+			if (retval < 0)
+				printk(KERN_ERR "%s: failed\n", __func__);
+		}
+	}
+	return retval;
+}
+
+/**
+ * bu21013_pen_down_irq_disable : disable the interrupt
+ * This function can be used to disable the interrupt for
+ * touch panel controller.
+ */
+static int bu21013_pen_down_irq_disable(void)
+{
+	int retval = 0;
+	if (platform_id == HREF_PLATFORM_ID) {
+		if (!href_v1_board) {
+			retval = tc35892_set_intr_enable(EGPIO_PIN_12,
+					DISABLE_INTERRUPT);
+			if (retval < 0)
+				printk(KERN_ERR "%s: failed\n", __func__);
+		}
+	}
+	return retval;
+}
+
+/**
+ * bu21013_read_pin_val : get the interrupt pin value
  * This function can be used to get the interrupt pin value for touch panel
  * controller.
  */
-int tp_read_pin_val(void)
+static int bu21013_read_pin_val(void)
 {
 	int data = 0;
-	unsigned int touch_gpio_pin = 84;
 
 	if (platform_id == MOP500_PLATFORM_ID)
-		data = gpio_get_value(TOUCHP_IRQ);
+		data = gpio_get_value(EGPIO_PIN_3);
 	else if (platform_id == HREF_PLATFORM_ID) {
-		if (href_v1_board == 0)
+		if (!href_v1_board)
 			data = gpio_get_value(EGPIO_PIN_12);
 		else
-			data = gpio_get_value(touch_gpio_pin);
+			data = gpio_get_value(TOUCH_GPIO_PIN);
 	}
 	return data;
 }
 /**
- * tp_board_href_v1 : update the href v1 flag
+ * bu21013_board_href_v1 : update the href v1 flag
  * This function can be used to update the board.
  */
-int tp_board_href_v1(void)
+static bool bu21013_board_check(void)
 {
-	unsigned int touch_gpio_pin = 84;
+	href_v1_board = false;
 	if (platform_id == HREF_PLATFORM_ID) {
-		if (u8500_is_earlydrop())
-			href_v1_board = 0;
-		else
-			href_v1_board = gpio_get_value(touch_gpio_pin);
-	} else
-		href_v1_board = 0;
+		if (!u8500_is_earlydrop()) {
+			if (gpio_get_value(TOUCH_GPIO_PIN) == 1)
+				href_v1_board = true;
+		}
+	}
 	return href_v1_board;
 }
 
-static struct tp_device tsc_plat_device = {
-	.cs_en = tp_gpio_board_init,
-	.cs_dis = tp_gpio_board_exit,
-	.irq_init = tp_init_irq,
-	.irq_exit = tp_exit_irq,
-	.pirq_en  = tp_pen_down_irq_enable,
-	.pirq_dis = tp_pen_down_irq_disable,
-	.pirq_read_val = tp_read_pin_val,
-	.board_href_v1 = tp_board_href_v1,
-	.irq = GPIO_TO_IRQ(84),
-};
+static struct bu21013_platform_device tsc_plat_device = {
+	.cs_en = bu21013_gpio_board_init,
+	.cs_dis = bu21013_gpio_board_exit,
+	.irq_init = bu21013_init_irq,
+	.irq_exit = bu21013_exit_irq,
+	.pirq_en  = bu21013_pen_down_irq_enable,
+	.pirq_dis = bu21013_pen_down_irq_disable,
+	.pirq_read_val = bu21013_read_pin_val,
+	.board_check = bu21013_board_check,
+	.irq = GPIO_TO_IRQ(TOUCH_GPIO_PIN),
+	.cs_pin = EGPIO_PIN_13,
+	.x_max_res = 480,
+	.y_max_res = 864,
+	.touch_x_max = TOUCH_XMAX,
+	.touch_y_max = TOUCH_YMAX,
+#ifdef CONFIG_BU21013_TSC_CNTL1
+	.tp_cntl = 1,
 #endif
+};
 
+static struct bu21013_platform_device tsc_cntl2_plat_device = {
+	.cs_en = bu21013_gpio_board_init,
+	.cs_dis = bu21013_gpio_board_exit,
+	.board_check = bu21013_board_check,
+	.pirq_read_val = bu21013_read_pin_val,
+	.irq = GPIO_TO_IRQ(TOUCH_GPIO_PIN),
+	.cs_pin = EGPIO_PIN_13,
+	.x_max_res = 480,
+	.y_max_res = 864,
+	.touch_x_max = TOUCH_XMAX,
+	.touch_y_max = TOUCH_YMAX,
+#ifdef CONFIG_BU21013_TSC_CNTL2
+	.tp_cntl = 2,
+#endif
+};
 /*  Portrait */
 #ifdef CONFIG_DISPLAY_GENERIC_DSI_PRIMARY
 /* Rotation always on */
@@ -510,13 +517,16 @@ static struct i2c_board_info __initdata u8500_i2c3_devices[] = {
 	 /* NFC - Address TBD, FIXME */
 	 I2C_BOARD_INFO("nfc", 0x68),
 	},
-#if defined(CONFIG_U8500_TSC)
 	{
 		/* Touschscreen */
-		I2C_BOARD_INFO(DRIVER_TP, I2C3_TOUCHP_ADDRESS),
+		I2C_BOARD_INFO("bu21013_tp", 0x5C),
 		.platform_data = &tsc_plat_device,
 	},
-#endif
+	{
+		/* Touschscreen */
+		I2C_BOARD_INFO("bu21013_tp", 0x5D),
+		.platform_data = &tsc_cntl2_plat_device,
+	},
 
 };
 
@@ -1467,8 +1477,8 @@ static struct platform_device *platform_board_devs[] __initdata = {
 	&ab8500_gpadc_device,
 	&ab8500_bm_device,
 	&ux500_musb_device,
-	&ux500_b2r2_device,
 	&ux500_mcde_device,
+	&ux500_b2r2_device,
 #ifdef CONFIG_ANDROID_PMEM
 	&u8500_pmem_device,
 	&u8500_pmem_mio_device,

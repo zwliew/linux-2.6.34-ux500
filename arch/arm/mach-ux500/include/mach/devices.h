@@ -63,4 +63,19 @@ extern int platform_id;
 #define MOP500_PLATFORM_ID	0
 #define HREF_PLATFORM_ID	1
 
+#define MOP500_PLATFORM_ID	0
+#define HREF_PLATFORM_ID	1
+
+/**
+ * Touchpanel related macros declaration
+ */
+#define TOUCH_GPIO_PIN 	84
+
+#define TOUCH_XMAX 384
+#define TOUCH_YMAX 704
+
+#define PRCMU_CLOCK_OCR 0x1CC
+#define TSC_EXT_CLOCK_9_6MHZ 0x840000
+#define TSC_AVDD_VOLTAGE_2_5 0x08
+#define TSC_AVDD_AUX1_REGULATOR 0x01
 #endif
