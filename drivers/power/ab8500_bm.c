@@ -35,7 +35,7 @@
 #define BAT_CTRL_INDB		20
 #define CH_WD_EXP		21
 #define VBUS_OVV		22
-#define NCONV_ACCU  		24
+#define NCONV_ACCU		24
 #define LOW_BAT_F		28
 #define LOW_BAT_R		29
 #define GP_SW_ADC_CONV_END	39
@@ -126,6 +126,7 @@ struct ab8500_bm_device_info {
 	int inst_current;
 	int avg_current;
 	int capacity;
+	int prev_capacity;
 	int charge_status;
 	int bk_battery_charge_status;
 	int usb_ip_cur_lvl;
@@ -753,9 +754,8 @@ static void ab8500_bm_avg_cur_work(struct work_struct *work)
 	}
 
 	mutex_unlock(&ab8500_cc_lock);
-
 	di->avg_current = val;
-
+	return;
 exit:
 	dev_vdbg(di->dev, "Failed to write Read request to gas gauge controller\n");
 	/* If  i2c write fails,
@@ -1629,13 +1629,20 @@ static int ab8500_bm_temperature(struct ab8500_bm_device_info *di)
  **/
 static void ab8500_bm_battery_read_status(struct ab8500_bm_device_info *di)
 {
-	int val, val_usb, status, ret = 0;
-
+	int val, val_usb, status, ret = 0, new_capacity;
 	di->temp_C = ab8500_bm_temperature(di);
 	di->voltage_uV = ab8500_bm_voltage(di);
 
-	ab8500_bm_sys_get_gg_capacity(&di->capacity);
+	ab8500_bm_sys_get_gg_capacity(&new_capacity);
 	di->inst_current = ab8500_bm_inst_current(di);
+
+	/* Capacity might have changed now
+	 * if it is changed, then update sysfs
+	 */
+	if ((new_capacity != di->prev_capacity) && (new_capacity != 0)) {
+		di->prev_capacity = new_capacity;
+		power_supply_changed(&di->bat);
+	}
 
 	/* Li-ion batteries gets charged upto 4.2v, hence 4.2v should be one of
 	 * the criteria for termination charging. Another factor to terminate the
