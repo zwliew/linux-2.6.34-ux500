@@ -56,6 +56,7 @@
 #define IRQ_SDMMC0		(IRQ_SPI_START + 60)
 #define IRQ_HWSEM		(IRQ_SPI_START + 61)
 #define IRQ_MSP1		(IRQ_SPI_START + 62)
+#define IRQ_MODEM		(IRQ_SPI_START + 65)
 #define IRQ_SPI1		(IRQ_SPI_START + 96)
 #define IRQ_MSP2		(IRQ_SPI_START + 98)
 #define IRQ_SDMMC4		(IRQ_SPI_START + 99)
@@ -94,9 +95,21 @@
 #define GPIO_TO_IRQ(gpio)	(gpio + U8500_SOC_NR_IRQS)
 #define IRQ_TO_GPIO(irq)	(irq - U8500_SOC_NR_IRQS)
 
-#define NR_IRQS			GPIO_TO_IRQ(U8500_NR_GPIO)
-
 #define NOMADIK_GPIO_TO_IRQ	GPIO_TO_IRQ
 #define NOMADIK_IRQ_TO_GPIO	IRQ_TO_GPIO
+
+/* After the GPIO ones we reserve a range of IRQ:s in which virtual
+ * IRQ:s representing modem IRQ:s can be allocated
+ */
+#define IRQ_MODEM_EVENTS_BASE ( GPIO_TO_IRQ(U8500_NR_GPIO) + 1 )
+#define IRQ_MODEM_EVENTS_NBR 72
+#define IRQ_MODEM_EVENTS_END (IRQ_MODEM_EVENTS_BASE + IRQ_MODEM_EVENTS_NBR)
+
+/* List of virtual IRQ:s that are allocated from the range above */
+#define MBOX_PAIR0_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 43
+#define MBOX_PAIR1_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 45
+#define MBOX_PAIR2_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 41
+
+#define NR_IRQS			IRQ_MODEM_EVENTS_END
 
 #endif /* ASM_ARCH_IRQS_H */

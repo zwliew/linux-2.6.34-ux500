@@ -72,6 +72,20 @@ config SENSORS1P_MOP
 	help
 		Add support for Osram's SFH7741 Proximity Sensor and Samsumg HED54XXU11 HAL Switch
 
+config U5500_MODEM_IRQ
+	bool "Modem IRQ support"
+	depends on UX500_SOC_DB5500
+	default y
+	help
+		Add support for handling IRQ:s from modem side
+
+config U5500_MBOX
+	bool "Mailbox support"
+	depends on UX500_SOC_DB5500 && U5500_MODEM_IRQ
+	default y
+	help
+		Add support for u5500 mailbox communication between CPU:s
+
 source "arch/arm/mach-ux500/Kconfig-arch"
 
 config FORCE_MAX_ZONEORDER
