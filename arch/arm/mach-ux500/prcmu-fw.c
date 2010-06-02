@@ -23,6 +23,9 @@
 #include "prcmu-fw_ed.h"
 #include "prcmu-fw_v1.h"
 
+#define ED_FW_BOOT_STATE	0xFF
+#define ED_FW_T32_BOOT_STATE	0x2F
+
 #define NAME "PRCMU"
 #define PM_DEBUG 0
 #define dbg_printk(format, arg...) (PM_DEBUG & 1) ? \
@@ -1580,7 +1583,8 @@ static int prcmu_fw_init(void)
 	if (u8500_is_earlydrop()) {
 		int i;
 		int status = prcmu_get_boot_status();
-		if (status != 0xFF || status != 0x2F) {
+		if (!(status == ED_FW_BOOT_STATE ||
+					status == ED_FW_T32_BOOT_STATE)) {
 			printk("PRCMU Firmware not ready\n");
 			return -EIO;
 		}
