@@ -1452,7 +1452,7 @@ static struct amba_device *amba_board_devs[] __initdata = {
 /* LED device for LCD backlight */
 /* LCD backlight in LED device framework */
 static struct platform_device u8500_leds_controller = {
-	.name = "u8500-leds",
+	.name = "ab8500-leds",
 	.id = 0,
 };
 

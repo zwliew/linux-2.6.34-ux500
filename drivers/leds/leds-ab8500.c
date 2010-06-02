@@ -1,7 +1,8 @@
 /*
  * Copyright (C) ST-Ericsson SA 2010
  *
- * Author: Dushyanth S R <dushyanth.sr@stericsson.com> for ST-Ericsson
+ * Author: Dushyanth S R <dushyanth.sr@stericsson.com>
+ * Modified by: Arun R Murthy <arun.murthy@stericsson.com>
  * License terms: GNU General Public License (GPL) version 2
  */
 
@@ -14,6 +15,7 @@
 #define DISABLE_PWM2		0
 #define DISABLE_PWM3		0
 #define ENABLE_PWM1		0x01
+#define ENABLE_PWM2		0x02
 #define PWM_DUTY_LOW_1024_1024	0xFF
 #define PWM_DUTY_HI_1024_1024	0x03
 #define PWM_DUTY_HI_512_1025	0x01
@@ -27,6 +29,9 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 {
 	int  pwm_val;
 	int higher_val, lower_val;
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY)
+	int val;
+#endif
 
 	switch (value) {
 	case LED_OFF:
@@ -46,6 +51,15 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 						PWM_DUTY_LOW_1024_1024);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
 						PWM_DUTY_HI_512_1025);
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY)
+		val = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
+							(val | ENABLE_PWM2));
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG,
+						PWM_DUTY_LOW_1024_1024);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG,
+						PWM_DUTY_HI_512_1025);
+#endif
 		break;
 	case LED_FULL:
 		/* Putting on the backlight in full brightness */
@@ -55,6 +69,15 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 						PWM_DUTY_LOW_1024_1024);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
 						PWM_DUTY_HI_1024_1024);
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY)
+		val = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
+							(val | ENABLE_PWM2));
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG,
+						PWM_DUTY_LOW_1024_1024);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG,
+						PWM_DUTY_HI_1024_1024);
+#endif
 		break;
 	default:
 		/*
@@ -77,14 +100,24 @@ static void lcd_backlight_brightness_set(struct led_classdev *led_cdev,
 		 */
 		higher_val = ((pwm_val & 0x0300) >> 8);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
-								ENABLE_PWM1);
+						ENABLE_PWM1);
 		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, lower_val);
-		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, higher_val);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
+								higher_val);
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY)
+		val = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
+							(val | ENABLE_PWM2));
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG, lower_val);
+		ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG,
+								higher_val);
+#endif
 		break;
 	}
 }
 
-enum led_brightness (lcd_backlight_brightness_get)(struct led_classdev *led_cdev)
+enum led_brightness (lcd_backlight_brightness_get)
+				(struct led_classdev *led_cdev)
 {
 	int value = 0, high_val, low_val, pwm_val;
 
@@ -123,28 +156,42 @@ static struct led_classdev lcd_backlight = {
 };
 
 /*
- * u8500_leds_probe
+ * ab8500_leds_probe
  * Register led class device structure
  */
-static int __init u8500_leds_probe(struct platform_device *pdev)
+static int __init ab8500_leds_probe(struct platform_device *pdev)
 {
 	int ret;
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY)
+	int val;
+#endif
 	ret = led_classdev_register(NULL, &lcd_backlight);
 
 	if (ret < 0)
 		return ret;
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, ENABLE_PWM1);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
+						(ENABLE_PWM1 | ENABLE_PWM2));
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG,
 					PWM_DUTY_LOW_1024_1024);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, PWM_DUTY_HI_1024_1024);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG,
+						PWM_DUTY_HI_1024_1024);
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY)
+	val = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
+						(val | ENABLE_PWM2));
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG,
+					PWM_DUTY_LOW_1024_1024);
+	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG,
+						PWM_DUTY_HI_1024_1024);
+#endif
 	return 0;
 }
 
 /*
- * u8500_leds_remove
+ * ab8500_leds_remove
  * Unregister led class device structure
  */
-static int u8500_leds_remove(struct platform_device *pdev)
+static int ab8500_leds_remove(struct platform_device *pdev)
 {
 	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG,
 				(DISABLE_PWM1 | DISABLE_PWM2 | DISABLE_PWM3));
@@ -159,59 +206,59 @@ static int u8500_leds_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_PM
 /*
- * u8500_leds_suspend - Turn down the backlight
+ * ab8500_leds_suspend - Turn down the backlight
  * This function will call the standard led class interface function
  */
-static int u8500_leds_suspend(struct platform_device *dev, pm_message_t state)
+static int ab8500_leds_suspend(struct platform_device *dev, pm_message_t state)
 {
 	led_classdev_suspend(&lcd_backlight);
 	return 0;
 }
 
 /*
- * u8500_leds_resume - Turn on the backlight to previous brightness
+ * ab8500_leds_resume - Turn on the backlight to previous brightness
  * This function will call the standard led class interface function
  */
-static int u8500_leds_resume(struct platform_device *dev)
+static int ab8500_leds_resume(struct platform_device *dev)
 {
 	led_classdev_resume(&lcd_backlight);
 	return 0;
 }
 #else
-#define u8500_leds_suspend NULL
-#define u8500_leds_resume NULL
+#define ab8500_leds_suspend NULL
+#define ab8500_leds_resume NULL
 #endif
 
-static struct platform_driver u8500_leds_driver = {
+static struct platform_driver ab8500_leds_driver = {
 	.driver		= {
-		.name	= "u8500-leds",
+		.name	= "ab8500-leds",
 		.owner	= THIS_MODULE,
 	},
-	.probe		= u8500_leds_probe,
-	.remove		= u8500_leds_remove,
-	.suspend	= u8500_leds_suspend,
-	.resume		= u8500_leds_resume,
+	.probe		= ab8500_leds_probe,
+	.remove		= ab8500_leds_remove,
+	.suspend	= ab8500_leds_suspend,
+	.resume		= ab8500_leds_resume,
 };
 
 /*
- * u8500_leds_init - Driver initialization
+ * ab8500_leds_init - Driver initialization
  */
-static int __init u8500_leds_init(void)
+static int __init ab8500_leds_init(void)
 {
-	return platform_driver_register(&u8500_leds_driver);
+	return platform_driver_register(&ab8500_leds_driver);
 }
 
 /*
- * u8500_leds_exit - Driver exit by unregistering the driver
+ * ab8500_leds_exit - Driver exit by unregistering the driver
  */
-static void __exit u8500_leds_exit(void)
+static void __exit ab8500_leds_exit(void)
 {
-	platform_driver_unregister(&u8500_leds_driver);
+	platform_driver_unregister(&ab8500_leds_driver);
 }
 
-module_init(u8500_leds_init);
-module_exit(u8500_leds_exit);
+module_init(ab8500_leds_init);
+module_exit(ab8500_leds_exit);
 
 MODULE_AUTHOR("ST-Ericsson, Dushyanth S R");
-MODULE_DESCRIPTION("LEDS class framework implementation for u8500 Platform (LCD backlight)");
+MODULE_DESCRIPTION("LEDS class framework implementation for ab8500 Platform (LCD backlight)");
 MODULE_LICENSE("GPL");

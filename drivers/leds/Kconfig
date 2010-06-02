@@ -26,9 +26,9 @@ config LEDS_88PM860X
 	  This option enables support for on-chip LED drivers found on Marvell
 	  Semiconductor 88PM8606 PMIC.
 
-config LEDS_U8500
-	tristate "LED Support for U8500 (LCD Backlight)"
-	depends on LEDS_CLASS && UX500_SOC_DB8500
+config LEDS_AB8500
+	tristate "LED Support for AB8500 (LCD Backlight)"
+	depends on LEDS_CLASS && AB8500
 	default y
 
 config LEDS_ATMEL_PWM
