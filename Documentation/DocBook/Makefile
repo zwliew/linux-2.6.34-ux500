@@ -17,7 +17,8 @@ DOCBOOKS := z8530book.xml mcabook.xml device-drivers.xml \
 	    tracepoint.xml media.xml \
 	    dma.xml gpio.xml i2s.xml i2c.xml ste_conn.xml mmc.xml \
 	    prcmu-fw-api.xml keypad.xml msp.xml stmpe1601.xml stmpe2401.xml \
-            tc35892.xml ste_fm_radio.xml
+            tc35892.xml ste_fm_radio.xml touchp.xml u8500_usb.xml \
+            tc_keypad.xml
 
 ###
 # The build process is as follows (targets):

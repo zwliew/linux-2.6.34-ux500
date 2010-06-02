@@ -38,6 +38,7 @@
 #include <mach/mmc.h>
 #include <mach/setup.h>
 #include <mach/i2c.h>
+#include <mach/tc35893-keypad.h>
 
 #include <video/mcde_display.h>
 #include <video/mcde_display-generic_dsi.h>
@@ -132,6 +133,270 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 #endif
 };
 
+
+/*
+ * Initializes the key scan table (lookup table) as per pre-defined scan
+ * codes to be passed to upper layer with respective key codes
+ */
+u8 const kpd_lookup_tbl1[MAX_KPROW][MAX_KPROW] = {
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_9,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_POWER,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_7,
+		KEY_VOLUMEUP,
+		KEY_RIGHT,
+		KEY_BACK,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_3,
+		KEY_RESERVED,
+		KEY_DOWN,
+		KEY_LEFT,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_UP,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_SEND,
+		KEY_RESERVED
+	},
+	{
+		KEY_MENU,
+		KEY_RESERVED,
+		KEY_END,
+		KEY_VOLUMEDOWN,
+		KEY_0,
+		KEY_1,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_ENTER
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_2,
+		KEY_RESERVED
+	}
+};
+
+
+/*
+ * Alternative keymap for seperate applications, can be enabled from sysfs
+ */
+u8 const kpd_lookup_tbl2[MAX_KPROW][MAX_KPROW] = {
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_9,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_ENTER,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_7,
+		KEY_KPDOT,
+		KEY_6,
+		KEY_BACK,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_3,
+		KEY_RESERVED,
+		KEY_8,
+		KEY_4,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_5,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_LEFT,
+		KEY_RESERVED
+	},
+	{
+		KEY_UP,
+		KEY_RESERVED,
+		KEY_RIGHT,
+		KEY_MENU,
+		KEY_0,
+		KEY_1,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_DOWN
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_2,
+		KEY_RESERVED
+	}
+};
+
+/*
+ * Initializes the key scan table (lookup table) as per schematic of
+ * the NUIB. Pre-defined  scan codes to be passed to upper layer
+ * for each valid key in the matrix.
+ */
+
+u8 const kpd_lookup_tbl3[TC_KPD_ROWS][TC_KPD_COLUMNS] = {
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_BACK,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_1,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_9,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_END,
+		KEY_RESERVED,
+		KEY_RIGHT,
+		KEY_2,
+		KEY_DOWN,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_POWER,
+		KEY_3,
+		KEY_0,
+		KEY_RESERVED,
+		KEY_SEND,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_ENTER,
+		KEY_RESERVED,
+		KEY_UP,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_7,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_VOLUMEUP,
+		KEY_RESERVED,
+		KEY_VOLUMEDOWN,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_MENU
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_LEFT,
+		KEY_RESERVED
+	}
+};
+
 static struct stmpe2401_platform_data stmpe_data = {
 	.gpio_base = U8500_NR_GPIO,
 	.irq    = GPIO_TO_IRQ(217),
@@ -150,6 +415,22 @@ static struct stmpe1601_platform_data stmpe1601_data = {
 static struct tc35892_platform_data tc35892_data = {
 	.gpio_base = U8500_NR_GPIO,
 	.irq    = GPIO_TO_IRQ(217),
+};
+
+static struct tc35893_platform_data tc35893_data = {
+	.kcode_tbl = (u8 *)kpd_lookup_tbl3,
+	.krow = TC_KPD_ROWS,
+	.kcol = TC_KPD_COLUMNS,
+	.debounce_period = TC_KPD_DEBOUNCE_PERIOD,
+	.settle_time = TC_KPD_SETTLE_TIME,
+	.irqtype = (IRQF_TRIGGER_FALLING),
+	.irq = GPIO_TO_IRQ(218),
+	.enable_wakeup = true,
+#ifdef CONFIG_TC_KEYPAD_POLL
+	.op_mode = 1,
+#elif CONFIG_TC_KEYPAD_INTR
+	.op_mode = 0,
+#endif
 };
 
 static struct lp5521_platform_data lp5521_data = {
@@ -457,6 +738,11 @@ static struct i2c_board_info __initdata u8500_i2c0_devices[] = {
 		.platform_data = &stmpe1601_data,
 	},
 	{
+		/* TC35893 keypad */
+		I2C_BOARD_INFO("tc35893-kp", 0x44),
+		.platform_data = &tc35893_data,
+	},
+	{
 		I2C_BOARD_INFO("av8100", 0x70),
 		.platform_data = &av8100_plat_data,
 	},
@@ -566,68 +852,6 @@ extern irqreturn_t u8500_kp_intrhandler(/*int irq,*/ void *dev_id);
 extern struct mutex u8500_keymap_mutex;
 extern u8 u8500_keymap; /* Default keymap is keymap 0 */
 
-/*
- * Initializes the key scan table (lookup table) as per pre-defined the scan
- * codes to be passed to upper layer with respective key codes
- */
-u8 const kpd_lookup_tbl1[MAX_KPROW][MAX_KPROW] = {
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_POWER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
-	KEY_VOLUMEUP, KEY_RIGHT, KEY_BACK, KEY_RESERVED},
-	{KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_DOWN,
-	KEY_LEFT, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_UP,
-	KEY_RESERVED, KEY_RESERVED, KEY_SEND, KEY_RESERVED},
-	{KEY_MENU, KEY_RESERVED, KEY_END, KEY_VOLUMEDOWN,
-	KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_ENTER},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
-};
-
-
-/*
- * Alternative keymap for seperate applications, can be enabled from sysfs
- */
-u8 const kpd_lookup_tbl2[MAX_KPROW][MAX_KPROW] = {
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_9, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_ENTER, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_7,
-	KEY_KPDOT, KEY_6, KEY_BACK, KEY_RESERVED},
-	{KEY_RESERVED, KEY_3, KEY_RESERVED, KEY_8,
-	KEY_4, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_5,
-	KEY_RESERVED, KEY_RESERVED, KEY_LEFT, KEY_RESERVED},
-	{KEY_UP, KEY_RESERVED, KEY_RIGHT, KEY_MENU,
-	KEY_0, KEY_1, KEY_RESERVED, KEY_RESERVED},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_DOWN},
-	{KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
-	KEY_RESERVED, KEY_RESERVED, KEY_2, KEY_RESERVED}
-};
-
-
-/*
- * Key table for a complete 8X8 keyboard
-{KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_SPACE},
-{KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7},
-{KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_INSERT,
-KEY_HOME},
-{KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U},
-{KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH,
-KEY_DELETE, KEY_END},
-{KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J},
-{KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_DOT,
-KEY_COMMA, KEY_SLASH},
-{KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M}
-};
-*/
 
 
 
