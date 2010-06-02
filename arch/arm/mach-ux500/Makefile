@@ -26,6 +26,7 @@ obj-$(CONFIG_U8500_PM)			+= pm.o savecontext.o
 obj-$(CONFIG_SENSORS1P_MOP)            	+= sensors1p.o
 obj-$(CONFIG_USB)            		+= musb_db8500.o
 obj-$(CONFIG_U5500_MLOADER_HELPER)      += mloader_helper.o
+obj-$(CONFIG_U5500_MODEM_IRQ)		+= modem_irq.o
 
 ifeq ($(CONFIG_MFD_STE_CONN), m)
 obj-y					+= ste_conn_devices.o
