@@ -21,6 +21,7 @@
 #include "shrm_private.h"
 #include <linux/hrtimer.h>
 #include <mach/prcmu-fw-api.h>
+#include <mach/prcmu-regs.h>
 
 #define L2_HEADER_ISI		0x0
 #define L2_HEADER_RPC		0x1
@@ -63,47 +64,52 @@ spinlock_t ca_audio_lock ;
 spinlock_t ca_wake_req_lock;
 
 
+static void shrm_cawake_req_callback(u8);
+static void shrm_modem_reset_req_callback(void);
 
+unsigned int get_host_accessport_val(void)
+{
+	unsigned int prcm_hostaccess;
 
+	prcm_hostaccess = readl(PRCM_HOSTACCESS_REQ);
+	wmb();
+	prcm_hostaccess = prcm_hostaccess & 0x01;
+
+	return prcm_hostaccess;
+}
 static enum hrtimer_restart callback(struct hrtimer *timer)
 {
-	hr_timer_status = 0;
+	unsigned long flags;
 
-	dbgprintk("common_rx_state=%d, audio_rx_state=%d, common_tx_state=%d, \
-			audio_tx_state=%d \n", shrm_common_rx_state, \
-			shrm_audio_rx_state, shrm_common_tx_state, \
-			shrm_audio_tx_state);
+	dbgprintk("++ \n");
+
+	spin_lock_irqsave(&ca_wake_req_lock, flags);
+
 	if (((shrm_common_rx_state == SHRM_IDLE) ||
-				(shrm_common_rx_state == SHRM_SLEEP_STATE)) &&
-			((shrm_common_tx_state == SHRM_IDLE) ||
-			 (shrm_common_tx_state == SHRM_SLEEP_STATE)) &&
-			((shrm_audio_rx_state == SHRM_IDLE)  ||
-			 (shrm_audio_rx_state == SHRM_SLEEP_STATE))  &&
-			((shrm_audio_tx_state == SHRM_IDLE)  ||
-			 (shrm_audio_tx_state == SHRM_SLEEP_STATE))) {
+				(shrm_common_rx_state == SHRM_SLEEP_STATE))
+			&& ((shrm_common_tx_state == SHRM_IDLE) ||
+				(shrm_common_tx_state == SHRM_SLEEP_STATE))
+			&& ((shrm_audio_rx_state == SHRM_IDLE)  ||
+				(shrm_audio_rx_state == SHRM_SLEEP_STATE))
+			&& ((shrm_audio_tx_state == SHRM_IDLE)  ||
+				(shrm_audio_tx_state == SHRM_SLEEP_STATE))) {
 
 		shrm_common_rx_state = SHRM_SLEEP_STATE;
 		shrm_audio_rx_state = SHRM_SLEEP_STATE;
 		shrm_common_tx_state = SHRM_SLEEP_STATE;
 		shrm_audio_tx_state = SHRM_SLEEP_STATE;
 
-		dbgprintk("hrtimer calling prcmu_ac_sleep()\n");
-
 		prcmu_ac_sleep_req();
-		spin_lock(&ca_wake_req_lock);
-		ca_wake_req_state = 0;
-		spin_unlock(&ca_wake_req_lock);
-
-	} else {
-		dbgprintk("hrtimer_restart else calling prcmu_ac_sleep()\n");
 
 	}
+	hr_timer_status = 0;
+	spin_unlock_irqrestore(&ca_wake_req_lock, flags);
+
+	dbgprintk("-- HOST_PORT_VAL=%d\n", get_host_accessport_val());
 
 	return HRTIMER_NORESTART;
 }
 
-static void shrm_cawake_req_callback(u8);
-static void shrm_modem_reset_req_callback(void);
 
 void shm_ca_wake_req_tasklet(unsigned long tasklet_data)
 {
@@ -149,10 +155,11 @@ void shm_ca_msgpending_0_tasklet(unsigned long tasklet_data)
 				ca_msg_read_notification_0();
 			if (reader_local_rptr != reader_local_wptr)
 				receive_messages_common();
-			else {
+			get_reader_pointers(0, &reader_local_rptr, \
+					&reader_local_wptr, &shared_rptr);
+			if (reader_local_rptr == reader_local_wptr)
 				shrm_common_rx_state = SHRM_IDLE;
-			}
-		} else {
+			} else {
 			unsigned int config = 0, version = 0;
 			/* BOOT phase.only a BOOT_RESP should be in FIFO*/
 			if (boot_state != BOOT_INFO_SYNC) {
@@ -211,11 +218,13 @@ void shm_ca_msgpending_1_tasklet(unsigned long tasklet_data)
 			/* Check we already read the message*/
 			if (reader_local_rptr != shared_rptr)
 				ca_msg_read_notification_1();
-			 if (reader_local_rptr != reader_local_wptr)
+			if (reader_local_rptr != reader_local_wptr)
 				receive_messages_audio();
-				else {
-					shrm_audio_rx_state = SHRM_IDLE;
-			}
+
+			get_reader_pointers(1, &reader_local_rptr,
+					&reader_local_wptr, &shared_rptr);
+			if (reader_local_rptr == reader_local_wptr)
+				shrm_audio_rx_state = SHRM_IDLE;
 		} else {
 			printk(KERN_ALERT "Boot Error\n");
 			BUG_ON(1);
@@ -253,9 +262,6 @@ void shm_ac_read_notif_0_tasklet(unsigned long tasklet_data)
 				send_ac_msg_pending_notification_0();
 		} else {
 				shrm_common_tx_state = SHRM_IDLE;
-				/*hrtimer_start(&timer,
-				  ktime_set(0, 2*NSEC_PER_MSEC),
-				  HRTIMER_MODE_REL);*/
 			}
 		} else {
 			printk(KERN_ALERT "Error Case\n");
@@ -336,6 +342,7 @@ void shm_protocol_init(received_msg_handler common_rx_handler,
 
 }
 
+
 void shrm_modem_reset_req_callback(void)
 {
 	/* Call the PRCMU reset API */
@@ -344,6 +351,7 @@ void shrm_modem_reset_req_callback(void)
 
 void shrm_cawake_req_callback(u8 ca_wake_state)
 {
+	dbgprintk("++ :ca_wake_state=%d\n", ca_wake_state);
 	if (ca_wake_state) {
 		if (pshm_dev) {
 			/*initialize the FIFO Variables*/
@@ -354,25 +362,43 @@ void shrm_cawake_req_callback(u8 ca_wake_state)
 					ca_wake_irq_handler pshm_dev Null\n");
 			BUG_ON(1);
 		}
+		/* update ca_wake_req_state to prevent system to go into
+		 * suspend
+		 */
 
-		ca_wake_req_state = 1;
+		prcmu_ac_wake_req();
+
 		/*send ca_wake_ack_interrupt to CMU*/
-		writel((1<<GOP_CA_WAKE_ACK_BIT), \
-				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 
-		dbgprintk(KERN_ALERT "shrm_cawake_req_callback high\n");
+		if (get_host_accessport_val()) {
+			writel((1<<GOP_CA_WAKE_ACK_BIT),
+				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+		} else {
+
+			printk("shrm_cawake_req_callback error\n");
+			BUG_ON(1);
+		}
+
 	} else {
 
-			dbgprintk(KERN_ALERT "shrm_cawake_req_callback slep\n");
 			/* update ca_wake_req_state to allow system to go into
 			 * suspend
 			 */
 
-
 			shrm_common_rx_state = SHRM_IDLE;
 			shrm_audio_rx_state =  SHRM_IDLE;
-	}
 
+
+			/* start timer for X msec before clearing the
+			 * prcm_hostport_req
+			 */
+			 hrtimer_start(&timer, ktime_set(0, 100*NSEC_PER_MSEC),
+					HRTIMER_MODE_REL);
+
+			 hr_timer_status = 1;
+
+	}
+	dbgprintk(" --\n");
 }
 
 int get_ca_wake_req_state(void)
@@ -389,10 +415,8 @@ irqreturn_t ca_wake_irq_handler(int irq, void *ctrlr)
 
 	if (pshm_dev) {
 		/*initialize the FIFO Variables*/
-		if (boot_state == BOOT_INIT) {
+		if (boot_state == BOOT_INIT)
 			shm_fifo_init();
-
-		}
 	} else {
 		printk(KERN_ALERT "error condition ca_wake_irq_handler \
 				pshm_dev Null\n");
@@ -421,21 +445,20 @@ of the previous AcMsgPendingNotification*/
 
 irqreturn_t ac_read_notif_0_irq_handler(int irq, void *ctrlr)
 {
+
 	dbgprintk("++ \n");
 	tasklet_schedule(&shm_ac_read_0_tasklet);
 
+	prcmu_ac_wake_req();
 
-	if (get_ca_wake_req_state() == 0) {
-		spin_lock(&ca_wake_req_lock);
-		prcmu_ac_wake_req();
-		ca_wake_req_state = 1;
-		writel((1<<GOP_COMMON_AC_READ_NOTIFICATION_BIT), \
-		pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
-		spin_unlock(&ca_wake_req_lock);
-	} else
+
+	if (get_host_accessport_val())
 		/*Clear the interrupt*/
-		writel((1<<GOP_COMMON_AC_READ_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+		writel((1<<GOP_COMMON_AC_READ_NOTIFICATION_BIT),
+				pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+
+	else
+		BUG_ON(1);
 
 	dbgprintk("-- \n");
 	return IRQ_HANDLED;
@@ -447,21 +470,19 @@ irqreturn_t ac_read_notif_0_irq_handler(int irq, void *ctrlr)
 
 irqreturn_t ac_read_notif_1_irq_handler(int irq, void *ctrlr)
 {
+
 	dbgprintk("++ \n");
 	tasklet_schedule(&shm_ac_read_1_tasklet);
 
+	prcmu_ac_wake_req();
 
-	if (get_ca_wake_req_state() == 0) {
-		prcmu_ac_wake_req();
-		spin_lock(&ca_wake_req_lock);
-		ca_wake_req_state = 1;
-		writel((1<<GOP_AUDIO_AC_READ_NOTIFICATION_BIT), \
-		pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
-		spin_unlock(&ca_wake_req_lock);
-	} else
+	if (get_host_accessport_val())
 		/*Clear the interrupt*/
 		writel((1<<GOP_AUDIO_AC_READ_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+				pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+
+	else
+		BUG_ON(1);
 
 	dbgprintk("-- \n");
 	return IRQ_HANDLED;
@@ -477,18 +498,15 @@ irqreturn_t ca_msg_pending_notif_0_irq_handler(int irq, void *ctrlr)
 
 	tasklet_schedule(&shm_ca_0_tasklet);
 
-	if (get_ca_wake_req_state() == 0) {
+	prcmu_ac_wake_req();
 
-		prcmu_ac_wake_req();
-		spin_lock(&ca_wake_req_lock);
-		ca_wake_req_state = 1;
-		writel((1<<GOP_COMMON_CA_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
-		spin_unlock(&ca_wake_req_lock);
-	} else
+	if (get_host_accessport_val())
 		/*Clear the interrupt*/
 		writel((1<<GOP_COMMON_CA_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+				pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+
+	else
+		BUG_ON(1);
 
 	dbgprintk("-- \n");
 	return IRQ_HANDLED;
@@ -499,21 +517,19 @@ irqreturn_t ca_msg_pending_notif_0_irq_handler(int irq, void *ctrlr)
 
 irqreturn_t ca_msg_pending_notif_1_irq_handler(int irq, void *ctrlr)
 {
+
 	dbgprintk("++ \n");
 
 	tasklet_schedule(&shm_ca_1_tasklet);
 
-	if (get_ca_wake_req_state() == 0) {
-		prcmu_ac_wake_req();
-		spin_lock(&ca_wake_req_lock);
-		ca_wake_req_state = 1;
-		writel((1<<GOP_AUDIO_CA_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
-		spin_unlock(&ca_wake_req_lock);
-	} else
+	prcmu_ac_wake_req();
+	if (get_host_accessport_val())
 		/*Clear the interrupt*/
 		writel((1<<GOP_AUDIO_CA_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+				pshm_dev->intr_base+GOP_CLEAR_REGISTER_BASE);
+
+	else
+		BUG_ON(1);
 
 	dbgprintk("-- \n");
 	return IRQ_HANDLED;
@@ -528,7 +544,10 @@ int shm_write_msg(u8 l2_header, void *addr, u32 length)
 
 	dbgprintk("++ \n");
 
+
+
 	if (boot_state == BOOT_DONE) {
+
 		if ((l2_header == L2_HEADER_ISI) ||
 			(l2_header == L2_HEADER_RPC) ||
 			(l2_header == L2_HEADER_SECURITY) ||
@@ -539,6 +558,7 @@ int shm_write_msg(u8 l2_header, void *addr, u32 length)
 				shrm_common_tx_state = SHRM_PTR_FREE;
 			else if (shrm_common_tx_state == SHRM_IDLE)
 				shrm_common_tx_state = SHRM_PTR_FREE;
+
 		} else if ((l2_header == L2_HEADER_AUDIO) ||
 			(l2_header == L2_HEADER_AUDIO_SIMPLE_LOOPBACK) ||
 			(l2_header == L2_HEADER_AUDIO_ADVANCED_LOOPBACK)) {
@@ -546,20 +566,23 @@ int shm_write_msg(u8 l2_header, void *addr, u32 length)
 				shrm_audio_tx_state = SHRM_PTR_FREE;
 			else if (shrm_audio_tx_state == SHRM_IDLE)
 				shrm_audio_tx_state = SHRM_PTR_FREE;
+
 			channel = 1;
 		} else
 			BUG_ON(1);
 		shm_write_msg_to_fifo(channel, l2_header, addr, length);
 
 		/* notify only if new msg copied is the only unread one
-		 * otherwise it means that reading process is ongoing
-		 */
+		   otherwise it means that reading process is ongoing*/
+
 		if (is_the_only_one_unread_message(channel, length)) {
+
 			/*Send Message Pending Noitication to CMT*/
 			if (channel == 0)
 				send_ac_msg_pending_notification_0();
 			else
 				send_ac_msg_pending_notification_1();
+
 		}
 	 } else	{
 		printk(KERN_ALERT "error after boot done  call this fn\n");
@@ -567,15 +590,17 @@ int shm_write_msg(u8 l2_header, void *addr, u32 length)
 	}
 
 	/* cancel the hrtimer running for calling the
-	 * prcmu_ac_sleep req
-	 */
-	if (hr_timer_status) {
-		ret = hrtimer_cancel(&timer);
-		if (ret)
-			dbgprintk(" timer_ac_sleep was running\n");
+			 * prcmu_ac_sleep req
+		 */
+	if (hr_timer_status)	{
+			ret = hrtimer_cancel(&timer);
+			if (ret)
+				dbgprintk(" timer_ac_sleep was running\n");
+			hr_timer_status = 0;
 	}
-	dbgprintk("-- \n");
-	return 0;
+
+	 dbgprintk("-- \n");
+	 return 0;
 }
 
 
@@ -587,50 +612,53 @@ void send_ac_msg_pending_notification_0(void)
 	unsigned long flags;
 
 	dbgprintk("++ \n");
+	spin_lock_irqsave(&ca_wake_req_lock, flags);
 	update_ac_common_shared_wptr_with_writer_local_wptr();
 
-	if (get_ca_wake_req_state() == 0) {
-		spin_lock_irqsave(&ca_wake_req_lock, flags);
-		prcmu_ac_wake_req();
-		ca_wake_req_state = 1;
-		writel((1<<GOP_COMMON_AC_MSG_PENDING_NOTIFICATION_BIT), \
-				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
-		spin_unlock_irqrestore(&ca_wake_req_lock, flags);
-	} else
+	prcmu_ac_wake_req();
+
+	if (get_host_accessport_val())
 		/*Trigger AcMsgPendingNotification to CMU*/
 		writel((1<<GOP_COMMON_AC_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 
+	else
+		BUG_ON(1);
+
+	spin_unlock_irqrestore(&ca_wake_req_lock, flags);
 	if (shrm_common_tx_state == SHRM_PTR_FREE)
 		shrm_common_tx_state = SHRM_PTR_BUSY;
+
+
 	dbgprintk("-- \n");
 }
 
 /* This function to update shared write pointer and
 	   send a AcMsgPendingNotification to CMT*/
+
 void send_ac_msg_pending_notification_1()
 {
 	unsigned long flags;
 
 	dbgprintk("++ \n");
+	spin_lock_irqsave(&ca_wake_req_lock, flags);
 	/* Update shared_wptr with writer_local_wptr)*/
 	update_ac_audio_shared_wptr_with_writer_local_wptr();
 
-	if (get_ca_wake_req_state() == 0) {
+	prcmu_ac_wake_req();
 
-		spin_lock_irqsave(&ca_wake_req_lock, flags);
-		prcmu_ac_wake_req();
-		ca_wake_req_state = 1;
+	if (get_host_accessport_val())
+		/*Trigger AcMsgPendingNotification to CMU*/
 		writel((1<<GOP_AUDIO_AC_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
-		spin_unlock_irqrestore(&ca_wake_req_lock, flags);
-	} else
-	/*Trigger AcMsgPendingNotification to CMU*/
-	writel((1<<GOP_AUDIO_AC_MSG_PENDING_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
 
+	else
+		BUG_ON(1);
+
+	spin_unlock_irqrestore(&ca_wake_req_lock, flags);
 	if (shrm_audio_tx_state == SHRM_PTR_FREE)
 		shrm_audio_tx_state = SHRM_PTR_BUSY;
+
 	dbgprintk("-- \n");
 }
 
@@ -638,24 +666,24 @@ void send_ac_msg_pending_notification_1()
 void ca_msg_read_notification_0()
 {
 	dbgprintk("++ \n");
-	if (get_ca_msg_0_read_notif_send() == 0) {
-		unsigned long flags;
-		update_ca_common_shared_rptr_with_reader_local_rptr();
-		if (get_ca_wake_req_state() == 0) {
 
-			spin_lock_irqsave(&ca_wake_req_lock, flags);
-			prcmu_ac_wake_req();
-			ca_wake_req_state = 1;
-			writel((1<<GOP_COMMON_CA_READ_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
-			spin_unlock_irqrestore(&ca_wake_req_lock, flags);
-		} else
+	if (get_ca_msg_0_read_notif_send() == 0) {
+		update_ca_common_shared_rptr_with_reader_local_rptr();
+
+		prcmu_ac_wake_req();
+		if (get_host_accessport_val())
 			/*Trigger CaMsgReadNotification to CMU*/
-			writel((1<<GOP_COMMON_CA_READ_NOTIFICATION_BIT), \
+			writel((1<<GOP_COMMON_CA_READ_NOTIFICATION_BIT),
 				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+
+		else
+			BUG_ON(1);
+
 		set_ca_msg_0_read_notif_send(1);
+
 		shrm_common_rx_state = SHRM_PTR_BUSY;
 	}
+
 	dbgprintk("-- \n");
 }
 
@@ -663,24 +691,26 @@ void ca_msg_read_notification_0()
 void ca_msg_read_notification_1()
 {
 	dbgprintk("++ \n");
+
 	if (get_ca_msg_1_read_notif_send() == 0) {
-		unsigned long flags;
+
 		update_ca_audio_shared_rptr_with_reader_local_rptr();
-		if (get_ca_wake_req_state() == 0) {
-			spin_lock_irqsave(&ca_wake_req_lock, flags);
-			prcmu_ac_wake_req();
-			ca_wake_req_state = 1;
-			writel((1<<GOP_AUDIO_CA_READ_NOTIFICATION_BIT), \
-			pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
-			spin_unlock_irqrestore(&ca_wake_req_lock, flags);
-		} else
+
+		prcmu_ac_wake_req();
+
+		if (get_host_accessport_val())
 			/*Trigger CaMsgReadNotification to CMU*/
 			writel((1<<GOP_AUDIO_CA_READ_NOTIFICATION_BIT), \
 				pshm_dev->intr_base+GOP_SET_REGISTER_BASE);
+
+		else
+			BUG_ON(1);
+
 		set_ca_msg_1_read_notif_send(1);
+
 		shrm_audio_rx_state = SHRM_PTR_BUSY;
 	}
-   dbgprintk("-- \n");
+	dbgprintk("-- \n");
 }
 
 /** This function read messages from the FIFO*/
