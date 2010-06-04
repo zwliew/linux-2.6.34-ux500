@@ -174,11 +174,13 @@ enum mailbox_t {
 };
 
 /* PRCMU Wakeup defines */
+#define PRCMU_WAKEUPBY_MODEM_SW_RESET_REQ (0x1 << 20)
 #define	PRCMU_WAKEUPBY_MODEM		(0x1 << 5)
 #define PRCMU_WAKEUPBY_ARMITMGMT	(0x1 << 17)
 #define PRCMU_WAKEUPBY_APE4500INT	(0x1 << 7)
 #define PRCMU_WAKEUPBY_GPIOS		(0xff800000)
 #define PRCMU_WAKEUPBY_RTCRTT		(0x3)
+#define PRCMU_WAKEUPBY_AB8500_NONE	(0x0)
 
 /* Union declaration */
 

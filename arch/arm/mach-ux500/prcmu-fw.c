@@ -828,8 +828,12 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 			writel(tmp, PRCM_ARMITMSK31TO0 + (val * 4));
 		}
 
-		prcmu_configure_wakeup_events(((1 << 17) | (1 << 5)),
-						0x0, EXE_WAKEUP);
+		prcmu_configure_wakeup_events((PRCMU_WAKEUPBY_ARMITMGMT |
+					PRCMU_WAKEUPBY_MODEM |
+					PRCMU_WAKEUPBY_MODEM_SW_RESET_REQ),
+					PRCMU_WAKEUPBY_AB8500_NONE,
+					EXE_WAKEUP);
+
 		spin_lock(&req_mb0_lock);
 
 		/* CREATE MAILBOX FOR EXECUTE TO IDLE POWER TRANSITION */
@@ -901,7 +905,9 @@ int prcmu_apply_ap_state_transition(enum ap_pwrst_trans_t transition,
 		/* here comes the wfi */
 		__asm__ __volatile__("dsb\n\t" "wfi\n\t" : : : "memory");
 
-		prcmu_configure_wakeup_events((1 << 5), 0x0, EXE_WAKEUP);
+		prcmu_configure_wakeup_events((PRCMU_WAKEUPBY_MODEM |
+					PRCMU_WAKEUPBY_MODEM_SW_RESET_REQ),
+					PRCMU_WAKEUPBY_AB8500_NONE, EXE_WAKEUP);
 
 		break;
 
@@ -1615,8 +1621,9 @@ static int prcmu_fw_init(void)
 	spin_lock_init(&ca_wake_lock);
 
 	/* configure the wakeup events */
-	event_8500 = (1 << 5);
-	event_4500 = 0x0;
+	event_8500 = (PRCMU_WAKEUPBY_MODEM |
+			PRCMU_WAKEUPBY_MODEM_SW_RESET_REQ);
+	event_4500 = PRCMU_WAKEUPBY_AB8500_NONE;
 	prcmu_configure_wakeup_events(event_8500, event_4500, EXE_WAKEUP);
 	dbg_printk("(WkUpCfgOk=0xEA)PRCM_ACK_MB0_AP_PWRST_STATUS = %x\n",
 			readb(PRCM_ACK_MB0_AP_PWRST_STATUS));
