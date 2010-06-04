@@ -15,9 +15,6 @@
 #include <linux/timer.h>
 #include <linux/bu21013.h>
 
-/**
- * Touchpanel related macros declaration
- */
 #define PEN_DOWN_INTR 0
 #define PEN_UP_INTR 1
 #define RESET_DELAY 30
@@ -25,26 +22,23 @@
 #define MAX_TOOL_WIDTH 15
 #define MAX_TOUCH_MAJOR 255
 #define MAX_PRESSURE 1
-#define PENUP_TIMEOUT (20)/* msec */
+#define PENUP_TIMEOUT (20)
 #define SCALE_FACTOR 1000
 #define I2C_ADDR_TP2 0x5D
 
 #define START (0)
 #define STOP (-1)
 
-/*Direction Indicator */
 #define DIR_INVALID (0)
 #define DIR_LEFT (1)
 #define DIR_RIGHT (2)
 #define DIR_UP (3)
 #define DIR_DOWN (4)
 
-/* Pinch */
 #define PINCH_KEEP (0)
 #define PINCH_IN (1)
 #define PINCH_OUT (2)
 
-/* Rotate */
 #define ROTATE_INVALID (0)
 #define ROTATE_R_UR (1)
 #define ROTATE_R_RD (2)
@@ -55,7 +49,6 @@
 #define ROTATE_L_RU (7)
 #define ROTATE_L_UL (8)
 
-/* Gesture Information */
 #define GES_FLICK 0x01
 #define GES_TAP 0x02
 #define GES_PINCH 0x03
@@ -66,7 +59,6 @@
 #define GES_ROTATE 0x08
 #define GES_UNKNOWN 0xff
 
-/* Speed */
 #define LOWSPEED 1
 #define HIGHSPEED 2
 #define THRESHOLD_TAPLIMIT 60
