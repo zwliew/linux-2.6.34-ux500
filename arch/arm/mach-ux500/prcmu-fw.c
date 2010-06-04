@@ -1498,7 +1498,15 @@ irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
 
 	dbg_printk(" prcm_arm_it1_val = %x ", prcm_arm_it1_val);
 
-	if (prcm_arm_it1_val & (1 << 0)) {
+	if (prcm_arm_it1_val & (PRCM_IRQ_ACK_MBOX7)) {
+		/* No header reading required */
+		dbg_printk("\n IRQ handler for Ack mb7\n");
+		tasklet_schedule(&prcmu_ack_mb7_tasklet);
+
+		/* clear the bit 7 */
+		writeb(PRCM_IRQ_ACK_MBOX7, PRCM_ARM_IT1_CLEAR);
+
+	} else 	if (prcm_arm_it1_val & (PRCM_IRQ_ACK_MBOX0)) {
 		dbg_printk("\n Inside IRQ handler for Ack mb0 ");
 		wake_up_interruptible(&ack_mb0_queue);
 
@@ -1557,13 +1565,6 @@ irqreturn_t prcmu_ack_mbox_irq_handler(int irq, void *ctrlr)
 
 		/* clear the bit 6 */
 		writeb(0x40, PRCM_ARM_IT1_CLEAR);
-	} else if (prcm_arm_it1_val & (1<<7)) {
-		/* No header reading required */
-		dbg_printk("\n IRQ handler for Ack mb7\n");
-		tasklet_schedule(&prcmu_ack_mb7_tasklet);
-
-		/* clear the bit 7 */
-		writeb(0x80, PRCM_ARM_IT1_CLEAR);
 	}
 	return IRQ_HANDLED;
 }

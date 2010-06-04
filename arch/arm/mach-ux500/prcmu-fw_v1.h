@@ -148,6 +148,9 @@
 #define PRCM_ACK_MB5_SLAVE	(PRCM_ACK_MB5 + 0x2)
 #define PRCM_ACK_MB5_VAL	(PRCM_ACK_MB5 + 0x3)
 
+#define PRCM_IRQ_ACK_MBOX0		(1 << 0)
+#define PRCM_IRQ_ACK_MBOX7		(1 << 7)
+
 #define LOW_POWER_WAKEUP	1
 #define EXE_WAKEUP		0
 
