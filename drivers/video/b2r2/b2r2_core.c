@@ -756,8 +756,7 @@ static void clock_off_timer_function(unsigned long arg)
 #ifndef B2R2_CLOCK_ALWAYS_ON
 		if (time_after_eq(j, b2r2_core.clock_off_timer.expires)) {
 			turn_off_clock();
-			dev_dbg(b2r2_core.log_dev,
-				"B2R2 disable clock: disable b2r2 = %X\n",
+			b2r2_log_debug("B2R2 disable clock: disable b2r2 = %X\n",
 				(int)b2r2_core.b2r2_clock);
 		}
 #endif
@@ -1857,7 +1856,7 @@ static void printk_regs(void)
 		unsigned long value = readl(
 			(unsigned long *) (((u8 *) b2r2_core.hw) +
 					   debugfs_regs[i].offset));
-		dev_info(b2r2_core.log_dev, "%s: %08lX\n",
+		b2r2_log_regdump("%s: %08lX\n",
 			 debugfs_regs[i].name,
 			 value);
 	}

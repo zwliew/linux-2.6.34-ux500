@@ -509,7 +509,7 @@ static int b2r2_blt_ioctl(struct inode *inode, struct file *file,
 	}
 
 	if (ret < 0)
-		b2r2_log_err("EC %d\n", -ret);
+		b2r2_log_err("EC %d OK!\n", -ret);
 
 	return ret;
 }
