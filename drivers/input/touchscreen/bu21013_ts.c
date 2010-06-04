@@ -348,12 +348,10 @@ void bu21013_update_ges_st_touch(struct bu21013_ts_data *data)
 	static struct bu21013_touch_point pre_gesture_point;
 	x_delta = p_gesture_info->pt[0].x - pre_gesture_point.x;
 	y_delta = p_gesture_info->pt[0].y - pre_gesture_point.y;
-	if ((x_delta < THRESHOLD_ROTATE) ||
-		(-x_delta < THRESHOLD_ROTATE))
+	if (x_delta < THRESHOLD_ROTATE)
 		x_delta = 0;
 
-	if ((y_delta < THRESHOLD_ROTATE) ||
-		(-y_delta < THRESHOLD_ROTATE))
+	if (y_delta < THRESHOLD_ROTATE)
 		y_delta = 0;
 
 	p_gesture_info->dir = DIR_INVALID;
@@ -1264,7 +1262,7 @@ static int bu21013_tp_probe(struct i2c_client *i2c, const struct i2c_device_id *
 	if (retval)
 		goto err_init;
 	if (tsc_data->chip->tp_cntl != 2) {
-		retval = bu21013_tp_sysfs(&tsc_data->touchp_kobj);
+		retval = bu21013_tp_sysfs(tsc_data->touchp_kobj);
 		if (retval)
 			goto err_init;
 		else
@@ -1300,7 +1298,8 @@ static int __exit bu21013_tp_remove(struct i2c_client *client)
 			free_irq(data->chip->irq, data);
 		data->chip->cs_dis(data->chip->cs_pin);
 	}
-	kfree(&data->touchp_kobj);
+	if (data->touchp_kobj != NULL)
+		kfree(data->touchp_kobj);
 	input_unregister_device(data->pin_dev);
 	input_free_device(data->pin_dev);
 	kfree(data);

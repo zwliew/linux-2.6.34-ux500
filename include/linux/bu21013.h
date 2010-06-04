@@ -236,7 +236,7 @@ struct bu21013_gesture_info {
  * @intr_pin: interrupt pin value
  * @last_press: sensor button pressed
  * @prev_press_report: last reported flag
- * @touchp_kobj: variable to kernel object for touch panel
+ * @touchp_kobj: pointer to kernel object for touch panel
  * @gain: gain value
  * @th_on: threshold on value
  * @th_off: threshold off value
@@ -275,7 +275,7 @@ struct bu21013_ts_data {
 	signed short	y2;
 	int last_press;
 	bool prev_press_report;
-	struct kobject touchp_kobj;
+	struct kobject *touchp_kobj;
 	int gain;
 	int th_on;
 	int th_off;
