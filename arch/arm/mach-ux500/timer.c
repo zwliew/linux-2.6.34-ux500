@@ -71,7 +71,7 @@ static void u8500_clkevt_mode(enum clock_event_mode mode,
 	case CLOCK_EVT_MODE_PERIODIC:
 		/* enable interrupts -- and count current value? */
 		raw_local_irq_save(flags);
-		writel(readl(mtu0_base + MTU_IMSC) | 1, mtu0_base + MTU_IMSC);
+		writel(1, mtu0_base + MTU_IMSC);
 		raw_local_irq_restore(flags);
 		break;
 	case CLOCK_EVT_MODE_ONESHOT:
@@ -81,7 +81,7 @@ static void u8500_clkevt_mode(enum clock_event_mode mode,
 	case CLOCK_EVT_MODE_UNUSED:
 		/* disable irq */
 		raw_local_irq_save(flags);
-		writel(readl(mtu0_base + MTU_IMSC) & ~1, mtu0_base + MTU_IMSC);
+		writel(0, mtu0_base + MTU_IMSC);
 		raw_local_irq_restore(flags);
 		break;
 	case CLOCK_EVT_MODE_RESUME:
