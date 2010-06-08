@@ -1354,6 +1354,8 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 				host->cclk = host->mclk / (clk + 2);
 			}
 		}
+		if (host->devicemode == MCI_DMAMODE)
+			clk |= MCI_CLK_PWRSAVE;
 		clk |= (MCI_HWFC_EN | MCI_CLK_ENABLE);
 		writel(clk, host->base + MMCICLOCK);
 	}
