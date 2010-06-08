@@ -12,15 +12,15 @@ config U8500_SHRM
 choice
 	prompt "Modem Image Version"
 	depends on U8500_SHRM
-	default V1_UPDATES_VERSION
+	default SHRM_V1_UPDATES_VERSION
 
-	config ED_V1_VERSION
+	config SHRM_ED_V1_VERSION
 	depends on U8500_SHRM
 	bool "SHRM ED / V1 "
 	help
 	 Modem Images with ED/V1 updates
 
-	config V1_UPDATES_VERSION
+	config SHRM_V1_UPDATES_VERSION
 	depends on U8500_SHRM
 	bool "SHRM V1 UPDATES"
 	help
