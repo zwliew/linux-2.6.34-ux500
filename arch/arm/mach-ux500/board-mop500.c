@@ -1815,6 +1815,18 @@ static int __init u8500_i2call_init(void)
 	return 0;
 }
 subsys_initcall(u8500_i2call_init);
+
+MACHINE_START(U8500, "ST-Ericsson U8500 Platform")
+	/* Maintainer: ST-Ericsson */
+	.phys_io	= UX500_UART2_BASE,
+	.io_pg_offst	= (IO_ADDRESS(UX500_UART2_BASE) >> 18) & 0xfffc,
+	.boot_params	= 0x00000100,
+	.map_io		= u8500_map_io,
+	.init_irq	= ux500_init_irq,
+	.timer		= &u8500_timer,
+	.init_machine	= mop500_init_machine,
+MACHINE_END
+
 MACHINE_START(NOMADIK, "ST-Ericsson U8500 Platform")
 	/* Maintainer: ST-Ericsson */
 	.phys_io	= UX500_UART2_BASE,
