@@ -77,6 +77,7 @@
 	__HEAD
 ENTRY(stext)
 #if (defined(CONFIG_MACH_U8500_SIMULATOR) || defined(CONFIG_MACH_U5500_SIMULATOR))
+#include <asm/mach-types.h>
 #ifdef CONFIG_DEBUG_LL
 #ifdef CONFIG_MACH_U8500_SIMULATOR
 	/* Enable UART2 */
@@ -104,9 +105,14 @@ ENTRY(stext)
 	mrc p15, 0, r1, c1, c0, 0
 	orr r1, r1, #1 << 10        @ Set the 10th bit in the System Control register as 1 to enable SWP ins
 	mcr p15, 0, r1, c1, c0, 0
-	mov r1, #0x100
-	add r1, r1,#0xa4
 	mov r2, #0x100
+
+#ifdef CONFIG_MACH_U5500_SIMULATOR
+	ldr     r1, =MACH_TYPE_U5500
+#else
+	/* SVP8500 */
+	ldr     r1, =MACH_TYPE_U8500
+#endif
 #endif
 	setmode	PSR_F_BIT | PSR_I_BIT | SVC_MODE, r9 @ ensure svc mode
 						@ and irqs disabled

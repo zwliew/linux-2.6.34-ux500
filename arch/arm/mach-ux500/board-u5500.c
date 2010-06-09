@@ -132,7 +132,7 @@ static void __init u5500_init_machine(void)
 			     ARRAY_SIZE(u5500_platform_devices));
 }
 
-MACHINE_START(NOMADIK, "ST-Ericsson U5500 Platform")
+MACHINE_START(U5500, "ST-Ericsson U5500 Platform")
 	.phys_io	= UX500_UART0_BASE,
 	.io_pg_offst	= (IO_ADDRESS(UX500_UART0_BASE) >> 18) & 0xfffc,
 	.boot_params	= 0x00000100,
