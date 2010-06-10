@@ -1,21 +1,12 @@
 /*
- * Copyright (C) ST-Ericsson AB 2009
+ * Copyright (C) ST-Ericsson AB 2010
  *
- * Author: Fredrik Allansson <fredrik.allansson@stericsson.com> for ST-Ericsson
+ * ST-Ericsson B2R2 Hw parameters
  *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
+ * Author: Fredrik Allansson <fredrik.allansson@stericsson.com>
+ * for ST-Ericsson.
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
- * Place, Suite 330, Boston, MA 02111-1307 USA
+ * License terms: GNU General Public License (GPL), version 2.
  */
 
 #ifndef B2R2_HW_H__
@@ -75,7 +66,7 @@ enum b2r2_cic {
 	B2R2_CIC_XYL =            0x00001000,
 	B2R2_CIC_SAU =            0x00002000,
 	B2R2_CIC_IVMX =           0x00004000,
-	B2R2_CIC_OMVX =           0x00008000,
+	B2R2_CIC_OVMX =           0x00008000,
 	B2R2_CIC_PACEDOT =        0x00010000,
 	B2R2_CIC_VC1 =            0x00020000,
 };
@@ -416,53 +407,53 @@ enum b2r2_fctl {
 
 /* 601 Video Matrix (standard 601 conversion) */
 #define B2R2_VMX0_BGR_TO_YUV_601_VIDEO 0xfd7e4883
-#define B2R2_VMX1_BGR_TO_YUV_601_VIDEO 0x03220442
+#define B2R2_VMX1_BGR_TO_YUV_601_VIDEO 0x03a2584c
 #define B2R2_VMX2_BGR_TO_YUV_601_VIDEO 0x107ea7d4
 #define B2R2_VMX3_BGR_TO_YUV_601_VIDEO 0x08000080
 
 /* 601 Gfx Matrix (full range conversion) */
-#define B2R2_VMX0_BGR_TO_YUV_601_GFX 0xFDDE8870
-#define B2R2_VMX1_BGR_TO_YUV_601_GFX 0x08420419
-#define B2R2_VMX2_BGR_TO_YUV_601_GFX 0xFA9EA483
+#define B2R2_VMX0_BGR_TO_YUV_601_GFX 0xfdde8870
+#define B2R2_VMX1_BGR_TO_YUV_601_GFX 0x03220442
+#define B2R2_VMX2_BGR_TO_YUV_601_GFX 0x0e3ed7da
 #define B2R2_VMX3_BGR_TO_YUV_601_GFX 0x08004080
 
 /* 709 Video Matrix (standard 709 conversion) */
-#define B2R2_VMX0_BGR_TO_YUV_709_VIDEO 0xFE9E2483
-#define B2R2_VMX1_BGR_TO_YUV_709_VIDEO 0x0262DC37
-#define B2R2_VMX2_BGR_TO_YUV_709_VIDEO 0x107E6FE2
+#define B2R2_VMX0_BGR_TO_YUV_709_VIDEO 0xfe9e2483
+#define B2R2_VMX1_BGR_TO_YUV_709_VIDEO 0x0262dc37
+#define B2R2_VMX2_BGR_TO_YUV_709_VIDEO 0x107e6fe2
 #define B2R2_VMX3_BGR_TO_YUV_709_VIDEO 0x08000080
 
 /* 709 Gfx Matrix (standard 709 conversion) */
-#define B2R2_VMX0_BGR_TO_YUV_709_GFX 0xFEBE6871
-#define B2R2_VMX1_BGR_TO_YUV_709_GFX 0x0202742F
-#define B2R2_VMX2_BGR_TO_YUV_709_GFX 0x0E3EA7E6
+#define B2R2_VMX0_BGR_TO_YUV_709_GFX 0xfebe6871
+#define B2R2_VMX1_BGR_TO_YUV_709_GFX 0x0202742f
+#define B2R2_VMX2_BGR_TO_YUV_709_GFX 0x0e3ea7e6
 #define B2R2_VMX3_BGR_TO_YUV_709_GFX 0x08004080
 
 
 /* VMX register values for YUV to BGR conversion */
 
 /* 601 Video Matrix (standard 601 conversion) */
-#define B2R2_VMX0_YUV_TO_BGR_601_VIDEO 0x00040162
-#define B2R2_VMX1_YUV_TO_BGR_601_VIDEO 0xF544034D
-#define B2R2_VMX2_YUV_TO_BGR_601_VIDEO 0x27E40000
-#define B2R2_VMX3_YUV_TO_BGR_601_VIDEO 0x34f21322
+#define B2R2_VMX0_YUV_TO_BGR_601_VIDEO 0x0004013f
+#define B2R2_VMX1_YUV_TO_BGR_601_VIDEO 0xe9a403aa
+#define B2R2_VMX2_YUV_TO_BGR_601_VIDEO 0x2c440000
+#define B2R2_VMX3_YUV_TO_BGR_601_VIDEO 0x3222134f
 
 /* 601 Gfx Matrix (full range conversion) */
-#define B2R2_VMX0_YUV_TO_BGR_601_GFX 0x0004A999
-#define B2R2_VMX1_YUV_TO_BGR_601_GFX 0xF384AB30
-#define B2R2_VMX2_YUV_TO_BGR_601_GFX 0x2AE4A800
-#define B2R2_VMX3_YUV_TO_BGR_601_GFX 0x32121eeb
+#define B2R2_VMX0_YUV_TO_BGR_601_GFX 0x0004a957
+#define B2R2_VMX1_YUV_TO_BGR_601_GFX 0xe604ab9c
+#define B2R2_VMX2_YUV_TO_BGR_601_GFX 0x3324a800
+#define B2R2_VMX3_YUV_TO_BGR_601_GFX 0x2eb21f21
 
 /* 709 Video Matrix (standard 709 conversion) */
-#define B2R2_VMX0_YUV_TO_BGR_709_VIDEO 0x0004038A
-#define B2R2_VMX1_YUV_TO_BGR_709_VIDEO 0xFA24038B
-#define B2R2_VMX2_YUV_TO_BGR_709_VIDEO 0x28A40000
-#define B2R2_VMX3_YUV_TO_BGR_709_VIDEO 0x33b14b18
+#define B2R2_VMX0_YUV_TO_BGR_709_VIDEO 0x00040145
+#define B2R2_VMX1_YUV_TO_BGR_709_VIDEO 0xf16403d1
+#define B2R2_VMX2_YUV_TO_BGR_709_VIDEO 0x31440000
+#define B2R2_VMX3_YUV_TO_BGR_709_VIDEO 0x31814b3b
 
 /* 709 Gfx Matrix (standard 709 conversion) */
-#define B2R2_VMX0_YUV_TO_BGR_709_GFX 0x0004ABCB
-#define B2R2_VMX1_YUV_TO_BGR_709_GFX 0xF924AB78
-#define B2R2_VMX2_YUV_TO_BGR_709_GFX 0x2BE4A800
-#define B2R2_VMX3_YUV_TO_BGR_709_GFX 0x307132df
+#define B2R2_VMX0_YUV_TO_BGR_709_GFX 0x0004a95f
+#define B2R2_VMX1_YUV_TO_BGR_709_GFX 0xef04abc9
+#define B2R2_VMX2_YUV_TO_BGR_709_GFX 0x3964a800
+#define B2R2_VMX3_YUV_TO_BGR_709_GFX 0x2df13307
 
 #endif /* B2R2_HW_H__ */

@@ -712,7 +712,7 @@ static int b2r2_blt(struct b2r2_blt_instance *instance,
 
 	/* Check structure size (sanity check) */
 	if (request->user_req.size != sizeof(request->user_req)) {
-		dev_err(b2r2_blt_device(),
+		b2r2_log_warn(
 			"%s: Wrong request size %d, should be %d\n",
 			__func__, request->user_req.size,
 			sizeof(request->user_req));
@@ -726,7 +726,7 @@ static int b2r2_blt(struct b2r2_blt_instance *instance,
 	ret = wait_event_interruptible(instance->synch_done_waitq,
 				       !is_synching(instance));
 	if (ret) {
-		dev_warn(b2r2_blt_device(),
+		b2r2_log_warn(
 			"%s: Sync wait interrupted, %d\n",
 			__func__, ret);
 		ret = -EAGAIN;

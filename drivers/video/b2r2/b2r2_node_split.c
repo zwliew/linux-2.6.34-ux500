@@ -331,21 +331,6 @@ int b2r2_node_split_analyze(const struct b2r2_blt_request *req,
 			goto error;
 	}
 
-	/* YUV <==> BGR is unsupported
-	   TODO: Implement support */
-	if (!color_fill) {
-		if ((is_yuv_fmt(this->src.fmt) &&
-					is_bgr_fmt(this->dst.fmt)) ||
-				(is_bgr_fmt(this->src.fmt) &&
-					is_yuv_fmt(this->dst.fmt))) {
-			printk(KERN_DEBUG LOG_TAG "::%s: "
-				"Unsupported operation %s\n",
-				"YUV <==> BGR", __func__);
-			ret = -ENOSYS;
-			goto unsupported;
-		}
-	}
-
 	/* Do the analysis depending on the type of operation */
 	if (color_fill) {
 		ret = analyze_color_fill(this, req, &this->node_count);

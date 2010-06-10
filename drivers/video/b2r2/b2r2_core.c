@@ -1506,7 +1506,7 @@ static void handle_queue_event(enum b2r2_core_queue queue)
 		if (job->job_state != B2R2_CORE_JOB_RUNNING)
 			/* Should be running
 			   Severe error. TBD */
-			dev_warn(b2r2_core.log_dev,
+			b2r2_log_warn(
 				 "%s: Job is not running", __func__);
 
 		stop_hw_timer(job);
@@ -1519,7 +1519,7 @@ static void handle_queue_event(enum b2r2_core_queue queue)
 
 	if (!job) {
 		/* No job, error?  */
-		dev_warn(b2r2_core.log_dev, "%s: No job", __func__);
+		b2r2_log_warn( "%s: No job", __func__);
 		return;
 	}
 
@@ -1551,8 +1551,8 @@ static void process_events(u32 status)
 	u32 mask = 0xF;
 	u32 disable_itm_mask = 0;
 
-	dev_dbg(b2r2_core.log_dev, "Enters process_events \n");
-	dev_dbg(b2r2_core.log_dev, "status 0x%x \n", status);
+	b2r2_log_info("Enters process_events \n");
+	b2r2_log_info("status 0x%x \n", status);
 
 	/* Composition queue 1 */
 	if (status & mask) {
@@ -1601,7 +1601,7 @@ static void process_events(u32 status)
 	writel(readl(&b2r2_core.hw->BLT_ITM0) & ~disable_itm_mask,
 		 &b2r2_core.hw->BLT_ITM0);
 
-	dev_dbg(b2r2_core.log_dev, "Returns process_events \n");
+	b2r2_log_info("Returns process_events \n");
 }
 
 /**
@@ -2484,7 +2484,7 @@ static int b2r2_remove(struct platform_device *pdev)
 
 	BUG_ON(pdev == NULL);
 
-	dev_dbg(b2r2_core.log_dev, "%s started\n", __func__);
+	b2r2_log_info("%s started\n", __func__);
 
 	/* Flush B2R2 work queue (call all callbacks) */
 	flush_workqueue(b2r2_core.work_queue);
@@ -2512,6 +2512,9 @@ static int b2r2_remove(struct platform_device *pdev)
 	/* Wait for delayed timer to execute */
 	while (timer_pending(&b2r2_core.clock_off_timer))
 		mdelay(10);
+
+	/* Return the clock */
+	clk_put(b2r2_core.b2r2_clock);
 
 	b2r2_log_info("%s ended\n", __func__);
 
