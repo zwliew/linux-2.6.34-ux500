@@ -118,53 +118,6 @@ enum mcde_sync_src {
 	MCDE_SYNCSRC_EXT = 4, /* GPIO, or other outside MCDE control */
 };/* REVIEW: Remove _EXT, not supported */
 
-struct mcde_col_conv {/* REVIEW: Generalize matrix, or include YCbCR->RGB in name */
-	u16 yr_red;
-	u16 yr_green;
-	u16 yr_blue;
-	u16 cr_red;
-	u16 cr_green;
-	u16 cr_blue;
-	u16 cb_red;
-	u16 cb_green;
-	u16 cb_blue;
-	u16 offset_red;
-	u16 offset_green;
-	u16 offset_blue;
-};
-
-struct mcde_port {
-	enum mcde_port_type type;
-	enum mcde_port_mode mode;
-	u8 ifc;
-	u8 link;
-	enum mcde_sync_src sync_src;
-	struct mcde_col_conv *col_conv;/* REVIEW: Remove, not port */
-	bool update_auto_trig;
-	union {
-		struct {
-			u8 virt_id;
-			u8 num_data_lanes;
-			u8 ui;
-		} dsi;
-		struct {
-			bool chip_select;/* REVIEW: Used? Needed? */
-			u8 num_data_lanes;/* REVIEW: Rename to bus_width? */
-		} dpi;
-	} phy;
-};
-
-/* Overlay pixel formats (input) *//* REVIEW: Define byte order */
-enum mcde_ovly_pix_fmt {
-	MCDE_OVLYPIXFMT_RGB565   = 1,
-	MCDE_OVLYPIXFMT_RGBA5551 = 2,
-	MCDE_OVLYPIXFMT_RGBA4444 = 3,
-	MCDE_OVLYPIXFMT_RGB888   = 4,
-	MCDE_OVLYPIXFMT_RGBX8888 = 5,
-	MCDE_OVLYPIXFMT_RGBA8888 = 6,
-	MCDE_OVLYPIXFMT_YCbCr422 = 7,/* REVIEW: Capitalize */
-};
-
 /* Interface pixel formats (output) */
 /* REVIEW: Define formats */
 enum mcde_port_pix_fmt {
@@ -190,6 +143,43 @@ enum mcde_port_pix_fmt {
 
 	/* Custom formats */
 	MCDE_PORTPIXFMT_DSI_YCBCR422 =     0x40,
+};
+
+struct mcde_col_convert {
+	u16 matrix[3][3];
+	u16 offset[3];
+};
+
+struct mcde_port {
+	enum mcde_port_type type;
+	enum mcde_port_mode mode;
+	enum mcde_port_pix_fmt pixel_format;
+	u8 ifc;
+	u8 link;
+	enum mcde_sync_src sync_src;
+	bool update_auto_trig;
+	union {
+		struct {
+			u8 virt_id;
+			u8 num_data_lanes;
+			u8 ui;
+		} dsi;
+		struct {
+			bool chip_select;/* REVIEW: Used? Needed? */
+			u8 num_data_lanes;/* REVIEW: Rename to bus_width? */
+		} dpi;
+	} phy;
+};
+
+/* Overlay pixel formats (input) *//* REVIEW: Define byte order */
+enum mcde_ovly_pix_fmt {
+	MCDE_OVLYPIXFMT_RGB565   = 1,
+	MCDE_OVLYPIXFMT_RGBA5551 = 2,
+	MCDE_OVLYPIXFMT_RGBA4444 = 3,
+	MCDE_OVLYPIXFMT_RGB888   = 4,
+	MCDE_OVLYPIXFMT_RGBX8888 = 5,
+	MCDE_OVLYPIXFMT_RGBA8888 = 6,
+	MCDE_OVLYPIXFMT_YCbCr422 = 7,/* REVIEW: Capitalize */
 };
 
 /* Display power modes */
@@ -264,20 +254,22 @@ struct mcde_overlay {
 struct mcde_chnl_state;
 
 struct mcde_chnl_state *mcde_chnl_get(enum mcde_chnl chnl_id,
-	enum mcde_fifo fifo, const struct mcde_port *port);
+			enum mcde_fifo fifo, const struct mcde_port *port);
 int mcde_chnl_set_pixel_format(struct mcde_chnl_state *chnl,
-	enum mcde_port_pix_fmt pix_fmt);
+					enum mcde_port_pix_fmt pix_fmt);
+void mcde_chnl_set_col_convert(struct mcde_chnl_state *chnl,
+					struct mcde_col_convert *col_convert);
 int mcde_chnl_set_video_mode(struct mcde_chnl_state *chnl,
-	struct mcde_video_mode *vmode);
+					struct mcde_video_mode *vmode);
 /* TODO: Remove rotbuf* parameters */
 int mcde_chnl_set_rotation(struct mcde_chnl_state *chnl,
-	enum mcde_display_rotation rotation, u32 rotbuf1, u32 rotbuf2);
+		enum mcde_display_rotation rotation, u32 rotbuf1, u32 rotbuf2);
 int mcde_chnl_enable_synchronized_update(struct mcde_chnl_state *chnl,
-	bool enable);
-int mcde_chnl_apply(struct mcde_chnl_state* chnl);
-int mcde_chnl_update(struct mcde_chnl_state* chnl,
+								bool enable);
+int mcde_chnl_apply(struct mcde_chnl_state *chnl);
+int mcde_chnl_update(struct mcde_chnl_state *chnl,
 					struct mcde_rectangle *update_area);
-void mcde_chnl_put(struct mcde_chnl_state* chnl);
+void mcde_chnl_put(struct mcde_chnl_state *chnl);
 
 /* MCDE overlay */
 struct mcde_ovly_state;

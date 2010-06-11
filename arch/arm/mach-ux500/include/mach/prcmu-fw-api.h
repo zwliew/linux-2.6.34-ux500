@@ -118,5 +118,6 @@ void prcmu_set_callback_modem_reset_request(void (*func)(void));
 void prcmu_system_reset(void);
 int prcmu_is_ca_wake_req_pending(void);
 int prcmu_read_ack_mb7(void);
+int prcmu_enable_mcde(void);
 
 #endif /* __MACH_PRCMU_FW_API_V1_H */

@@ -17,6 +17,7 @@ obj-$(CONFIG_MACH_U8500_MOP)		+= board-mop500.o mop500-sdi.o
 obj-$(CONFIG_UX500_SOC_DB5500)		+= db5500-devices.o cpu-db5500.o
 obj-$(CONFIG_UX500_SOC_DB8500)		+= db8500-devices.o hsi.o mcde.o \
 					   cpu-db8500.o prcmu-fw.o
+obj-$(CONFIG_FB_MCDE)			+= board-mop500-mcde.o
 obj-$(CONFIG_MACH_U8500_SIMULATOR)	+= board-mop500.o mop500-sdi.o
 obj-$(CONFIG_MACH_U5500_SIMULATOR)	+= board-u5500.o
 obj-$(CONFIG_SMP)			+= platsmp.o headsmp.o localtimer.o

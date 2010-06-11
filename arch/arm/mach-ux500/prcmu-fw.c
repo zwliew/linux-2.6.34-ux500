@@ -80,6 +80,91 @@ static void (*prcmu_modem_reset_shrm)(void);
 
 static int prcmu_set_hwacc_st(enum hw_acc_t hw_acc, enum hw_accst_t hw_accst);
 
+
+/*
+* Used by MCDE to setup all necessary PRCMU registers
+*/
+#define PRCMU_CLAMP_DSS_DSIPLL		0x00600C00
+#define PRCMU_RESET_DSS			0x0000000C
+#define PRCMU_ENABLE_DSS_MEM		0x00200000
+#define PRCMU_ENABLE_DSS_LOGIC		0x00100000
+#define PRCMU_DSS_SLEEP_OUTPUT_MASK	0x400
+#define PRCMU_UNCLAMP_DSS_DSIPLL	0x00600C00
+#define PRCMU_POWER_ON_DSI		0x00008000
+
+#define PRCMU_DSI_CLOCK_SETTING		0x00000145
+#define PRCMU_DSI_LP_CLOCK_SETTING	0x00000141
+#define PRCMU_PLLDSI_FREQ_SETTING	0x0004012B
+
+#define PRCMU_ENABLE_PLLDSI		0x00000001
+#define PRCMU_RELEASE_RESET_DSS		0x0000400C
+#define PRCMU_DSI_PLLOUT_SEL_SETTING	0x00000202
+#define PRCMU_ENABLE_ESCAPE_CLOCK	0x07031717
+#define PRCMU_DSI_RESET_SW		0x00000007
+
+#define PRCMU_MCDE_DELAY			10
+
+int prcmu_enable_mcde(void)
+{
+#ifndef CONFIG_REGULATOR /* Only for V10 */
+	u32 temp;
+#endif
+	/* Clamp DSS out, DSIPLL in/out, (why not DSS input?) */
+	writel(PRCMU_CLAMP_DSS_DSIPLL, PRCM_MMIP_LS_CLAMP_SET);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Enable DSS_M_INITN, DSS_L_RESETN, DSIPLL_RESETN resets */
+	writel(PRCMU_RESET_DSS, PRCM_APE_RESETN_CLR);
+	mdelay(PRCMU_MCDE_DELAY);
+#ifndef CONFIG_REGULATOR /* Only for V10 */
+	/* Power on DSS mem */
+	writel(PRCMU_ENABLE_DSS_MEM, PRCM_EPOD_C_SET);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Power on DSS logic */
+	writel(PRCMU_ENABLE_DSS_LOGIC, PRCM_EPOD_C_SET);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Release DSS_SLEEP */
+	temp = readl(PRCM_SRAM_LS_SLEEP);
+	writel(temp & ~PRCMU_DSS_SLEEP_OUTPUT_MASK, PRCM_SRAM_LS_SLEEP);
+	mdelay(PRCMU_MCDE_DELAY);
+#endif
+	/* Unclamp DSS out, DSIPLL in/out, (why not DSS input?) */
+	writel(PRCMU_UNCLAMP_DSS_DSIPLL, PRCM_MMIP_LS_CLAMP_CLR);
+	mdelay(PRCMU_MCDE_DELAY);
+#ifndef CONFIG_REGULATOR /* Only for V10 */
+	/* Power on CSI_DSI */
+	writel(PRCMU_POWER_ON_DSI, PRCM_POWER_STATE_SET);
+	mdelay(PRCMU_MCDE_DELAY);
+#endif
+	/* HDMI and TVCLK Should be handled somewhere else */
+	/* PLLDIV=5, PLLSW=2, CLKEN=1 */
+	writel(PRCMU_DSI_CLOCK_SETTING, PRCM_HDMICLK_MGT);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* PLLDIV=14, PLLSW=2, CLKEN=1 */
+	writel(PRCMU_DSI_LP_CLOCK_SETTING, PRCM_TVCLK_MGT);
+	mdelay(PRCMU_MCDE_DELAY);
+
+	/* D=43, N=1, R=4, SELDIV2=0 */
+	writel(PRCMU_PLLDSI_FREQ_SETTING, PRCM_PLLDSI_FREQ);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Start DSI PLL */
+	writel(PRCMU_ENABLE_PLLDSI, PRCM_PLLDSI_ENABLE);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Release DSS_M_INITN, DSS_L_RESETN, DSIPLL_RESETN */
+	writel(PRCMU_RELEASE_RESET_DSS, PRCM_APE_RESETN_SET);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* DSI0=phi/2, DSI1=phi/2 */
+	writel(PRCMU_DSI_PLLOUT_SEL_SETTING, PRCM_DSI_PLLOUT_SEL);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Enable ESC clk 0/1/2, div2=3, div1=0x17, div0=0x17 */
+	writel(PRCMU_ENABLE_ESCAPE_CLOCK, PRCM_DSITVCLK_DIV);
+	mdelay(PRCMU_MCDE_DELAY);
+	/* Release DSI reset 0/1/2 */
+	writel(PRCMU_DSI_RESET_SW, PRCM_DSI_SW_RESET);
+	mdelay(PRCMU_MCDE_DELAY);
+	return 0;
+}
+
+
 /* Internal functions */
 
 /**

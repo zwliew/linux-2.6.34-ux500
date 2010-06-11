@@ -67,4 +67,30 @@
 /* System reset register */
 #define PRCM_APE_SOFTRST	(_PRCMU_BASE + 0x228)
 
+/* Level shifter and clamp control registers */
+#define PRCM_MMIP_LS_CLAMP_SET     (_PRCMU_BASE + 0x420)
+#define PRCM_MMIP_LS_CLAMP_CLR     (_PRCMU_BASE + 0x424)
+
+/* PRCMU clock/PLL/reset registers */
+#define PRCM_PLLDSI_FREQ           (_PRCMU_BASE + 0x500)
+#define PRCM_PLLDSI_ENABLE         (_PRCMU_BASE + 0x504)
+#define PRCM_LCDCLK_MGT            (_PRCMU_BASE + 0x044)
+#define PRCM_MCDECLK_MGT           (_PRCMU_BASE + 0x064)
+#define PRCM_HDMICLK_MGT           (_PRCMU_BASE + 0x058)
+#define PRCM_TVCLK_MGT             (_PRCMU_BASE + 0x07c)
+#define PRCM_DSI_PLLOUT_SEL        (_PRCMU_BASE + 0x530)
+#define PRCM_DSITVCLK_DIV          (_PRCMU_BASE + 0x52C)
+#define PRCM_APE_RESETN_SET        (_PRCMU_BASE + 0x1E4)
+#define PRCM_APE_RESETN_CLR        (_PRCMU_BASE + 0x1E8)
+
+/* ePOD and memory power signal control registers */
+#define PRCM_EPOD_C_SET            (_PRCMU_BASE + 0x410)
+#define PRCM_SRAM_LS_SLEEP         (_PRCMU_BASE + 0x304)
+
+/* Debug power control unit registers */
+#define PRCM_POWER_STATE_SET       (_PRCMU_BASE + 0x254)
+
+/* Miscellaneous unit registers */
+#define PRCM_DSI_SW_RESET          (_PRCMU_BASE + 0x324)
+
 #endif /* __MACH_PRCMU__REGS_H */
