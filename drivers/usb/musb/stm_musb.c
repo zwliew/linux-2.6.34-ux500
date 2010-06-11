@@ -34,13 +34,14 @@ static unsigned musb_power;
 
 void musb_set_session(void)
 {
-	u8 val = 0;
-	void __iomem *regs = musb_status->mregs;
+	u8 val;
+	void __iomem *regs;
 
 	if (musb_status == NULL) {
 		printk(KERN_ERR "Error: devctl session cannot be set\n");
 		return;
 	}
+	regs = musb_status->mregs;
 	val = musb_readb(regs, MUSB_DEVCTL);
 	musb_writeb(regs, MUSB_DEVCTL, val | MUSB_DEVCTL_SESSION);
 }
