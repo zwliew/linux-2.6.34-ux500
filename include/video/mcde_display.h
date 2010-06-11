@@ -14,7 +14,7 @@
 #include <linux/device.h>
 #include <linux/pm.h>
 
-#include "mcde.h"
+#include <video/mcde.h>
 
 #define UPDATE_FLAG_PIXEL_FORMAT	0x1
 #define UPDATE_FLAG_VIDEO_MODE		0x2
@@ -52,7 +52,6 @@ struct mcde_display_device {
 	enum mcde_display_power_mode power_mode;
 	enum mcde_ovly_pix_fmt default_pixel_format;
 	enum mcde_ovly_pix_fmt pixel_format;
-	enum mcde_port_pix_fmt port_pixel_format;
 	enum mcde_display_rotation rotation;
 	bool synchronized_update;
 	struct mcde_video_mode video_mode;

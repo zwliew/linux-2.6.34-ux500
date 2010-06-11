@@ -35,19 +35,19 @@ struct mcde_video_mode video_modes_supp[] =
 	{720,	480,	37000,	104,	34,	30,	15, 0, 0, 0},
 	/* 720_576_50_P */
 	{720,	576,	37037,	132,	12,	44,	5, 0, 0, 0},
-	/* 1280_720_50_P */
-	{1280,	720,	13468,	260,	440,	25,	5, 0, 0, 0},
 	/* 1280_720_60_P */
 	{1280,	720,	13468,	256,	114,	20,	10, 0, 0, 0},
+	/* 1280_720_50_P */
+	{1280,	720,	13468,	260,	440,	25,	5, 0, 0, 0},
+	/* 1920_1080_30_P */
+	{1920,	1080,	13468,	189,	91,	36,	9, 0, 0, 0},
 	/* 1920_1080_24_P */
 	{1920,	1080,	13468,	170,	660,	36,	9, 0, 0, 0},
 	/* 1920_1080_25_P */
 	{1920,	1080,	13468,	192,	528,	36,	9, 0, 0, 0},
-	/* 1920_1080_30_P */
-	{1920,	1080,	13468,	189,	91,	36,	9, 0, 0, 0},
 #endif /* CONFIG_AV8100_SDTV */
 	/* 720_480_60_I) */
-	{720,	480,	74000,	126,	12,	44,	1, 0, 0, 1},
+	{720,	480,	74074,	126,	12,	44,	1, 0, 0, 1},
 	/* 720_576_50_I) */
 	{720,	576,	74074,	132,	12,	44,	5, 0, 0, 1},
 #ifndef CONFIG_AV8100_SDTV
@@ -58,23 +58,22 @@ struct mcde_video_mode video_modes_supp[] =
 #endif /* CONFIG_AV8100_SDTV */
 };
 
+#define AV8100_MAX_LEVEL 255
+
 static int hdmi_try_video_mode(
 	struct mcde_display_device *ddev, struct mcde_video_mode *video_mode)
 {
 	int res = -EINVAL;
 	int index = 0;
-	int index_crit1 = -1;
-	int index_crit2 = -1;
-	int index_crit3 = -1;
-	int index_crit4 = -1;
-
-	dev_vdbg(&ddev->dev, "%s:\n", __func__);
+	int match_level = AV8100_MAX_LEVEL;
+	int found_index = -1;
 
 	if (ddev == NULL || video_mode == NULL) {
-		dev_warn(&ddev->dev, "%s:ddev = NULL or video_mode = NULL\n",
-			__func__);
+		pr_warning("%s:ddev = NULL or video_mode = NULL\n", __func__);
 		goto hdmi_try_video_mode_out;
 	}
+
+	dev_vdbg(&ddev->dev, "%s\n", __func__);
 
 #ifdef CONFIG_AV8100_SDTV
 	video_mode->interlaced = true;
@@ -85,12 +84,14 @@ static int hdmi_try_video_mode(
 		/* 1. Check if all parameters match */
 		if (memcmp(video_mode, &video_modes_supp[index],
 			sizeof(struct mcde_video_mode)) == 0) {
-			index_crit1 = index;
+			match_level = 1;
+			found_index = index;
 			break;
 		}
 
 		/* 2. Check if xres,yres,htot,vtot,interlaced match */
-		if ((video_mode->xres == video_modes_supp[index].xres) &&
+		if ((match_level > 2) &&
+			(video_mode->xres == video_modes_supp[index].xres) &&
 			(video_mode->yres == video_modes_supp[index].yres) &&
 			((video_mode->xres + video_mode->hbp +
 				video_mode->hfp) ==
@@ -98,73 +99,51 @@ static int hdmi_try_video_mode(
 				video_modes_supp[index].hbp +
 				video_modes_supp[index].hfp)) &&
 			((video_mode->yres + video_mode->vbp1 +
-				video_mode->vfp1) ==
+				video_mode->vbp2 + video_mode->vfp1 +
+				video_mode->vfp2) ==
 			(video_modes_supp[index].yres +
 				video_modes_supp[index].vbp1 +
-				video_modes_supp[index].vfp1)) &&
+				video_modes_supp[index].vbp2 +
+				video_modes_supp[index].vfp1 +
+				video_modes_supp[index].vfp2)) &&
 			(video_mode->interlaced ==
 				video_modes_supp[index].interlaced)) {
-			video_mode->hbp = video_modes_supp[index].hbp;
-			video_mode->hfp = video_modes_supp[index].hfp;
-			video_mode->vbp1 = video_modes_supp[index].vbp1;
-			video_mode->vfp1 = video_modes_supp[index].vfp1;
-			video_mode->pixclock =
-				video_modes_supp[index].pixclock;
-
-			index_crit2 = index;
+			match_level = 2;
+			found_index = index;
 		}
 
-		/* 3. Check if xres,yres,interlaced match,pixelclock */
-		if ((video_mode->xres == video_modes_supp[index].xres) &&
+		/* 3. Check if xres,yres,pixelclock,interlaced match */
+		if ((match_level > 3) &&
+			(video_mode->xres == video_modes_supp[index].xres) &&
 			(video_mode->yres == video_modes_supp[index].yres) &&
 			(video_mode->interlaced ==
 				video_modes_supp[index].interlaced) &&
 			(video_mode->pixclock ==
 				video_modes_supp[index].pixclock)) {
-			video_mode->hbp = video_modes_supp[index].hbp;
-			video_mode->hfp = video_modes_supp[index].hfp;
-			video_mode->vbp1 = video_modes_supp[index].vbp1;
-			video_mode->vfp1 = video_modes_supp[index].vfp1;
-			index_crit3 = index;
+			match_level = 3;
+			found_index = index;
 		}
 
-
 		/* 4. Check if xres,yres,interlaced match */
-		if ((video_mode->xres == video_modes_supp[index].xres) &&
+		if ((match_level > 4) &&
+			(video_mode->xres == video_modes_supp[index].xres) &&
 			(video_mode->yres == video_modes_supp[index].yres) &&
 			(video_mode->interlaced ==
 				video_modes_supp[index].interlaced)) {
-			video_mode->hbp = video_modes_supp[index].hbp;
-			video_mode->hfp = video_modes_supp[index].hfp;
-			video_mode->vbp1 = video_modes_supp[index].vbp1;
-			video_mode->vfp1 = video_modes_supp[index].vfp1;
-			video_mode->pixclock =
-				video_modes_supp[index].pixclock;
-			index_crit4 = index;
+			match_level = 4;
+			found_index = index;
 		}
 
 		index++;
 	}
 
-	index = -1;
-
-	if (index_crit1 != -1)
-		index = index_crit1;
-	else if (index_crit2 != -1)
-		index = index_crit2;
-	else if (index_crit3 != -1)
-		index = index_crit3;
-	else if (index_crit4 != -1)
-		index = index_crit4;
-
-	if (index != -1) {
+	if (found_index != -1) {
 		res = 0;
-		memset(video_mode, 0, sizeof(struct mcde_video_mode));
-		memcpy(video_mode, &video_modes_supp[index],
+		memcpy(video_mode, &video_modes_supp[found_index],
 			sizeof(struct mcde_video_mode));
 
-		dev_dbg(&ddev->dev, "%s:HDMI video_mode %d chosen\n", __func__,
-				index);
+		dev_dbg(&ddev->dev, "%s:HDMI video_mode %d chosen. Level:%d\n",
+			__func__, found_index, match_level);
 	} else {
 		dev_dbg(&ddev->dev, "video_mode not accepted\n");
 		dev_dbg(&ddev->dev, "xres:%d yres:%d pixclock:%d hbp:%d hfp:%d "
@@ -186,13 +165,15 @@ static int hdmi_set_video_mode(
 	int ret = -EINVAL;
 	bool update = 0;
 	union av8100_configuration av8100_config;
+	struct mcde_display_hdmi_platform_data *pdata;
 
 	/* TODO check video_mode_params */
 	if (dev == NULL || video_mode == NULL) {
-		dev_warn(&dev->dev, "%s:ddev = NULL or video_mode = NULL\n",
-			__func__);
+		pr_warning("%s:ddev = NULL or video_mode = NULL\n", __func__);
 		goto out;
 	}
+
+	pdata = dev->dev.platform_data;
 
 	dev_vdbg(&dev->dev, "%s:\n", __func__);
 	dev_vdbg(&dev->dev, "%s:xres:%d yres:%d hbp:%d hfp:%d vbp1:%d vfp1:%d "
@@ -210,6 +191,16 @@ static int hdmi_set_video_mode(
 	memset(&(dev->video_mode), 0, sizeof(struct mcde_video_mode));
 	memcpy(&(dev->video_mode), video_mode, sizeof(struct mcde_video_mode));
 
+	if (dev->port->pixel_format == MCDE_PORTPIXFMT_DSI_YCBCR422)
+		mcde_chnl_set_col_convert(dev->chnl_state,
+						&pdata->rgb_2_yCbCr_convert);
+
+	ret = mcde_chnl_set_video_mode(dev->chnl_state, &dev->video_mode);
+	if (ret < 0) {
+		dev_warn(&dev->dev, "Failed to set video mode\n");
+		goto out;
+	}
+
 	/* Disable interrupts */
 	ret = av8100_disable_interrupt();
 	if (ret != AV8100_OK) {
@@ -224,6 +215,8 @@ static int hdmi_set_video_mode(
 		dev_err(&dev->dev, "av8100_powerdown failed\n");
 		goto out;
 	}
+	/* TODO: What delay is needed here */
+	msleep(10);
 
 	ret = av8100_powerup();
 	if (ret != AV8100_OK) {
@@ -234,12 +227,6 @@ static int hdmi_set_video_mode(
 	ret = av8100_download_firmware(NULL, 0, I2C_INTERFACE);
 	if (ret != AV8100_OK) {
 		dev_err(&dev->dev, "av8100_download_firmware failed\n");
-		goto out;
-	}
-
-	ret = mcde_chnl_set_video_mode(dev->chnl_state, &dev->video_mode);
-	if (ret < 0) {
-		dev_warn(&dev->dev, "Failed to set video mode\n");
 		goto out;
 	}
 
@@ -254,10 +241,10 @@ static int hdmi_set_video_mode(
 	}
 
 	av8100_config.video_output_format.video_output_cea_vesa =
+/* TODO: Remove #ifdefs in driver code. This is a dynamic property! */
 #ifdef CONFIG_AV8100_SDTV
-		dev->native_y_res == 576 ? AV8100_CEA21_22_576I_PAL_50HZ
+		dev->video_mode.yres == 576 ? AV8100_CEA21_22_576I_PAL_50HZ
 					: AV8100_CEA6_7_NTSC_60HZ;
-		/* TODO: check vmode and return error instead? */
 #else
 		av8100_video_output_format_get(
 			dev->video_mode.xres,
@@ -267,6 +254,7 @@ static int hdmi_set_video_mode(
 			dev->video_mode.yres +
 				dev->video_mode.vbp1 + dev->video_mode.vfp1 +
 				dev->video_mode.vbp2 + dev->video_mode.vfp2,
+			dev->video_mode.pixclock,
 			dev->video_mode.interlaced);
 #endif
 	if (AV8100_VIDEO_OUTPUT_CEA_VESA_MAX ==
@@ -297,7 +285,7 @@ static int hdmi_set_video_mode(
 	}
 
 	/* Set correct av8100 video input pixel format */
-	switch (dev->port_pixel_format) {
+	switch (dev->port->pixel_format) {
 	case MCDE_PORTPIXFMT_DSI_16BPP:
 	default:
 		av8100_config.video_input_format.input_pixel_format =
@@ -342,15 +330,86 @@ static int hdmi_set_video_mode(
 		goto out;
 	}
 
+/* TODO: Remove #ifdefs in driver code. This is a dynamic property! */
 #ifdef CONFIG_AV8100_SDTV
-	ret = av8100_configuration_write(AV8100_COMMAND_COLORSPACECONVERSION,
-		NULL, NULL, I2C_INTERFACE);
-	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_write "
+	if (dev->port->pixel_format != MCDE_PORTPIXFMT_DSI_YCBCR422) {
+		av8100_config.color_space_conversion_format.c0      = 0xFFDA;
+		av8100_config.color_space_conversion_format.c1      = 0xFFB6;
+		av8100_config.color_space_conversion_format.c2      = 0x0070;
+		av8100_config.color_space_conversion_format.c3      = 0x0042;
+		av8100_config.color_space_conversion_format.c4      = 0x0081;
+		av8100_config.color_space_conversion_format.c5      = 0x0019;
+		av8100_config.color_space_conversion_format.c6      = 0x0070;
+		av8100_config.color_space_conversion_format.c7      = 0xFFA2;
+		av8100_config.color_space_conversion_format.c8      = 0xFFEE;
+		av8100_config.color_space_conversion_format.aoffset = 0x007F;
+		av8100_config.color_space_conversion_format.boffset = 0x0010;
+		av8100_config.color_space_conversion_format.coffset = 0x007F;
+		av8100_config.color_space_conversion_format.lmax    = 0xEB;
+		av8100_config.color_space_conversion_format.lmin    = 0x10;
+		av8100_config.color_space_conversion_format.cmax    = 0xF0;
+		av8100_config.color_space_conversion_format.cmin    = 0x10;
+
+		ret = av8100_configuration_prepare(
+			AV8100_COMMAND_COLORSPACECONVERSION,
+			&av8100_config);
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "%s:av8100_configuration_prepare "
 				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
 				__func__);
-		goto out;
+			goto out;
+		}
+
+		/* TODO make it possible to turn off conl conversion */
+		ret = av8100_configuration_write(
+				AV8100_COMMAND_COLORSPACECONVERSION,
+				NULL, NULL, I2C_INTERFACE);
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "%s:av8100_configuration_write "
+				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
+				__func__);
+			goto out;
+		}
+
 	}
+	/* TODO else turn off col converter (needed for dynamic switching */
+#else
+	if (dev->port->pixel_format == MCDE_PORTPIXFMT_DSI_YCBCR422) {
+		/* YUV to RGB: std */
+		av8100_config.color_space_conversion_format.c0      = 0x012a;
+		av8100_config.color_space_conversion_format.c1      = 0x0000;
+		av8100_config.color_space_conversion_format.c2      = 0x0199;
+		av8100_config.color_space_conversion_format.c3      = 0x012a;
+		av8100_config.color_space_conversion_format.c4      = 0xff9c;
+		av8100_config.color_space_conversion_format.c5      = 0xff30;
+		av8100_config.color_space_conversion_format.c6      = 0x012a;
+		av8100_config.color_space_conversion_format.c7      = 0x0204;
+		av8100_config.color_space_conversion_format.c8      = 0x0000;
+		av8100_config.color_space_conversion_format.aoffset = 0xff21;
+		av8100_config.color_space_conversion_format.boffset = 0x0088;
+		av8100_config.color_space_conversion_format.coffset = 0xfeeb;
+
+		ret = av8100_configuration_prepare(
+			AV8100_COMMAND_COLORSPACECONVERSION, &av8100_config);
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "%s:av8100_configuration_prepare "
+				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
+					__func__);
+			goto out;
+		}
+
+		ret = av8100_configuration_write(
+				AV8100_COMMAND_COLORSPACECONVERSION,
+				NULL, NULL, I2C_INTERFACE);
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "%s:av8100_configuration_write "
+				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
+				__func__);
+			goto out;
+		}
+	}
+	/* TODO else turn off col converter (needed for dynamic switching */
+
 #endif
 
 	/* Set video output format */
@@ -416,12 +475,6 @@ static int hdmi_set_video_mode(
 		}
 	}
 
-	ret = mcde_chnl_set_video_mode(dev->chnl_state, &dev->video_mode);
-	if (ret < 0) {
-		dev_warn(&dev->dev, "%s:Failed to set video mode on "
-				"channel\n", __func__);
-		goto out;
-	}
 	dev->update_flags |= UPDATE_FLAG_VIDEO_MODE;
 
 	return ret;

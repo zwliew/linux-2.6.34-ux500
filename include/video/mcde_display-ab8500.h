@@ -11,10 +11,13 @@
 #ifndef __DISPLAY_AB8500__H__
 #define __DISPLAY_AB8500__H__
 
+#include <video/mcde.h>
+
 struct ab8500_display_platform_data {
 	/* Platform info */
 	const char *regulator_id;
-	/* Driver data */
+	struct mcde_col_convert rgb_2_yCbCr_convert;
+	/* Driver data */ /* TODO: move to driver data instead */
 	struct regulator *regulator;
 };
 

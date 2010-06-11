@@ -85,7 +85,8 @@ enum av8100_te_config {
 	AV8100_TE_OFF,		/* NO TE*/
 	AV8100_TE_DSI_LANE,	/* TE generated on DSI lane */
 	AV8100_TE_IT_LINE,	/* TE generated on IT line (GPIO) */
-	AV8100_TE_DSI_IT	/* TE generatedon both DSI lane & IT line*/
+	AV8100_TE_DSI_IT,	/* TE generatedon both DSI lane & IT line*/
+	AV8100_TE_GPIO_IT	/* TE on GPIO I2S DAT3 & or IT line*/
 };
 
 enum av8100_audio_if_format {
@@ -524,6 +525,7 @@ enum av8100_output_CEA_VESA av8100_video_output_format_get(int xres,
 	int yres,
 	int htot,
 	int vtot,
+	int pixelclk,
 	bool interlaced);
 
 #endif /* __AV8100__H__ */

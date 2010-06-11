@@ -8,9 +8,6 @@
  *
  * License terms: GNU General Public License (GPL), version 2.
  */
-
-#define pr_fmt(fmt) "%s: " fmt, __func__
-
 #include <linux/init.h>
 #include <linux/module.h>
 
@@ -24,7 +21,7 @@
 static int __init mcde_subsystem_init(void)
 {
 	int ret;
-	pr_debug("MCDE subsystem init begin\n");
+	pr_info("MCDE subsystem init begin\n");
 
 	/* MCDE module init sequence */
 	ret = mcde_init();

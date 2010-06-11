@@ -22,31 +22,30 @@
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
-
 #include "dsilink_regs.h"
 #include "mcde_regs.h"
 #include <video/mcde.h>
 
-#include <mach/ab8500.h> /* TODO: Remove */
+#include <mach/prcmu-fw-api.h>
+
 static void disable_channel(struct mcde_chnl_state *chnl);
-static void update_prmcu_registers(void);
 
 #define MSEC_TO_JIFFIES(__x) (((__x) * HZ + HZ - 1) / 1000)
 
 #define OVLY_TIMEOUT MSEC_TO_JIFFIES(500)
 #define CHNL_TIMEOUT MSEC_TO_JIFFIES(500)
 
-u8 *mcdeio, **dsiio;
+u8 *mcdeio;
+u8 **dsiio;
 DEFINE_SPINLOCK(mcde_lock); /* REVIEW: Remove or use */
 struct platform_device *mcde_dev;
 u8 num_dsilinks;
 
-#ifdef CONFIG_REGULATOR
 static struct regulator *regulator;
 static struct clk *clock_dsi;
 static struct clk *clock_mcde;
 static struct clk *clock_dsi_lp;
-#endif
+
 static inline u32 dsi_rreg(int __i, u32 __reg)
 {
 	return readl(dsiio[__i] + __reg);
@@ -162,15 +161,15 @@ enum mcde_hw_tv_mode {/* REVIEW: What's wrong with regs defines? */
 };
 
 struct col_regs {
-	u16 yr_red;
-	u16 yr_green;
-	u16 yr_blue;
-	u16 cr_red;
-	u16 cr_green;
-	u16 cr_blue;
+	u16 y_red;
+	u16 y_green;
+	u16 y_blue;
 	u16 cb_red;
 	u16 cb_green;
 	u16 cb_blue;
+	u16 cr_red;
+	u16 cr_green;
+	u16 cr_blue;
 	u16 off_red;
 	u16 off_green;
 	u16 off_blue;
@@ -203,10 +202,6 @@ struct mcde_chnl_state {
 	/* Staged settings */
 	bool synchronized_update;
 	enum mcde_port_pix_fmt pix_fmt;
-	u16 update_x;
-	u16 update_y;
-	u16 update_w;
-	u16 update_h;
 	struct mcde_video_mode vmode;
 	enum mcde_display_rotation rotation;
 	u32 rotbuf1;
@@ -235,7 +230,6 @@ int mcde_chnl_set_video_mode(struct mcde_chnl_state *chnl,
 
 	return 0;
 }
-EXPORT_SYMBOL(mcde_chnl_set_video_mode);
 
 static void tv_video_mode_apply(struct mcde_chnl_state *chnl)
 {
@@ -307,35 +301,16 @@ static void update_tv_registers(enum mcde_chnl chnl_id, struct tv_regs *regs)
 	}
 }
 
-static void tv_col_convert_apply(struct mcde_chnl_state *chnl)
-{
-/* REVIEW: What is this? Magic matrix? */
-/* Why not supplied by mcde_chnl_set_col_convert? */
-	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
-	chnl->col_regs.yr_red    =  66;
-	chnl->col_regs.yr_green  = 129;
-	chnl->col_regs.yr_blue   =  25;
-	chnl->col_regs.cr_red    = 112;
-	chnl->col_regs.cr_green  = -94;
-	chnl->col_regs.cr_blue   = -18;
-	chnl->col_regs.cb_red    = -38;
-	chnl->col_regs.cb_green  = -74;
-	chnl->col_regs.cb_blue   = 112;
-	chnl->col_regs.off_red   = 128;
-	chnl->col_regs.off_green =  16;
-	chnl->col_regs.off_blue  = 128;
-}
-
 static void update_col_registers(enum mcde_chnl chnl_id, struct col_regs *regs)
 {
 	u8 idx = chnl_id;
 
 	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
 	mcde_wreg(MCDE_RGBCONV1A + idx * MCDE_RGBCONV1A_GROUPOFFSET,
-				MCDE_RGBCONV1A_YR_RED(regs->yr_red) |
-				MCDE_RGBCONV1A_YR_GREEN(regs->yr_green));
+				MCDE_RGBCONV1A_YR_RED(regs->y_red) |
+				MCDE_RGBCONV1A_YR_GREEN(regs->y_green));
 	mcde_wreg(MCDE_RGBCONV2A + idx * MCDE_RGBCONV2A_GROUPOFFSET,
-				MCDE_RGBCONV2A_YR_BLUE(regs->yr_blue) |
+				MCDE_RGBCONV2A_YR_BLUE(regs->y_blue) |
 				MCDE_RGBCONV2A_CR_RED(regs->cr_red));
 	mcde_wreg(MCDE_RGBCONV3A + idx * MCDE_RGBCONV3A_GROUPOFFSET,
 				MCDE_RGBCONV3A_CR_GREEN(regs->cr_green) |
@@ -527,8 +502,6 @@ static irqreturn_t mcde_irq_handler(int irq, void *dev)
 	int i;
 	u32 irq_status;
 
-	dev_vdbg(&mcde_dev->dev, "IRQ enter\n");
-
 	/* Handle overlay irqs */
 	irq_status = mcde_rfld(MCDE_RISOVL, OVLFDRIS);
 	for (i = 0; i < ARRAY_SIZE(overlays); i++) {
@@ -595,8 +568,6 @@ static irqreturn_t mcde_irq_handler(int irq, void *dev)
 				chnl->id);
 		}
 	}
-
-	dev_vdbg(&mcde_dev->dev, "IRQ exit\n");
 
 	return IRQ_HANDLED;
 }
@@ -765,21 +736,27 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 		return;
 	}
 
-	/* TODO: Preferably most of this is done in some apply function instead
-	 * of every update. Problem is however that at overlay apply
-	 * there is no port type info available (and the question is
-	 * whether it is appropriate to add a port type there).
-	 * Note that lpf has a dependency on update_y.
-	 */
+	/*
+	* TODO: Preferably most of this is done in some apply function instead
+	* of every update. Problem is however that at overlay apply
+	* there is no port type info available (and the question is
+	* whether it is appropriate to add a port type there).
+	* Note that lpf has a dependency on update_y.
+	*/
 	if (port->type == MCDE_PORTTYPE_DPI)
 		/* REVIEW: Why not for DSI? enable in regs? */
 		regs->col_conv = MCDE_OVL0CR_COLCCTRL_ENABLED_NO_SAT;
-	else if (port->type == MCDE_PORTTYPE_DSI)
+	else if (port->type == MCDE_PORTTYPE_DSI) {
+		if (port->pixel_format == MCDE_PORTPIXFMT_DSI_YCBCR422)
+			regs->col_conv = MCDE_OVL0CR_COLCCTRL_ENABLED_NO_SAT;
+		else
+			regs->col_conv = MCDE_OVL0CR_COLCCTRL_DISABLED;
 		if (interlaced) {
 			nr_of_bufs = 2;
 			lpf = lpf / 2;
 			ljinc *= 2;
 		}
+	}
 
 	/* REVIEW: Magic numbers */
 #ifdef CONFIG_AV8100_SDTV
@@ -792,10 +769,6 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 		pixelfetchwtrmrklevel = 32;
 #endif /* CONFIG_AV8100_SDTV */
 
-	mcde_wreg(MCDE_EXTSRC0A0 + idx * MCDE_EXTSRC0A0_GROUPOFFSET,
-		regs->baseaddress0);
-	mcde_wreg(MCDE_EXTSRC0A1 + idx * MCDE_EXTSRC0A1_GROUPOFFSET,
-		regs->baseaddress1);
 	if (regs->reset_buf_id) {
 		regs->reset_buf_id = false;
 		mcde_wreg(MCDE_EXTSRC0CONF + idx * MCDE_EXTSRC0CONF_GROUPOFFSET,
@@ -855,30 +828,63 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 	dev_vdbg(&mcde_dev->dev, "Overlay registers setup, idx=%d\n", idx);
 }
 
+static void update_overlay_address_registers(u8 idx, struct ovly_regs *regs)
+{
+	mcde_wreg(MCDE_EXTSRC0A0 + idx * MCDE_EXTSRC0A0_GROUPOFFSET,
+		regs->baseaddress0);
+	mcde_wreg(MCDE_EXTSRC0A1 + idx * MCDE_EXTSRC0A1_GROUPOFFSET,
+		regs->baseaddress1);
+}
+
+#define MCDE_FLOWEN_MAX_TRIAL	6
+
 static void disable_channel(struct mcde_chnl_state *chnl)
 {
+	int i;
 	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
 	switch (chnl->id) {
 	case MCDE_CHNL_A:
 		mcde_wfld(MCDE_CRA0, FLOEN, false);
+		wait_for_channel(chnl);
+		for (i = 0; i < MCDE_FLOWEN_MAX_TRIAL; i++) {
+			msleep(1);
+			if (!mcde_rfld(MCDE_CRA0, FLOEN)) {
+				dev_vdbg(&mcde_dev->dev,
+					"Flow (A) disable after >= %d ms\n", i);
+				goto break_switch;
+			}
+		}
+		dev_warn(&mcde_dev->dev, "%s: channel A timeout\n", __func__);
 		break;
 	case MCDE_CHNL_B:
 		mcde_wfld(MCDE_CRB0, FLOEN, false);
+		wait_for_channel(chnl);
+		for (i = 0; i < MCDE_FLOWEN_MAX_TRIAL; i++) {
+			msleep(1);
+			if (!mcde_rfld(MCDE_CRB0, FLOEN)) {
+				dev_vdbg(&mcde_dev->dev,
+					"Flow (B) disable after >= %d ms\n", i);
+				goto break_switch;
+			}
+		}
+		dev_warn(&mcde_dev->dev, "%s: channel B timeout\n", __func__);
 		break;
 	case MCDE_CHNL_C0:
 		mcde_wfld(MCDE_CRC, C1EN, false);
 		if (!mcde_rfld(MCDE_CRC, C2EN))
 			mcde_wfld(MCDE_CRC, FLOEN, false);
+		wait_for_channel(chnl);
 		break;
 	case MCDE_CHNL_C1:
 		mcde_wfld(MCDE_CRC, C2EN, false);
 		if (!mcde_rfld(MCDE_CRC, C1EN))
 			mcde_wfld(MCDE_CRC, FLOEN, false);
+		wait_for_channel(chnl);
 		break;
 	}
-	wait_for_channel(chnl);
-	/* TODO poll for channel enable bit */
+break_switch:
 	chnl->continous_running = false;
+#undef MCDE_FLOWEN_MAX_TRIAL
 }
 
 static void enable_channel(enum mcde_chnl chnl_id)
@@ -981,13 +987,11 @@ void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
 		else
 			pkt_div = 1;
 
-		if (regs->roten) {
-			screen_ppl = regs->lpf;
-			screen_lpf = regs->ppl;
-		} else {
-			screen_ppl = regs->ppl;
-			screen_lpf = regs->lpf;
-		}
+		screen_ppl = video_mode->xres;
+		screen_lpf = video_mode->yres;
+
+		if (video_mode->interlaced)
+			screen_lpf /= 2;
 
 		/* pkt_delay_progressive = pixelclock * htot /
 		 * (1E12 / 160E6) / pkt_div */
@@ -1288,6 +1292,24 @@ int mcde_chnl_set_pixel_format(struct mcde_chnl_state *chnl,
 	return 0;
 }
 
+void mcde_chnl_set_col_convert(struct mcde_chnl_state *chnl,
+					struct mcde_col_convert *col_convert)
+{
+	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
+	chnl->col_regs.y_red     = col_convert->matrix[0][0];
+	chnl->col_regs.y_green   = col_convert->matrix[0][1];
+	chnl->col_regs.y_blue    = col_convert->matrix[0][2];
+	chnl->col_regs.cb_red    = col_convert->matrix[1][0];
+	chnl->col_regs.cb_green  = col_convert->matrix[1][1];
+	chnl->col_regs.cb_blue   = col_convert->matrix[1][2];
+	chnl->col_regs.cr_red    = col_convert->matrix[2][0];
+	chnl->col_regs.cr_green  = col_convert->matrix[2][1];
+	chnl->col_regs.cr_blue   = col_convert->matrix[2][2];
+	chnl->col_regs.off_red   = col_convert->offset[0];
+	chnl->col_regs.off_green = col_convert->offset[1];
+	chnl->col_regs.off_blue  = col_convert->offset[2];
+}
+
 int mcde_chnl_set_rotation(struct mcde_chnl_state *chnl,
 	enum mcde_display_rotation rotation, u32 rotbuf1, u32 rotbuf2)
 {
@@ -1341,10 +1363,8 @@ int mcde_chnl_apply(struct mcde_chnl_state *chnl)
 	chnl->regs.rotbuf2 = chnl->rotbuf2;
 	if (chnl->port.type == MCDE_PORTTYPE_DSI)
 		chnl->regs.dsipacking = portfmt2dsipacking(chnl->pix_fmt);
-	else if (chnl->port.type == MCDE_PORTTYPE_DPI) {
-		tv_col_convert_apply(chnl);
+	else if (chnl->port.type == MCDE_PORTTYPE_DPI)
 		tv_video_mode_apply(chnl);
-	}
 	chnl->transactionid++;
 
 	dev_vdbg(&mcde_dev->dev, "Channel applied, chnl=%d\n", chnl->id);
@@ -1355,11 +1375,10 @@ static void chnl_update_registers(struct mcde_chnl_state *chnl)
 {
 	/* REVIEW: Move content to update_channel_register */
 	/* and remove this one */
-	if (chnl->port.type == MCDE_PORTTYPE_DPI) {
-		/* REVIEW: DSI? */
-		update_col_registers(chnl->id, &chnl->col_regs);
+	if (chnl->port.type == MCDE_PORTTYPE_DPI)
 		update_tv_registers(chnl->id, &chnl->tv_regs);
-	}
+	if (chnl->id == MCDE_CHNL_A || chnl->id == MCDE_CHNL_B)
+		update_col_registers(chnl->id, &chnl->col_regs);
 	update_channel_registers(chnl->id, &chnl->regs, &chnl->port,
 								&chnl->vmode);
 
@@ -1410,15 +1429,24 @@ static void chnl_update_non_continous(struct mcde_chnl_state *chnl)
 static void chnl_update_overlay(struct mcde_chnl_state *chnl,
 						struct mcde_ovly_state *ovly)
 {
-	if (ovly && (ovly->transactionid_regs < ovly->transactionid ||
-			chnl->transactionid_regs < chnl->transactionid)) {
-		wait_for_overlay(ovly);
+	if (!ovly || (ovly->transactionid_regs >= ovly->transactionid &&
+			chnl->transactionid_regs >= chnl->transactionid))
+		return;
 
+	update_overlay_address_registers(ovly->idx, &ovly->regs);
+	if (ovly->regs.reset_buf_id) {
+		if (chnl->continous_running)
+			disable_channel(chnl);
+		else
+			wait_for_overlay(ovly);
 		update_overlay_registers(ovly->idx, &ovly->regs, &chnl->port,
 			chnl->regs.x, chnl->regs.y,
 			chnl->regs.ppl, chnl->regs.lpf, ovly->stride,
 			chnl->vmode.interlaced);
 		ovly->transactionid_regs = ovly->transactionid;
+	} else if (chnl->continous_running) {
+		ovly->transactionid_regs = ovly->transactionid;
+		wait_for_overlay(ovly);
 	}
 }
 
@@ -1435,6 +1463,7 @@ int mcde_chnl_update(struct mcde_chnl_state *chnl,
 
 	chnl->regs.x   = update_area->x;
 	chnl->regs.y   = update_area->y;
+	/* TODO Crop against video_mode.xres and video_mode.yres */
 	chnl->regs.ppl = update_area->w;
 	chnl->regs.lpf = update_area->h;
 	if (chnl->port.type == MCDE_PORTTYPE_DPI) {/* REVIEW: Comment */
@@ -1444,14 +1473,6 @@ int mcde_chnl_update(struct mcde_chnl_state *chnl,
 	} else if (chnl->port.type == MCDE_PORTTYPE_DSI &&
 			chnl->vmode.interlaced)
 		chnl->regs.lpf /= 2;
-
-	/*if (chnl->rotation == MCDE_DISPLAY_ROT_90_CCW) {
-		chnl->regs.ppl = update_area->h;
-		chnl->regs.lpf = update_area->w;
-	} else if (chnl->rotation == MCDE_DISPLAY_ROT_90_CW) {
-		chnl->regs.ppl = update_area->h;
-		chnl->regs.lpf = update_area->w;
-	}*/
 
 	chnl_update_overlay(chnl, chnl->ovly0);
 	chnl_update_overlay(chnl, chnl->ovly1);
@@ -1644,7 +1665,6 @@ void mcde_ovly_apply(struct mcde_ovly_state *ovly)
 	dev_vdbg(&mcde_dev->dev, "Overlay applied, chnl=%d\n", ovly->chnl->id);
 }
 
-#ifdef CONFIG_REGULATOR
 static int init_clocks_and_power(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1657,13 +1677,13 @@ static int init_clocks_and_power(struct platform_device *pdev)
 			dev_warn(&pdev->dev,
 				"%s: Failed to get regulator '%s'\n",
 				__func__, pdata->regulator_id);
+			regulator = NULL;
 			goto regulator_err;
 		}
 	} else {
-		ret = -EINVAL;
-		dev_warn(&pdev->dev, "%s: No regulator id supplied\n"
-				, __func__);
-		goto regulator_err;
+		dev_dbg(&pdev->dev, "%s: No regulator id supplied \n",
+								__func__);
+		regulator = NULL;
 	}
 	clock_dsi = clk_get(&pdev->dev, pdata->clock_dsi_id);
 	if (IS_ERR(clock_dsi)) {
@@ -1696,7 +1716,8 @@ clk_mcde_err:
 clk_dsi_lp_err:
 	clk_put(clock_dsi);
 clk_dsi_err:
-	regulator_put(regulator);
+	if (regulator)
+		regulator_put(regulator);
 regulator_err:
 	return ret;
 }
@@ -1708,13 +1729,13 @@ static void remove_clocks_and_power(struct platform_device *pdev)
 	clk_put(clock_dsi);
 	clk_put(clock_dsi_lp);
 	clk_put(clock_mcde);
-	regulator_put(regulator);
+	if (regulator)
+		regulator_put(regulator);
 }
 
 static int enable_clocks_and_power(struct platform_device *pdev)
 {
 	int ret = 0;
-	u32 ctrlreg;
 	if (regulator) {
 		ret = regulator_enable(regulator);
 		if (ret < 0) {
@@ -1723,24 +1744,9 @@ static int enable_clocks_and_power(struct platform_device *pdev)
 			goto regulator_err;
 		}
 	} else {
-		ret = -EINVAL;
-		dev_warn(&pdev->dev, "%s: No regulator\n", __func__);
-		goto regulator_err;
+		dev_dbg(&pdev->dev, "%s: No regulator id supplied \n"
+						, __func__);
 	}
-	/* REVIEW: Is this really needed? Move to meminit? */
-	/* These reads make the secondary display to be turned on */
-	ctrlreg = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG);
-	ctrlreg = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG);
-	ctrlreg = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG);
-	ctrlreg = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG);
-	ctrlreg = ab8500_read(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG);
-
-	/* Enable the PWM control for the backlight */
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, 0x7);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, 0xFF);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, 0x03);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG, 0xFF);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG, 0x03);
 
 	ret = prcmu_set_hwacc(HW_ACC_ESRAM4, HW_ON);
 	if (ret < 0) {
@@ -1775,10 +1781,16 @@ static int enable_clocks_and_power(struct platform_device *pdev)
 		goto clk_mcde_err;
 	}
 
-	update_prmcu_registers();
+	ret = prcmu_enable_mcde();
+	if (ret < 0) {
+		dev_warn(&pdev->dev, "%s: "
+			"prcmu_enable_mcde failed ret = %d\n", __func__, ret);
+		goto prcmu_err;
+	}
 
 	return ret;
 
+prcmu_err:
 clk_mcde_err:
 	clk_disable(clock_dsi_lp);
 clk_dsi_lp_err:
@@ -1808,19 +1820,11 @@ static int disable_clocks_and_power(struct platform_device *pdev)
 			goto regulator_err;
 		}
 	} else {
-		ret = -EINVAL;
-		dev_warn(&pdev->dev, "%s: No regulator\n", __func__);
-		goto regulator_err;
+		dev_dbg(&pdev->dev, "%s: No regulator id supplied \n"
+					, __func__);
 	}
 
 	(void)prcmu_set_hwacc(HW_ACC_MCDE, HW_OFF);
-
-	/* Disable the PWM control for the backlight */
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL7_REG, 0x0);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL1_REG, 0x0);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL2_REG, 0x0);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL3_REG, 0x0);
-	ab8500_write(AB8500_MISC, AB8500_PWM_OUT_CTRL4_REG, 0x0);
 
 	return ret;
 regulator_err:
@@ -1828,119 +1832,6 @@ regulator_err:
 	clk_enable(clock_mcde);
 	clk_enable(clock_dsi);
 	return ret;
-}
-
-static int enable_dss(struct platform_device *pdev)
-{
-	int ret;
-	ret = init_clocks_and_power(pdev);
-	if (ret < 0) {
-		dev_warn(&pdev->dev, "%s: init_clocks_and_power"
-					" failed\n", __func__);
-		goto init_clock_err;
-	}
-	ret = enable_clocks_and_power(pdev);
-	if (ret < 0) {
-		dev_warn(&pdev->dev, "%s: enable_clocks_and_power"
-					" failed\n", __func__);
-		goto enable_clock_err;
-	}
-	return ret;
-
-init_clock_err:
-enable_clock_err:
-	return ret;
-}
-#endif
-
-static void update_prmcu_registers(void)
-{
-	/* TODO: PRCMU stuff, move to regulator/clock framework */
-
-	/* Setup clocks */
-	#define MCDE_PRCM_MMIP_LS_CLAMP_SET     0x420
-	#define MCDE_PRCM_APE_RESETN_CLR        0x1E8
-	#define MCDE_PRCM_EPOD_C_SET            0x410
-	#define MCDE_PRCM_SRAM_LS_SLEEP         0x304
-	#define MCDE_PRCM_MMIP_LS_CLAMP_CLR     0x424
-	#define MCDE_PRCM_POWER_STATE_SET       0x254
-	#define MCDE_PRCM_LCDCLK_MGT            0x044
-	#define MCDE_PRCM_MCDECLK_MGT           0x064
-	#define MCDE_PRCM_HDMICLK_MGT           0x058
-	#define MCDE_PRCM_TVCLK_MGT             0x07c
-	#define MCDE_PRCM_PLLDSI_FREQ           0x500
-	#define MCDE_PRCM_PLLDSI_ENABLE         0x504
-	#define MCDE_PRCM_APE_RESETN_SET        0x1E4
-	#define MCDE_PRCM_DSI_PLLOUT_SEL        0x530
-	#define MCDE_PRCM_DSITVCLK_DIV          0x52C
-	#define MCDE_PRCM_DSI_SW_RESET          0x324
-
-	/* Clamp DSS out, DSIPLL in/out, (why not DSS input?) */
-#ifndef CONFIG_REGULATOR
-	u32 temp;
-#endif
-	u8 *prcmu  = ioremap(0x80157000, 0x1000);
-	printk(KERN_INFO "ioremap prcmu %.8X\n", (u32)prcmu);
-	writel(0x00600C00, &prcmu[MCDE_PRCM_MMIP_LS_CLAMP_SET]);
-	mdelay(10);
-	/* Enable DSS_M_INITN, DSS_L_RESETN, DSIPLL_RESETN resets */
-	writel(0x0000000C, &prcmu[MCDE_PRCM_APE_RESETN_CLR]);
-	mdelay(10);
-#ifndef CONFIG_REGULATOR
-	/* Power on DSS mem */
-	writel(0x00200000, &prcmu[MCDE_PRCM_EPOD_C_SET]);
-	mdelay(10);
-	/* Power on DSS logic */
-	writel(0x00100000, &prcmu[MCDE_PRCM_EPOD_C_SET]);
-	mdelay(10);
-	/* Release DSS_SLEEP */
-	temp = readl(&prcmu[MCDE_PRCM_SRAM_LS_SLEEP]);
-	writel(temp & ~0x400, &prcmu[MCDE_PRCM_SRAM_LS_SLEEP]);
-	mdelay(10);
-#endif
-	/* Unclamp DSS out, DSIPLL in/out, (why not DSS input?) */
-	writel(0x00600C00, &prcmu[MCDE_PRCM_MMIP_LS_CLAMP_CLR]);
-	mdelay(10);
-#ifndef CONFIG_REGULATOR
-	/* Power on CSI_DSI */
-	writel(0x00008000, &prcmu[MCDE_PRCM_POWER_STATE_SET]);
-	mdelay(10);
-	/* PLLDIV=8, PLLSW=2, CLKEN=1 */
-	writel(0x00000148, &prcmu[MCDE_PRCM_LCDCLK_MGT]);
-	mdelay(10);
-	/* PLLDIV=5, PLLSW=1, CLKEN=1 */
-	writel(0x00000125, &prcmu[MCDE_PRCM_MCDECLK_MGT]);
-	mdelay(10);
-#endif
-	/* HDMI and TVCLK Should be handled somewhere else */
-	/* PLLDIV=5, PLLSW=2, CLKEN=1 */
-	writel(0x00000145, &prcmu[MCDE_PRCM_HDMICLK_MGT]);
-	mdelay(10);
-	/* PLLDIV=14, PLLSW=2, CLKEN=1 */
-	writel(0x00000141, &prcmu[MCDE_PRCM_TVCLK_MGT]); /*148*/
-	mdelay(10);
-
-	/* D=43, N=1, R=4, SELDIV2=0 */
-	writel(0x0004012B, &prcmu[MCDE_PRCM_PLLDSI_FREQ]);
-	mdelay(10);
-	/* Start DSI PLL */
-	writel(0x00000001, &prcmu[MCDE_PRCM_PLLDSI_ENABLE]);
-	mdelay(10);
-	/* Release DSS_M_INITN, DSS_L_RESETN, DSIPLL_RESETN */
-	writel(0x0000400C, &prcmu[MCDE_PRCM_APE_RESETN_SET]);
-	mdelay(10);
-	/* DSI0=phi/2, DSI1=phi/2 */
-	writel(0x00000202, &prcmu[MCDE_PRCM_DSI_PLLOUT_SEL]);
-	mdelay(10);
-	/* Enable ESC clk 0/1/2, div0=3, div1=3, div2=3 */
-	writel(0x07031717, &prcmu[MCDE_PRCM_DSITVCLK_DIV]);
-	mdelay(10);
-	/* Release DSI reset 0/1/2 */
-	writel(0x00000007, &prcmu[MCDE_PRCM_DSI_SW_RESET]);
-	mdelay(10);
-
-	printk(KERN_INFO "PRCMU setup done!\n");
-	mdelay(100);
 }
 
 static void update_mcde_registers(void)
@@ -2042,14 +1933,18 @@ static int __devinit mcde_probe(struct platform_device *pdev)
 			i, (u32)res->start, (u32)dsiio[i]);
 	}
 
-	/* REVIEW: Move clocks and regulator to probe */
-	/* TODO: temp, replace with regulator_ and clk_ calls */
-#ifdef CONFIG_REGULATOR
-	enable_dss(pdev);
-#else
-	update_prmcu_registers();
-#endif
-
+	ret = init_clocks_and_power(pdev);
+	if (ret < 0) {
+		dev_warn(&pdev->dev, "%s: init_clocks_and_power failed\n"
+					, __func__);
+		goto failed_init_clocks;
+	}
+	ret = enable_clocks_and_power(pdev);
+	if (ret < 0) {
+		dev_warn(&pdev->dev, "%s: enable_clocks_and_power failed\n"
+					, __func__);
+		goto failed_enable_clocks;
+	}
 	update_mcde_registers();
 
 	dev_info(&mcde_dev->dev, "Probe done (v%d.%d.%d.%d)\n",
@@ -2058,6 +1953,10 @@ static int __devinit mcde_probe(struct platform_device *pdev)
 		mcde_rfld(MCDE_PID, DEVELOPMENT_VERSION),
 		mcde_rfld(MCDE_PID, METALFIX_VERSION));
 	goto out;
+
+failed_enable_clocks:
+	remove_clocks_and_power(pdev);
+failed_init_clocks:
 failed_map_dsi_io:
 failed_get_dsi_io:
 	for (i = 0; i < num_dsilinks; i++) {
@@ -2079,13 +1978,11 @@ out:
 
 static int __devexit mcde_remove(struct platform_device *pdev)
 {
-#ifdef CONFIG_REGULATOR
 	remove_clocks_and_power(pdev);
-#endif
 	return 0;
 }
 
-#ifdef CONFIG_REGULATOR
+#ifdef CONFIG_PM
 static int mcde_resume(struct platform_device *pdev)
 {
 	int ret;
@@ -2093,8 +1990,8 @@ static int mcde_resume(struct platform_device *pdev)
 	dev_info(&pdev->dev, "Resume is called\n");
 	ret = enable_clocks_and_power(pdev);
 	if (ret < 0) {
-		dev_dbg(&pdev->dev, "Enable clocks and power "
-					"failed in resume\n");
+		dev_dbg(&pdev->dev, "%s: Enable clocks and power failed\n"
+						, __func__);
 		goto clock_err;
 	}
 	update_mcde_registers();
@@ -2120,11 +2017,12 @@ static int mcde_resume(struct platform_device *pdev)
 						chnl->vmode.interlaced);
 		}
 	}
-	return ret;
 clock_err:
 	return ret;
 }
+#endif
 
+#ifdef CONFIG_PM
 static int mcde_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	dev_info(&pdev->dev, "Suspend is called\n");
@@ -2135,7 +2033,7 @@ static int mcde_suspend(struct platform_device *pdev, pm_message_t state)
 static struct platform_driver mcde_driver = {
 	.probe = mcde_probe,
 	.remove = mcde_remove,
-#ifdef CONFIG_REGULATOR
+#ifdef CONFIG_PM
 	.suspend = mcde_suspend,
 	.resume = mcde_resume,
 #else

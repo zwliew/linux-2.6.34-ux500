@@ -111,11 +111,6 @@ static int __devinit generic_probe(struct mcde_display_device *dev)
 		dev->platform_disable = generic_platform_disable;
 	}
 
-	if (dev->video_mode.xres == 0 || dev->video_mode.yres == 0) {
-		dev->video_mode.xres = dev->native_x_res;
-		dev->video_mode.yres = dev->native_y_res;
-	}
-
 	/* TODO: Remove when DSI send command uses interrupts */
 	dev->prepare_for_update = NULL;
 	dev->platform_enable = generic_platform_enable,

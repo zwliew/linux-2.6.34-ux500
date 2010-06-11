@@ -252,6 +252,7 @@ static int set_video_mode(
 	struct mcde_display_device *ddev, struct mcde_video_mode *video_mode)
 {
 	int res = -EINVAL;
+	struct ab8500_display_platform_data *pdata = ddev->dev.platform_data;
 	struct ab8500_denc_conf *driver_data = (struct ab8500_denc_conf *)
 							ddev->dev.driver_data;
 	AB8500_DISP_TRACE;
@@ -297,6 +298,8 @@ static int set_video_mode(
 	driver_data->act_dc_output  	= true;
 
 	set_power_mode(ddev, MCDE_DISPLAY_PM_STANDBY);
+	mcde_chnl_set_col_convert(ddev->chnl_state,
+						&pdata->rgb_2_yCbCr_convert);
 	res = mcde_chnl_set_video_mode(ddev->chnl_state, &ddev->video_mode);
 	if (res < 0) {
 		dev_warn(&ddev->dev, "%s:Failed to set video mode on channel\n",

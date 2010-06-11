@@ -104,20 +104,27 @@ static enum mcde_display_power_mode mcde_display_get_power_mode_default(
 static int mcde_display_try_video_mode_default(struct mcde_display_device *ddev,
 	struct mcde_video_mode *video_mode)
 {
-	return (video_mode && video_mode->xres == ddev->video_mode.xres &&
-		video_mode->yres == ddev->video_mode.yres) ? 0 : -EINVAL;
+	/* TODO Check if inside native_xres and native_yres */
+	return 0;
 }
 
 static int mcde_display_set_video_mode_default(struct mcde_display_device *ddev,
 	struct mcde_video_mode *video_mode)
 {
 	int ret = 0;
-
+	struct mcde_video_mode channel_video_mode;
 	if (!video_mode)
 		return -EINVAL;
 
 	ddev->video_mode = *video_mode;
-	ret = mcde_chnl_set_video_mode(ddev->chnl_state, &ddev->video_mode);
+	channel_video_mode = ddev->video_mode;
+	/* Dependant on if display should rotate or MCDE should rotate */
+	if (ddev->rotation == MCDE_DISPLAY_ROT_90_CCW ||
+				ddev->rotation == MCDE_DISPLAY_ROT_90_CW) {
+		channel_video_mode.xres = ddev->native_x_res;
+		channel_video_mode.yres = ddev->native_y_res;
+	}
+	ret = mcde_chnl_set_video_mode(ddev->chnl_state, &channel_video_mode);
 	if (ret < 0) {
 		dev_warn(&ddev->dev, "%s:Failed to set video mode\n", __func__);
 		goto out;
@@ -141,7 +148,7 @@ static int mcde_display_set_pixel_format_default(
 	int ret = 0;
 	ddev->pixel_format = format;
 	ret = mcde_chnl_set_pixel_format(ddev->chnl_state,
-						ddev->port_pixel_format);
+						ddev->port->pixel_format);
 	if (ret < 0) {
 		dev_warn(&ddev->dev, "%s:Failed to set pixel format = %d\n",
 							__func__, format);
@@ -162,7 +169,7 @@ static enum mcde_ovly_pix_fmt mcde_display_get_pixel_format_default(
 static enum mcde_port_pix_fmt mcde_display_get_port_pixel_format_default(
 	struct mcde_display_device *ddev)
 {
-	return ddev->port_pixel_format;
+	return ddev->port->pixel_format;
 }
 
 static int mcde_display_set_rotation_default(struct mcde_display_device *ddev,
@@ -179,16 +186,6 @@ static int mcde_display_set_rotation_default(struct mcde_display_device *ddev,
 	}
 
 	if (!ret) {
-		bool was90 = ddev->rotation == MCDE_DISPLAY_ROT_90_CCW ||
-				ddev->rotation == MCDE_DISPLAY_ROT_90_CW;
-		bool new90 = rotation == MCDE_DISPLAY_ROT_90_CCW ||
-					rotation == MCDE_DISPLAY_ROT_90_CW;
-		if (was90 != new90) {
-			u16 tmp = ddev->update_area.w;
-			ddev->update_area.w = ddev->update_area.h;
-			ddev->update_area.h = tmp;
-		}
-
 		ddev->rotation = rotation;
 		ddev->update_flags |= UPDATE_FLAG_ROTATION;
 	}
@@ -329,7 +326,7 @@ static int mcde_display_update_default(struct mcde_display_device *ddev)
 	/* TODO: Calculate & set update rect */
 	ret = mcde_chnl_update(ddev->chnl_state, &ddev->update_area);
 	if (ret < 0) {
-		dev_warn(&ddev->dev, "%s:Failed to update channel\n",__func__);
+		dev_warn(&ddev->dev, "%s:Failed to update channel\n", __func__);
 		goto out;
 	}
 	if (ddev->first_update && ddev->on_first_update)

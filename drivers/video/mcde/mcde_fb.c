@@ -18,12 +18,6 @@
 
 #include <video/mcde_fb.h>
 
-/* When this define is enabled, a max size frame buffer is allocated and used
- * for all resolutions.
- * Without this define,  the frame buffer is reallocated when resolution is
- * changed */
-/*#define MCDE_FB_AVOID_REALLOC*/
-
 #define MCDE_FB_BPP_MAX		16
 #define MCDE_FB_VXRES_MAX	1920
 #define MCDE_FB_VYRES_MAX	2160
@@ -86,6 +80,11 @@ struct pix_fmt_info pix_fmt_map[] = {
 		.b = { .offset = 16, .length = 8 },
 		.a = { .offset = 24, .length = 8 },
 	}
+};
+
+static struct platform_device mcde_fb_device = {
+	.name = "mcde_fb",
+	.id = -1,
 };
 
 /* Helpers */
@@ -178,7 +177,7 @@ static int reallocate_fb_mem(struct fb_info *fbi, u32 size)
 {
 	dma_addr_t paddr;
 	void __iomem *vaddr;
-#ifdef MCDE_FB_AVOID_REALLOC
+#ifdef CONFIG_MCDE_FB_AVOID_REALLOC
 	u32 size_max;
 #endif
 
@@ -188,7 +187,7 @@ static int reallocate_fb_mem(struct fb_info *fbi, u32 size)
 		return 0;
 
 	/* TODO: hwmem */
-#ifdef MCDE_FB_AVOID_REALLOC
+#ifdef CONFIG_MCDE_FB_AVOID_REALLOC
 	if (!fbi->screen_base) {
 		size_max = MCDE_FB_BPP_MAX / 8 * MCDE_FB_VXRES_MAX *
 				MCDE_FB_VYRES_MAX;
@@ -206,13 +205,13 @@ static int reallocate_fb_mem(struct fb_info *fbi, u32 size)
 		return -ENOMEM;
 #endif
 
-#ifndef MCDE_FB_AVOID_REALLOC
+#ifndef CONFIG_MCDE_FB_AVOID_REALLOC
 	if (fbi->screen_base)
 		dma_free_coherent(fbi->dev, fbi->screen_size,
 			fbi->screen_base, fbi->fix.smem_start);
 #endif
 
-#ifndef MCDE_FB_AVOID_REALLOC
+#ifndef CONFIG_MCDE_FB_AVOID_REALLOC
 	fbi->screen_base = vaddr;
 	fbi->fix.smem_start = paddr;
 #endif
@@ -315,18 +314,28 @@ void var_to_vmode(struct fb_var_screeninfo *var,
 
 enum mcde_display_rotation var_to_rotation(struct fb_var_screeninfo *var)
 {
+	enum mcde_display_rotation rot;
+
 	switch (var->rotate) {
 	case FB_ROTATE_UR:
-		return MCDE_DISPLAY_ROT_0;
+		rot = MCDE_DISPLAY_ROT_0;
+		break;
 	case FB_ROTATE_CW:
-		return MCDE_DISPLAY_ROT_90_CW;
+		rot = MCDE_DISPLAY_ROT_90_CW;
+		break;
 	case FB_ROTATE_UD:
-		return MCDE_DISPLAY_ROT_180_CW;
+		rot = MCDE_DISPLAY_ROT_180_CW;
+		break;
 	case FB_ROTATE_CCW:
-		return MCDE_DISPLAY_ROT_90_CCW;
+		rot = MCDE_DISPLAY_ROT_90_CCW;
+		break;
 	default:
-		return MCDE_DISPLAY_ROT_0;
+		rot = MCDE_DISPLAY_ROT_0;
+		break;
 	}
+	dev_vdbg(&mcde_fb_device.dev, "var_rot: %d -> mcde_rot: %d\n",
+							var->rotate, rot);
+	return rot;
 }
 
 static struct mcde_display_device *fb_to_display(struct fb_info *fbi)
@@ -356,6 +365,12 @@ static int check_var(struct fb_var_screeninfo *var, struct fb_info *fbi,
 	var->width  = w;
 	var->height = h;
 
+	/* Rotation */
+	if (var->rotate > 3) {
+		dev_info(&(ddev->dev), "check_var failed var->rotate\n");
+		return -EINVAL;
+	}
+
 	/* Video mode */
 	var_to_vmode(var, &vmode);
 	ret = mcde_dss_try_video_mode(ddev, &vmode);
@@ -373,12 +388,6 @@ static int check_var(struct fb_var_screeninfo *var, struct fb_info *fbi,
 		return -EINVAL;
 	}
 	pix_fmt_info_to_var(fmtinfo, var);
-
-	/* Rotation */
-	if (var->rotate > 3) {
-		dev_vdbg(&(ddev->dev), "check_var failed var->rotate\n");
-		return -EINVAL;
-	}
 
 	/* Not used */
 	var->grayscale = 0;
@@ -417,13 +426,12 @@ static int apply_var(struct fb_info *fbi, struct mcde_display_device *ddev)
 		mfb->pix_fmt = fmt->pix_fmt;
 		mcde_dss_set_pixel_format(ddev, mfb->pix_fmt);
 
+		/* Apply rotation */
+		mcde_dss_set_rotation(ddev, var_to_rotation(var));
 		/* Apply video mode */
 		memset(&vmode, 0, sizeof(struct mcde_video_mode));
 		var_to_vmode(var, &vmode);
 		mcde_dss_set_video_mode(ddev, &vmode);
-
-		/* Apply rotation */
-		mcde_dss_set_rotation(ddev, var_to_rotation(var));
 
 		mcde_dss_apply_channel(ddev);
 	}
@@ -521,11 +529,6 @@ static struct fb_ops fb_ops = {
 
 /* FB driver */
 
-static struct platform_device mcde_fb_device = {
-	.name = "mcde_fb",
-	.id = -1,
-};
-
 struct fb_info *mcde_fb_create(struct mcde_display_device *ddev,
 	u16 w, u16 h, u16 vw, u16 vh, enum mcde_ovly_pix_fmt pix_fmt,
 	u32 rotate, bool display_initialized)
@@ -600,6 +603,7 @@ apply_var_failed:
 	mcde_dss_disable_display(ddev);
 display_enable_failed:
 	framebuffer_release(fbi);
+	fbi = NULL;
 fb_alloc_failed:
 out:
 	return ret ? ERR_PTR(ret) : fbi;

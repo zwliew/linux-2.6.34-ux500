@@ -35,3 +35,15 @@ config FB_MCDE_VDEBUG
 	depends on FB_MCDE_DEBUG
 	---help---
 	  Say Y here if you want the MCDE driver to output more debug messages
+
+config MCDE_FB_AVOID_REALLOC
+	bool "MCDE early allocate framebuffer"
+	default n
+	depends on FB_MCDE
+	---help---
+	  If you say Y here maximum frame buffer size is allocated and
+	  used for all resolutions. If you say N here, the frame buffer is
+	  reallocated when resolution is changed. This reallocation might
+	  fail because of fragmented memory. Note that this memory will
+	  never be deallocated, while the MCDE framebuffer is used.
+

@@ -205,15 +205,15 @@ struct av8100_cea av8100_all_cea[29] = {
 	"+",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "5  CEA 6-7      480i (NTSC)          ",
 	6,	525,	240,	44,	5,
-	0,	"-",	858,	720,	12,	64,	10,	27000000,
+	0,	"-",	858,	720,	12,	64,	10,	13513513,
 	"-",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "6  CEA 14-15    480p @ 60 Hz         ",
 	14,	525,	480,	44,	5,
-	0,	"-",	858,	720,	12,	64,	10,	27000000,
+	0,	"-",	858,	720,	12,	64,	10,	27027000,
 	"-",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "7  CEA 16       1920x1080p @ 60 Hz   ",
 	16,	1125,	1080,	36,	5,
-	0,	"+",	1980,	1280,	440,	40,	10,	74250000,
+	0,	"+",	1980,	1280,	440,	40,	10,	133650000,
 	"+",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "8  CEA 17-18    720x576p @ 50 Hz     ",
 	17,	625,	576,	44,	5,
@@ -229,7 +229,7 @@ struct av8100_cea av8100_all_cea[29] = {
 	"+",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "11 CEA 21-22    576i (PAL)           ",
 	21,	625,	288,	44,	5,
-	0,	"-",	864,	720,	12,	64,	10,	27000000,
+	0,	"-",	1728,	1440,	12,	64,	10,	27000000,
 	"-",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "12 CEA 29/30    576p                 ",
 	29,	625,	576,	44,	5,
@@ -237,7 +237,7 @@ struct av8100_cea av8100_all_cea[29] = {
 	"-",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "13 CEA 31       1080p 50Hz           ",
 	31,	1125,	1080,	44,	5,
-	0,	"-",	2750,	1920,	12,	64,	10,	27000000,
+	0,	"-",	2640,	1920,	12,	64,	10,	148500000,
 	"-",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "14 CEA 32       1920x1080p @ 24 Hz   ",
 	32,	1125,	1080,	36,	5,
@@ -253,23 +253,23 @@ struct av8100_cea av8100_all_cea[29] = {
 	"+",	2275,	0xAB,	6,	32,	1},/*RGB565*/
 { "17 CEA 60       1280x720p @ 24 Hz    ",
 	60,	750,	720,	20,	5,
-	5,	"+",	3300,	1280,	284,	50,	2276,	29700000,
+	5,	"+",	3300,	1280,	284,	50,	2276,	59400000,
 	"+",	4266,	0xAD0,	5,	32,	1},/*RGB565*/
 { "18 CEA 61       1280x720p @ 25 Hz    ",
 	61,	750,	720,	20,	5,
-	5,	"+",	3960,	1280,	228,	39,	2503,	30937500,
+	5,	"+",	3960,	1280,	228,	39,	2503,	74250000,
 	"+",	4096,	0x500,	5,	32,	1},/*RGB565*/
 { "19 CEA 62       1280x720p @ 30 Hz    ",
 	62,	750,	720,	20,	5,
-	5,	"+",	3300,	1280,	228,	39,	1820,	37125000,
+	5,	"+",	3300,	1280,	228,	39,	1820,	74250000,
 	"+",	3413,	0x770,	5,	32,	1},/*RGB565*/
 { "20 VESA 9       800x600 @ 60 Hz      ",
 	109,	628,	600,	28,	4,
-	0,	"+",	1056,	800,	40,	128,	10,	40000000,
+	0,	"+",	1056,	800,	40,	128,	10,	20782080,
 	"+",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "21 VESA 14      848x480  @ 60 Hz     ",
 	114,	500,	480,	20,	5,
-	0,	"+",	1056,	848,	24,	80,	10,	31500000,
+	0,	"+",	1056,	848,	24,	80,	10,	31680000,
 	"-",	0,	0,	0,	0,	0},/*Settings to be define*/
 { "22 VESA 16      1024x768 @ 60 Hz     ",
 	116,	806,	768,	38,	6,
@@ -603,7 +603,12 @@ static int av8100_config_video_output_dep(enum av8100_output_CEA_VESA
 	config.video_input_format.ui_x4 = av8100_get_ui_x4(output_format);
 	config.video_input_format.TE_line_nb = av8100_get_te_line_nb(
 		output_format);
+/* TODO: Dynamic test to detect AV8100 V1 or V2 */
+#ifdef AV8100_HW_TE_I2SDAT3
+	config.video_input_format.TE_config = AV8100_TE_GPIO_IT;
+#else
 	config.video_input_format.TE_config = AV8100_TE_IT_LINE;
+#endif
 	config.video_input_format.master_clock_freq = 0;
 
 	retval = av8100_configuration_prepare(
@@ -646,22 +651,23 @@ static int av8100_config_init(void)
 	memset(av8100_config, 0, sizeof(union av8100_configuration));
 
 	/* Color conversion */
-	config.color_space_conversion_format.c0      = 0xFFDA;
-	config.color_space_conversion_format.c1      = 0xFFB6;
-	config.color_space_conversion_format.c2      = 0x0070;
-	config.color_space_conversion_format.c3      = 0x0042;
-	config.color_space_conversion_format.c4      = 0x0081;
-	config.color_space_conversion_format.c5      = 0x0019;
-	config.color_space_conversion_format.c6      = 0x0070;
-	config.color_space_conversion_format.c7      = 0xFFA2;
-	config.color_space_conversion_format.c8      = 0xFFEE;
-	config.color_space_conversion_format.aoffset = 0x007F;
-	config.color_space_conversion_format.boffset = 0x0010;
-	config.color_space_conversion_format.coffset = 0x007F;
-	config.color_space_conversion_format.lmax    = 0xEB;
-	config.color_space_conversion_format.lmin    = 0x10;
-	config.color_space_conversion_format.cmax    = 0xF0;
-	config.color_space_conversion_format.cmin    = 0x10;
+	/* TODO: Magic numbers. Move to platform data? */
+	config.color_space_conversion_format.c0      = 0x0100;
+	config.color_space_conversion_format.c1      = 0x0000;
+	config.color_space_conversion_format.c2      = 0x0000;
+	config.color_space_conversion_format.c3      = 0x0000;
+	config.color_space_conversion_format.c4      = 0x0100;
+	config.color_space_conversion_format.c5      = 0x0000;
+	config.color_space_conversion_format.c6      = 0x0000;
+	config.color_space_conversion_format.c7      = 0x0000;
+	config.color_space_conversion_format.c8      = 0x0100;
+	config.color_space_conversion_format.aoffset = 0x0000;
+	config.color_space_conversion_format.boffset = 0x0000;
+	config.color_space_conversion_format.coffset = 0x0000;
+	config.color_space_conversion_format.lmax    = 0xff;
+	config.color_space_conversion_format.lmin    = 0x00;
+	config.color_space_conversion_format.cmax    = 0xff;
+	config.color_space_conversion_format.cmin    = 0x00;
 	retval = av8100_configuration_prepare(
 		AV8100_COMMAND_COLORSPACECONVERSION, &config);
 	if (retval)
@@ -2758,25 +2764,40 @@ enum av8100_output_CEA_VESA av8100_video_output_format_get(int xres,
 	int yres,
 	int htot,
 	int vtot,
+	int pixelclk,
 	bool interlaced)
 {
 	enum av8100_output_CEA_VESA index = 1;
-	int yres_div = (interlaced == false ? 1 : 2);
+	int yres_div = !interlaced ? 1 : 2;
+	int hres_div = 1;
+	long freq1;
+	long freq2;
 
+	/*
+	* 720_576_I need a divider for hact and htot since
+	* these params need to be twice as large as expected in av8100_all_cea,
+	* which is used as input parameter to video input config.
+	*/
+	if ((xres == 720) && (yres == 576) && (interlaced == true))
+		hres_div = 2;
+
+	freq1 = 1000000 / htot * 1000000 / vtot / pixelclk + 1;
 	while (index < sizeof(av8100_all_cea)/sizeof(struct av8100_cea)) {
-		if ((xres == av8100_all_cea[index].hactive) &&
+		freq2 = av8100_all_cea[index].frequence /
+			av8100_all_cea[index].htotale /
+			av8100_all_cea[index].vtotale;
+
+		printk(KERN_DEBUG "freq1:%ld freq2:%ld\n", freq1, freq2);
+		if ((xres == av8100_all_cea[index].hactive / hres_div) &&
 			(yres == av8100_all_cea[index].vactive * yres_div) &&
-			(htot == av8100_all_cea[index].htotale) &&
-			(vtot == av8100_all_cea[index].vtotale)) {
-			goto av8100_video_output_format_get_out;
+			(htot == av8100_all_cea[index].htotale / hres_div) &&
+			(vtot == av8100_all_cea[index].vtotale) &&
+			(abs(freq1 - freq2) < 2)) {
+			break;
 		}
 		index++;
 	}
 
-av8100_video_output_format_get_out:
-	/* TODO remove */
-	printk(KERN_DEBUG "av8100_video_output_format_get %d %d %d %d %d\n",
-		xres, yres, htot, vtot, index);
 	return index;
 }
 

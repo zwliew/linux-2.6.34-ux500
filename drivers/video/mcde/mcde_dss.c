@@ -95,7 +95,7 @@ int mcde_dss_enable_display(struct mcde_display_device *ddev,
 		dev_dbg(&ddev->dev, "Display enabled, chnl=%d\n",
 						ddev->chnl_id);
 	} else {
-		printk(KERN_INFO "Display already enabled, chnl=%d\n",
+		dev_dbg(&ddev->dev, "Display already enabled, chnl=%d\n",
 						ddev->chnl_id);
 		ddev->power_mode = MCDE_DISPLAY_PM_ON;
 		ret = 0;
