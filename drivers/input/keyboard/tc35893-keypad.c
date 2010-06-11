@@ -25,6 +25,7 @@
 #include <linux/completion.h>
 #include <linux/bitops.h>
 #include <linux/i2c.h>
+#include <linux/slab.h>
 #include <mach/tc35893-keypad.h>
 
 /* Maximum supported keypad matrix row/columns size */

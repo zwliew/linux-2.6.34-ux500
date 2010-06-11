@@ -12,6 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/err.h>
+#include <linux/slab.h>
 
 #include <video/mcde_dss.h>
 

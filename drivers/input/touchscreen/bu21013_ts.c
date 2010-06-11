@@ -14,6 +14,7 @@
 #include <linux/types.h>
 #include <linux/timer.h>
 #include <linux/bu21013.h>
+#include <linux/slab.h>
 
 #define PEN_DOWN_INTR 0
 #define PEN_UP_INTR 1
