@@ -38,9 +38,6 @@
 #include "ste_conn_ccd.h"
 #include "ste_conn_debug.h"
 
-/* ENABLE_SYS_CLK_OUT - Enable system clock out on chip */
-#define ENABLE_SYS_CLK_OUT
-
 #define CG2900_LINE_BUFFER_LENGTH		128
 #define CG2900_FILENAME_MAX			128
 
@@ -321,44 +318,6 @@ static const uint8_t cg2900_msg_vs_system_reset_cmd_req[] = {
 	0x00
 };
 
-#ifdef ENABLE_SYS_CLK_OUT
-/*
-  * cg2900_msg_read_register_0x40014004 -
-  * Hardcoded HCI Read_Register 0x40014004
-  */
-static const uint8_t cg2900_msg_read_register_0x40014004[] = {
-	0x00, /* Reserved for H4 channel*/
-	HCI_BT_MAKE_FIRST_BYTE_IN_CMD(CG2900_BT_OCF_VS_READ_REGISTER),
-	HCI_BT_MAKE_SECOND_BYTE_IN_CMD(HCI_BT_OGF_VS, CG2900_BT_OCF_VS_READ_REGISTER),
-	0x05, /* HCI command length. */
-	0x01, /* Register type = 32-bit*/
-	0X04, /* Memory address byte 1*/
-	0X40, /* Memory address byte 2*/
-	0X01, /* Memory address byte 3*/
-	0X40  /* Memory address byte 4*/
-};
-
-/*
-  * cg2900_msg_write_register_0x40014004 -
-  * Hardcoded HCI Write_Register 0x40014004
-  */
-static const uint8_t cg2900_msg_write_register_0x40014004[] = {
-	0x00, /* Reserved for H4 channel*/
-	HCI_BT_MAKE_FIRST_BYTE_IN_CMD(CG2900_BT_OCF_VS_WRITE_REGISTER),
-	HCI_BT_MAKE_SECOND_BYTE_IN_CMD(HCI_BT_OGF_VS, CG2900_BT_OCF_VS_WRITE_REGISTER),
-	0x09, /* HCI command length. */
-	0x01, /* Register type = 32-bit*/
-	0X04, /* Memory address byte 1*/
-	0X40, /* Memory address byte 2*/
-	0X01, /* Memory address byte 3*/
-	0X40, /* Memory address byte 4*/
-	0X00, /* Register value byte 1*/
-	0X00, /* Register value byte 2*/
-	0X00, /* Register value byte 3*/
-	0X00  /* Register value byte 4*/
-};
-#endif /*ENABLE_SYS_CLK_OUT*/
-
 /*
   * time_500ms - 500 millisecond time struct.
   */
@@ -405,10 +364,6 @@ static bool cg2900_fm_is_do_cmd_irpt(uint16_t irpt_val);
 static bool cg2900_handle_internal_rx_data_bt_evt(struct sk_buff *skb);
 static void cg2900_create_work_item(work_func_t work_func, struct sk_buff *skb, void *data);
 static bool cg2900_handle_reset_cmd_complete_evt(uint8_t *data);
-#ifdef ENABLE_SYS_CLK_OUT
-static bool cg2900_handle_vs_read_register_cmd_complete_evt(uint8_t *data);
-static bool cg2900_handle_vs_write_register_cmd_complete_evt(uint8_t *data);
-#endif /* ENABLE_SYS_CLK_OUT */
 static bool cg2900_handle_vs_store_in_fs_cmd_complete_evt(uint8_t *data);
 static bool cg2900_handle_vs_write_file_block_cmd_complete_evt(uint8_t *data);
 static bool cg2900_handle_vs_power_switch_off_cmd_complete_evt(uint8_t *data);
@@ -997,14 +952,6 @@ static bool cg2900_handle_internal_rx_data_bt_evt(struct sk_buff *skb)
 			case CG2900_BT_OCF_VS_SYSTEM_RESET:
 				pkt_handled = cg2900_handle_vs_system_reset_cmd_complete_evt(data);
 				break;
-#ifdef ENABLE_SYS_CLK_OUT
-			case CG2900_BT_OCF_VS_READ_REGISTER:
-				pkt_handled = cg2900_handle_vs_read_register_cmd_complete_evt(data);
-				break;
-			case CG2900_BT_OCF_VS_WRITE_REGISTER:
-				pkt_handled = cg2900_handle_vs_write_register_cmd_complete_evt(data);
-				break;
-#endif /* ENABLE_SYS_CLK_OUT */
 			default:
 				break;
 			}; /* switch (hci_ocf) */
@@ -1082,126 +1029,6 @@ static bool cg2900_handle_reset_cmd_complete_evt(uint8_t *data)
 	return pkt_handled;
 }
 
-
-#ifdef ENABLE_SYS_CLK_OUT
-/**
- * cg2900_handle_vs_read_register_cmd_complete_evt() - Handle a received HCI Command Complete event
- * for a VS ReadRegister command.
- * @data: Pointer to received HCI data packet.
- *
- * Returns:
- *   True,  if packet was handled internally,
- *   False, otherwise.
- */
-static bool cg2900_handle_vs_read_register_cmd_complete_evt(uint8_t *data)
-{
-	bool pkt_handled = false;
-
-	if (cg2900_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH) {
-		uint8_t status = data[0];
-
-		if (HCI_BT_ERROR_NO_ERROR == status) {
-			/* Received good confirmation. Start work to continue */
-			uint8_t data_out[(sizeof(cg2900_msg_write_register_0x40014004))];
-			memcpy(&data_out[0], cg2900_msg_write_register_0x40014004, sizeof(cg2900_msg_write_register_0x40014004));
-
-			STE_CONN_DBG_DATA_CONTENT("Read register 0x40014004 value 0x%02X 0x%02X 0x%02X 0x%02X",
-						  data[1], data[2], data[3], data[4]);
-			/* Little endian Set bit 12 to value 1 */
-			data[2] = data[2] | 0x10;
-			STE_CONN_DBG_DATA_CONTENT("Write register 0x40014004 value 0x%02X 0x%02X 0x%02X 0x%02X",
-						  data[1], data[2], data[3], data[4]);
-			/* Copy value to be written */
-			memcpy(&data_out[9], &data[1], 4);
-			cg2900_create_and_send_bt_cmd(&data_out[0], sizeof(cg2900_msg_write_register_0x40014004));
-
-		} else {
-			STE_CONN_ERR("Command complete for ReadRegister received with error 0x%X", status);
-			CG2900_SET_BOOT_STATE(BOOT_STATE_FAILED);
-			cg2900_create_work_item(cg2900_work_reset_after_error, NULL, NULL);
-		}
-		/* We have now handled the packet */
-		pkt_handled = true;
-
-	} else if (cg2900_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW) {
-			uint8_t status = data[0];
-
-		if (HCI_BT_ERROR_NO_ERROR == status) {
-			/* Received good confirmation. Start work to continue */
-			uint8_t data_out[(sizeof(cg2900_msg_write_register_0x40014004))];
-			memcpy(&data_out[0], cg2900_msg_write_register_0x40014004, sizeof(cg2900_msg_write_register_0x40014004));
-
-			STE_CONN_DBG_DATA_CONTENT("Read register 0x40014004 value 0x%02X 0x%02X 0x%02X 0x%02X",
-						  data[1], data[2], data[3], data[4]);
-			/* Little endian Set bit 12 to value 0 */
-			data[2] = data[2] & 0xEF;
-			STE_CONN_DBG_DATA_CONTENT("Write register 0x40014004 value 0x%02X 0x%02X 0x%02X 0x%02X",
-						  data[1], data[2], data[3], data[4]);
-			/* Copy value to be written */
-			memcpy(&data_out[9], &data[1], 4);
-			cg2900_create_and_send_bt_cmd(&data_out[0], sizeof(cg2900_msg_write_register_0x40014004));
-
-		} else {
-			STE_CONN_ERR("Command complete for ReadRegister received with error 0x%X", status);
-			CG2900_SET_BOOT_STATE(BOOT_STATE_FAILED);
-			cg2900_create_work_item(cg2900_work_reset_after_error, NULL, NULL);
-		}
-		/* We have now handled the packet */
-		pkt_handled = true;
-	}
-	return pkt_handled;
-}
-
-/**
- * cg2900_handle_vs_write_register_cmd_complete_evt() - Handle a received HCI Command Complete event
- * for a VS ReadRegister command.
- * @data: Pointer to received HCI data packet.
- *
- * Returns:
- *   True,  if packet was handled internally,
- *   False, otherwise.
- */
-static bool cg2900_handle_vs_write_register_cmd_complete_evt(uint8_t *data)
-{
-	bool pkt_handled = false;
-
-	if (cg2900_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH) {
-		uint8_t status = data[0];
-
-		if (HCI_BT_ERROR_NO_ERROR == status) {
-			/* Received good confirmation*/
-			cg2900_create_and_send_bt_cmd(cg2900_msg_read_register_0x40014004,
-						sizeof(cg2900_msg_read_register_0x40014004));
-			CG2900_SET_BOOT_STATE(BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW);
-		} else {
-			STE_CONN_ERR("Command complete for WriteRegister received with error 0x%X", status);
-			CG2900_SET_BOOT_STATE(BOOT_STATE_FAILED);
-			cg2900_create_work_item(cg2900_work_reset_after_error, NULL, NULL);
-		}
-		/* We have now handled the packet */
-		pkt_handled = true;
-	} else 	if (cg2900_info->boot_state == BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_LOW) {
-		uint8_t status = data[0];
-
-		if (HCI_BT_ERROR_NO_ERROR == status) {
-			/* Received good confirmation
-			 * The boot sequence is now finished successfully
-			 * Set states and signal to waiting thread.
-			 */
-			CG2900_SET_BOOT_STATE(BOOT_STATE_READY);
-			ste_conn_cpd_chip_startup_finished(0);
-		} else {
-			STE_CONN_ERR("Command complete for WriteRegister received with error 0x%X", status);
-			CG2900_SET_BOOT_STATE(BOOT_STATE_FAILED);
-			cg2900_create_work_item(cg2900_work_reset_after_error, NULL, NULL);
-		}
-		/* We have now handled the packet */
-		pkt_handled = true;
-	}
-
-	return pkt_handled;
-}
-#endif /* ENABLE_SYS_CLK_OUT */
 
 /**
  * cg2900_handle_vs_store_in_fs_cmd_complete_evt() - Handle a received HCI Command Complete event
@@ -1316,14 +1143,6 @@ static bool cg2900_handle_vs_system_reset_cmd_complete_evt(uint8_t *data)
 	uint8_t status = data[0];
 
 	if (cg2900_info->boot_state == BOOT_STATE_ACTIVATE_PATCHES_AND_SETTINGS) {
-#ifdef ENABLE_SYS_CLK_OUT
-		STE_CONN_INFO("SYS_CLK_OUT Enabled");
-		if (HCI_BT_ERROR_NO_ERROR == status) {
-			CG2900_SET_BOOT_STATE(BOOT_STATE_ACTIVATE_SYS_CLK_OUT_TOGGLE_HIGH);
-			cg2900_create_and_send_bt_cmd(cg2900_msg_read_register_0x40014004,
-						sizeof(cg2900_msg_read_register_0x40014004));
-		}
-#else
 		STE_CONN_INFO("SYS_CLK_OUT Disabled");
 		if (HCI_BT_ERROR_NO_ERROR == status) {
 			/* The boot sequence is now finished successfully.
@@ -1331,9 +1150,7 @@ static bool cg2900_handle_vs_system_reset_cmd_complete_evt(uint8_t *data)
 			 */
 			CG2900_SET_BOOT_STATE(BOOT_STATE_READY);
 			ste_conn_cpd_chip_startup_finished(0);
-		}
-#endif
-		else {
+		} else {
 			STE_CONN_ERR("Received Reset complete event with status 0x%X", status);
 			CG2900_SET_BOOT_STATE(BOOT_STATE_FAILED);
 			ste_conn_cpd_chip_startup_finished(-EIO);

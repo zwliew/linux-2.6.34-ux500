@@ -10,14 +10,6 @@
 #
 #################
 #
-# Factory Settings for ST Microelectronics - STLC2593 - ST2500D R5.3
-#
-#  These settings are for the S335, BT2.1 support is enabled.
-#
-0x0503	0x00F1	STLC2593_R5_03_07_EMP_R13Lisbon.fw
-#
-#################
-#
 # Factory Settings for ST Microelectronics - STLC2690 -  Cut 2.1
 #
 #  These settings are for the S335, BT2.1 support is enabled.
@@ -30,7 +22,6 @@
 #
 # Factory Settings for ST-Ericsson - CG2900
 #
-#0x0700	0x0011  STLC2600_R7_00_01.fw
-0x0700	0x0011  CG2900_1_05_V5_FMoI2S.fw
+0x0700	0x0011  CG2900_1_05_SOC_generic_V11_mod.fw
 #
 #################
