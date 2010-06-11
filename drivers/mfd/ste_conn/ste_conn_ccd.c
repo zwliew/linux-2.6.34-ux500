@@ -289,7 +289,7 @@ static int uart_default_baud = CCD_DEFAULT_BAUD_RATE;
 static int uart_high_baud = CCD_HIGH_BAUD_RATE;
 int ste_debug_level = STE_CONN_DEFAULT_DEBUG_LEVEL;
 EXPORT_SYMBOL(ste_debug_level);
-uint8_t ste_conn_bd_address[] = {0x00, 0x80, 0xDE, 0xAD, 0xBE, 0xEF};
+uint8_t ste_conn_bd_address[] = {0x00, 0x80, 0xDE, 0xAD, 0xBE, 0x00};
 EXPORT_SYMBOL(ste_conn_bd_address);
 int bd_addr_count = BT_BDADDR_SIZE;
 
