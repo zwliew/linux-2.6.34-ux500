@@ -941,6 +941,7 @@ static bool cg2900_fm_is_do_cmd_irpt(uint16_t irpt_val)
 static bool cg2900_handle_internal_rx_data_bt_evt(struct sk_buff *skb)
 {
 	bool pkt_handled = false;
+	/* skb cannot be NULL here so it is safe to de-reference */
 	uint8_t *data = &(skb->data[STE_CONN_SKB_RESERVE]);
 	uint8_t event_code = data[0];
 
@@ -1014,7 +1015,7 @@ static bool cg2900_handle_internal_rx_data_bt_evt(struct sk_buff *skb)
 		}; /* switch (hci_ogf) */
 	}
 
-	if (pkt_handled && skb) {
+	if (pkt_handled) {
 		kfree_skb(skb);
 	}
 	return pkt_handled;

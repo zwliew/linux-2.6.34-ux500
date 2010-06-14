@@ -2187,6 +2187,13 @@ static ssize_t ste_cg29xx_audio_char_device_write(struct file *filp,
 		(struct cg29xx_audio_char_dev_info *)filp->private_data;
 	int err = 0;
 	int op_code = 0;
+	uint8_t *curr_data;
+	unsigned int stream_handle;
+	struct ste_cg29xx_dai_config dai_config;
+	struct ste_cg29xx_audio_endpoint_configuration ep_config;
+	enum ste_cg29xx_audio_endpoint_id endpoint_1;
+	enum ste_cg29xx_audio_endpoint_id endpoint_2;
+	int bytes_left = count;
 
 	STE_CONN_INFO("ste_cg29xx_audio_char_device_write count %d", count);
 
@@ -2196,131 +2203,128 @@ static ssize_t ste_cg29xx_audio_char_device_write(struct file *filp,
 		goto finished;
 	}
 
+	rec_data = kmalloc(count, GFP_KERNEL);
+	if (!rec_data) {
+		STE_CONN_ERR("kmalloc failed");
+		err = -ENOMEM;
+		goto finished;
+	}
+
 	mutex_lock(&dev->rw_mutex);
 
-	rec_data = kmalloc(count, GFP_KERNEL);
-	if (rec_data) {
-		uint8_t *data = rec_data;
-		/* Variables used when calling the different functions */
-		unsigned int stream_handle;
-		struct ste_cg29xx_dai_config dai_config;
-		struct ste_cg29xx_audio_endpoint_configuration ep_config;
-		enum ste_cg29xx_audio_endpoint_id endpoint_1;
-		enum ste_cg29xx_audio_endpoint_id endpoint_2;
-		int bytes_left = count;
+	err = copy_from_user(rec_data, buf, count);
+	if (err) {
+		STE_CONN_ERR("copy_from_user failed (%d)", err);
+		err = -EFAULT;
+		goto finished_mutex_unlock;
+	}
 
-		err = copy_from_user(rec_data, buf, count);
-		if (err) {
-			STE_CONN_ERR("copy_from_user failed (%d)", err);
-			kfree(rec_data);
-			err = -EFAULT;
+	/* Initialize temporary data pointer used to traverse the packet */
+	curr_data = rec_data;
+
+	op_code = curr_data[0];
+	STE_CONN_DBG("op_code %d", op_code);
+	/* OpCode is int size to keep data int aligned */
+	curr_data += sizeof(unsigned int);
+	bytes_left -= sizeof(unsigned int);
+
+	switch (op_code) {
+	case CHAR_DEV_OP_CODE_SET_DAI_CONF:
+		STE_CONN_DBG("CHAR_DEV_OP_CODE_SET_DAI_CONF %d", sizeof(dai_config));
+		if (bytes_left < sizeof(dai_config)) {
+			STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_SET_DAI_CONF");
+			err = -EINVAL;
 			goto finished_mutex_unlock;
 		}
+		memcpy(&dai_config, curr_data, sizeof(dai_config));
+		STE_CONN_DBG("dai_config.port %d", dai_config.port);
+		err = ste_cg29xx_audio_set_dai_configuration(dev->session, &dai_config);
+		break;
 
-		op_code = data[0];
-		STE_CONN_DBG("op_code %d", op_code);
-		/* OpCode is int size to keep data int aligned */
-		data += sizeof(unsigned int);
-		bytes_left -= sizeof(unsigned int);
+	case CHAR_DEV_OP_CODE_GET_DAI_CONF:
+		STE_CONN_DBG("CHAR_DEV_OP_CODE_GET_DAI_CONF %d", sizeof(dai_config));
+		if (bytes_left < sizeof(dai_config)) {
+			STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_GET_DAI_CONF");
+			err = -EINVAL;
+			goto finished_mutex_unlock;
+		}
+		/* Only need to copy the port really, but let's copy
+		 * like this for simplicity. It's only test functionality
+		 * after all. */
+		memcpy(&dai_config, curr_data, sizeof(dai_config));
+		STE_CONN_DBG("dai_config.port %d", dai_config.port);
+		err = ste_cg29xx_audio_get_dai_configuration(dev->session, &dai_config);
+		if (!err) {
+			/* Command succeeded. Store data so it can be returned when calling read */
+			if (dev->stored_data) {
+				STE_CONN_ERR("Data already allocated (%d bytes). Throwing it away.",
+					     dev->stored_data_len);
+				kfree(dev->stored_data);
+			}
+			dev->stored_data_len = sizeof(op_code) + sizeof(dai_config);
+			dev->stored_data = kmalloc(dev->stored_data_len, GFP_KERNEL);
+			memcpy(dev->stored_data, &op_code, sizeof(op_code));
+			memcpy(&(dev->stored_data[sizeof(op_code)]), &dai_config, sizeof(dai_config));
+		}
+		break;
 
-		switch (op_code) {
-		case CHAR_DEV_OP_CODE_SET_DAI_CONF:
-			STE_CONN_DBG("CHAR_DEV_OP_CODE_SET_DAI_CONF %d", sizeof(dai_config));
-			if (bytes_left < sizeof(dai_config)) {
-				STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_SET_DAI_CONF");
-				err = -EINVAL;
-				goto finished_mutex_unlock;
-			}
-			memcpy(&dai_config, data, sizeof(dai_config));
-			STE_CONN_DBG("dai_config.port %d", dai_config.port);
-			err = ste_cg29xx_audio_set_dai_configuration(dev->session, &dai_config);
-			break;
+	case CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT:
+		STE_CONN_DBG("CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT %d", sizeof(ep_config));
+		if (bytes_left < sizeof(ep_config)) {
+			STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT");
+			err = -EINVAL;
+			goto finished_mutex_unlock;
+		}
+		memcpy(&ep_config, curr_data, sizeof(ep_config));
+		STE_CONN_DBG("ep_config.endpoint_id %d", ep_config.endpoint_id);
+		err = ste_cg29xx_audio_configure_endpoint(dev->session, &ep_config);
+		break;
 
-		case CHAR_DEV_OP_CODE_GET_DAI_CONF:
-			STE_CONN_DBG("CHAR_DEV_OP_CODE_GET_DAI_CONF %d", sizeof(dai_config));
-			if (bytes_left < sizeof(dai_config)) {
-				STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_GET_DAI_CONF");
-				err = -EINVAL;
-				goto finished_mutex_unlock;
-			}
-			/* Only need to copy the port really, but let's copy
-			 * like this for simplicity. It's only test functionality
-			 * after all. */
-			memcpy(&dai_config, data, sizeof(dai_config));
-			STE_CONN_DBG("dai_config.port %d", dai_config.port);
-			err = ste_cg29xx_audio_get_dai_configuration(dev->session, &dai_config);
-			if (!err) {
-				/* Command succeeded. Store data so it can be returned when calling read */
-				if (dev->stored_data) {
-					STE_CONN_ERR("Data already allocated (%d bytes). Throwing it away.",
-						     dev->stored_data_len);
-					kfree(dev->stored_data);
-				}
-				dev->stored_data_len = sizeof(op_code) + sizeof(dai_config);
-				dev->stored_data = kmalloc(dev->stored_data_len, GFP_KERNEL);
-				memcpy(dev->stored_data, &op_code, sizeof(op_code));
-				memcpy(&(dev->stored_data[sizeof(op_code)]), &dai_config, sizeof(dai_config));
-			}
-			break;
+	case CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM:
+		STE_CONN_DBG("CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM %d", (sizeof(endpoint_1) + sizeof(endpoint_2)));
+		if (bytes_left < (sizeof(endpoint_1) + sizeof(endpoint_2))) {
+			STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM");
+			err = -EINVAL;
+			goto finished_mutex_unlock;
+		}
+		memcpy(&endpoint_1, curr_data, sizeof(endpoint_1));
+		curr_data += sizeof(endpoint_1);
+		memcpy(&endpoint_2, curr_data, sizeof(endpoint_2));
+		STE_CONN_DBG("endpoint_1 %d endpoint_2 %d", endpoint_1, endpoint_2);
 
-		case CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT:
-			STE_CONN_DBG("CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT %d", sizeof(ep_config));
-			if (bytes_left < sizeof(ep_config)) {
-				STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_CONFIGURE_ENDPOINT");
-				err = -EINVAL;
-				goto finished_mutex_unlock;
+		err = ste_cg29xx_audio_connect_and_start_stream(dev->session,
+			endpoint_1, endpoint_2, &stream_handle);
+		if (!err) {
+			/* Command succeeded. Store data so it can be returned when calling read */
+			if (dev->stored_data) {
+				STE_CONN_ERR("Data already allocated (%d bytes). Throwing it away.",
+					     dev->stored_data_len);
+				kfree(dev->stored_data);
 			}
-			memcpy(&ep_config, data, sizeof(ep_config));
-			STE_CONN_DBG("ep_config.endpoint_id %d", ep_config.endpoint_id);
-			err = ste_cg29xx_audio_configure_endpoint(dev->session, &ep_config);
-			break;
-
-		case CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM:
-			STE_CONN_DBG("CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM %d", (sizeof(endpoint_1) + sizeof(endpoint_2)));
-			if (bytes_left < (sizeof(endpoint_1) + sizeof(endpoint_2))) {
-				STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_CONNECT_AND_START_STREAM");
-				err = -EINVAL;
-				goto finished_mutex_unlock;
-			}
-			memcpy(&endpoint_1, data, sizeof(endpoint_1));
-			data += sizeof(endpoint_1);
-			memcpy(&endpoint_2, data, sizeof(endpoint_2));
-			STE_CONN_DBG("endpoint_1 %d endpoint_2 %d", endpoint_1, endpoint_2);
-
-			err = ste_cg29xx_audio_connect_and_start_stream(dev->session,
-				endpoint_1, endpoint_2, &stream_handle);
-			if (!err) {
-				/* Command succeeded. Store data so it can be returned when calling read */
-				if (dev->stored_data) {
-					STE_CONN_ERR("Data already allocated (%d bytes). Throwing it away.",
-						     dev->stored_data_len);
-					kfree(dev->stored_data);
-				}
-				dev->stored_data_len = sizeof(op_code) + sizeof(stream_handle);
-				dev->stored_data = kmalloc(dev->stored_data_len, GFP_KERNEL);
-				memcpy(dev->stored_data, &op_code, sizeof(op_code));
-				memcpy(&(dev->stored_data[sizeof(op_code)]), &stream_handle, sizeof(stream_handle));
-				STE_CONN_DBG("stream_handle %d", stream_handle);
-			}
-			break;
-
-		case CHAR_DEV_OP_CODE_STOP_STREAM:
-			if (bytes_left < sizeof(stream_handle)) {
-				STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_STOP_STREAM");
-				err = -EINVAL;
-				goto finished_mutex_unlock;
-			}
-			STE_CONN_DBG("CHAR_DEV_OP_CODE_STOP_STREAM %d", sizeof(stream_handle));
-			memcpy(&stream_handle, data, sizeof(stream_handle));
+			dev->stored_data_len = sizeof(op_code) + sizeof(stream_handle);
+			dev->stored_data = kmalloc(dev->stored_data_len, GFP_KERNEL);
+			memcpy(dev->stored_data, &op_code, sizeof(op_code));
+			memcpy(&(dev->stored_data[sizeof(op_code)]), &stream_handle, sizeof(stream_handle));
 			STE_CONN_DBG("stream_handle %d", stream_handle);
-			err = ste_cg29xx_audio_stop_stream(dev->session, stream_handle);
-			break;
+		}
+		break;
 
-		default:
-			STE_CONN_ERR("Received bad op_code %d", op_code);
-			break;
-		};
-	}
+	case CHAR_DEV_OP_CODE_STOP_STREAM:
+		if (bytes_left < sizeof(stream_handle)) {
+			STE_CONN_ERR("Not enough data supplied for CHAR_DEV_OP_CODE_STOP_STREAM");
+			err = -EINVAL;
+			goto finished_mutex_unlock;
+		}
+		STE_CONN_DBG("CHAR_DEV_OP_CODE_STOP_STREAM %d", sizeof(stream_handle));
+		memcpy(&stream_handle, curr_data, sizeof(stream_handle));
+		STE_CONN_DBG("stream_handle %d", stream_handle);
+		err = ste_cg29xx_audio_stop_stream(dev->session, stream_handle);
+		break;
+
+	default:
+		STE_CONN_ERR("Received bad op_code %d", op_code);
+		break;
+	};
 
 finished_mutex_unlock:
 	kfree(rec_data);
@@ -2332,7 +2336,6 @@ finished:
 		return count;
 	}
 }
-
 
 /**
  * ste_cg29xx_audio_char_device_poll() - Handle POLL call to the interface.
@@ -2366,7 +2369,6 @@ static unsigned int ste_cg29xx_audio_char_device_poll(struct file *filp,
 	}
 	return mask;
 }
-
 
 /*
  * 	Module related methods
