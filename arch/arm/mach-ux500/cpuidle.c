@@ -161,6 +161,8 @@ static int u8500_enter_idle(struct cpuidle_device *dev,
 	int ret = 0;
 	cstate = cpuidle_get_statedata(state);
 
+	local_irq_disable();
+
 	if (cstate->type == U8500_CSTATE_C1)
 		ret = wfi_idle(dev, state);
 
@@ -169,6 +171,8 @@ static int u8500_enter_idle(struct cpuidle_device *dev,
 
 	if (cstate->type == U8500_CSTATE_C0)
 		ret = poll_idle(dev, state);
+
+	local_irq_enable();
 
 	return ret;
 }
