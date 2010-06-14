@@ -504,9 +504,19 @@ static int bu21013_gpio_board_init(int reset_pin)
 		writel(TSC_EXT_CLOCK_9_6MHZ, clk_base);
 	}
 	if (platform_id == MOP500_PLATFORM_ID) {
+		retval = gpio_request(EGPIO_PIN_2, "touchp_egpio2");
+		if (retval) {
+			printk(KERN_ERR "Unable to request gpio EGPIO_PIN_2");
+			return retval;
+		}
 		gpio_set_value(EGPIO_PIN_2, 1);
 	} else if (platform_id == HREF_PLATFORM_ID) {
 		if (!config_set) {
+			retval = gpio_request(reset_pin, "touchp_reset");
+			if (retval) {
+				printk(KERN_ERR "Unable to request gpio reset_pin");
+				return retval;
+			}
 			retval = gpio_direction_output(reset_pin, 1);
 			if (retval < 0) {
 				printk(KERN_ERR "%s: gpio direction failed\n", __func__);
