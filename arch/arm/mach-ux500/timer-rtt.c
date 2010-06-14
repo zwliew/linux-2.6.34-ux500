@@ -103,6 +103,12 @@ static int u8500_rtc_interrupt(int irq, void *dev)
 	return IRQ_NONE;
 }
 
+/*
+ * Added here as asm/smp.h is removed in v2.6.34 and
+ * this funcitons is needed for current PM setup.
+ */
+void smp_timer_broadcast(const struct cpumask *mask);
+
 static struct clock_event_device u8500_rtc = {
 	.name		= "rtc",
 	.features	= CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT,
@@ -110,6 +116,7 @@ static struct clock_event_device u8500_rtc = {
 	.rating		= 500,
 	.set_next_event	= u8500_rtc_set_event,
 	.set_mode	= u8500_rtc_set_mode,
+	.broadcast      = smp_timer_broadcast,
 	.irq		= IRQ_RTC_RTT,
 	.cpumask	= cpu_all_mask,
 };
