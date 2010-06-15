@@ -513,6 +513,7 @@ static void u8500_mmc_dma_transfer_done(struct u8500_mmci_host *host)
 		u8500_mmci_request_end(host, data->mrq);
 	else
 		u8500_mmci_start_command(host, data->stop);
+	return;
 out:
 	if (data->error != MMC_ERR_NONE) {
 		if (!data->stop)
@@ -1354,7 +1355,7 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 				host->cclk = host->mclk / (clk + 2);
 			}
 		}
-		if (host->devicemode == MCI_DMAMODE)
+		if ((host->devicemode == MCI_DMAMODE) && !host->is_sdio)
 			clk |= MCI_CLK_PWRSAVE;
 		clk |= (MCI_HWFC_EN | MCI_CLK_ENABLE);
 		writel(clk, host->base + MMCICLOCK);
