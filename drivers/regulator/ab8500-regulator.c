@@ -649,11 +649,32 @@ static int ab8500_dcdc_disable(struct regulator_dev *rdev)
 	return 0;
 }
 
+static int ab8500_dcdc_is_enabled(struct regulator_dev *rdev)
+{
+	int regulator_id, ret;
+
+	regulator_id = rdev_get_id(rdev);
+	if (regulator_id >= AB8500_NUM_REGULATORS)
+		return -EINVAL;
+
+	switch (regulator_id) {
+	case AB8500_DCDC_VBUS:
+		ret = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_VUSB_CTRL_REG);
+		if (ret & MASK_ENABLE)
+			return true;
+		else
+			return false;
+	default:
+		dev_dbg(rdev_get_dev(rdev), "unknown regulator id\n");
+		return -EINVAL;
+	}
+}
 
 /* operations for DC-DC convertor supplies (VBUS, VSMPS1/2) */
 static struct regulator_ops ab8500_dcdc_ops = {
 	.enable		= ab8500_dcdc_enable,
 	.disable	= ab8500_dcdc_disable,
+	.is_enabled	= ab8500_dcdc_is_enabled,
 };
 
 static struct regulator_desc ab8500_desc[AB8500_NUM_REGULATORS] = {
