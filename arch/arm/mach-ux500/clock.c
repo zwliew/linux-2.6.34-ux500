@@ -773,9 +773,13 @@ int __init clk_init(void)
 					   + PRCM_SDMMCCLK_MGT;
 		unsigned int val;
 
-		/* Switch SDMMCCLK to 52Mhz instead of 104Mhz */
+		/* Set SDMMCCLK at 100Mhz */
 		val = readl(sdmmclkmgt);
-		val = (val & ~0x1f) | 16;
+		/*
+		 * set the clock divider
+		 * to configure the MCLK at 100MHZ
+		 */
+		val = (val & ~SD_CLK_DIV_MASK) | SD_CLK_DIV_VAL;
 		writel(val, sdmmclkmgt);
 	} else if (cpu_is_u5500()) {
 		clk_prcmu_ops.enable = NULL;

@@ -327,8 +327,8 @@ struct u8500_mmci_host {
 #define MCI_MAXVOLTTRIAL	(200)	/* 200 times */
 #define MAX_FREQ (24000000)
 #define MAX_DATA (64*512)
-#define CLK_MAX	50000000
-#define CLK_DIV 0xFF
+#define MMC_HOST_CLK_MAX	100000000
+#define MMC_CLK_DIV 0xFF
 /*
  * different card states
  */

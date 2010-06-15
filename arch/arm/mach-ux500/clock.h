@@ -40,6 +40,9 @@ void update_clk_tree(void);
 /* Clock enable bit */
 #define ENABLE_BIT 0x100
 
+#define SD_CLK_DIV_MASK  0x1F
+#define SD_CLK_DIV_VAL   8
+
 struct clkops {
 	void (*enable) (struct clk *);
 	void (*disable) (struct clk *);

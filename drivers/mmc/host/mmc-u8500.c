@@ -97,9 +97,9 @@ const int sdio_mode = 0xFFFF;
 #endif
 
 #if !defined CONFIG_U8500_MMC_INTR
-static unsigned int fmax = CLK_MAX;
+static unsigned int fmax = MMC_HOST_CLK_MAX;
 #else
-static unsigned int fmax = CLK_MAX / 8;
+static unsigned int fmax = MMC_HOST_CLK_MAX / 8;
 #endif
 
 #if !defined CONFIG_U8500_MMC_DMA
@@ -1211,12 +1211,6 @@ static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 	cmd->error = MMC_ERR_NONE;
 	data->error = MMC_ERR_NONE;
 
-	if (host->devicemode == MCI_POLLINGMODE) {
-		temp_reg = readl(base + MMCICLOCK);
-		temp_reg = (temp_reg & ~(0xFF)) | ((u8) polling_freq_clk_div & 0xFF);
-		writel(0x03, host->base + MMCIPOWER);
-		writel(temp_reg, (base + MMCICLOCK));
-	}
 	if (host->devicemode == MCI_DMAMODE)
 		u8500_mmc_set_dma(host);
 
@@ -1363,11 +1357,10 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	break;
 	}
 	if (ios->clock) {
-		if (ios->clock >= host->mclk)
-			clk |= (MCI_CLK_BYPASS | MCI_NEG_EDGE);
+		if (ios->clock >= (host->mclk / 2))
+			clk = 0;
 		else {
 			u32 div = host->mclk / ios->clock;
-
 			if (div > 2) {
 				clk = div - 2;
 				if (clk > 255)
@@ -1491,13 +1484,12 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	}
 	host = mmc_priv(mmc);
 	host->oldstat = -1;
-	host->mclk = CLK_MAX;
+	host->mclk = MMC_HOST_CLK_MAX;
 	host->mmc = mmc;
 	host->board = board;
 	host->dma_fifo_addr = board->dma_fifo_addr;
 	host->dma_fifo_dev_type_rx = board->dma_fifo_dev_type_rx;
 	host->dma_fifo_dev_type_tx = board->dma_fifo_dev_type_tx;
-	host->caps = board->caps;
 	if (board->level_shifter)
 		host->level_shifter = board->level_shifter;
 	/**
@@ -1517,7 +1509,7 @@ static int u8500_mmci_probe(struct amba_device *dev, struct amba_id *id)
 	}
 	mmc->ops = &u8500_mmci_ops;
 	mmc->f_max = min(host->mclk, fmax);
-	mmc->f_min = CLK_MAX / (CLK_DIV + 2);
+	mmc->f_min = MMC_HOST_CLK_MAX / (MMC_CLK_DIV + 2);
 	if (devicemode == MCI_DMAMODE)
 		mmc->caps = host->caps;
 
