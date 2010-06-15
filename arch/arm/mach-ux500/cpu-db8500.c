@@ -29,9 +29,9 @@ static struct map_desc u8500_io_desc[] __initdata = {
 	__IO_DEV_DESC(U8500_PRCMU_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_PRCMU_TCDM_BASE, SZ_4K),
 	__IO_DEV_DESC(U8500_ASIC_ID_BASE, SZ_4K),
-	__IO_DEV_DESC(U8500_ICN_BASE, SZ_8K),
 	{IO_ADDRESS(U8500_BACKUPRAM0_BASE),
 		__phys_to_pfn(U8500_BACKUPRAM0_BASE), SZ_8K, MT_BACKUP_RAM},
+	__MEM_DEV_DESC(U8500_BOOT_ROM_BASE, SZ_1M),
 };
 
 static struct map_desc u8500_ed_io_desc[] __initdata = {

@@ -35,3 +35,5 @@ obj-y					+= ste_conn_devices.o
 else
 obj-$(CONFIG_MFD_STE_CONN)		+= ste_conn_devices.o
 endif
+
+obj-$(CONFIG_TEE_SUPPORT)		+= tee_ux500.o

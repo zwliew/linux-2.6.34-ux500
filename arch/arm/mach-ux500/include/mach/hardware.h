@@ -169,6 +169,15 @@
 #define U8500_DSI_LINK_COUNT 0x3
 #define U8500_DSI_LINK2_BASE (U8500_DSI_LINK1_BASE + U8500_DSI_LINK_SIZE)
 #define U8500_DSI_LINK3_BASE (U8500_DSI_LINK2_BASE + U8500_DSI_LINK_SIZE)
+/* ACCCON secure base address */
+
+#define ACCCON_BASE_SEC	(0xBFFF0000)
+/* ACCCON normal world base address */
+#define ACCCON_BASE	(0xBFFF1000)
+/* ACCCON register for CPU reset jump address */
+#define ACCCON_CPUVEC_RESET_ADDR_OFFSET	(0x00000020)
+/* ACCCON register for CPU reset */
+#define ACCCON_ACC_CPU_CTRL_OFFSET	(0x000000BC)
 
 #ifndef __ASSEMBLY__
 

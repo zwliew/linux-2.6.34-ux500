@@ -7,6 +7,7 @@
  *
  */
 
+#include <asm/io.h>
 #include "pm.h"
 
 #define U8500_EXT_BACKUPRAM_ADDR	(0x80151FDC)
@@ -312,7 +313,7 @@ static struct ux500_interconnect_contxt icn_contxt;
  */
 void ux500_save_icn_context(void)
 {
-	uint32_t base = IO_ADDRESS(U8500_ICN_BASE);
+	unsigned char *base = ioremap(U8500_ICN_BASE, 0);
 
 	icn_contxt.ux500_hibw1_esram_in_pri_regs[0] =
 		readb(base + NODE_HIBW1_ESRAM_IN_0_PRIORITY_REG);

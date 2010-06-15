@@ -39,4 +39,11 @@ extern struct sys_timer u8500_timer;
 	.type		= MT_DEVICE,		\
 }
 
+#define __MEM_DEV_DESC(x, sz)	{		\
+	.virtual	= IO_ADDRESS(x),	\
+	.pfn		= __phys_to_pfn(x),	\
+	.length		= sz,			\
+	.type		= MT_MEMORY,		\
+}
+
 #endif /*  __ASM_ARCH_SETUP_H */
