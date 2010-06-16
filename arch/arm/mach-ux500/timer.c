@@ -51,7 +51,7 @@ static void u8500_clocksource_resume(void)
 
 static struct clocksource u8500_clksrc = {
 	.name		= "mtu_1",
-	.rating		= 400,
+	.rating		= 120,
 	.read		= u8500_read_timer,
 	.shift		= 20,
 	.mask = CLOCKSOURCE_MASK(32),
@@ -93,7 +93,7 @@ static struct clock_event_device u8500_clkevt = {
 	.name		= "mtu_0",
 	.features	= CLOCK_EVT_FEAT_PERIODIC,
 	.shift		= 32,
-	.rating		= 400,
+	.rating		= 100,
 	.set_mode	= u8500_clkevt_mode,
 	.irq		= IRQ_MTU0,
 };
