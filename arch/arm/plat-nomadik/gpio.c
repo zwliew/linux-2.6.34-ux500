@@ -758,26 +758,6 @@ out:
 	return ret;
 }
 
-static int __exit nmk_gpio_remove(struct platform_device *dev)
-{
-	struct nmk_gpio_chip *nmk_chip;
-	struct resource *res;
-
-	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
-	if (!res)
-		printk(KERN_ERR "IORESOURCE_MEM unavailable\n");
-
-	nmk_chip = platform_get_drvdata(dev);
-	gpiochip_remove(&nmk_chip->chip);
-	clk_disable(nmk_chip->clk);
-	clk_put(nmk_chip->clk);
-	kfree(nmk_chip);
-	if (res)
-		release_mem_region(res->start, resource_size(res));
-
-	return 0;
-}
-
 #ifdef CONFIG_PM
 static int nmk_gpio_pm(struct platform_device *dev, bool suspend)
 {
@@ -830,7 +810,6 @@ static struct platform_driver nmk_gpio_driver = {
 		.name = "gpio",
 		},
 	.probe = nmk_gpio_probe,
-	.remove = __exit_p(nmk_gpio_remove),
 	.suspend = nmk_gpio_suspend,
 	.resume = nmk_gpio_resume,
 };
