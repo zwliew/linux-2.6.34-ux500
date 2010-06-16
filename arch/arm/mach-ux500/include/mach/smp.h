@@ -1,18 +1,20 @@
 /*
- * Copyright (C) 2009 ST-Ericsson SA
+ * This file is based ARM realview platform.
+ * Copyright (C) ARM Limited.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This file is licensed under  the terms of the GNU General Public
+ * License version 2. This program is licensed "as is" without any
+ * warranty of any kind, whether express or implied.
  */
 #ifndef ASMARM_ARCH_SMP_H
 #define ASMARM_ARCH_SMP_H
 
-
 #include <asm/hardware/gic.h>
 
-#define hard_smp_processor_id()			\
+/* This is required to wakeup the secondary core */
+extern void u8500_secondary_startup(void);
+
+#define hard_smp_processor_id()				\
 	({						\
 		unsigned int cpunum;			\
 		__asm__("mrc p15, 0, %0, c0, c0, 5"	\
@@ -27,12 +29,4 @@ static inline void smp_cross_call(const struct cpumask *mask)
 {
 	gic_raise_softirq(mask, 1);
 }
-
-/*
- * Do nothing on MPcore.
- */
-static inline void smp_cross_call_done(const struct cpumask *mask)
-{
-}
-
 #endif
