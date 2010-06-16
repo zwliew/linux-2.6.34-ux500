@@ -23,6 +23,8 @@
 #define DEFAULT_PILOT_DEVIATION 675
 #define MAX_PILOT_DEVIATION 1000
 #define DEFAULT_RSSI_THRESHOLD 0x0100
+#define DEFAULT_PEAK_NOISE_VALUE 0x0035
+#define AVERAGE_NOISE_MAX_VALUE 0x0030
 
 #define ASCVAL(x)(((x) <= 9) ? (x) + '0' : (x) - 10 + 'a')
 
@@ -1429,9 +1431,8 @@ u8 fmd_rx_seek(void *context, bool upwards)
 		else
 			parameters[0] = 0x0001;
 		parameters[1] = state->rx_seek_stoplevel;
-		parameters[2] = 0x7FFF;
-		/*0x7FFF disables "running snr" criterion for search */
-		parameters[3] = 0x7FFF;
+		parameters[2] = DEFAULT_PEAK_NOISE_VALUE;
+		parameters[3] = AVERAGE_NOISE_MAX_VALUE;
 		/*0x7FFF disables "final snr" criterion for search */
 
 		state->gocmd |= FMD_STATE_SEEK;
@@ -1469,8 +1470,8 @@ u8 fmd_rx_scan_band(void *context, u8 max_channels_to_scan)
 
 		parameters[0] = max_channels_to_scan;
 		parameters[1] = state->rx_seek_stoplevel;
-		parameters[2] = 0x7FFF;
-		parameters[3] = 0x7FFF;
+		parameters[2] = DEFAULT_PEAK_NOISE_VALUE;
+		parameters[3] = AVERAGE_NOISE_MAX_VALUE;
 
 		state->gocmd |= FMD_STATE_SCAN_BAND;
 		state->max_channels_to_scan = max_channels_to_scan;
