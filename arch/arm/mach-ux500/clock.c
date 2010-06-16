@@ -433,7 +433,7 @@ static struct clk_lookup u8500_common_clkregs[] = {
 	CLK(gpio2,	"gpioblock2",	NULL),
 	CLK(sdi5,	"sdi5",		NULL),
 	CLK(uart2,	"uart2",	NULL),
-	CLK(ske,	"ske",		NULL),
+	CLK(ske,	"ske-kp",	NULL),
 	CLK(sdi2,	"sdi2",		NULL),
 	CLK(i2c0, "nmk-i2c.0", NULL),
 	CLK(fsmc,	"fsmc",		NULL),

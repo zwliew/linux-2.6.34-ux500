@@ -444,6 +444,13 @@ config KEYPAD_U8500
 	  Say Y here if you want to use a keypad provided on UIB board
 	  which is to be plugged on top of 8500 core platform.
 
+config KEYPAD_SKE
+	tristate "SKE keypad support"
+	depends on ARCH_U8500 && !KEYPAD_U8500 && !TC35893_KEYPAD
+	default y
+	help
+	  Say Y here if you want to use a keypad provided on Ux500 platform
+
 config TC35893_KEYPAD
 	tristate "TC35893 keypad controller"
 	depends on I2C

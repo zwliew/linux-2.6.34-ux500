@@ -124,6 +124,9 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_TP_SET_EXT_CLK, 228, 228, 0, NMK_GPIO_ALT_A,
 								"u8500_tp"),
 #endif
+#ifdef CONFIG_KEYPAD_SKE
+	__GPIO_ALT(GPIO_ALT_KEYPAD, 153, 168, 0, NMK_GPIO_ALT_A, "ske-kp"),
+#endif
 };
 
 
@@ -1309,6 +1312,9 @@ static struct platform_device *platform_board_devs[] __initdata = {
 	&ux500_hash1_device,
 #endif
 	&u8500_leds_controller,
+#ifdef CONFIG_KEYPAD_SKE
+	&ske_keypad_device,
+#endif
 };
 
 static void __init mop500_platdata_init(void)

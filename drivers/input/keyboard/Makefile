@@ -42,3 +42,4 @@ obj-$(CONFIG_KEYPAD_U8500)		+= u8500-kpd.o
 obj-$(CONFIG_TC35893_KEYPAD)		+= tc35893-keypad.o
 obj-$(CONFIG_KEYBOARD_XTKBD)		+= xtkbd.o
 obj-$(CONFIG_KEYBOARD_W90P910)		+= w90p910_keypad.o
+obj-$(CONFIG_KEYPAD_SKE)		+= ske_keypad.o

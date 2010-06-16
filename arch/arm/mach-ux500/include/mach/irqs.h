@@ -51,6 +51,7 @@
 #define IRQ_SDMMC1		(IRQ_SPI_START + 50)
 #define IRQ_I2C4		(IRQ_SPI_START + 51)
 #define IRQ_SSP1		(IRQ_SPI_START + 52)
+#define IRQ_SKE_KP		(IRQ_SPI_START + 54)
 #define IRQ_I2C2		(IRQ_SPI_START + 55)
 #define IRQ_SDMMC3		(IRQ_SPI_START + 59)
 #define IRQ_SDMMC0		(IRQ_SPI_START + 60)

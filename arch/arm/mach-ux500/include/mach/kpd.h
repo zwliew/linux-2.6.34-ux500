@@ -14,12 +14,14 @@
 #define CONFIG_AUTOSCAN_ENABLED 1
 #endif
 #include <mach/hardware.h>
+#include <linux/clk.h>
 
 #define MAX_KPROW               8
 #define MAX_KPCOL               8
+#define MAX_KEYS		(MAX_KPROW * MAX_KPCOL)
 /*keypad related Constants*/
-#define KEYPAD_RELEASE_PERIOD   11	/*110 Msec, repeate key scan time */
-#define KEYPAD_SCAN_PERIOD      4	/*40Msec for new keypress */
+#define KEYPAD_RELEASE_PERIOD   11	/*11 msec, repeate key scan time */
+#define KEYPAD_SCAN_PERIOD      4	/*4msec for new keypress */
 #define KEYPAD_STATE_DEFAULT    0
 #define KEYPAD_STATE_PRESSED    1
 #define KEYPAD_STATE_PRESSACK   2
@@ -33,18 +35,18 @@ struct keypad_t;
  * struct keypad_device - Device data structure for platform specific data
  * @init:		pointer to keypad init function
  * @exit:		pointer to keypad deinitialisation function
- * @autoscan_check:	pointer to read autoscan status function, not used
+ * @autoscan_check:	pointer to read autoscan status function
  *			currently
  * @autoscan_disable:	pointer to autoscan feature disable function,
  *			not used currently
  * @autoscan_results:	pointer to read autoscan results function
- * @autoscan_en:	pointer to enable autoscan feature function, not used
+ * @autoscan_en:	pointer to enable autoscan feature function
  *			currently
  * @irqen:		pointer to enable irq function
  * @irqdis:		pointer to disable irq function
  * @kcode_tbl:		lookup table for keycodes
  * @krow:		mask for available rows, value is 0xFF
- * @kcol:               mask for available columns, value is 0xFF
+ * @kcol:		mask for available columns, value is 0xFF
  * @irqdis_int:		pointer to disable irq function, to be called from ISR
  * @debounce_period:	platform specific debounce time, can be fine tuned later
  * @irqtype:		type of interrupt
@@ -54,47 +56,51 @@ struct keypad_t;
  * @enable_wakeup:	specifies if keypad event can wake up system from sleep
  */
 struct keypad_device {
-	int	(*init)(struct keypad_t *kp);
-	int 	(*exit)(struct keypad_t *kp);
-	int 	(*autoscan_check)(void);
-	void 	(*autoscan_disable)(void);
-	int 	(*autoscan_results)(struct keypad_t *kp);
-	void 	(*autoscan_en)(void);
-	int 	(*irqen)(struct keypad_t *kp);
-	int 	(*irqdis)(struct keypad_t *kp); /* normal disable */
-	u8 	*kcode_tbl;
-	u8 	krow;
-	u8 	kcol;
-	int 	(*irqdis_int)(struct keypad_t *kp);
-	/* func used wen disable in interrupt handler */
-	u8 	debounce_period;
-	unsigned long	irqtype;
-	u8	irq; /*IRQ no*/
-	u8      int_status;
-	u8 	int_line_behaviour;
-	bool	enable_wakeup;
+	int (*init)(struct keypad_t *kp);
+	int (*exit)(struct keypad_t *kp);
+	int (*autoscan_check)(void);
+	void (*autoscan_disable)(void);
+	int (*autoscan_results)(struct keypad_t *kp);
+	void (*autoscan_en)(void);
+	int (*irqen)(struct keypad_t *kp);
+	int (*irqdis)(struct keypad_t *kp);
+	u8 *kcode_tbl;
+	u8 krow;
+	u8 kcol;
+	int (*irqdis_int)(struct keypad_t *kp);
+	u8 debounce_period;
+	unsigned long irqtype;
+	u8 irq;
+	u8 int_status;
+	u8 int_line_behaviour;
+	bool enable_wakeup;
 };
-
 /**
  * struct keypad_t - keypad data structure used internally by keypad driver
  * @irq:		irq no
  * @mode:		0 for interrupt mode, 1 for polling mode
+ * @ske_regs:		ske regsiters base address
+ * @cr_lock: 		spinlock variable
  * @key_state:		array for saving keystates
  * @lockbits: 		used for synchronisation in ISR
  * @inp_dev:		pointer to input device object
- * @address_for_data:	not used
  * @kscan_work:		work queue
  * @board: 		keypad platform device
+ * @key_cnt: 		count the keys pressed
+ * @clk: 		clock structure pointer
  */
 struct keypad_t {
 	int irq;
 	int mode;
+	void __iomem *ske_regs;
 	int key_state[MAX_KPROW][MAX_KPCOL];
 	unsigned long lockbits;
+	spinlock_t cr_lock;
 	struct input_dev *inp_dev;
-	void *address_for_data;
 	struct delayed_work kscan_work;
 	struct keypad_device *board;
+	int key_cnt;
+	struct clk *clk;
 };
 /**
  * enum kp_int_status - enum for INTR status

@@ -50,6 +50,7 @@ extern struct platform_device ux500_musb_device;
 extern struct amba_device ux500_uart0_device;
 extern struct amba_device ux500_uart1_device;
 extern struct amba_device ux500_uart2_device;
+extern struct platform_device ske_keypad_device;
 
 #ifdef CONFIG_U5500_MLOADER_HELPER
 extern struct platform_device mloader_helper_device;

@@ -17,6 +17,7 @@
 #include <linux/gpio.h>
 #include <linux/usb/musb.h>
 #include <linux/dma-mapping.h>
+#include <linux/input.h>
 
 #include <asm/irq.h>
 
@@ -43,6 +44,7 @@
 #include <mach/tc35892.h>
 #include <mach/uart.h>
 #include <mach/setup.h>
+#include <mach/kpd.h>
 
 void __init u8500_register_device(struct platform_device *dev, void *data)
 {
@@ -726,7 +728,237 @@ struct amba_device ux500_uart2_device = {
 };
 
 #endif
+#ifdef CONFIG_KEYPAD_SKE
 
+#define KEYPAD_DEBOUNCE_PERIOD_SKE 64
+#define ROW_PIN_I0 164
+#define ROW_PIN_I3 161
+#define ROW_PIN_I4 156
+#define ROW_PIN_I7 153
+#define COL_PIN_O0 168
+#define COL_PIN_O3 165
+#define COL_PIN_O4 160
+#define COL_PIN_O7 157
+
+/* ske_set_gpio_column - Disables Pull up
+ * @start: start column pin
+ * @end: end column pin
+ * This function disables the pull up for output pins
+*/
+int ske_set_gpio_column(int start, int end)
+{
+	int i;
+	int status = 0;
+
+	for (i = start; i <= end; i++) {
+		status = gpio_request(i, "ske");
+		if (status < 0) {
+			printk(KERN_ERR "%s: gpio request failed \n", __func__);
+			return status;
+		}
+		status = nmk_gpio_set_pull(i, NMK_GPIO_PULL_UP);
+		if (status < 0) {
+			printk(KERN_ERR "%s: gpio set pull failed \n", __func__);
+			return status;
+		}
+		gpio_free(i);
+	}
+	return status;
+}
+/* ske_set_gpio_row - enable the input pins
+ * @start: start row pin
+ * @end: end row pin
+ * This function enable the input pins
+*/
+int ske_set_gpio_row(int start, int end)
+{
+	int i = 0;
+	int status = 0;
+
+	for (i = start; i <= end; i++) {
+		status = gpio_request(i, "ske");
+		if (status < 0) {
+			printk(KERN_ERR "%s: gpio request failed \n", __func__);
+			return status;
+		}
+		status = gpio_direction_output(i, 1);
+		if (status < 0) {
+			printk(KERN_ERR "%s: gpio direction failed \n", __func__);
+			gpio_free(i);
+			return status;
+		}
+		gpio_set_value(i, 1);
+		gpio_free(i);
+	}
+	return status;
+}
+/**
+ * ske_kp_init - enable the gpio configuration
+ * @kp:  keypad device data pointer
+ *
+ * This function is used to enable the gpio configuration for keypad
+ *
+ */
+static int ske_kp_init(struct keypad_t *kp)
+{
+	int ret;
+	ret = ske_set_gpio_row(ROW_PIN_I3, ROW_PIN_I0);
+	if (ret < 0)
+		goto err;
+	ret = ske_set_gpio_row(ROW_PIN_I7, ROW_PIN_I4);
+	if (ret < 0)
+		goto err;
+	ret = ske_set_gpio_column(COL_PIN_O3, COL_PIN_O0);
+	if (ret < 0)
+		goto err;
+	ret = ske_set_gpio_column(COL_PIN_O7, COL_PIN_O4);
+	if (ret < 0)
+		goto err;
+	ret = stm_gpio_altfuncenable(GPIO_ALT_KEYPAD);
+	if (ret)
+		goto err;
+	return 0;
+err:
+	printk(KERN_ERR "%s: failed \n", __func__);
+	return ret;
+}
+
+/**
+ * ske_kp_exit - disable the gpio configuration
+ * @kp:  keypad device data pointer
+ *
+ * This function is used to disable the gpio configuration for keypad
+ *
+ */
+static int ske_kp_exit(struct keypad_t *kp)
+{
+	stm_gpio_altfuncdisable(GPIO_ALT_KEYPAD);
+	return 0;
+}
+
+/*
+ * Initializes the key scan table (lookup table) as per pre-defined the scan
+ * codes to be passed to upper layer with respective key codes
+ */
+u8 const kpd_lookup_tbl[MAX_KPROW][MAX_KPROW] = {
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_MENU,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_3,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_END,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_7,
+		KEY_DOWN,
+		KEY_UP,
+		KEY_VOLUMEDOWN,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_4,
+		KEY_VOLUMEUP,
+		KEY_LEFT,
+		KEY_RESERVED,
+		KEY_0,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_9,
+		KEY_RESERVED,
+		KEY_RIGHT,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_1,
+		KEY_RESERVED,
+		KEY_RESERVED
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_BACK,
+		KEY_RESERVED,
+		KEY_SEND,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_2
+	},
+	{
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_RESERVED,
+		KEY_ENTER,
+		KEY_RESERVED
+	}
+};
+
+static struct keypad_device keypad_board = {
+	.init = ske_kp_init,
+	.exit = ske_kp_exit,
+	.kcode_tbl = (u8 *) kpd_lookup_tbl,
+	.krow = MAX_KPROW,
+	.kcol = MAX_KPCOL,
+	.debounce_period = KEYPAD_DEBOUNCE_PERIOD_SKE,
+	.irqtype = 0,
+	.int_status = KP_INT_DISABLED,
+	.int_line_behaviour = INT_LINE_NOTSET,
+};
+
+struct resource keypad_resources[] = {
+	[0] = {
+		.start = U8500_SKE_BASE,
+		.end = U8500_SKE_BASE + SZ_4K - 1,
+		.name = "ux500_ske_base",
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_SKE_KP,
+		.end = IRQ_SKE_KP,
+		.name = "ux500_ske_irq",
+		.flags = IORESOURCE_IRQ,
+	},
+};
+struct platform_device ske_keypad_device = {
+	.name = "ske-kp",
+	.id = -1,
+	.dev = {
+		.platform_data = &keypad_board,
+		},
+	.num_resources = ARRAY_SIZE(keypad_resources),
+	.resource = keypad_resources,
+};
+#endif
 #if defined(CONFIG_U5500_MLOADER_HELPER)
 struct platform_device mloader_helper_device = {
 	.name		= "mloader_helper",
