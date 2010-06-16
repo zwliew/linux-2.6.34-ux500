@@ -1386,6 +1386,10 @@ static void __init mop500_init_machine(void)
 
 	platform_add_devices(u8500_platform_devices,
 			     ARRAY_SIZE(u8500_platform_devices));
+
+	/* enable the STMPE as wakeup capable in deepsleep */
+	set_irq_type(stmpe1601_data.irq, IRQ_TYPE_EDGE_BOTH);
+	set_irq_wake(stmpe1601_data.irq, true);
 }
 
 static int __init u8500_i2call_init(void)

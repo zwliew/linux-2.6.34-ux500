@@ -730,16 +730,6 @@ static int u8500_pm_enter(suspend_state_t state)
 
 		break;
 	case PM_SUSPEND_MEM:
-
-		/* ROM code addresses to store backup contents */
-		/* pass the physical address of back up to ROM code */
-		writel(virt_to_phys(ux500_backup_ptr),
-				IO_ADDRESS(U8500_EXT_BACKUPRAM_ADDR));
-		writel(IO_ADDRESS(U8500_BACKUPRAM0_BASE),
-			IO_ADDRESS(U8500_CPU0_PUBLIC_BACKUP));
-		writel(IO_ADDRESS(U8500_BACKUPRAM0_BASE),
-			IO_ADDRESS(U8500_CPU1_PUBLIC_BACKUP));
-
 		/* core context to be saved */
 		ux500_save_core_context();
 
@@ -848,6 +838,15 @@ static int __init u8500_pm_init(void)
 		printk(KERN_WARNING "ux500-pm: couldnt allocate backup ptr\n");
 		return -ENOMEM;
 	}
+
+	/* ROM code addresses to store backup contents */
+	/* pass the physical address of back up to ROM code */
+	writel(virt_to_phys(ux500_backup_ptr),
+			IO_ADDRESS(U8500_EXT_BACKUPRAM_ADDR));
+	writel(IO_ADDRESS(U8500_BACKUPRAM0_BASE),
+			IO_ADDRESS(U8500_CPU0_PUBLIC_BACKUP));
+	writel(IO_ADDRESS(U8500_BACKUPRAM0_BASE),
+			IO_ADDRESS(U8500_CPU1_PUBLIC_BACKUP));
 
 	/* register the global power off hook */
 	pm_power_off = u8500_pm_poweroff;
