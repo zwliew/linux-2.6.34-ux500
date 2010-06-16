@@ -14,6 +14,7 @@
 #include <linux/smp.h>
 
 #include <asm/cacheflush.h>
+#include <asm/localtimer.h>
 #include <mach/scu.h>
 #include <mach/hardware.h>
 #include <asm/io.h>
@@ -52,12 +53,6 @@ static DEFINE_SPINLOCK(boot_lock);
 void __cpuinit platform_secondary_init(unsigned int cpu)
 {
 	trace_hardirqs_off();
-	/*
-	 * the primary core may have used a "cross call" soft interrupt
-	 * to get this processor out of WFI in the BootMonitor - make
-	 * sure that we are no longer being sent this soft interrupt
-	 */
-	smp_cross_call_done(cpumask_of(cpu));
 
 	/*
 	 * if any interrupts are already enabled for the primary
@@ -211,6 +206,11 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	 * sent a soft interrupt to get it out of WFI
 	 */
 	if (max_cpus > 1)	{
+		/*
+		 * Enable the local timer or broadcast device for the
+		 * boot CPU, but only if we have more than one CPU.
+		 */
+		percpu_timer_setup();
 		scu_enable();
 		wakeup_secondary();
 	}
