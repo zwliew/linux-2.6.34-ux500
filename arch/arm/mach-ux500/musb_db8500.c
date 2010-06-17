@@ -82,7 +82,7 @@ void usb_host_phy_en(int enable)
 			boot_time_flag = USB_DISABLE;
 		} else {
 		#ifdef CONFIG_REGULATOR
-			regulator_enable(musb_vbus_supply);
+			regulator_disable(musb_vbus_supply);
 			regulator_set_optimum_mode(musb_vape_supply, 0);
 		#else
 			ab8500_write(AB8500_REGU_CTRL1,
@@ -206,6 +206,12 @@ int musb_phy_en(u8 mode)
 		return -1;
 	}
 	regulator_enable(musb_vape_supply);
+	/*
+	 * When usb cable is not connected, set_optimum to 0 to release any
+	 * OPP constraints on the APE domain with respect to the USB client.
+	 * This is done to run APE at low power OPP when usb is not used.
+	 */
+	regulator_set_optimum_mode(musb_vape_supply, 0);
 	musb_vbus_supply = regulator_get(NULL, "v-bus");
 	if (IS_ERR(musb_vbus_supply)) {
 		ret = PTR_ERR(musb_vbus_supply);
