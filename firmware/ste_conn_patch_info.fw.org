@@ -20,5 +20,6 @@
 # Patch file for ST-Ericsson - CG2900
 #
 0x0700  0x0011  CG2900_1_0C4_1C5.fw
+0x0700  0x0013  CG2900_1_0C4_1C5.fw
 #
 #################
