@@ -1381,8 +1381,10 @@ static int __init ab3550_probe(struct i2c_client *client,
 	if (err)
 		goto exit_no_setup;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	INIT_WORK(&ab->irq_work, ab3550_irq_work);
 	INIT_WORK(&ab->mask_work, ab3550_mask_work);
+#endif
 
 	for (i = 0; i < ab3550_plf_data->irq.count; i++) {
 		unsigned int irq;
