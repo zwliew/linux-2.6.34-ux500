@@ -784,11 +784,13 @@ int ste_conn_cpd_chip_startup_finished(int err)
 	STE_CONN_INFO("ste_conn_cpd_chip_startup_finished (%d)", err);
 
 	if (err) {
-		ste_conn_reset(NULL);
+		/* Shutdown the chip */
+		cpd_chip_shutdown();
 	} else {
 		CPD_SET_MAIN_STATE(CPD_STATE_ACTIVE);
-		wake_up_interruptible(&ste_conn_cpd_wait_queue);
 	}
+
+	wake_up_interruptible(&ste_conn_cpd_wait_queue);
 
 	return ret_val;
 }
