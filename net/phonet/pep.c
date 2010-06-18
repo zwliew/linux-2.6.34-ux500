@@ -106,10 +106,8 @@ static int pep_reply(struct sock *sk, struct sk_buff *oskb,
 	ph->pipe_handle = oph->pipe_handle;
 	ph->error_code = code;
 
-	/* pipe_srv.spn_dev = ph->pipe_handle; */
-	/* pipe_srv.spn_obj = ph->pipe_handle; */
-	pipe_srv.spn_dev = 0;
-	pipe_srv.spn_obj = 0;
+	pipe_srv.spn_dev = ph->pipe_handle;
+	pipe_srv.spn_obj = ph->pipe_handle;
 
 	return pn_skb_send(sk, skb, &pipe_srv);
 }
