@@ -51,6 +51,10 @@ extern struct amba_device ux500_uart0_device;
 extern struct amba_device ux500_uart1_device;
 extern struct amba_device ux500_uart2_device;
 extern struct platform_device ske_keypad_device;
+extern struct platform_device u5500_pwm0_device;
+extern struct platform_device u5500_pwm1_device;
+extern struct platform_device u5500_pwm2_device;
+extern struct platform_device u5500_pwm3_device;
 
 #ifdef CONFIG_U5500_MLOADER_HELPER
 extern struct platform_device mloader_helper_device;

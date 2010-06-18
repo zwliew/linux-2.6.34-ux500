@@ -45,3 +45,68 @@ struct platform_device u5500_gpio_devs[] = {
 	GPIO_DEVICE(6),
 	GPIO_DEVICE(7),
 };
+
+#define U5500_PWM_SIZE 0x20
+static struct resource u5500_pwm0_resource[] = {
+	{
+		.name = "PWM_BASE",
+		.start = U5500_PWM_BASE,
+		.end = U5500_PWM_BASE + U5500_PWM_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static struct resource u5500_pwm1_resource[] = {
+	{
+		.name = "PWM_BASE",
+		.start = U5500_PWM_BASE + U5500_PWM_SIZE,
+		.end = U5500_PWM_BASE + U5500_PWM_SIZE * 2 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static struct resource u5500_pwm2_resource[] = {
+	{
+		.name = "PWM_BASE",
+		.start = U5500_PWM_BASE + U5500_PWM_SIZE * 2,
+		.end = U5500_PWM_BASE + U5500_PWM_SIZE * 3 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static struct resource u5500_pwm3_resource[] = {
+	{
+		.name = "PWM_BASE",
+		.start = U5500_PWM_BASE + U5500_PWM_SIZE * 3,
+		.end = U5500_PWM_BASE + U5500_PWM_SIZE * 4 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device u5500_pwm0_device = {
+	.id = 0,
+	.name = "pwm",
+	.resource = u5500_pwm0_resource,
+	.num_resources = ARRAY_SIZE(u5500_pwm0_resource),
+};
+
+struct platform_device u5500_pwm1_device = {
+	.id = 1,
+	.name = "pwm",
+	.resource = u5500_pwm1_resource,
+	.num_resources = ARRAY_SIZE(u5500_pwm1_resource),
+};
+
+struct platform_device u5500_pwm2_device = {
+	.id = 2,
+	.name = "pwm",
+	.resource = u5500_pwm2_resource,
+	.num_resources = ARRAY_SIZE(u5500_pwm2_resource),
+};
+
+struct platform_device u5500_pwm3_device = {
+	.id = 3,
+	.name = "pwm",
+	.resource = u5500_pwm3_resource,
+	.num_resources = ARRAY_SIZE(u5500_pwm3_resource),
+};

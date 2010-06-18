@@ -62,6 +62,13 @@ config U8500_PM
     help
 	Add support for PM features for U8500
 
+config U5500_PWM
+    bool "PWM support"
+    default y
+    depends on UX500_SOC_DB5500
+    help
+	Add support for PWM for U5500
+
 config ARCH_HAS_CPU_IDLE_WAIT
     def_bool y
 

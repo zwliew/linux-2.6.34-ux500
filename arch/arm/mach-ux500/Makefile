@@ -29,6 +29,7 @@ obj-$(CONFIG_USB)            		+= musb_db8500.o
 obj-$(CONFIG_U5500_MLOADER_HELPER)      += mloader_helper.o
 obj-$(CONFIG_U5500_MODEM_IRQ)		+= modem_irq.o
 obj-$(CONFIG_U5500_MBOX)		+= mbox.o
+obj-$(CONFIG_U5500_PWM)			+= pwm.o
 
 ifeq ($(CONFIG_MFD_STE_CONN), m)
 obj-y					+= ste_conn_devices.o

@@ -121,6 +121,10 @@ static struct platform_device *u5500_platform_devs[] __initdata = {
 	&mbox0_device,
 	&mbox1_device,
 	&mbox2_device,
+	&u5500_pwm0_device,
+	&u5500_pwm1_device,
+	&u5500_pwm2_device,
+	&u5500_pwm3_device,
 };
 
 void __init u5500_map_io(void)
