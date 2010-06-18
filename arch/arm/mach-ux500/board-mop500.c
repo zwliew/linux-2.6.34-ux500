@@ -1263,6 +1263,11 @@ static struct platform_device ab8500_bm_device = {
 	},
 };
 
+/* Force feedback vibrator device */
+static struct platform_device ste_ff_vibra_device = {
+	.name = "ste_ff_vibra"
+};
+
 static struct platform_device *u8500_platform_devices[] __initdata = {
 	/*TODO - add platform devices here */
 #ifdef CONFIG_KEYPAD_U8500
@@ -1300,6 +1305,7 @@ static struct platform_device *platform_board_devs[] __initdata = {
 	&u8500_ab8500_device,
 	&ab8500_gpadc_device,
 	&ab8500_bm_device,
+	&ste_ff_vibra_device,
 	&ux500_musb_device,
 	&ux500_mcde_device,
 	&ux500_b2r2_device,

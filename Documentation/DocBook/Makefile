@@ -16,7 +16,7 @@ DOCBOOKS := z8530book.xml mcabook.xml device-drivers.xml \
 	    alsa-driver-api.xml writing-an-alsa-driver.xml \
 	    tracepoint.xml media.xml \
 	    ste_fm_radio.xml ste_conn.xml \
-	    ske_keypad.xml
+	    ske_keypad.xml ste_ff_vibra.xml
 	    # u8500_usb_dma.xml isa_hsi.xml mcde.xml b2r2.xml shrm.xml
 
 ###
