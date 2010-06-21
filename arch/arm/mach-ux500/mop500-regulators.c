@@ -72,9 +72,9 @@ static struct regulator_init_data db8500_vana_init = {
 		.min_uV = U8500_VANA_REGULATOR_MIN_VOLTAGE,
 		.max_uV = U8500_VANA_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL |
-				REGULATOR_MODE_IDLE | REGULATOR_CHANGE_STATUS,
+				REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(db8500_vana_consumers),
 	.consumer_supplies = db8500_vana_consumers,
