@@ -23,6 +23,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/err.h>
+#include <linux/delay.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/consumer.h>
 
@@ -126,6 +127,8 @@ static int ab8500_ldo_enable(struct regulator_dev *rdev)
 		val = val | (1 << MASK_LDO_VAUX1_SHIFT);
 		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VRF1VAUX3_REGU_REG, val);
+		/* delay for regulator stabilization */
+		msleep(50);
 		break;
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);
@@ -247,6 +250,8 @@ static int ab8500_ldo_disable(struct regulator_dev *rdev)
 		ab8500_write(AB8500_REGU_CTRL2,
 				AB8500_REGU_VRF1VAUX3_REGU_REG,
 					val & ~MASK_LDO_VAUX3);
+		/* delay for regulator stabilization */
+		msleep(50);
 		break;
 	case AB8500_LDO_VTVOUT:
 		val = ab8500_read(AB8500_REGU_CTRL1, AB8500_REGU_MISC1_REG);

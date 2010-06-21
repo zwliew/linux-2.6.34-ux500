@@ -1327,6 +1327,13 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 		if (host->board->set_power)
 			host->board->set_power(mmc_dev(mmc), 0);
+#ifdef CONFIG_REGULATOR
+		/* we disable the supplies for the SD */
+		if (host->level_shifter) {
+			if (regulator_is_enabled(host->regulator))
+				regulator_disable(host->regulator);
+		}
+#endif
 	break;
 	case MMC_POWER_UP:
 		if (!host->level_shifter) {
@@ -1339,6 +1346,12 @@ static void u8500_mmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			host->board->set_power(mmc_dev(mmc), 1);
 		if ((host->is_sdio == 1) && (!host->level_shifter))
 			writel(0xBE, host->base + MMCIPOWER);
+#ifdef CONFIG_REGULATOR
+		if (host->level_shifter) {
+			if (!regulator_is_enabled(host->regulator))
+				regulator_enable(host->regulator);
+		}
+#endif
 	break;
 	case MMC_POWER_ON:
 		if (!host->level_shifter)
@@ -1689,7 +1702,8 @@ put_clk:
 #ifdef CONFIG_REGULATOR
 put_regulator:
 	if (host->regulator) {
-		regulator_disable(host->regulator);
+		if (regulator_is_enabled(host->regulator))
+			regulator_disable(host->regulator);
 		regulator_put(host->regulator);
 	}
 #endif
@@ -1752,7 +1766,8 @@ static int u8500_mmci_remove(struct amba_device *dev)
 		clk_put(host->clk);
 #ifdef CONFIG_REGULATOR
 		if (host->regulator) {
-			regulator_disable(host->regulator);
+			if (regulator_is_enabled(host->regulator))
+				regulator_disable(host->regulator);
 			regulator_put(host->regulator);
 		}
 #endif
@@ -1782,8 +1797,12 @@ static int u8500_mmci_suspend(struct amba_device *dev, pm_message_t state)
 		}
 		clk_disable(host->clk);
 #ifdef CONFIG_REGULATOR
-		if (host->board->supply)
-			regulator_disable(host->regulator);
+		if (host->board->supply) {
+			if (!host->level_shifter) {
+				if (regulator_is_enabled(host->regulator))
+					regulator_disable(host->regulator);
+			}
+		}
 #endif
 	}
 	return ret;
@@ -1799,8 +1818,12 @@ static int u8500_mmci_resume(struct amba_device *dev)
 	if (mmc) {
 		struct u8500_mmci_host *host = mmc_priv(mmc);
 #ifdef CONFIG_REGULATOR
-		if (host->board->supply)
-			regulator_enable(host->regulator);
+		if (host->board->supply) {
+			if (!host->level_shifter) {
+				if (!regulator_is_enabled(host->regulator))
+					regulator_enable(host->regulator);
+			}
+		}
 #endif
 		clk_enable(host->clk);
 		if (host->level_shifter) {
