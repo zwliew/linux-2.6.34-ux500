@@ -9,7 +9,7 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/tee.h>
-
+#include <linux/err.h>
 #include "ta/tee_ta_start_modem.h"
 
 static int cmp_uuid_start_modem(struct tee_uuid *uuid)
@@ -47,7 +47,7 @@ int call_sec_world(struct tee_session *ts)
 		switch (ts->cmd) {
 		case COMMAND_ID_START_MODEM:
 			ret = tee_ta_start_modem((struct tee_ta_start_modem *)
-						 ts->its);
+						 ts->idata);
 			if (ret) {
 				ts->err = TEED_ERROR_GENERIC;
 				ts->origin = TEED_ORIGIN_TEE_APPLICATION;

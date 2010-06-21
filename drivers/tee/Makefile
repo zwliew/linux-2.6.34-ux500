@@ -8,9 +8,8 @@ EXTRA_CFLAGS = -O0
 
 ifdef CONFIG_MACH_U5500_SIMULATOR
 	obj-$(CONFIG_TEE_SUPPORT) += tee_service_svp.o
-else
-	obj-$(CONFIG_TEE_SUPPORT) += tee_service.o
 endif
 
+obj-$(CONFIG_TEE_SUPPORT) += tee_service.o
 obj-$(CONFIG_TEE_SUPPORT) += tee_driver.o
 obj-$(CONFIG_TEE_SUPPORT) += ta/

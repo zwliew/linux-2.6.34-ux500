@@ -36,4 +36,6 @@ else
 obj-$(CONFIG_MFD_STE_CONN)		+= ste_conn_devices.o
 endif
 
-obj-$(CONFIG_TEE_SUPPORT)		+= tee_ux500.o
+ifndef CONFIG_MACH_U5500_SIMULATOR
+	obj-$(CONFIG_TEE_SUPPORT)	+= tee_ux500.o
+endif
