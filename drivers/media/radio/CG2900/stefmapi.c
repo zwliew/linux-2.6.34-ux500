@@ -870,6 +870,16 @@ u8 ste_fm_switch_on(struct device *device)
 			goto error;
 		}
 
+		/* Switch Mode To Idle */
+		result = fmd_set_mode(context, FMD_MODE_IDLE);
+		if (FMD_RESULT_SUCCESS != result) {
+			FM_ERR_REPORT("ste_fm_switch_on: "
+				"fmd_set_mode failed %x",
+				(unsigned int)result);
+			result =  STE_STATUS_SYSTEM_ERROR;
+			goto error;
+		}
+
 		/* Enable the Ref Clk */
 		FM_DEBUG_REPORT("ste_fm_switch_on: "
 				"Sending fmd_select_ref_clk");

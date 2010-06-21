@@ -10,6 +10,7 @@
 
 #include <stdarg.h>
 #include <string.h>
+#include <linux/time.h>
 #include "fmdriver.h"
 #include "platformosapi.h"
 
@@ -3031,8 +3032,13 @@ void fmd_hexdump(char prompt, u8 *arr, int num_bytes)
 {
 	int i;
 	u8 tmpVal;
+	struct timespec time;
 	static u8 pkt_write[512], *pkt_ptr;
-	sprintf(pkt_write, "\n[%04x] %c", num_bytes, prompt);
+	getnstimeofday(&time);
+	sprintf(pkt_write, "\n[%08x:%08x] [%04x] %c",
+		(unsigned int)time.tv_sec,
+		(unsigned int)time.tv_nsec,
+		num_bytes, prompt);
 	pkt_ptr = pkt_write + strlen(pkt_write);
 	if (arr != NULL) {
 		/* Copy the buffer only if the input buffer is not NULL */
