@@ -140,7 +140,8 @@ fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
 fw-shipped-$(CONFIG_MFD_STE_CONN) += ste_conn_patch_info.fw ste_conn_settings_info.fw \
 					STLC2600_R6_03_01.fw STLC2690_R6_03_A1_E5.fw \
 					STLC2600_R6_04_02.fw STLC2690_R6_04_A2.fw \
-					STLC2600_R7_00_01.fw STLC2690_R7_00_A1_E5.fw
+					STLC2600_R7_00_01.fw STLC2690_R7_00_A1_E5.fw \
+					CG2900_1_0C4_1C1.fw CG2900_1_05_V5_FMoI2S.fw
 
 fw-shipped-$(CONFIG_RADIO_CG2900) += ste_fm_bt_src_coeff_info.fw ste_fm_ext_src_coeff_info.fw \
 					ste_fm_fm_coeff_info.fw ste_fm_fm_prog_info.fw \
