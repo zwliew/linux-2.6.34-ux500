@@ -51,6 +51,9 @@ struct clkops {
  * @ops:		pointer to clkops struct used to control this clock
  * @name:		name, for debugging
  * @enabled:		refcount. positive if enabled, zero if disabled
+ * @get_rate:		custom callback for getting the clock rate
+ * @data:		custom per-clock data for example for the get_rate
+ *			callback
  * @rate:		fixed rate for clocks which don't implement
  * 			ops->getrate
  * @prcmu_cg_off:	address offset of the combined enable/disable register
@@ -90,6 +93,8 @@ struct clk {
 	const struct clkops	*ops;
 	const char 		*name;
 	unsigned int		enabled;
+	unsigned long		(*get_rate)(struct clk *);
+	void			*data;
 
 	unsigned long		rate;
 	struct list_head	list;
@@ -158,6 +163,20 @@ struct clk clk_##_name = {						\
 		.parent_cluster = &clk_per##_pclust##clk,		\
 		.parent_periph 	= _kernclk				\
 	}
+
+#define DEFINE_PRCC_CLK_CUSTOM(_pclust, _name, _bus_en, _kernel_en, _kernclk, _callback, _data) \
+struct clk clk_##_name = {						\
+		.name		= #_name,				\
+		.ops		= &clk_prcc_ops,			\
+		.cluster	= _pclust,				\
+		.prcc_bus	= _bus_en,				\
+		.prcc_kernel	= _kernel_en,				\
+		.parent_cluster = &clk_per##_pclust##clk,		\
+		.parent_periph	= _kernclk,				\
+		.get_rate	= _callback,				\
+		.data		= (void *) _data			\
+	}
+
 
 #define CLK(_clk, _devname, _conname)			\
 	{						\
