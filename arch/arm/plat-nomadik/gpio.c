@@ -349,38 +349,53 @@ static void nmk_gpio_irq_ack(unsigned int irq)
 	writel(nmk_gpio_get_bitmask(gpio), nmk_chip->addr + NMK_GPIO_IC);
 }
 
-static int nmk_gpio_irq_modify(unsigned int irq, unsigned int rising,
-			       unsigned int falling, bool enable)
+enum nmk_gpio_irq_type {
+	NORMAL,
+	WAKE,
+};
+
+static void __nmk_gpio_irq_modify(struct nmk_gpio_chip *nmk_chip,
+				  int gpio, enum nmk_gpio_irq_type which,
+				  bool enable)
+{
+	u32 rimsc = which == WAKE ? NMK_GPIO_RWIMSC : NMK_GPIO_RIMSC;
+	u32 fimsc = which == WAKE ? NMK_GPIO_FWIMSC : NMK_GPIO_FIMSC;
+	u32 bitmask = nmk_gpio_get_bitmask(gpio);
+	u32 reg;
+
+	/* we must individually set/clear the two edges */
+	if (nmk_chip->edge_rising & bitmask) {
+		reg = readl(nmk_chip->addr + rimsc);
+		if (enable)
+			reg |= bitmask;
+		else
+			reg &= ~bitmask;
+		writel(reg, nmk_chip->addr + rimsc);
+	}
+	if (nmk_chip->edge_falling & bitmask) {
+		reg = readl(nmk_chip->addr + fimsc);
+		if (enable)
+			reg |= bitmask;
+		else
+			reg &= ~bitmask;
+		writel(reg, nmk_chip->addr + fimsc);
+	}
+}
+
+static int nmk_gpio_irq_modify(unsigned int irq, enum nmk_gpio_irq_type which,
+			       bool enable)
 {
 	int gpio;
 	struct nmk_gpio_chip *nmk_chip;
 	unsigned long flags;
-	u32 bitmask, reg;
 
 	gpio = NOMADIK_IRQ_TO_GPIO(irq);
 	nmk_chip = get_irq_chip_data(irq);
-	bitmask = nmk_gpio_get_bitmask(gpio);
 	if (!nmk_chip)
 		return -EINVAL;
 
-	/* we must individually clear the two edges */
 	spin_lock_irqsave(&nmk_chip->lock, flags);
-	if (nmk_chip->edge_rising & bitmask) {
-		reg = readl(nmk_chip->addr + rising);
-		if (enable)
-			reg |= bitmask;
-		else
-			reg &= ~bitmask;
-		writel(reg, nmk_chip->addr + rising);
-	}
-	if (nmk_chip->edge_falling & bitmask) {
-		reg = readl(nmk_chip->addr + falling);
-		if (enable)
-			reg |= bitmask;
-		else
-			reg &= ~bitmask;
-		writel(reg, nmk_chip->addr + falling);
-	}
+	__nmk_gpio_irq_modify(nmk_chip, gpio, which, enable);
 	spin_unlock_irqrestore(&nmk_chip->lock, flags);
 
 	return 0;
@@ -388,24 +403,26 @@ static int nmk_gpio_irq_modify(unsigned int irq, unsigned int rising,
 
 static void nmk_gpio_irq_mask(unsigned int irq)
 {
-	nmk_gpio_irq_modify(irq, NMK_GPIO_RIMSC, NMK_GPIO_FIMSC, false);
+	nmk_gpio_irq_modify(irq, NORMAL, false);
 }
 
 static void nmk_gpio_irq_unmask(unsigned int irq)
 {
-	nmk_gpio_irq_modify(irq, NMK_GPIO_RIMSC, NMK_GPIO_FIMSC, true);
+	nmk_gpio_irq_modify(irq, NORMAL, true);
 }
 
 static int nmk_gpio_irq_set_wake(unsigned int irq, unsigned int on)
 {
-	return nmk_gpio_irq_modify(irq, NMK_GPIO_RWIMSC, NMK_GPIO_FWIMSC, on);
+	return nmk_gpio_irq_modify(irq, WAKE, on);
 }
 
 static int nmk_gpio_irq_set_type(unsigned int irq, unsigned int type)
 {
+	struct irq_desc *desc = irq_to_desc(irq);
+	bool enabled = !(desc->status & IRQ_DISABLED);
+	bool wake = desc->wake_depth;
 	int gpio;
 	struct nmk_gpio_chip *nmk_chip;
-	struct irq_desc *desc;
 	unsigned long flags;
 	u32 bitmask;
 
@@ -422,6 +439,12 @@ static int nmk_gpio_irq_set_type(unsigned int irq, unsigned int type)
 
 	spin_lock_irqsave(&nmk_chip->lock, flags);
 
+	if (enabled)
+		__nmk_gpio_irq_modify(nmk_chip, gpio, NORMAL, false);
+
+	if (wake)
+		__nmk_gpio_irq_modify(nmk_chip, gpio, WAKE, false);
+
 	nmk_chip->edge_rising &= ~bitmask;
 	if (type & IRQ_TYPE_EDGE_RISING)
 		nmk_chip->edge_rising |= bitmask;
@@ -430,11 +453,13 @@ static int nmk_gpio_irq_set_type(unsigned int irq, unsigned int type)
 	if (type & IRQ_TYPE_EDGE_FALLING)
 		nmk_chip->edge_falling |= bitmask;
 
-	spin_unlock_irqrestore(&nmk_chip->lock, flags);
+	if (enabled)
+		__nmk_gpio_irq_modify(nmk_chip, gpio, NORMAL, true);
 
-	desc = irq_to_desc(irq);
-	if (!(desc->status & IRQ_DISABLED))
-		nmk_gpio_irq_unmask(irq);
+	if (wake)
+		__nmk_gpio_irq_modify(nmk_chip, gpio, WAKE, true);
+
+	spin_unlock_irqrestore(&nmk_chip->lock, flags);
 
 	return 0;
 }
