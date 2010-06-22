@@ -425,11 +425,14 @@ asmlinkage void __exception do_local_timer(struct pt_regs *regs)
 #endif
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
-static void smp_timer_broadcast(const struct cpumask *mask)
+void smp_timer_broadcast(const struct cpumask *mask)
 {
 	send_ipi_message(mask, IPI_TIMER);
 }
+#endif
 
+#if defined(CONFIG_GENERIC_CLOCKEVENTS_BROADCAST) && \
+	!defined(CONFIG_LOCAL_TIMERS)
 static void broadcast_timer_set_mode(enum clock_event_mode mode,
 	struct clock_event_device *evt)
 {
