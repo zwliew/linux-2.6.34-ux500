@@ -36,7 +36,7 @@ int abx500_register_ops(struct device *dev, struct abx500_ops *ops)
 	struct abx500_device_entry *dev_entry;
 
 	dev_entry = kmalloc(sizeof(struct abx500_device_entry), GFP_KERNEL);
-	if (dev_entry) {
+	if (!dev_entry) {
 		dev_err(dev, "register_ops kzalloc failed");
 		return -ENOMEM;
 	}

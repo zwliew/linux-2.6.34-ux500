@@ -218,7 +218,7 @@ struct abx500_init_settings {
  * @dev_data: Device specific data
  * @dev_data_sz: Size of dev_data in bytes
  * @init_settings: Initial I2C register settings
- * @init_settings_sz: Size of init_settings in bytes
+ * @init_settings_sz: Size of init_settings array (ARRAY_SIZE)
  *
  * Data supplied to initialize board connections to the AB3550
  */
@@ -273,7 +273,7 @@ enum ab5500_banks {
  * @dev_data: Device specific data
  * @dev_data_sz: Size of dev_data in bytes
  * @init_settings: Initial I2C register settings
- * @init_settings_sz: Size of init_settings in bytes
+ * @init_settings_sz: Size of init_settings array (ARRAY_SIZE)
  *
  * Data supplied to initialize board connections to the AB5500
  */
