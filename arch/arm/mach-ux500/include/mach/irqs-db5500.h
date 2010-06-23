@@ -82,4 +82,26 @@
 #define IRQ_DB5500_GPIO6		(IRQ_SHPI_START + 125)
 #define IRQ_DB5500_GPIO7		(IRQ_SHPI_START + 126)
 
+#ifdef CONFIG_UX500_SOC_DB5500
+
+/*
+ * After the GPIO ones we reserve a range of IRQ:s in which virtual
+ * IRQ:s representing modem IRQ:s can be allocated
+ */
+#define IRQ_MODEM_EVENTS_BASE	IRQ_GPIO_END
+#define IRQ_MODEM_EVENTS_NBR	72
+#define IRQ_MODEM_EVENTS_END	(IRQ_MODEM_EVENTS_BASE + IRQ_MODEM_EVENTS_NBR)
+
+/* List of virtual IRQ:s that are allocated from the range above */
+#define MBOX_PAIR0_VIRT_IRQ	(IRQ_MODEM_EVENTS_BASE + 43)
+#define MBOX_PAIR1_VIRT_IRQ	(IRQ_MODEM_EVENTS_BASE + 45)
+#define MBOX_PAIR2_VIRT_IRQ	(IRQ_MODEM_EVENTS_BASE + 41)
+
+#if IRQ_SOC_END < IRQ_MODEM_EVENTS_END
+#undef IRQ_SOC_END
+#define IRQ_SOC_END		IRQ_MODEM_EVENTS_END
+#endif
+
+#endif /* CONFIG_UX500_SOC_DB5500 */
+
 #endif

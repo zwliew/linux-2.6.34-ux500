@@ -141,13 +141,13 @@ extern int stm_gpio_altfuncdisable(gpio_alt_function alt_func);
 
 #define __GPIO_RESOURCE(soc, block)					\
 	{								\
-		.start	= soc##_GPIOBANK##block##_BASE,			\
-		.end	= soc##_GPIOBANK##block##_BASE + 127,		\
+		.start	= U##soc##_GPIOBANK##block##_BASE,		\
+		.end	= U##soc##_GPIOBANK##block##_BASE + 127,	\
 		.flags	= IORESOURCE_MEM,				\
 	},								\
 	{								\
-		.start	= IRQ_GPIO##block,				\
-		.end	= IRQ_GPIO##block,				\
+		.start	= IRQ_DB##soc##_GPIO##block,			\
+		.end	= IRQ_DB##soc##_GPIO##block,			\
 		.flags	= IORESOURCE_IRQ,				\
 	}
 
@@ -171,10 +171,10 @@ extern int stm_gpio_altfuncdisable(gpio_alt_function alt_func);
 	}
 
 #ifdef CONFIG_UX500_SOC_DB8500
-#define GPIO_RESOURCE(block)	__GPIO_RESOURCE(U8500, block)
+#define GPIO_RESOURCE(block)	__GPIO_RESOURCE(8500, block)
 #define GPIO_DEVICE(block)	__GPIO_DEVICE(u8500, block)
 #elif defined(CONFIG_UX500_SOC_DB5500)
-#define GPIO_RESOURCE(block)	__GPIO_RESOURCE(U5500, block)
+#define GPIO_RESOURCE(block)	__GPIO_RESOURCE(5500, block)
 #define GPIO_DEVICE(block)	__GPIO_DEVICE(u5500, block)
 #endif
 

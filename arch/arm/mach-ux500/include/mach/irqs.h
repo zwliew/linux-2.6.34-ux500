@@ -15,8 +15,8 @@
 #define IRQ_LOCALTIMER                  29
 #define IRQ_LOCALWDOG                   30
 
-
 #define IRQ_SPI_START			32
+#define IRQ_SHPI_START			IRQ_SPI_START
 
 /* Interrupt numbers generic for shared peripheral */
 #define IRQ_MTU0		(IRQ_SPI_START + 4)
@@ -89,37 +89,32 @@
 #define IRQ_CA_MSG_PEND_NOTIFICATION_0_V1	(IRQ_SPI_START + 79)
 #define IRQ_CA_MSG_PEND_NOTIFICATION_1_V1	(IRQ_SPI_START + 77)
 
-#define U8500_SOC_NR_IRQS	161
+#define DBX500_NR_INTERNAL_IRQS		161
 
 /* After chip-specific IRQ numbers we have the GPIO ones */
 #define U8500_NR_GPIO		268
-#define GPIO_TO_IRQ(gpio)	(gpio + U8500_SOC_NR_IRQS)
-#define IRQ_TO_GPIO(irq)	(irq - U8500_SOC_NR_IRQS)
+#define GPIO_TO_IRQ(gpio)	(gpio + DBX500_NR_INTERNAL_IRQS)
+#define IRQ_TO_GPIO(irq)	(irq - DBX500_NR_INTERNAL_IRQS)
 
 #define NOMADIK_GPIO_TO_IRQ	GPIO_TO_IRQ
 #define NOMADIK_IRQ_TO_GPIO	IRQ_TO_GPIO
+#define IRQ_GPIO_END		NOMADIK_GPIO_TO_IRQ(U8500_NR_GPIO)
 
-/* After the GPIO ones we reserve a range of IRQ:s in which virtual
- * IRQ:s representing modem IRQ:s can be allocated
- */
-#define IRQ_MODEM_EVENTS_BASE ( GPIO_TO_IRQ(U8500_NR_GPIO) + 1 )
-#define IRQ_MODEM_EVENTS_NBR 72
-#define IRQ_MODEM_EVENTS_END (IRQ_MODEM_EVENTS_BASE + IRQ_MODEM_EVENTS_NBR)
+/* This will be overridden by SoC-specific irq headers */
+#define IRQ_SOC_END		IRQ_GPIO_END
 
-/* List of virtual IRQ:s that are allocated from the range above */
-#define MBOX_PAIR0_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 43
-#define MBOX_PAIR1_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 45
-#define MBOX_PAIR2_VIRT_IRQ IRQ_MODEM_EVENTS_BASE + 41
+#include <mach/irqs-db5500.h>
+#include <mach/irqs-db8500.h>
 
-/* This should be fixed properly when the U5500 interrupts are added */
-#ifdef CONFIG_AB5500_CORE
-#define AB5500_NR_IRQS		5
-#define IRQ_AB5500_BASE		(IRQ_MODEM_EVENTS_END + 1)
-#define IRQ_AB5500_END		(IRQ_AB5500_BASE + AB5500_NR_IRQS)
-#define NR_IRQS			(IRQ_AB5500_END)
-#else
+#define IRQ_BOARD_START		IRQ_SOC_END
 
-#define NR_IRQS			IRQ_MODEM_EVENTS_END
+/* This will be overridden by board-specific irq headers */
+#define IRQ_BOARD_END		IRQ_BOARD_START
+
+#ifdef CONFIG_MACH_U5500_SIMULATOR
+#include <mach/irqs-board-u5500.h>
 #endif
+
+#define NR_IRQS			IRQ_BOARD_END
 
 #endif /* ASM_ARCH_IRQS_H */
