@@ -137,6 +137,10 @@ static void u8500_mmci_cmd_irq(struct u8500_mmci_host *host,
 static struct u8500_mmci_host *sdio_host_ptr;
 #define CARD_DETECT_DELAY_MSEC (10)
 
+/* For SDIO host DMA mode, min data transfer size in bytes */
+#define MIN_DATA_SIZE_DMA 	32
+/* DMA element size in bytes */
+#define DMA_ELEMENT_SZ		4
 /**
  * u8500_sdio_detect_card() - Initiates card scan for sdio host
  *
@@ -1148,6 +1152,7 @@ static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 	u32 temp_reg;
 	u32 polling_freq_clk_div = 0x0;
 	unsigned long flag_lock = 0;
+	unsigned int mem_addr;
 
 	spin_lock_irqsave(&host->lock, flag_lock);
 	host->data = data;
@@ -1162,13 +1167,21 @@ static void u8500_mmci_start_data(struct u8500_mmci_host *host,
 
 	/**
 	 * Required for SDIO DMA mode, dynamic switching between polling
-	 * and DMA mode, depending on transfer size
+	 * and DMA mode, depending on transfer size, and address alignment.
+	 * For transfer size < 32 and for element size unaligned address
+	 * SDIO host is configured in polling mode.
 	 */
-	if ((host->cmd->opcode == SD_IO_RW_EXTENDED) && (sdio_mode == MCI_DMAMODE)) {
-		if (host->size >= 32)
-			host->devicemode = MCI_DMAMODE;
-		else
+	if ((host->cmd->opcode == SD_IO_RW_EXTENDED) &&
+		(sdio_mode == MCI_DMAMODE)) {
+		mem_addr = (unsigned int)(page_address(sg_page(host->sg_ptr)) +
+					  host->sg_ptr->offset) + host->sg_off;
+
+		if ((mem_addr % DMA_ELEMENT_SZ) ||
+			(host->size < MIN_DATA_SIZE_DMA))
 			host->devicemode = MCI_POLLINGMODE;
+		else
+			host->devicemode = MCI_DMAMODE;
+
 	}
 #ifdef SDIO_MULTIBYTE_WORKAROUND
 	/**
