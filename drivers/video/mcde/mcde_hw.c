@@ -191,6 +191,7 @@ struct tv_regs {
 struct mcde_chnl_state {
 	bool inuse;
 	enum mcde_chnl id;
+	enum mcde_fifo fifo;
 	struct mcde_port port;
 	struct mcde_ovly_state *ovly0;
 	struct mcde_ovly_state *ovly1;
@@ -488,6 +489,27 @@ static u8 portfmt2bpp(enum mcde_port_pix_fmt pix_fmt)
 	}
 }
 
+static u32 get_output_fifo_size(enum mcde_fifo fifo)
+{
+	u32 ret = 1; /* Avoid div by zero */
+
+	switch(fifo) {
+	case MCDE_FIFO_A:
+	case MCDE_FIFO_B:
+		ret = MCDE_FIFO_AB_SIZE;
+		break;
+	case MCDE_FIFO_C0:
+	case MCDE_FIFO_C1:
+		ret = MCDE_FIFO_C0C1_SIZE;
+		break;
+	default:
+		dev_vdbg(&mcde_dev->dev, "Unsupported fifo");
+		break;
+	}
+
+	return ret;
+}
+
 static struct mcde_chnl_state *find_channel_by_dsilink(int link)
 {
 	struct mcde_chnl_state *chnl = &channels[0];
@@ -699,9 +721,9 @@ void update_channel_static_registers(struct mcde_chnl_state *chnl)
 			mcde_wfld(MCDE_CR, DPIB_EN, true);
 	}
 /* REVIEW: Magic numbers, define! Calculate? */
-	if (chnl->id == MCDE_CHNL_C0)
+	if (chnl->fifo == MCDE_FIFO_C0)
 		mcde_wreg(MCDE_CTRLC0, MCDE_CTRLC0_FIFOWTRMRK(0xa0));
-	else if (chnl->id == MCDE_CHNL_C1)
+	else if (chnl->fifo == MCDE_FIFO_C1)
 		mcde_wreg(MCDE_CTRLC1, MCDE_CTRLC1_FIFOWTRMRK(0xa0));
 	else if (port->update_auto_trig && (port->sync_src == MCDE_SYNCSRC_TE0))
 		mcde_wreg(MCDE_CTRLC0, MCDE_CTRLC0_FIFOWTRMRK(0xa0));
@@ -715,8 +737,9 @@ void update_channel_static_registers(struct mcde_chnl_state *chnl)
 
 /* REVIEW: Make update_* an mcde_rectangle? */
 static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
-	struct mcde_port *port,	u16 update_x, u16 update_y, u16 update_w,
-	u16 update_h, u16 stride, bool interlaced)
+			struct mcde_port *port, enum mcde_fifo fifo,
+			u16 update_x, u16 update_y, u16 update_w,
+			u16 update_h, u16 stride, bool interlaced)
 {
 	/* TODO: fix clipping for small overlay */
 	u32 lmrgn = (regs->cropx + update_x) * regs->bits_per_pixel;
@@ -724,8 +747,9 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 	u32 ppl = regs->ppl - update_x;
 	u32 lpf = regs->lpf - update_y;
 	u32 ljinc = stride;
-	u32 pixelfetchwtrmrklevel = 32;/* REVIEW: Magic number */
+	u32 pixelfetchwtrmrklevel;
 	u8  nr_of_bufs = 1;
+	u32 fifo_size;
 
 	/* TODO: disable if everything clipped */
 	if (!regs->enabled) {
@@ -759,15 +783,16 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 		}
 	}
 
-	/* REVIEW: Magic numbers */
+	fifo_size = get_output_fifo_size(fifo);
 #ifdef CONFIG_AV8100_SDTV
 	/* TODO: check if these watermark levels work for HDMI as well. */
-	pixelfetchwtrmrklevel = 16;
+	pixelfetchwtrmrklevel = MCDE_PIXFETCH_SMALL_WTRMRKLVL;
 #else
-	if (regs->ppl >= 1280)
-		pixelfetchwtrmrklevel = 64;
+	if ((fifo == MCDE_FIFO_A || fifo == MCDE_FIFO_B) &&
+					regs->ppl >= fifo_size * 2)
+		pixelfetchwtrmrklevel = MCDE_PIXFETCH_LARGE_WTRMRKLVL;
 	else
-		pixelfetchwtrmrklevel = 32;
+		pixelfetchwtrmrklevel = MCDE_PIXFETCH_MEDIUM_WTRMRKLVL;
 #endif /* CONFIG_AV8100_SDTV */
 
 	if (regs->reset_buf_id) {
@@ -915,7 +940,8 @@ static void enable_channel(enum mcde_chnl chnl_id)
 #define MCDE_CLK_FREQ_MHZ 160
 
 void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
-	struct mcde_port *port, struct mcde_video_mode *video_mode)
+				struct mcde_port *port, enum mcde_fifo fifo,
+				struct mcde_video_mode *video_mode)
 {
 	u8 idx = chnl_id;
 	u32 out_synch_src = MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC_FORMATTER;
@@ -982,14 +1008,10 @@ void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
 		u32 dsi_delay0 = 0;
 		u32 screen_ppl, screen_lpf;
 
-		/* REVIEW: Calc? */
-		if (regs->ppl >= 1280)
-			pkt_div = 2;
-		else
-			pkt_div = 1;
-
 		screen_ppl = video_mode->xres;
 		screen_lpf = video_mode->yres;
+
+		pkt_div = screen_ppl / (get_output_fifo_size(fifo) * 2) + 1;
 
 		if (video_mode->interlaced)
 			screen_lpf /= 2;
@@ -1010,7 +1032,7 @@ void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
 		packet = ((screen_ppl / pkt_div * regs->bpp) >> 3) + 1;
 		mcde_wreg(MCDE_DSIVID0FRAME +
 			fidx * MCDE_DSIVID0FRAME_GROUPOFFSET,
-			MCDE_DSIVID0FRAME_FRAME(packet * screen_lpf));
+			MCDE_DSIVID0FRAME_FRAME(packet * pkt_div * screen_lpf));
 		mcde_wreg(MCDE_DSIVID0PKT + fidx * MCDE_DSIVID0PKT_GROUPOFFSET,
 			MCDE_DSIVID0PKT_PACKET(packet));
 		mcde_wreg(MCDE_DSIVID0SYNC +
@@ -1028,18 +1050,8 @@ void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
 			fidx * MCDE_DSIVID0DELAY1_GROUPOFFSET,
 			MCDE_DSIVID0DELAY1_TEREQDEL(0) |
 			MCDE_DSIVID0DELAY1_FRAMESTARTDEL(0));
-/* TODO remove *//* REVIEW: Remove */
-/*
-dev_dbg(&mcde_dev->dev, "video_mode->pixclock %d\n", video_mode->pixclock);
-dev_dbg(&mcde_dev->dev, "video_mode->xres %d\n", video_mode->xres);
-dev_dbg(&mcde_dev->dev, "video_mode->hbp %d\n", video_mode->hbp);
-dev_dbg(&mcde_dev->dev, "video_mode->hfp %d\n", video_mode->hfp);
-dev_dbg(&mcde_dev->dev, "dsi_delay0 %d %x\n", dsi_delay0, dsi_delay0);
-dev_dbg(&mcde_dev->dev, "interlaced:%d\n", (video_mode->interlaced));
-*/
 	}
 
-	/* Rotation */
 	if (regs->roten) {
 		/* TODO: Allocate memory in ESRAM instead of
 				static allocations. */
@@ -1266,6 +1278,7 @@ struct mcde_chnl_state *mcde_chnl_get(enum mcde_chnl chnl_id,
 
 	chnl->cfg = cfg;
 	chnl->port = *port;
+	chnl->fifo = fifo;
 
 	chnl->synchronized_update = true;
 	if (port->type == MCDE_PORTTYPE_DSI)
@@ -1381,7 +1394,7 @@ static void chnl_update_registers(struct mcde_chnl_state *chnl)
 	if (chnl->id == MCDE_CHNL_A || chnl->id == MCDE_CHNL_B)
 		update_col_registers(chnl->id, &chnl->col_regs);
 	update_channel_registers(chnl->id, &chnl->regs, &chnl->port,
-								&chnl->vmode);
+						chnl->fifo, &chnl->vmode);
 
 	chnl->transactionid_regs = chnl->transactionid;
 }
@@ -1441,7 +1454,7 @@ static void chnl_update_overlay(struct mcde_chnl_state *chnl,
 		else
 			wait_for_overlay(ovly);
 		update_overlay_registers(ovly->idx, &ovly->regs, &chnl->port,
-			chnl->regs.x, chnl->regs.y,
+			chnl->fifo, chnl->regs.x, chnl->regs.y,
 			chnl->regs.ppl, chnl->regs.lpf, ovly->stride,
 			chnl->vmode.interlaced);
 		ovly->transactionid_regs = ovly->transactionid;
@@ -2001,17 +2014,20 @@ static int mcde_resume(struct platform_device *pdev)
 		if (chnl->inuse) {
 			update_channel_static_registers(chnl);
 			update_channel_registers(chnl->id, &chnl->regs,
-						&chnl->port, &chnl->vmode);
+						&chnl->port, chnl->fifo,
+						&chnl->vmode);
 			if (chnl->ovly0)
 				update_overlay_registers(chnl->ovly0->idx,
-						&chnl->ovly0->regs, &chnl->port,
+						&chnl->ovly0->regs,
+						&chnl->port, chnl->fifo,
 						chnl->regs.x, chnl->regs.y,
 						chnl->regs.ppl, chnl->regs.lpf,
 						chnl->ovly0->stride,
 						chnl->vmode.interlaced);
 			if (chnl->ovly1)
 				update_overlay_registers(chnl->ovly1->idx,
-						&chnl->ovly1->regs, &chnl->port,
+						&chnl->ovly1->regs,
+						&chnl->port, chnl->fifo,
 						chnl->regs.x, chnl->regs.y,
 						chnl->regs.ppl, chnl->regs.lpf,
 						chnl->ovly1->stride,

@@ -206,6 +206,13 @@ enum mcde_display_rotation {
 #define MCDE_MAX_WIDTH  2048
 #define MCDE_MAX_HEIGHT 2048
 
+#define MCDE_FIFO_AB_SIZE 640
+#define MCDE_FIFO_C0C1_SIZE 160
+
+#define MCDE_PIXFETCH_LARGE_WTRMRKLVL 128
+#define MCDE_PIXFETCH_MEDIUM_WTRMRKLVL 64
+#define MCDE_PIXFETCH_SMALL_WTRMRKLVL 16
+
 /* Video mode descriptor */
 struct mcde_video_mode {/* REVIEW: Join 1 & 2 */
 	u32 xres;
