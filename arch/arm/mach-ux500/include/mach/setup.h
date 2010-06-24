@@ -31,6 +31,7 @@ extern void __init ux500_init_irq(void);
 extern void __init amba_add_devices(struct amba_device *devs[], int num);
 
 extern struct sys_timer u8500_timer;
+extern void __init db8500_prcm_timer_init(void);
 
 #define __IO_DEV_DESC(x, sz)	{		\
 	.virtual	= IO_ADDRESS(x),	\

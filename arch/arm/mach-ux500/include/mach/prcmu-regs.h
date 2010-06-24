@@ -67,6 +67,11 @@
 /* System reset register */
 #define PRCM_APE_SOFTRST	(_PRCMU_BASE + 0x228)
 
+/* PRCM Timer 5 */
+#define PRCM_TIMER_5_REF	(_PRCMU_BASE + 0x45C)
+#define PRCM_TIMER_5_DOWNCOUNT	(_PRCMU_BASE + 0x460)
+#define PRCM_TIMER_5_MODE	(_PRCMU_BASE + 0x464)
+
 /* Level shifter and clamp control registers */
 #define PRCM_MMIP_LS_CLAMP_SET     (_PRCMU_BASE + 0x420)
 #define PRCM_MMIP_LS_CLAMP_CLR     (_PRCMU_BASE + 0x424)

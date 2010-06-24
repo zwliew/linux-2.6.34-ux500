@@ -177,6 +177,9 @@ static void __init u8500_timer_init(void)
 	/* Init the timer and register clocksource */
 	u8500_timer_reset();
 
+	/* register db8500-prcmu timer as always-on clock source */
+	db8500_prcm_timer_init();
+
 	u8500_clksrc.mult = clocksource_hz2mult(rate, u8500_clksrc.shift);
 	bits =  8*sizeof(u8500_count);
 
