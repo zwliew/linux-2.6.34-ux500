@@ -285,7 +285,7 @@ static int __init u8500_kp_probe(struct platform_device *pdev)
 	}
 	printk("\nkp_probe 3");
 
-	kp->inp_dev->evbit[0] = BIT(EV_KEY) | BIT(EV_REP);
+	kp->inp_dev->evbit[0] = BIT(EV_KEY);
 	kp->inp_dev->name = pdev->name;
 	kp->inp_dev->phys = "stkpd/input0";
 

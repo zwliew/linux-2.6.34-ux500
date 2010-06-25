@@ -752,7 +752,7 @@ static int __init tc35893_kp_probe(struct i2c_client *client,
 		goto err_board;
 	}
 
-	kp->inp_dev->evbit[0] = BIT(EV_KEY) | BIT(EV_REP);
+	kp->inp_dev->evbit[0] = BIT(EV_KEY);
 	kp->inp_dev->name = client->name;
 	kp->inp_dev->phys = "stkpd/input0";
 

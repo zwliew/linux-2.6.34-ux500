@@ -442,7 +442,6 @@ static int __init ske_kp_probe(struct platform_device *pdev)
 	ske_kp_key_irqen(kp);
 
 	set_bit(EV_KEY, kp->inp_dev->evbit);
-	set_bit(EV_REP, kp->inp_dev->evbit);
 	kp->inp_dev->id.bustype = BUS_HOST;
 	kp->inp_dev->name = "ske-kp";
 	kp->inp_dev->phys = "ske-kp/input0";
