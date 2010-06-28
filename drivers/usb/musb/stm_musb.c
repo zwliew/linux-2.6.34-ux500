@@ -32,6 +32,12 @@ static struct musb *musb_status;
 static spinlock_t musb_ulpi_spinlock;
 static unsigned musb_power;
 
+/**
+ * musb_set_session() - Start the USB session
+ *
+ * This function is used to start the USB sessios in USB host mode
+ * once the A cable is plugged in
+ */
 void musb_set_session(void)
 {
 	u8 val;
