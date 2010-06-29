@@ -23,7 +23,7 @@
 #define MAX_TOOL_WIDTH 15
 #define MAX_TOUCH_MAJOR 255
 #define MAX_PRESSURE 1
-#define PENUP_TIMEOUT (20)
+#define PENUP_TIMEOUT (2)
 #define SCALE_FACTOR 1000
 #define I2C_ADDR_TP2 0x5D
 
@@ -1231,8 +1231,8 @@ static int bu21013_tp_probe(struct i2c_client *i2c, const struct i2c_device_id *
 		}
 	}
 	/* sys_fs value configuration */
-	tsc_data->th_on 	= BU21013_TH_ON_5;
-	tsc_data->th_off 	= (BU21013_TH_OFF_3 | BU21013_TH_OFF_4);
+	tsc_data->th_on 	= (BU21013_TH_ON_3 | BU21013_TH_ON_4);
+	tsc_data->th_off 	= BU21013_TH_OFF_4;
 	tsc_data->gain 		= (BU21013_GAIN_0 | BU21013_GAIN_1);
 	tsc_data->penup_timer 	= PENUP_TIMEOUT;
 
