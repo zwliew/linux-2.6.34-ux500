@@ -120,10 +120,8 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, NMK_GPIO_ALT_A, "mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_EXT_CLK, 227, 228, 0, NMK_GPIO_ALT_A,
 								"mmio"),
-#ifndef CONFIG_U8500_TSC_EXT_CLK_SHARE
 	__GPIO_ALT(GPIO_ALT_TP_SET_EXT_CLK, 228, 228, 0, NMK_GPIO_ALT_A,
-								"u8500_tp"),
-#endif
+								"bu21013_tp")
 #ifdef CONFIG_KEYPAD_SKE
 	__GPIO_ALT(GPIO_ALT_KEYPAD, 153, 168, 0, NMK_GPIO_ALT_A, "ske-kp"),
 #endif
@@ -453,6 +451,8 @@ static struct i2c_board_info __initdata nmdk_i2c0_egpio1_devices[] = {
 	}
 };
 
+#if defined(CONFIG_TOUCHSCREEN_BU21013) || \
+       defined(CONFIG_TOUCHSCREEN_BU21013_MODULE)
 /**
  * Touch panel related platform specific initialization
  */
@@ -719,6 +719,8 @@ static struct bu21013_platform_device tsc_cntl2_plat_device = {
 	.tp_cntl = 2,
 #endif
 };
+#endif
+
 /*  Portrait */
 #ifdef CONFIG_DISPLAY_GENERIC_DSI_PRIMARY
 /* Rotation always on */
@@ -833,6 +835,8 @@ static struct i2c_board_info __initdata u8500_i2c3_devices[] = {
 	 /* NFC - Address TBD, FIXME */
 	 I2C_BOARD_INFO("nfc", 0x68),
 	},
+#if defined(CONFIG_TOUCHSCREEN_BU21013) || \
+       defined(CONFIG_TOUCHSCREEN_BU21013_MODULE)
 	{
 		/* Touschscreen */
 		I2C_BOARD_INFO("bu21013_tp", 0x5C),
@@ -843,6 +847,7 @@ static struct i2c_board_info __initdata u8500_i2c3_devices[] = {
 		I2C_BOARD_INFO("bu21013_tp", 0x5D),
 		.platform_data = &tsc_cntl2_plat_device,
 	},
+#endif
 
 };
 
