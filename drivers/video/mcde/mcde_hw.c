@@ -181,7 +181,7 @@ struct tv_regs {
 	/* field 1 */
 	u16 bel1; /* field total vertical blanking lines */
 	u16 fsl1; /* field vbp */
-	/* field 1 *//* REVIEW: Field 2? */
+	/* field 2 */
 	u16 bel2;
 	u16 fsl2;
 	bool interlaced_en;
@@ -201,6 +201,8 @@ struct mcde_chnl_state {
 	u32 transactionid_hw;
 	wait_queue_head_t waitq_hw; /* Waitq for transactionid_hw */
 
+	enum mcde_display_power_mode power_mode;
+
 	/* Staged settings */
 	bool synchronized_update;
 	enum mcde_port_pix_fmt pix_fmt;
@@ -215,6 +217,127 @@ struct mcde_chnl_state {
 	struct tv_regs   tv_regs;
 
 	bool continous_running;
+};
+
+static struct mcde_chnl_state channels[] = {
+	{
+		.id = MCDE_CHNL_A,
+		.ovly0 = &overlays[0],
+		.ovly1 = &overlays[1],
+	},
+	{
+		.id = MCDE_CHNL_B,
+		.ovly0 = &overlays[2],
+		.ovly1 = &overlays[3],
+	},
+	{
+		.id = MCDE_CHNL_C0,
+		.ovly0 = &overlays[4],
+		.ovly1 = NULL,
+	},
+	{
+		.id = MCDE_CHNL_C1,
+		.ovly0 = &overlays[5],
+		.ovly1 = NULL,
+	}
+};
+
+struct chnl_config {
+	/* Key */
+	enum mcde_chnl_path path;
+
+	/* Value */
+	bool swap_a_c0;
+	bool swap_a_c0_set;
+	bool swap_b_c1;
+	bool swap_b_c1_set;
+	bool fabmux;
+	bool fabmux_set;
+	bool f01mux;
+	bool f01mux_set;
+};
+
+static /* TODO: const, compiler bug? */ struct chnl_config chnl_configs[] = {
+	/* Channel A */
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DPI_0,
+	  .swap_a_c0 = false, .swap_a_c0_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DSI_IFC0_0,
+	  .swap_a_c0 = false, .swap_a_c0_set = true,
+	  .fabmux = false, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DSI_IFC0_1,
+	  .swap_a_c0 = false, .swap_a_c0_set = true,
+	  .fabmux = true, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOC0_DSI_IFC0_2,
+	  .swap_a_c0 = true, .swap_a_c0_set = true,
+	  .f01mux = false, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOC0_DSI_IFC1_0,
+	  .swap_a_c0 = true, .swap_a_c0_set = true,
+	  .f01mux = false, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOC0_DSI_IFC1_1,
+	  .swap_a_c0 = true, .swap_a_c0_set = true,
+	  .f01mux = true, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DSI_IFC1_2,
+	  .swap_a_c0 = false, .swap_a_c0_set = true,
+	  .fabmux = false, .fabmux_set = true },
+	/* Channel B */
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DPI_1,
+	  .swap_b_c1 = false, .swap_b_c1_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC0_0,
+	  .swap_b_c1 = false, .swap_b_c1_set = true,
+	  .fabmux = true, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC0_1,
+	  .swap_b_c1 = false, .swap_b_c1_set = true,
+	  .fabmux = false, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOC1_DSI_IFC0_2,
+	  .swap_b_c1 = true, .swap_b_c1_set = true,
+	  .f01mux = true, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOC1_DSI_IFC1_0,
+	  .swap_b_c1 = true, .swap_b_c1_set = true,
+	  .f01mux = true, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOC1_DSI_IFC1_1,
+	  .swap_b_c1 = true, .swap_b_c1_set = true,
+	  .f01mux = false, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC1_2,
+	  .swap_b_c1 = false, .swap_b_c1_set = true,
+	  .fabmux = true, .fabmux_set = true },
+	/* Channel C0 */
+	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC0_0,
+	  .swap_a_c0 = true, .swap_a_c0_set = true,
+	  .fabmux = false, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC0_1,
+	  .swap_a_c0 = true, .swap_a_c0_set = true,
+	  .fabmux = true, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOC0_DSI_IFC0_2,
+	  .swap_a_c0 = false, .swap_a_c0_set = true,
+	  .f01mux = false, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOC0_DSI_IFC1_0,
+	  .swap_a_c0 = false, .swap_a_c0_set = true,
+	  .f01mux = false, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOC0_DSI_IFC1_1,
+	  .swap_a_c0 = false, .swap_a_c0_set = true,
+	  .f01mux = true, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC1_2,
+	  .swap_a_c0 = true, .swap_a_c0_set = true,
+	  .fabmux = false, .fabmux_set = true },
+	/* Channel C1 */
+	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC0_0,
+	  .swap_b_c1 = true, .swap_b_c1_set = true,
+	  .fabmux = true, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC0_1,
+	  .swap_b_c1 = true, .swap_b_c1_set = true,
+	  .fabmux = false, .fabmux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOC1_DSI_IFC0_2,
+	  .swap_b_c1 = false, .swap_b_c1_set = true,
+	  .f01mux = true, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOC1_DSI_IFC1_0,
+	  .swap_b_c1 = false, .swap_b_c1_set = true,
+	  .f01mux = true, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOC1_DSI_IFC1_1,
+	  .swap_b_c1 = false, .swap_b_c1_set = true,
+	  .f01mux = false, .f01mux_set = true },
+	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC1_2,
+	  .swap_b_c1 = true, .swap_b_c1_set = true,
+	  .fabmux = true, .fabmux_set = true },
 };
 
 /* TODO: give these a place? *//* REVIEW: Remove, move to top move to use? */
@@ -235,7 +358,6 @@ int mcde_chnl_set_video_mode(struct mcde_chnl_state *chnl,
 
 static void tv_video_mode_apply(struct mcde_chnl_state *chnl)
 {
-	/* assume xres == 720 */
 	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
 	/* -4 since MCDE doesn't include SAV/EAV, 2 bytes each, to blanking */
 	chnl->tv_regs.hbw  = chnl->vmode.hbp + chnl->vmode.hfp - 4;
@@ -327,129 +449,8 @@ static void update_col_registers(enum mcde_chnl chnl_id, struct col_regs *regs)
 				MCDE_RGBCONV6A_OFF_GREEN(regs->off_green) |
 				MCDE_RGBCONV6A_OFF_BLUE(regs->off_blue));
 }
-/* REVIEW: Move all structs etc to top, don't mix code and declarations */
-static struct mcde_chnl_state channels[] = {
-	{
-		.id = MCDE_CHNL_A,
-		.ovly0 = &overlays[0],
-		.ovly1 = &overlays[1],
-	},
-	{
-		.id = MCDE_CHNL_B,
-		.ovly0 = &overlays[2],
-		.ovly1 = &overlays[3],
-	},
-	{
-		.id = MCDE_CHNL_C0,
-		.ovly0 = &overlays[4],
-		.ovly1 = NULL,
-	},
-	{
-		.id = MCDE_CHNL_C1,
-		.ovly0 = &overlays[5],
-		.ovly1 = NULL,
-	}
-};
-
-struct chnl_config {
-	/* Key */
-	enum mcde_chnl_path path;
-
-	/* Value */
-	bool swap_a_c0;
-	bool swap_a_c0_set;
-	bool swap_b_c1;
-	bool swap_b_c1_set;
-	bool fabmux;
-	bool fabmux_set;
-	bool f01mux;
-	bool f01mux_set;
-};
-static /* TODO: const, compiler bug? */ struct chnl_config chnl_configs[] = {
-	/* Channel A */
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DPI_0,
-	  .swap_a_c0 = false, .swap_a_c0_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DSI_IFC0_0,
-	  .swap_a_c0 = false, .swap_a_c0_set = true,
-	  .fabmux = false, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DSI_IFC0_1,
-	  .swap_a_c0 = false, .swap_a_c0_set = true,
-	  .fabmux = true, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOC0_DSI_IFC0_2,
-	  .swap_a_c0 = true, .swap_a_c0_set = true,
-	  .f01mux = false, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOC0_DSI_IFC1_0,
-	  .swap_a_c0 = true, .swap_a_c0_set = true,
-	  .f01mux = false, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOC0_DSI_IFC1_1,
-	  .swap_a_c0 = true, .swap_a_c0_set = true,
-	  .f01mux = true, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLA_FIFOA_DSI_IFC1_2,
-	  .swap_a_c0 = false, .swap_a_c0_set = true,
-	  .fabmux = false, .fabmux_set = true },
-	/* Channel B */
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DPI_1,
-	  .swap_b_c1 = false, .swap_b_c1_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC0_0,
-	  .swap_b_c1 = false, .swap_b_c1_set = true,
-	  .fabmux = true, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC0_1,
-	  .swap_b_c1 = false, .swap_b_c1_set = true,
-	  .fabmux = false, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOC1_DSI_IFC0_2,
-	  .swap_b_c1 = true, .swap_b_c1_set = true,
-	  .f01mux = true, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOC1_DSI_IFC1_0,
-	  .swap_b_c1 = true, .swap_b_c1_set = true,
-	  .f01mux = true, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOC1_DSI_IFC1_1,
-	  .swap_b_c1 = true, .swap_b_c1_set = true,
-	  .f01mux = false, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC1_2,
-	  .swap_b_c1 = false, .swap_b_c1_set = true,
-	  .fabmux = true, .fabmux_set = true },
-	/* Channel C0 */
-	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC0_0,
-	  .swap_a_c0 = true, .swap_a_c0_set = true,
-	  .fabmux = false, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC0_1,
-	  .swap_a_c0 = true, .swap_a_c0_set = true,
-	  .fabmux = true, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOC0_DSI_IFC0_2,
-	  .swap_a_c0 = false, .swap_a_c0_set = true,
-	  .f01mux = false, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOC0_DSI_IFC1_0,
-	  .swap_a_c0 = false, .swap_a_c0_set = true,
-	  .f01mux = false, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOC0_DSI_IFC1_1,
-	  .swap_a_c0 = false, .swap_a_c0_set = true,
-	  .f01mux = true, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC1_2,
-	  .swap_a_c0 = true, .swap_a_c0_set = true,
-	  .fabmux = false, .fabmux_set = true },
-	/* Channel C1 */
-	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC0_0,
-	  .swap_b_c1 = true, .swap_b_c1_set = true,
-	  .fabmux = true, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC0_1,
-	  .swap_b_c1 = true, .swap_b_c1_set = true,
-	  .fabmux = false, .fabmux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOC1_DSI_IFC0_2,
-	  .swap_b_c1 = false, .swap_b_c1_set = true,
-	  .f01mux = true, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOC1_DSI_IFC1_0,
-	  .swap_b_c1 = false, .swap_b_c1_set = true,
-	  .f01mux = true, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOC1_DSI_IFC1_1,
-	  .swap_b_c1 = false, .swap_b_c1_set = true,
-	  .f01mux = false, .f01mux_set = true },
-	{ .path = MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC1_2,
-	  .swap_b_c1 = true, .swap_b_c1_set = true,
-	  .fabmux = true, .fabmux_set = true },
-};
 
 /* MCDE internal helpers */
-
 static u8 portfmt2dsipacking(enum mcde_port_pix_fmt pix_fmt)
 {
 	switch (pix_fmt) {
@@ -575,10 +576,9 @@ static irqreturn_t mcde_irq_handler(int irq, void *dev)
 		}
 		irq_status = dsi_rfld(i, DSI_CMD_MODE_STS_FLAG, ERR_NO_TE_FLAG);
 		if (irq_status) {
-			trig = true;
 			dsi_wreg(i, DSI_CMD_MODE_STS_CLR,
 				DSI_CMD_MODE_STS_CLR_ERR_NO_TE_CLR(true));
-			dev_vdbg(&mcde_dev->dev, "NO_TE DSI%d\n", i);
+			dev_info(&mcde_dev->dev, "NO_TE DSI%d\n", i);
 		}
 		if (!trig)
 			continue;
@@ -1351,6 +1351,16 @@ int mcde_chnl_enable_synchronized_update(struct mcde_chnl_state *chnl,
 	return 0;
 }
 
+int mcde_chnl_set_power_mode(struct mcde_chnl_state *chnl,
+	enum mcde_display_power_mode power_mode)
+{
+	if (!chnl->inuse)
+		return -EINVAL;
+
+	chnl->power_mode = power_mode;
+	return 0;
+}
+
 int mcde_chnl_apply(struct mcde_chnl_state *chnl)
 {
 	/* TODO: lock *//* REVIEW: MCDE locking! */
@@ -1422,7 +1432,8 @@ static void chnl_update_non_continous(struct mcde_chnl_state *chnl)
 		chnl_update_registers(chnl);
 
 	/* TODO: look at port sync source and synched_update */
-	if (chnl->regs.synchronized_update) {
+	if (chnl->regs.synchronized_update &&
+				chnl->power_mode == MCDE_DISPLAY_PM_ON) {
 		if (chnl->port.type == MCDE_PORTTYPE_DSI &&
 			chnl->port.sync_src == MCDE_SYNCSRC_BTA) {
 			while (dsi_rfld(chnl->port.link, DSI_CMD_MODE_STS,
@@ -1430,7 +1441,6 @@ static void chnl_update_non_continous(struct mcde_chnl_state *chnl)
 				udelay(100);
 			dsi_te_request(chnl);
 		}
-		/* TODO: TE sync */
 	} else {
 		mcde_wreg(MCDE_CHNL0SYNCHSW +
 			chnl->id * MCDE_CHNL0SYNCHSW_GROUPOFFSET,

@@ -205,6 +205,8 @@ enum mcde_display_rotation {
 #define MCDE_MIN_HEIGHT 16
 #define MCDE_MAX_WIDTH  2048
 #define MCDE_MAX_HEIGHT 2048
+#define MCDE_BUF_START_ALIGMENT 8
+#define MCDE_BUF_LINE_ALIGMENT 8
 
 #define MCDE_FIFO_AB_SIZE 640
 #define MCDE_FIFO_C0C1_SIZE 160
@@ -273,6 +275,9 @@ int mcde_chnl_set_rotation(struct mcde_chnl_state *chnl,
 		enum mcde_display_rotation rotation, u32 rotbuf1, u32 rotbuf2);
 int mcde_chnl_enable_synchronized_update(struct mcde_chnl_state *chnl,
 								bool enable);
+int mcde_chnl_set_power_mode(struct mcde_chnl_state *chnl,
+				enum mcde_display_power_mode power_mode);
+
 int mcde_chnl_apply(struct mcde_chnl_state *chnl);
 int mcde_chnl_update(struct mcde_chnl_state *chnl,
 					struct mcde_rectangle *update_area);

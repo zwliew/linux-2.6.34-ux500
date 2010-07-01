@@ -411,6 +411,7 @@ static int apply_var(struct fb_info *fbi, struct mcde_display_device *ddev)
 
 	/* Reallocate memory */
 	line_len = (fbi->var.bits_per_pixel * var->xres_virtual) / 8;
+	line_len = ALIGN(line_len, MCDE_BUF_LINE_ALIGMENT);
 	size = line_len * var->yres_virtual;
 	ret = reallocate_fb_mem(fbi, size);
 	if (ret) {
@@ -432,7 +433,6 @@ static int apply_var(struct fb_info *fbi, struct mcde_display_device *ddev)
 		memset(&vmode, 0, sizeof(struct mcde_video_mode));
 		var_to_vmode(var, &vmode);
 		mcde_dss_set_video_mode(ddev, &vmode);
-
 		mcde_dss_apply_channel(ddev);
 	}
 
@@ -531,7 +531,7 @@ static struct fb_ops fb_ops = {
 
 struct fb_info *mcde_fb_create(struct mcde_display_device *ddev,
 	u16 w, u16 h, u16 vw, u16 vh, enum mcde_ovly_pix_fmt pix_fmt,
-	u32 rotate, bool display_initialized)
+	u32 rotate)
 {
 	int ret = 0;
 	struct fb_info *fbi;
@@ -554,7 +554,7 @@ struct fb_info *mcde_fb_create(struct mcde_display_device *ddev,
 	init_fb(fbi);
 	mfb = to_mcde_fb(fbi);
 
-	ret = mcde_dss_enable_display(ddev, display_initialized);
+	ret = mcde_dss_enable_display(ddev);
 	if (ret)
 		goto display_enable_failed;
 
@@ -584,15 +584,7 @@ struct fb_info *mcde_fb_create(struct mcde_display_device *ddev,
 	if (ret)
 		goto fb_register_failed;
 
-	if (!display_initialized) {
-		ret = mcde_dss_update_overlay(ovly);
-		if (ret)
-			goto ovly_update_failed;
-	}
-
 	goto out;
-ovly_update_failed:
-	unregister_framebuffer(fbi);
 fb_register_failed:
 	mcde_dss_disable_overlay(ovly);
 ovly_enable_failed:

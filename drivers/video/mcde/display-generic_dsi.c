@@ -106,6 +106,22 @@ static int __devinit generic_probe(struct mcde_display_device *dev)
 			regulator_set_voltage(pdata->regulator,
 					pdata->min_supply_voltage,
 					pdata->max_supply_voltage);
+			/*
+			* When u-boot has display a startup screen.
+			* U-boot has turned on display power however the
+			* regulator framework does not know about that
+			* This is the case here, the display driver has to
+			* enable the regulator for the display.
+			*/
+			if (dev->power_mode == MCDE_DISPLAY_PM_STANDBY) {
+				ret = regulator_enable(pdata->regulator);
+				if (ret < 0) {
+					dev_err(&dev->dev,
+					"%s:Failed to enable regulator\n"
+					, __func__);
+					goto regulator_enable_failed;
+				}
+			}
 		}
 		dev->platform_enable = generic_platform_enable;
 		dev->platform_disable = generic_platform_disable;
@@ -119,7 +135,7 @@ static int __devinit generic_probe(struct mcde_display_device *dev)
 	dev_info(&dev->dev, "Generic display probed\n");
 
 	goto out;
-
+regulator_enable_failed:
 regulator_get_failed:
 	if (pdata->generic_platform_enable && pdata->reset_gpio)
 		gpio_free(pdata->reset_gpio);

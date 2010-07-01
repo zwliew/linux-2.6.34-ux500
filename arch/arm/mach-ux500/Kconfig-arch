@@ -48,6 +48,13 @@ config DISPLAY_GENERIC_DSI_PRIMARY
 	help
 	  Say yes here if main display exists
 
+config DISPLAY_GENERIC_DSI_PRIMARY_VSYNC
+	bool "Enable v-sync for primary display"
+	depends on DISPLAY_GENERIC_DSI_PRIMARY
+	default n
+	help
+	  Say yes to enable v-sync for primary display
+
 config DISPLAY_GENERIC_DSI_SECONDARY
         bool "Sub display support"
 	depends on MACH_U8500_MOP && FB_MCDE
@@ -55,6 +62,13 @@ config DISPLAY_GENERIC_DSI_SECONDARY
         default n
 	help
 	  Say yes here if sub display exists
+
+config DISPLAY_GENERIC_DSI_SECONDARY_VSYNC
+	bool "Enable v-sync for secondary display"
+	depends on DISPLAY_GENERIC_DSI_SECONDARY
+	default n
+	help
+	  Say yes to enable v-sync for secondary display
 
 config DISPLAY_AB8500_TERTIARY
         bool "AB8500 TVout display support"

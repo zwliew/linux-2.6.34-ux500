@@ -67,8 +67,7 @@ static int apply_overlay(struct mcde_overlay *ovly,
 
 /* MCDE DSS operations */
 
-int mcde_dss_enable_display(struct mcde_display_device *ddev,
-				bool display_initialized)
+int mcde_dss_enable_display(struct mcde_display_device *ddev)
 {
 	int ret;
 	struct mcde_chnl_state *chnl;
@@ -84,22 +83,20 @@ int mcde_dss_enable_display(struct mcde_display_device *ddev,
 		goto get_chnl_failed;
 	}
 	ddev->chnl_state = chnl;
-	if (!display_initialized) {
-		/* Initiate display communication */
-		ret = ddev->set_power_mode(ddev, MCDE_DISPLAY_PM_STANDBY);
-		if (ret < 0) {
-			dev_warn(&ddev->dev, "Failed to initialize display\n");
-			goto display_failed;
-		}
-
-		dev_dbg(&ddev->dev, "Display enabled, chnl=%d\n",
-						ddev->chnl_id);
-	} else {
-		dev_dbg(&ddev->dev, "Display already enabled, chnl=%d\n",
-						ddev->chnl_id);
-		ddev->power_mode = MCDE_DISPLAY_PM_ON;
-		ret = 0;
+	/* Initiate display communication */
+	ret = ddev->set_power_mode(ddev, MCDE_DISPLAY_PM_STANDBY);
+	if (ret < 0) {
+		dev_warn(&ddev->dev, "Failed to initialize display\n");
+		goto display_failed;
 	}
+
+	ret = ddev->set_synchronized_update(ddev, ddev->synchronized_update);
+	if (ret < 0)
+		dev_warn(&ddev->dev, "Failed to set sync\n");
+	/* TODO: call driver for all defaults like sync_update above */
+
+	dev_dbg(&ddev->dev, "Display enabled, chnl=%d\n",
+					ddev->chnl_id);
 	ddev->enabled = true;
 out:
 	return ret;

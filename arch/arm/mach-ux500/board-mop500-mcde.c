@@ -17,12 +17,12 @@
 #include <video/mcde_fb.h>
 #include <video/mcde_dss.h>
 
-#define DSI_UNIT_INTERVAL_0	0xA
-#define DSI_UNIT_INTERVAL_1	0xA
-#define DSI_UNIT_INTERVAL_2 	0x6
+#define DSI_UNIT_INTERVAL_0	0x9
+#define DSI_UNIT_INTERVAL_1	0x9
+#define DSI_UNIT_INTERVAL_2	0x6
 
 static bool rotate_main = true;
-static bool display_initialize_during_boot;
+static bool display_initialized_during_boot;
 
 static int __init startup_graphics_setup(char *str)
 {
@@ -32,14 +32,14 @@ static int __init startup_graphics_setup(char *str)
 	switch (*str) {
 	case '0':
 		pr_info("No Startup graphics support\n");
-		display_initialize_during_boot = false;
+		display_initialized_during_boot = false;
 		break;
 	case '1':
 		pr_info("Startup graphics supported\n");
-		display_initialize_during_boot = true;
+		display_initialized_during_boot = true;
 		break;
 	default:
-		display_initialize_during_boot = false;
+		display_initialized_during_boot = false;
 		break;
 	};
 
@@ -84,7 +84,11 @@ struct mcde_display_device generic_display0 = {
 	.default_pixel_format = MCDE_OVLYPIXFMT_RGB565,
 	.native_x_res = 864,
 	.native_y_res = 480,
+#ifdef CONFIG_DISPLAY_GENERIC_DSI_PRIMARY_VSYNC
+	.synchronized_update = true,
+#else
 	.synchronized_update = false,
+#endif
 	/* TODO: Remove rotation buffers once ESRAM driver is completed */
 	.rotbuf1 = U8500_ESRAM_BASE + 0x20000 * 4,
 	.rotbuf2 = U8500_ESRAM_BASE + 0x20000 * 4 + 0x10000,
@@ -132,7 +136,11 @@ static struct mcde_display_device generic_subdisplay = {
 	.default_pixel_format = MCDE_OVLYPIXFMT_RGB565,
 	.native_x_res = 864,
 	.native_y_res = 480,
+#ifdef CONFIG_DISPLAY_GENERIC_DSI_SECONDARY_VSYNC
+	.synchronized_update = true,
+#else
 	.synchronized_update = false,
+#endif
 	.dev = {
 		.platform_data = &generic_subdisplay_pdata,
 	},
@@ -366,7 +374,6 @@ static int display_registered_callback(struct notifier_block *nb,
 	struct mcde_display_device *ddev = dev;
 	u16 width, height;
 	bool rotate;
-	bool display_initialized;
 
 	if (event != MCDE_DSS_EVENT_DISPLAY_REGISTERED)
 		return 0;
@@ -376,7 +383,6 @@ static int display_registered_callback(struct notifier_block *nb,
 
 	mcde_dss_get_native_resolution(ddev, &width, &height);
 
-	display_initialized = (ddev->id == 0 && display_initialize_during_boot);
 	rotate = (ddev->id == 0 && rotate_main);
 	if (rotate) {
 		u16 tmp = height;
@@ -389,8 +395,7 @@ static int display_registered_callback(struct notifier_block *nb,
 		width, height,
 		width, height * 2,
 		ddev->default_pixel_format,
-		rotate ? FB_ROTATE_CW : FB_ROTATE_UR,
-		display_initialized);
+		rotate ? FB_ROTATE_CW : FB_ROTATE_UR);
 	if (IS_ERR(fbs[ddev->id]))
 		pr_warning("Failed to create fb for display %s\n", ddev->name);
 	else
@@ -403,15 +408,56 @@ static struct notifier_block display_nb = {
 	.notifier_call = display_registered_callback,
 };
 
+static int framebuffer_registered_callback(struct notifier_block *nb,
+	unsigned long event, void *data)
+{
+	int ret = 0;
+	struct fb_event *event_data = data;
+	struct fb_info *info;
+	struct fb_var_screeninfo var;
+	struct fb_fix_screeninfo fix;
+
+	if (event == FB_EVENT_FB_REGISTERED &&
+		!display_initialized_during_boot) {
+		if (event_data) {
+			u8 *addr;
+			info = event_data->info;
+			if (!lock_fb_info(info))
+				return -ENODEV;
+			var = info->var;
+			fix = info->fix;
+			addr = ioremap(fix.smem_start,
+					var.yres_virtual * fix.line_length);
+			memset(addr, 0x00,
+					var.yres_virtual * fix.line_length);
+			var.yoffset = var.yoffset ? 0 : var.yres;
+			if (info->fbops->fb_pan_display)
+				ret = info->fbops->fb_pan_display(&var, info);
+			unlock_fb_info(info);
+		}
+	}
+	return ret;
+}
+
+static struct notifier_block framebuffer_nb = {
+	.notifier_call = framebuffer_registered_callback,
+};
+
 int __init init_display_devices(void)
 {
 	int ret;
+
+	ret = fb_register_client(&framebuffer_nb);
+	if (ret)
+		pr_warning("Failed to register framebuffer notifier\n");
 
 	ret = mcde_dss_register_notifier(&display_nb);
 	if (ret)
 		pr_warning("Failed to register dss notifier\n");
 
 #ifdef CONFIG_DISPLAY_GENERIC_DSI_PRIMARY
+	if (display_initialized_during_boot)
+		generic_display0.power_mode = MCDE_DISPLAY_PM_STANDBY;
 	ret = mcde_display_device_register(&generic_display0);
 	if (ret)
 		pr_warning("Failed to register generic display device 0\n");

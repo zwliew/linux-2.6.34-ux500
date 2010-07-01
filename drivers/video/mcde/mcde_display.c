@@ -92,6 +92,8 @@ static int mcde_display_set_power_mode_default(struct mcde_display_device *ddev,
 			ddev->power_mode = MCDE_DISPLAY_PM_OFF;
 	}
 
+	mcde_chnl_set_power_mode(ddev->chnl_state, ddev->power_mode);
+
 	return ret;
 }
 
@@ -205,11 +207,12 @@ static int mcde_display_set_synchronized_update_default(
 	int ret = 0;
 	if (ddev->port->type == MCDE_PORTTYPE_DSI) {
 		if (ddev->port->sync_src == MCDE_SYNCSRC_TE0 ||
-			 ddev->port->sync_src == MCDE_SYNCSRC_TE1) {
+			 ddev->port->sync_src == MCDE_SYNCSRC_TE1 ||
+			 ddev->port->sync_src == MCDE_SYNCSRC_BTA) {
 			u8 m = 0;
 			ret = mcde_display_dsi_dcs_write(ddev,
 				DCS_CMD_SET_TEAR_ON, &m, 1);
-		} else if (ddev->port->sync_src != MCDE_SYNCSRC_BTA) {
+		} else {
 			ret = -EINVAL;
 		}
 	} else {
