@@ -61,6 +61,7 @@ static struct mcde_port port0 = {
 			.virt_id = 0,
 			.num_data_lanes = 2,
 			.ui = DSI_UNIT_INTERVAL_0,
+			.clk_cont = false,
 		},
 	},
 };
@@ -112,6 +113,7 @@ static struct mcde_port subdisplay_port = {
 			.virt_id = 0,
 			.num_data_lanes = 2,
 			.ui = DSI_UNIT_INTERVAL_1,
+			.clk_cont = false,
 		},
 	},
 
@@ -277,17 +279,18 @@ static struct mcde_port port2 = {
 	.pixel_format = MCDE_PORTPIXFMT_DSI_24BPP,
 	.ifc = 1,
 	.link = 2,
-#ifdef AV8100_HW_TE_I2SDAT3
+#ifdef CONFIG_AV8100_HWTRIG_I2SDAT3
 	.sync_src = MCDE_SYNCSRC_TE1,
 #else
 	.sync_src = MCDE_SYNCSRC_TE0,
-#endif /* AV8100_HW_TE_I2SDAT3 */
+#endif /* CONFIG_AV8100_HWTRIG_I2SDAT3 */
 	.update_auto_trig = true,
 	.phy = {
 		.dsi = {
 			.virt_id = 0,
 			.num_data_lanes = 2,
 			.ui = DSI_UNIT_INTERVAL_2,
+			.clk_cont = false,
 		},
 	},
 };

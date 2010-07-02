@@ -14,6 +14,13 @@
 /* Temp: TODO: remove (or move to menuconfig) */
 /*#define CONFIG_AV8100_SDTV*/
 
+#define AV8100_CEC_MESSAGE_SIZE		16
+#define AV8100_HDCP_SEND_KEY_SIZE	16
+#define AV8100_INFOFRAME_SIZE		28
+#define AV8100_FUSE_KEY_SIZE		16
+#define AV8100_CHIPVER_1		1
+#define AV8100_CHIPVER_2		2
+
 struct av8100_platform_data {
     unsigned	gpio_base;
     int irq;
@@ -53,14 +60,12 @@ enum interface_type {
 };
 
 enum av8100_dsi_mode {
-
 	AV8100_HDMI_DSI_OFF,
 	AV8100_HDMI_DSI_COMMAND_MODE,
 	AV8100_HDMI_DSI_VIDEO_MODE
 };
 
 enum av8100_pixel_format {
-
 	AV8100_INPUT_PIX_RGB565,
 	AV8100_INPUT_PIX_RGB666,
 	AV8100_INPUT_PIX_RGB666P,
@@ -278,9 +283,19 @@ struct av8100_color_space_conversion_format_cmd {
 	unsigned char	cmin;
 };
 
+const extern struct av8100_color_space_conversion_format_cmd col_cvt_identity;
+const extern struct av8100_color_space_conversion_format_cmd
+						col_cvt_identity_clamp_yuv;
+const extern struct av8100_color_space_conversion_format_cmd
+						col_cvt_yuv422_to_rgb;
+const extern struct av8100_color_space_conversion_format_cmd
+						col_cvt_yuv422_to_denc;
+const extern struct av8100_color_space_conversion_format_cmd
+						col_cvt_rgb_to_denc;
+
 struct av8100_cec_message_write_format_cmd {
 	unsigned char buffer_length;
-	unsigned char buffer[16];
+	unsigned char buffer[AV8100_CEC_MESSAGE_SIZE];
 };
 
 struct av8100_cec_message_read_back_format_cmd {
@@ -314,13 +329,31 @@ struct av8100_hdmi_cmd {
 
 struct av8100_hdcp_send_key_format_cmd {
 	unsigned char key_number;
-	unsigned char key[7];
+	unsigned char data_len;
+	unsigned char data[AV8100_HDCP_SEND_KEY_SIZE];
+};
+
+enum av8100_hdcp_auth_req_type {
+	AV8100_HDCP_AUTH_REQ_OFF = 0,
+	AV8100_HDCP_AUTH_REQ_ON = 1,
+	AV8100_HDCP_REV_LIST_REQ = 2,
+	AV8100_HDCP_AUTH_CONT = 3,
+};
+
+enum av8100_hdcp_encr_req_type {
+	AV8100_HDCP_ENCR_REQ_OFF = 0,
+	AV8100_HDCP_ENCR_REQ_ON = 1,
+};
+
+enum av8100_hdcp_encr_use {
+	AV8100_HDCP_ENCR_USE_OESS = 0,
+	AV8100_HDCP_ENCR_USE_EESS = 1,
 };
 
 struct av8100_hdcp_management_format_cmd {
-	unsigned char request_hdcp_revocation_list;
-	unsigned char request_encrypted_transmission;
-	unsigned char oess_eess_encryption_use;
+	unsigned char req_type;
+	unsigned char req_encr;
+	unsigned char encr_use;
 };
 
 struct av8100_infoframes_format_cmd {
@@ -328,7 +361,7 @@ struct av8100_infoframes_format_cmd {
 	unsigned char version;
 	unsigned char length;
 	unsigned char crc;
-	unsigned char data[28];
+	unsigned char data[AV8100_INFOFRAME_SIZE];
 };
 
 struct av8100_edid_section_readback_format_cmd {
@@ -342,9 +375,14 @@ struct av8100_pattern_generator_format_cmd {
 	enum av8100_pattern_audio	pattern_audio_mode;
 };
 
+enum av8100_fuse_operation {
+	AV8100_FUSE_READ = 0,
+	AV8100_FUSE_WRITE = 1,
+};
+
 struct av8100_fuse_aes_key_format_cmd {
 	unsigned char fuse_operation;
-	unsigned char key[16];
+	unsigned char key[AV8100_FUSE_KEY_SIZE];
 };
 
 union av8100_configuration {
@@ -376,19 +414,27 @@ enum av8100_operating_mode {
 	AV8100_OPMODE_SCAN,
 	AV8100_OPMODE_INIT,
 	AV8100_OPMODE_IDLE,
-	AV8100_OPMODE_VIDEO
+	AV8100_OPMODE_VIDEO,
 };
 
 enum av8100_plugin_status {
 	AV8100_PLUGIN_NONE = 0x0,
 	AV8100_HDMI_PLUGIN = 0x1,
-	AV8100_CVBS_PLUGIN = 0x2
+	AV8100_CVBS_PLUGIN = 0x2,
+};
+
+enum av8100_hdmi_event {
+	AV8100_HDMI_EVENT_NONE =		0x0,
+	AV8100_HDMI_EVENT_HDMI_PLUGIN =		0x1,
+	AV8100_HDMI_EVENT_HDMI_PLUGOUT =	0x2,
+	AV8100_HDMI_EVENT_CEC =			0x4,
+	AV8100_HDMI_EVENT_HDCP =		0x8,
 };
 
 struct av8100_status {
 	enum av8100_operating_mode	av8100_state;
 	enum av8100_plugin_status	av8100_plugin_status;
-	int			hdmi_on;
+	int				hdmi_on;
 };
 
 
@@ -400,23 +446,24 @@ int av8100_disable_interrupt(void);
 int av8100_enable_interrupt(void);
 int av8100_download_firmware(char *fw_buff, int numOfBytes,
 	enum interface_type if_type);
-int av8100_register_standby_write(
+int av8100_reg_stby_w(
 		unsigned char cpd,
 		unsigned char stby,
 		unsigned char mclkrng);
-int av8100_register_hdmi_5_volt_time_write(
-		unsigned char off_time,
+int av8100_reg_hdmi_5_volt_time_w(
+		unsigned char denc_off_time,
+		unsigned char hdmi_off_time,
 		unsigned char on_time);
-int av8100_register_standby_interrupt_mask_write(
+int av8100_reg_stby_int_mask_w(
 		unsigned char hpdm,
 		unsigned char cpdm,
 		unsigned char stbygpiocfg,
 		unsigned char ipol);
-int av8100_register_standby_pending_interrupt_write(
+int av8100_reg_stby_pend_int_w(
 		unsigned char hpdi,
 		unsigned char cpdi,
 		unsigned char oni);
-int av8100_register_general_interrupt_mask_write(
+int av8100_reg_gen_int_mask_w(
 		unsigned char eocm,
 		unsigned char vsim,
 		unsigned char vsom,
@@ -424,14 +471,14 @@ int av8100_register_general_interrupt_mask_write(
 		unsigned char hdcpm,
 		unsigned char uovbm,
 		unsigned char tem);
-int av8100_register_general_interrupt_write(
+int av8100_reg_gen_int_w(
 		unsigned char eoci,
 		unsigned char vsii,
 		unsigned char vsoi,
 		unsigned char ceci,
 		unsigned char hdcpi,
 		unsigned char uovbi);
-int av8100_register_gpio_configuration_write(
+int av8100_reg_gpio_conf_w(
 		unsigned char dat3dir,
 		unsigned char dat3val,
 		unsigned char dat2dir,
@@ -439,36 +486,37 @@ int av8100_register_gpio_configuration_write(
 		unsigned char dat1dir,
 		unsigned char dat1val,
 		unsigned char ucdbg);
-int av8100_register_general_control_write(
+int av8100_reg_gen_ctrl_w(
 		unsigned char fdl,
 		unsigned char hld,
 		unsigned char wa,
 		unsigned char ra);
-int av8100_register_firmware_download_entry_write(
+int av8100_reg_fw_dl_entry_w(
 	unsigned char mbyte_code_entry);
-int av8100_register_write(
+int av8100_reg_w(
 		unsigned char offset,
 		unsigned char value);
-int av8100_register_standby_read(
+int av8100_reg_stby_r(
 		unsigned char *cpd,
 		unsigned char *stby,
 		unsigned char *hpds,
 		unsigned char *cpds,
 		unsigned char *mclkrng);
-int av8100_register_hdmi_5_volt_time_read(
-		unsigned char *off_time,
+int av8100_reg_hdmi_5_volt_time_r(
+		unsigned char *denc_off_time,
+		unsigned char *hdmi_off_time,
 		unsigned char *on_time);
-int av8100_register_standby_interrupt_mask_read(
+int av8100_reg_stby_int_mask_r(
 		unsigned char *hpdm,
 		unsigned char *cpdm,
 		unsigned char *stbygpiocfg,
 		unsigned char *ipol);
-int av8100_register_standby_pending_interrupt_read(
+int av8100_reg_stby_pend_int_r(
 		unsigned char *hpdi,
 		unsigned char *cpdi,
 		unsigned char *oni,
 		unsigned char *sid);
-int av8100_register_general_interrupt_mask_read(
+int av8100_reg_gen_int_mask_r(
 		unsigned char *eocm,
 		unsigned char *vsim,
 		unsigned char *vsom,
@@ -476,7 +524,7 @@ int av8100_register_general_interrupt_mask_read(
 		unsigned char *hdcpm,
 		unsigned char *uovbm,
 		unsigned char *tem);
-int av8100_register_general_interrupt_read(
+int av8100_reg_gen_int_r(
 		unsigned char *eoci,
 		unsigned char *vsii,
 		unsigned char *vsoi,
@@ -484,13 +532,13 @@ int av8100_register_general_interrupt_read(
 		unsigned char *hdcpi,
 		unsigned char *uovbi,
 		unsigned char *tei);
-int av8100_register_general_status_read(
+int av8100_reg_gen_status_r(
 		unsigned char *cecrec,
 		unsigned char *cectrx,
 		unsigned char *uc,
 		unsigned char *onuvb,
 		unsigned char *hdcps);
-int av8100_register_gpio_configuration_read(
+int av8100_reg_gpio_conf_r(
 		unsigned char *dat3dir,
 		unsigned char *dat3val,
 		unsigned char *dat2dir,
@@ -498,24 +546,24 @@ int av8100_register_gpio_configuration_read(
 		unsigned char *dat1dir,
 		unsigned char *dat1val,
 		unsigned char *ucdbg);
-int av8100_register_general_control_read(
+int av8100_reg_gen_ctrl_r(
 		unsigned char *fdl,
 		unsigned char *hld,
 		unsigned char *wa,
 		unsigned char *ra);
-int av8100_register_firmware_download_entry_read(
+int av8100_reg_fw_dl_entry_r(
 	unsigned char *mbyte_code_entry);
-int av8100_register_read(
+int av8100_reg_r(
 		unsigned char offset,
 		unsigned char *value);
-int av8100_configuration_get(enum av8100_command_type command_type,
+int av8100_conf_get(enum av8100_command_type command_type,
 	union av8100_configuration *config);
-int av8100_configuration_prepare(enum av8100_command_type command_type,
+int av8100_conf_prep(enum av8100_command_type command_type,
 	union av8100_configuration *config);
-int av8100_configuration_write(enum av8100_command_type command_type,
+int av8100_conf_w(enum av8100_command_type command_type,
 		unsigned char *return_buffer_length,
 		unsigned char *return_buffer, enum interface_type if_type);
-int av8100_configuration_write_raw(enum av8100_command_type command_type,
+int av8100_conf_w_raw(enum av8100_command_type command_type,
 	unsigned char buffer_length,
 	unsigned char *buffer,
 	unsigned char *return_buffer_length,
@@ -527,5 +575,7 @@ enum av8100_output_CEA_VESA av8100_video_output_format_get(int xres,
 	int vtot,
 	int pixelclk,
 	bool interlaced);
+void av8100_hdmi_event_cb_set(void (*event_callback)(enum av8100_hdmi_event));
+u8 av8100_ver_get(void);
 
 #endif /* __AV8100__H__ */

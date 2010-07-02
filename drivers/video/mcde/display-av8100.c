@@ -17,8 +17,8 @@
 
 #include <video/mcde_display.h>
 #include <video/mcde_display-av8100.h>
-#include <video/hdmi.h>
 #include <video/av8100.h>
+#include <video/hdmi.h>
 
 static int hdmi_try_video_mode(
 	struct mcde_display_device *ddev, struct mcde_video_mode *video_mode);
@@ -139,6 +139,7 @@ static int hdmi_try_video_mode(
 
 	if (found_index != -1) {
 		res = 0;
+		memset(video_mode, 0, sizeof(struct mcde_video_mode));
 		memcpy(video_mode, &video_modes_supp[found_index],
 			sizeof(struct mcde_video_mode));
 
@@ -165,15 +166,14 @@ static int hdmi_set_video_mode(
 	int ret = -EINVAL;
 	bool update = 0;
 	union av8100_configuration av8100_config;
-	struct mcde_display_hdmi_platform_data *pdata;
+	struct mcde_display_hdmi_platform_data *pdata = dev->dev.platform_data;
+	struct av8100_status status;
 
 	/* TODO check video_mode_params */
 	if (dev == NULL || video_mode == NULL) {
 		pr_warning("%s:ddev = NULL or video_mode = NULL\n", __func__);
 		goto out;
 	}
-
-	pdata = dev->dev.platform_data;
 
 	dev_vdbg(&dev->dev, "%s:\n", __func__);
 	dev_vdbg(&dev->dev, "%s:xres:%d yres:%d hbp:%d hfp:%d vbp1:%d vfp1:%d "
@@ -194,49 +194,56 @@ static int hdmi_set_video_mode(
 	if (dev->port->pixel_format == MCDE_PORTPIXFMT_DSI_YCBCR422)
 		mcde_chnl_set_col_convert(dev->chnl_state,
 						&pdata->rgb_2_yCbCr_convert);
-
 	ret = mcde_chnl_set_video_mode(dev->chnl_state, &dev->video_mode);
 	if (ret < 0) {
 		dev_warn(&dev->dev, "Failed to set video mode\n");
 		goto out;
 	}
 
-	/* Disable interrupts */
-	ret = av8100_disable_interrupt();
-	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_disable_interrupt failed\n",
-				__func__);
-		goto out;
-	}
-
 	/* TODO: We shouldn't need to shutdown */
-	ret = av8100_powerdown();
-	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "av8100_powerdown failed\n");
-		goto out;
-	}
-	/* TODO: What delay is needed here */
-	msleep(10);
+	status = av8100_status_get();
+	if (status.av8100_state >= AV8100_OPMODE_STANDBY) {
+		/* Disable interrupts */
+		ret = av8100_disable_interrupt();
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev,
+				"%s:av8100_disable_interrupt failed\n",
+				__func__);
+			goto out;
+		}
 
-	ret = av8100_powerup();
-	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "av8100_powerup failed\n");
-		goto out;
+		ret = av8100_powerdown();
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "av8100_powerdown failed\n");
+			goto out;
+		}
+
+		/* TODO: What delay is needed here */
+		msleep(10);
 	}
 
-	ret = av8100_download_firmware(NULL, 0, I2C_INTERFACE);
-	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "av8100_download_firmware failed\n");
-		goto out;
+	status = av8100_status_get();
+	if (status.av8100_state < AV8100_OPMODE_STANDBY) {
+		ret = av8100_powerup();
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "av8100_powerup failed\n");
+			goto out;
+		}
+
+		ret = av8100_download_firmware(NULL, 0, I2C_INTERFACE);
+		if (ret != AV8100_OK) {
+			dev_err(&dev->dev, "av8100_download_firmware failed\n");
+			goto out;
+		}
 	}
 
 	/* Get current av8100 video output format */
-	ret = av8100_configuration_get(AV8100_COMMAND_VIDEO_OUTPUT_FORMAT,
+	ret = av8100_conf_get(AV8100_COMMAND_VIDEO_OUTPUT_FORMAT,
 		&av8100_config);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_get "
-				"AV8100_COMMAND_VIDEO_OUTPUT_FORMAT failed\n",
-				__func__);
+		dev_err(&dev->dev, "%s:av8100_conf_get "
+			"AV8100_COMMAND_VIDEO_OUTPUT_FORMAT failed\n",
+			__func__);
 		goto out;
 	}
 
@@ -260,27 +267,26 @@ static int hdmi_set_video_mode(
 	if (AV8100_VIDEO_OUTPUT_CEA_VESA_MAX ==
 		av8100_config.video_output_format.video_output_cea_vesa) {
 		dev_err(&dev->dev, "%s:video output format not found "
-				"\n", __func__);
+			"\n", __func__);
 		goto out;
 	}
 
-	ret = av8100_configuration_prepare(AV8100_COMMAND_VIDEO_OUTPUT_FORMAT,
+	ret = av8100_conf_prep(AV8100_COMMAND_VIDEO_OUTPUT_FORMAT,
 		&av8100_config);
 	if (ret != AV8100_OK) {
-				dev_err(&dev->dev,
-				"%s:av8100_configuration_prepare "
-				"AV8100_COMMAND_VIDEO_OUTPUT_FORMAT failed\n",
-				__func__);
+		dev_err(&dev->dev, "%s:av8100_conf_prep "
+			"AV8100_COMMAND_VIDEO_OUTPUT_FORMAT failed\n",
+			__func__);
 		goto out;
 	}
 
 	/* Get current av8100 video input format */
-	ret = av8100_configuration_get(AV8100_COMMAND_VIDEO_INPUT_FORMAT,
+	ret = av8100_conf_get(AV8100_COMMAND_VIDEO_INPUT_FORMAT,
 		&av8100_config);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_get "
-				"AV8100_COMMAND_VIDEO_INPUT_FORMAT failed\n",
-				__func__);
+		dev_err(&dev->dev, "%s:av8100_conf_get "
+			"AV8100_COMMAND_VIDEO_INPUT_FORMAT failed\n",
+			__func__);
 		goto out;
 	}
 
@@ -305,26 +311,32 @@ static int hdmi_set_video_mode(
 		break;
 	case MCDE_PORTPIXFMT_DSI_YCBCR422:
 		av8100_config.video_input_format.input_pixel_format =
-			AV8100_INPUT_PIX_YCBCR422;
+			/*
+			 * The following is expected:
+			 * AV8100_INPUT_PIX_YCBCR422;
+			 * However 565 is used for now and the colour converter
+			 * is used to transform the correct colour.
+			 */
+			AV8100_INPUT_PIX_RGB565;
 		break;
 	}
 
 	/*  Set ui_x4 */
 	av8100_config.video_input_format.ui_x4 = dev->port->phy.dsi.ui;
 
-	ret = av8100_configuration_prepare(AV8100_COMMAND_VIDEO_INPUT_FORMAT,
+	ret = av8100_conf_prep(AV8100_COMMAND_VIDEO_INPUT_FORMAT,
 		&av8100_config);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_prepare "
+		dev_err(&dev->dev, "%s:av8100_conf_prep "
 				"AV8100_COMMAND_VIDEO_INPUT_FORMAT failed\n",
 				__func__);
 		goto out;
 	}
 
-	ret = av8100_configuration_write(AV8100_COMMAND_VIDEO_INPUT_FORMAT,
+	ret = av8100_conf_w(AV8100_COMMAND_VIDEO_INPUT_FORMAT,
 		NULL, NULL, I2C_INTERFACE);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_write "
+		dev_err(&dev->dev, "%s:av8100_conf_w "
 				"AV8100_COMMAND_VIDEO_INPUT_FORMAT failed\n",
 				__func__);
 		goto out;
@@ -333,108 +345,65 @@ static int hdmi_set_video_mode(
 /* TODO: Remove #ifdefs in driver code. This is a dynamic property! */
 #ifdef CONFIG_AV8100_SDTV
 	if (dev->port->pixel_format != MCDE_PORTPIXFMT_DSI_YCBCR422) {
-		av8100_config.color_space_conversion_format.c0      = 0xFFDA;
-		av8100_config.color_space_conversion_format.c1      = 0xFFB6;
-		av8100_config.color_space_conversion_format.c2      = 0x0070;
-		av8100_config.color_space_conversion_format.c3      = 0x0042;
-		av8100_config.color_space_conversion_format.c4      = 0x0081;
-		av8100_config.color_space_conversion_format.c5      = 0x0019;
-		av8100_config.color_space_conversion_format.c6      = 0x0070;
-		av8100_config.color_space_conversion_format.c7      = 0xFFA2;
-		av8100_config.color_space_conversion_format.c8      = 0xFFEE;
-		av8100_config.color_space_conversion_format.aoffset = 0x007F;
-		av8100_config.color_space_conversion_format.boffset = 0x0010;
-		av8100_config.color_space_conversion_format.coffset = 0x007F;
-		av8100_config.color_space_conversion_format.lmax    = 0xEB;
-		av8100_config.color_space_conversion_format.lmin    = 0x10;
-		av8100_config.color_space_conversion_format.cmax    = 0xF0;
-		av8100_config.color_space_conversion_format.cmin    = 0x10;
-
-		ret = av8100_configuration_prepare(
-			AV8100_COMMAND_COLORSPACECONVERSION,
-			&av8100_config);
-		if (ret != AV8100_OK) {
-			dev_err(&dev->dev, "%s:av8100_configuration_prepare "
-				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
-				__func__);
-			goto out;
-		}
-
-		/* TODO make it possible to turn off conl conversion */
-		ret = av8100_configuration_write(
-				AV8100_COMMAND_COLORSPACECONVERSION,
-				NULL, NULL, I2C_INTERFACE);
-		if (ret != AV8100_OK) {
-			dev_err(&dev->dev, "%s:av8100_configuration_write "
-				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
-				__func__);
-			goto out;
-		}
-
+		av8100_config.color_space_conversion_format =
+							col_cvt_rgb_to_denc;
+	} else {
+		av8100_config.color_space_conversion_format =
+							col_cvt_yuv422_to_denc;
 	}
-	/* TODO else turn off col converter (needed for dynamic switching */
 #else
 	if (dev->port->pixel_format == MCDE_PORTPIXFMT_DSI_YCBCR422) {
-		/* YUV to RGB: std */
-		av8100_config.color_space_conversion_format.c0      = 0x012a;
-		av8100_config.color_space_conversion_format.c1      = 0x0000;
-		av8100_config.color_space_conversion_format.c2      = 0x0199;
-		av8100_config.color_space_conversion_format.c3      = 0x012a;
-		av8100_config.color_space_conversion_format.c4      = 0xff9c;
-		av8100_config.color_space_conversion_format.c5      = 0xff30;
-		av8100_config.color_space_conversion_format.c6      = 0x012a;
-		av8100_config.color_space_conversion_format.c7      = 0x0204;
-		av8100_config.color_space_conversion_format.c8      = 0x0000;
-		av8100_config.color_space_conversion_format.aoffset = 0xff21;
-		av8100_config.color_space_conversion_format.boffset = 0x0088;
-		av8100_config.color_space_conversion_format.coffset = 0xfeeb;
-
-		ret = av8100_configuration_prepare(
-			AV8100_COMMAND_COLORSPACECONVERSION, &av8100_config);
-		if (ret != AV8100_OK) {
-			dev_err(&dev->dev, "%s:av8100_configuration_prepare "
-				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
-					__func__);
-			goto out;
-		}
-
-		ret = av8100_configuration_write(
-				AV8100_COMMAND_COLORSPACECONVERSION,
-				NULL, NULL, I2C_INTERFACE);
-		if (ret != AV8100_OK) {
-			dev_err(&dev->dev, "%s:av8100_configuration_write "
-				"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
-				__func__);
-			goto out;
-		}
+		av8100_config.color_space_conversion_format =
+							col_cvt_yuv422_to_rgb;
+	} else {
+		av8100_config.color_space_conversion_format =
+							col_cvt_identity;
 	}
-	/* TODO else turn off col converter (needed for dynamic switching */
-
 #endif
 
+	ret = av8100_conf_prep(
+		AV8100_COMMAND_COLORSPACECONVERSION,
+		&av8100_config);
+	if (ret != AV8100_OK) {
+		dev_err(&dev->dev, "%s:av8100_configuration_prepare "
+			"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
+			__func__);
+		goto out;
+	}
+
+	ret = av8100_conf_w(
+			AV8100_COMMAND_COLORSPACECONVERSION,
+			NULL, NULL, I2C_INTERFACE);
+	if (ret != AV8100_OK) {
+		dev_err(&dev->dev, "%s:av8100_conf_w "
+			"AV8100_COMMAND_COLORSPACECONVERSION failed\n",
+			__func__);
+		goto out;
+	}
+
 	/* Set video output format */
-	ret = av8100_configuration_write(AV8100_COMMAND_VIDEO_OUTPUT_FORMAT,
+	ret = av8100_conf_w(AV8100_COMMAND_VIDEO_OUTPUT_FORMAT,
 		NULL, NULL, I2C_INTERFACE);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "av8100_configuration_write failed\n");
+		dev_err(&dev->dev, "av8100_conf_w failed\n");
 		goto out;
 	}
 
 	/* Set audio input format */
-	ret = av8100_configuration_write(AV8100_COMMAND_AUDIO_INPUT_FORMAT,
+	ret = av8100_conf_w(AV8100_COMMAND_AUDIO_INPUT_FORMAT,
 		NULL, NULL, I2C_INTERFACE);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_write "
+		dev_err(&dev->dev, "%s:av8100_conf_w "
 				"AV8100_COMMAND_AUDIO_INPUT_FORMAT failed\n",
 			__func__);
 		goto out;
 	}
 
 	/* Get current av8100 video denc settings format */
-	ret = av8100_configuration_get(AV8100_COMMAND_DENC,
+	ret = av8100_conf_get(AV8100_COMMAND_DENC,
 		&av8100_config);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_get "
+		dev_err(&dev->dev, "%s:av8100_conf_get "
 				"AV8100_COMMAND_DENC failed\n", __func__);
 		goto out;
 	}
@@ -457,19 +426,19 @@ static int hdmi_set_video_mode(
 #else
 		av8100_config.denc_format.on_off = 0;
 #endif
-		ret = av8100_configuration_prepare(AV8100_COMMAND_DENC,
+		ret = av8100_conf_prep(AV8100_COMMAND_DENC,
 			&av8100_config);
 		if (ret != AV8100_OK) {
-			dev_err(&dev->dev, "%s:av8100_configuration_prepare "
+			dev_err(&dev->dev, "%s:av8100_conf_prep "
 				"AV8100_COMMAND_DENC failed\n", __func__);
 			goto out;
 		}
 
 		/* TODO: prepare depending on OUT fmt */
-		ret = av8100_configuration_write(AV8100_COMMAND_DENC,
+		ret = av8100_conf_w(AV8100_COMMAND_DENC,
 			NULL, NULL, I2C_INTERFACE);
 		if (ret != AV8100_OK) {
-			dev_err(&dev->dev, "%s:av8100_configuration_write "
+			dev_err(&dev->dev, "%s:av8100_conf_w "
 				"AV8100_COMMAND_DENC failed\n", __func__);
 			goto out;
 		}
@@ -494,10 +463,10 @@ static int hdmi_on_first_update(struct mcde_display_device *dev)
 	av8100_config.hdmi_format.hdmi_format = AV8100_HDMI;
 	av8100_config.hdmi_format.dvi_format = AV8100_DVI_CTRL_CTL0;
 
-	ret = av8100_configuration_prepare(AV8100_COMMAND_HDMI,
+	ret = av8100_conf_prep(AV8100_COMMAND_HDMI,
 		&av8100_config);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_prepare "
+		dev_err(&dev->dev, "%s:av8100_conf_prep "
 			"AV8100_COMMAND_HDMI failed\n", __func__);
 		goto out;
 	}
@@ -510,10 +479,10 @@ static int hdmi_on_first_update(struct mcde_display_device *dev)
 		goto out;
 	}
 
-	ret = av8100_configuration_write(AV8100_COMMAND_HDMI, NULL,
+	ret = av8100_conf_w(AV8100_COMMAND_HDMI, NULL,
 		NULL, I2C_INTERFACE);
 	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "%s:av8100_configuration_write "
+		dev_err(&dev->dev, "%s:av8100_conf_w "
 			"AV8100_COMMAND_HDMI failed\n", __func__);
 		goto out;
 	}
@@ -540,19 +509,18 @@ static int __devinit hdmi_probe(struct mcde_display_device *dev)
 		goto invalid_port_type;
 	}
 
+	/* DSI use clock continous mode if AV8100_CHIPVER_1 > 1 */
+	if (av8100_ver_get() > AV8100_CHIPVER_1)
+		dev->port->phy.dsi.clk_cont = true;
+
 	dev->prepare_for_update = NULL;
 	dev->on_first_update = hdmi_on_first_update;
 	dev->try_video_mode = hdmi_try_video_mode;
 	dev->set_video_mode = hdmi_set_video_mode;
 
-	ret = av8100_powerup();
-	if (ret != AV8100_OK) {
-		dev_err(&dev->dev, "av8100_powerup failed\n");
-		goto out;
-	}
-
 	dev_info(&dev->dev, "HDMI display probed\n");
 
+	ret = 0;
 	goto out;
 invalid_port_type:
 no_pdata:

@@ -49,7 +49,6 @@ int href_v1_board;
 #define MOP500_PLATFORM_ID	0
 #define HREF_PLATFORM_ID	1
 
-/*#define AV8100_HW_TE_I2SDAT3*/ /* REVIEW/TODO: remove? */
 int platform_id = MOP500_PLATFORM_ID;
 
 /* we have equally similar boards with very minimal
@@ -113,8 +112,13 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 								"mcde tvout"),
 	__GPIO_ALT(GPIO_ALT_LCD_PANELB, 150, 150, 0, NMK_GPIO_ALT_B,
 								"mcde tvout"),
+#ifdef CONFIG_AV8100_HWTRIG_I2SDAT3
+	__GPIO_ALT(GPIO_ALT_LCD_PANELA, 69, 69, 0, NMK_GPIO_ALT_A,
+								"mcde tvout"),
+#else
 	__GPIO_ALT(GPIO_ALT_LCD_PANELA, 68, 68, 0, NMK_GPIO_ALT_A,
 								"mcde tvout"),
+#endif /* CONFIG_AV8100_HWTRIG_I2SDAT3 */
 	__GPIO_ALT(GPIO_ALT_MMIO_INIT_BOARD, 141, 142, 0, NMK_GPIO_ALT_B,
 								"mmio"),
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_I2C, 8, 9, 0, NMK_GPIO_ALT_A, "mmio"),

@@ -494,7 +494,7 @@ static u32 get_output_fifo_size(enum mcde_fifo fifo)
 {
 	u32 ret = 1; /* Avoid div by zero */
 
-	switch(fifo) {
+	switch (fifo) {
 	case MCDE_FIFO_A:
 	case MCDE_FIFO_B:
 		ret = MCDE_FIFO_AB_SIZE;
@@ -659,7 +659,8 @@ void update_channel_static_registers(struct mcde_chnl_state *chnl)
 		dsi_wreg(lnk, DSI_MCTL_MAIN_PHY_CTL,
 			DSI_MCTL_MAIN_PHY_CTL_WAIT_BURST_TIME(0xf) |
 			DSI_MCTL_MAIN_PHY_CTL_LANE2_EN(true) |
-			DSI_MCTL_MAIN_PHY_CTL_CLK_CONTINUOUS(false));
+			DSI_MCTL_MAIN_PHY_CTL_CLK_CONTINUOUS(
+				port->phy.dsi.clk_cont));
 		dsi_wreg(lnk, DSI_MCTL_ULPOUT_TIME,
 			DSI_MCTL_ULPOUT_TIME_CKLANE_ULPOUT_TIME(1) |
 			DSI_MCTL_ULPOUT_TIME_DATA_ULPOUT_TIME(1));
@@ -867,7 +868,14 @@ static void update_overlay_address_registers(u8 idx, struct ovly_regs *regs)
 static void disable_channel(struct mcde_chnl_state *chnl)
 {
 	int i;
+	const struct mcde_port *port = &chnl->port;
+
 	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
+
+	if (port->type == MCDE_PORTTYPE_DSI)
+		dsi_wfld(port->link, DSI_MCTL_MAIN_PHY_CTL, CLK_CONTINUOUS,
+			false);
+
 	switch (chnl->id) {
 	case MCDE_CHNL_A:
 		mcde_wfld(MCDE_CRA0, FLOEN, false);
@@ -913,10 +921,17 @@ break_switch:
 #undef MCDE_FLOWEN_MAX_TRIAL
 }
 
-static void enable_channel(enum mcde_chnl chnl_id)
+static void enable_channel(struct mcde_chnl_state *chnl)
 {
+	const struct mcde_port *port = &chnl->port;
+
 	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
-	switch (chnl_id) {
+
+	if (port->type == MCDE_PORTTYPE_DSI)
+		dsi_wfld(port->link, DSI_MCTL_MAIN_PHY_CTL, CLK_CONTINUOUS,
+				port->phy.dsi.clk_cont);
+
+	switch (chnl->id) {
 	case MCDE_CHNL_A:
 		mcde_wfld(MCDE_CRA0, FLOEN, true);
 		break;
@@ -1506,7 +1521,7 @@ int mcde_chnl_update(struct mcde_chnl_state *chnl,
 	else
 		chnl_update_non_continous(chnl);
 
-	enable_channel(chnl->id);
+	enable_channel(chnl);
 
 	dev_vdbg(&mcde_dev->dev, "Channel updated, chnl=%d\n", chnl->id);
 	return 0;

@@ -163,6 +163,7 @@ struct mcde_port {
 			u8 virt_id;
 			u8 num_data_lanes;
 			u8 ui;
+			bool clk_cont;
 		} dsi;
 		struct {
 			bool chip_select;/* REVIEW: Used? Needed? */

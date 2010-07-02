@@ -3,3 +3,21 @@ config AV8100
        default n
        help
            Please enable this feature if hdmi/tvout driver support is required.
+
+config AV8100_HWTRIG_I2SDAT3
+	bool "AV8100 HW trig on I2SDAT3"
+	default n
+	depends on AV8100
+	---help---
+	  If you say Y here AV8100 will use HW triggering
+	  from AV8100 I2SDAT3 to MCDE sync1.
+	  If you say N here AV8100 will use HW triggering
+	  method from AV8100 INT to MCDE sync0.
+
+config HDMI_AV8100_DEBUG
+	bool "HDMI and AV8100 debug messages"
+	default n
+	depends on AV8100
+	---help---
+	  Say Y here if you want the HDMI and AV8100 driver to output debug messages
+

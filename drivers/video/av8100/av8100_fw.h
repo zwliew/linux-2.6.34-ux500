@@ -1,18 +1,15 @@
 /*
- * Copyright (C) ST-Ericsson SA 2010
+ * Copyright (C) ST-Ericsson AB 2010
  *
- * License terms:
+ * Author: Per Persson <per.xb.persson@stericsson.com>
+ * for ST-Ericsson.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as published
- * by the Free Software Foundation.
+ * License terms: GNU General Public License (GPL), version 2.
  */
 
-/* AV8100 Firmware version : V4.0 HDCP 1.0 + 3D supported */
-#define AV8100_FW_SIZE 16384
-char av8100_receivetab[AV8100_FW_SIZE];
-char av8100_transmittab[AV8100_FW_SIZE];
-char av8100_fw_buff[AV8100_FW_SIZE] = {
+/* AV8100v1 Firmware version : V4.0 HDCP 1.0 + 3D supported */
+#define AV8100_FW_SIZE_V1 16384
+char av8100_fw_buff_v1[AV8100_FW_SIZE_V1] = {
 0x80, 0xfe, 0xcb, 0xfe, 0x8b, 0xf4, 0x42, 0xf6,
 0x42, 0xf6, 0x98, 0xf7, 0x41, 0xf5, 0x9d, 0xf7,
 0xe5, 0xf8, 0xa7, 0xfa, 0xbc, 0xfa, 0xcd, 0xfa,
