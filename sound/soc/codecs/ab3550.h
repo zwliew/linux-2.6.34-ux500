@@ -13,6 +13,15 @@
 #ifndef AB3550_CODEC_REGISTERS_H
 #define AB3550_CODEC_REGISTERS_H
 
+extern struct snd_soc_dai ab3550_codec_dai[2];
+extern struct snd_soc_codec_device soc_codec_dev_ab3550;
+
+#define AB3550_SUPPORTED_RATE (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 | \
+			       SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000)
+
+#define AB3550_SUPPORTED_FMT (SNDRV_PCM_FMTBIT_S16_LE | \
+			      SNDRV_PCM_FMTBIT_S24_LE)
+
 /* MIC BIAS */
 #define MIC_BIAS1 0X31
 #define MIC_BIAS2 0X32
@@ -150,7 +159,7 @@
 #define APGA1_ADDER 0x46
 #define APGA2_ADDER 0x47
 #define APGAx_TO_LINE1_MASK 0x20
-#define APGAx_TO_LINE1_SHIFT 5
+#define APGAx_TO_LINE1_SHIFT 5F
 #define APGAx_TO_LINE2_MASK 0x10
 #define APGAx_TO_LINE2_SHIFT 4
 #define APGAx_TO_SPKR_MASK 0x08
@@ -201,30 +210,16 @@
 #define ADCx_PWR_SHIFT 0
 
 #define RX1 0x53
-#define RX1_PWR_MASK 0x08
-#define RX1_PWR_SHIFT 3
-#define DAC1_PWR_MASK 0x04
-#define DAC1_PWR_SHIFT 2
-#define DAC1_PWR_MODE_MASK 0x03
-#define DAC1_PWR_MODE_SHIFT 0
-
 #define RX2 0x54
 #define RX2_IF_SELECT_MASK 0x10
 #define RX2_IF_SELECT_SHIFT 4
-#define RX2_PWR_MASK 0x08
-#define RX2_PWR_SHIFT 3
-#define DAC2_PWR_MASK 0x04
-#define DAC2_PWR_SHIFT 2
-#define DAC2_PWR_MODE_MASK 0x03
-#define DAC2_PWR_MODE_SHIFT 0
-
 #define RX3 0x55
-#define RX3_PWR_MASK 0x08
-#define RX3_PWR_SHIFT 3
-#define DAC3_PWR_MASK 0x04
-#define DAC3_PWR_SHIFT 2
-#define DAC3_PWR_MODE_MASK 0x03
-#define DAC3_PWR_MODE_SHIFT 0
+#define RXx_PWR_MASK 0x08
+#define RXx_PWR_SHIFT 3
+#define DACx_PWR_MASK 0x04
+#define DACx_PWR_SHIFT 2
+#define DACx_PWR_MODE_MASK 0x03
+#define DACx_PWR_MODE_SHIFT 0
 
 #define TX_DIGITAL_PGA1 0X56
 #define TX_DIGITAL_PGA2 0X57
@@ -300,4 +295,145 @@
 #define IO_SWAP1_MASK 0x01
 #define IO_SWAP1_SHIFT 0
 
+enum enum_register {
+	IDX_UNKNOWN = -1,
+	IDX_MIC_BIAS1 = 0,
+	IDX_MIC_BIAS2 = 1,
+	IDX_MIC_BIAS2_VAD = 2,
+	IDX_MIC1_GAIN = 3,
+	IDX_MIC2_GAIN = 4,
+	IDX_MIC1_INPUT_SELECT = 5,
+	IDX_MIC2_INPUT_SELECT = 6,
+	IDX_MIC1_VMID_SELECT = 7,
+	IDX_MIC2_VMID_SELECT = 8,
+	IDX_MIC2_TO_MIC1 = 9,
+	IDX_ANALOG_LOOP_PGA1 = 10,
+	IDX_ANALOG_LOOP_PGA2 = 11,
+	IDX_APGA_VMID_SELECT = 12,
+	IDX_EAR = 13,
+	IDX_AUXO1 = 14,
+	IDX_AUXO2 = 15,
+	IDX_AUXO_PWR_MODE = 16,
+	IDX_OFFSET_CANCEL = 17,
+	IDX_SPKR = 18,
+	IDX_LINE1 = 19,
+	IDX_LINE2 = 20,
+	IDX_APGA1_ADDER = 21,
+	IDX_APGA2_ADDER = 22,
+	IDX_EAR_ADDER = 23,
+	IDX_AUXO1_ADDER = 24,
+	IDX_AUXO2_ADDER = 25,
+	IDX_SPKR_ADDER = 26,
+	IDX_LINE1_ADDER = 27,
+	IDX_LINE2_ADDER = 28,
+	IDX_EAR_TO_MIC2 = 29,
+	IDX_SPKR_TO_MIC2 = 30,
+	IDX_NEGATIVE_CHARGE_PUMP = 31,
+	IDX_TX1 = 32,
+	IDX_TX2 = 33,
+	IDX_RX1 = 34,
+	IDX_RX2 = 35,
+	IDX_RX3 = 36,
+	IDX_TX_DIGITAL_PGA1 = 37,
+	IDX_TX_DIGITAL_PGA2 = 38,
+	IDX_RX1_DIGITAL_PGA = 39,
+	IDX_RX2_DIGITAL_PGA = 40,
+	IDX_RX3_DIGITAL_PGA = 41,
+	IDX_SIDETONE1_PGA = 42,
+	IDX_SIDETONE2_PGA = 43,
+	IDX_CLOCK = 44,
+	IDX_INTERFACE0 = 45,
+	IDX_INTERFACE1 = 46,
+	IDX_INTERFACE0_DATA = 47,
+	IDX_INTERFACE1_DATA = 48,
+	IDX_INTERFACE_LOOP = 49,
+	IDX_INTERFACE_SWAP = 50
+};
+
+enum enum_control {
+	IDX_RX2_Select = 0,
+	IDX_DAC1_Routing,
+	IDX_DAC2_Routing,
+	IDX_DAC3_Routing,
+	IDX_MIC1_Input_Select,
+	IDX_MIC2_Input_Select,
+	IDX_I2S0_Input_Select,
+	IDX_I2S1_Input_Select,
+	IDX_APGA1_Source,
+	IDX_APGA2_Source,
+	IDX_APGA1_Destination,
+	IDX_APGA2_Destination,
+	IDX_DAC1_Side_Tone,
+	IDX_DAC2_Side_Tone,
+	IDX_RX_DPGA1_Gain,
+	IDX_RX_DPGA2_Gain,
+	IDX_RX_DPGA3_Gain,
+	IDX_LINE1_Gain,
+	IDX_LINE2_Gain,
+	IDX_SPKR_Gain,
+	IDX_EAR_Gain,
+	IDX_AUXO1_Gain,
+	IDX_AUXO2_Gain,
+	IDX_MIC1_Gain,
+	IDX_MIC2_Gain,
+	IDX_TX_DPGA1_Gain,
+	IDX_TX_DPGA2_Gain,
+	IDX_ST_PGA1_Gain,
+	IDX_ST_PGA2_Gain,
+	IDX_APGA1_Gain,
+	IDX_APGA2_Gain,
+	IDX_DAC1_Power_Mode,
+	IDX_DAC2_Power_Mode,
+	IDX_DAC3_Power_Mode,
+	IDX_EAR_Power_Mode,
+	IDX_AUXO_Power_Mode,
+	IDX_LINE1_Inverse,
+	IDX_LINE2_Inverse,
+	IDX_AUXO1_Inverse,
+	IDX_AUXO2_Inverse,
+	IDX_AUXO1_Pulldown,
+	IDX_AUXO2_Pulldown,
+	IDX_VMID1,
+	IDX_VMID2,
+	IDX_MIC1_MBias,
+	IDX_MIC2_MBias,
+	IDX_MBIAS1_HiZ_Option,
+	IDX_MBIAS2_HiZ_Option,
+	IDX_MBIAS2_Output_Voltage,
+	IDX_MBIAS2_Internal_Resistor,
+	IDX_MIC1_Input_Impedance,
+	IDX_MIC2_Input_Impedance,
+	IDX_TX1_HP_Filter,
+	IDX_TX2_HP_Filter,
+	IDX_LINEIN1_Pre_charge,
+	IDX_LINEIN2_Pre_charge,
+	IDX_MIC1P1_Pre_charge,
+	IDX_MIC1P2_Pre_charge,
+	IDX_MIC1N1_Pre_charge,
+	IDX_MIC1N2_Pre_charge,
+	IDX_MIC2P1_Pre_charge,
+	IDX_MIC2P2_Pre_charge,
+	IDX_MIC2N1_Pre_charge,
+	IDX_MIC2N2_Pre_charge,
+	IDX_ST1_HP_Filter,
+	IDX_ST2_HP_Filter,
+	IDX_I2S0_Word_Length,
+	IDX_I2S1_Word_Length,
+	IDX_I2S0_Mode,
+	IDX_I2S1_Mode,
+	IDX_I2S0_Tri_state,
+	IDX_I2S1_Tri_state,
+	IDX_I2S0_Pulldown,
+	IDX_I2S1_Pulldown,
+	IDX_I2S0_Sample_Rate,
+	IDX_I2S1_Sample_Rate,
+	IDX_Interface_Loop,
+	IDX_Interface_Swap,
+	IDX_Voice_Call,
+	IDX_Commit
+};
+
 #endif /* AB3550_CODEC_REGISTERS_H */
+
+
+

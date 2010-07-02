@@ -1,0 +1,26 @@
+#
+# Ux500 SoC audio configuration
+#
+
+config SND_SOC_UX500
+	bool "ux500"
+	depends on SND_SOC && STM_I2S && STM_MSP_I2S
+	default y
+	help
+	  Say Y if you want to add support for the codecs attached to
+	  the I2S of the ux500. You will also need
+	  to select the audio codecs to support below.
+
+config SND_SOC_UX500_AB3550
+	tristate "SoC Audio support for ux500 w break-out card AB3550"
+	depends on SND_SOC_UX500 && AB3550_CORE
+	select SND_SOC_AB3550
+  help
+	  Say Y if you want to add support for SoC audio on ux500 w break-out card AB3550.
+
+config SND_SOC_UX500_CG29XX
+	tristate "SoC Audio support for ux500 w break-out card CG29xx"
+	depends on SND_SOC_UX500 && !SND_SOC_UX500_AB3550
+	select SND_SOC_CG29XX
+	help
+	  Say Y if you want to add support for SoC audio on ux500 w break-out card CG29XX.

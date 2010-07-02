@@ -67,6 +67,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM9705 if SND_SOC_AC97_BUS
 	select SND_SOC_WM9712 if SND_SOC_AC97_BUS
 	select SND_SOC_WM9713 if SND_SOC_AC97_BUS
+	select SND_SOC_AB3550
+	select SND_SOC_CG29XX
         help
           Normally ASoC codec drivers are only built if a machine driver which
           uses them is also built since they are only usable with a machine
@@ -261,11 +263,10 @@ config SND_SOC_WM9713
 	tristate
 
 config SND_SOC_AB3550
-	tristate "ST-Ericsson AB3550 Mixed Signal Circuit CODEC"
-	depends on SND_SOC_U8500 && AB3550_CORE
-	default m
-	help
-	  Select this to support the AB3550 codec block.
+	tristate
+
+config SND_SOC_CG29XX
+	tristate
 
 # Amp
 config SND_SOC_MAX9877
