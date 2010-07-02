@@ -121,7 +121,7 @@ static struct gpio_altfun_data gpio_altfun_table[] = {
 	__GPIO_ALT(GPIO_ALT_MMIO_CAM_SET_EXT_CLK, 227, 228, 0, NMK_GPIO_ALT_A,
 								"mmio"),
 	__GPIO_ALT(GPIO_ALT_TP_SET_EXT_CLK, 228, 228, 0, NMK_GPIO_ALT_A,
-								"bu21013_tp")
+								"bu21013_tp"),
 #ifdef CONFIG_KEYPAD_SKE
 	__GPIO_ALT(GPIO_ALT_KEYPAD, 153, 168, 0, NMK_GPIO_ALT_A, "ske-kp"),
 #endif
