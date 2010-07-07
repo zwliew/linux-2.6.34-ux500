@@ -34,6 +34,8 @@ static struct map_desc ux500_io_desc[] __initdata = {
 	__IO_DEV_DESC(UX500_GIC_CPU_BASE, SZ_4K),
 	__IO_DEV_DESC(UX500_GIC_DIST_BASE, SZ_4K),
 	__IO_DEV_DESC(UX500_L2CC_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_TWD_BASE, SZ_4K),
+	__IO_DEV_DESC(UX500_SCU_BASE, SZ_4K),
 
 	__IO_DEV_DESC(UX500_CLKRST1_BASE, SZ_4K),
 	__IO_DEV_DESC(UX500_CLKRST2_BASE, SZ_4K),
@@ -80,10 +82,17 @@ void __init ux500_init_irq(void)
 }
 
 #ifdef CONFIG_CACHE_L2X0
-static int __init ux500_l2x0_init(void)
+static int ux500_l2x0_init(void)
 {
-	l2x0_init((void *)IO_ADDRESS(UX500_L2CC_BASE), 0x3e060000, 0x3e060000);
+	void __iomem *l2x0_base;
+
+	l2x0_base = __io_address(UX500_L2CC_BASE);
+
+	/* 64KB way size, 8 way associativity, force WA */
+	l2x0_init(l2x0_base, 0x3e060000, 0xc0000fff);
+
 	return 0;
 }
 early_initcall(ux500_l2x0_init);
 #endif
+
