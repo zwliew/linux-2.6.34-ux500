@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
+#include <linux/slab.h>
 #include "dsilink_regs.h"
 #include "mcde_regs.h"
 #include <video/mcde.h>

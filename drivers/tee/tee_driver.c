@@ -14,6 +14,7 @@
 #include <linux/miscdevice.h>
 #include <linux/uaccess.h>
 #include <linux/tee.h>
+#include <linux/slab.h>
 
 #define TEED_NAME "tee"
 
