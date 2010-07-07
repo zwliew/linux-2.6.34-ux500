@@ -1,6 +1,10 @@
 /*
- *  Copyright (C) 2009 ST-Ericsson SA
- * 	this file is heavily based on ARM realview platform
+ * Copyright (C) 2002 ARM Ltd.
+ * Copyright (C) 2008 STMicroelctronics.
+ * Copyright (C) 2009 ST-Ericsson.
+ * Author: Srinidhi Kasagar <srinidhi.kasagar@stericsson.com>
+ *
+ * This file is based on arm realview platform
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -10,16 +14,13 @@
 #include <linux/errno.h>
 #include <linux/delay.h>
 #include <linux/device.h>
-#include <linux/jiffies.h>
 #include <linux/smp.h>
+#include <linux/io.h>
 
 #include <asm/cacheflush.h>
 #include <asm/localtimer.h>
-#include <mach/scu.h>
+#include <asm/smp_scu.h>
 #include <mach/hardware.h>
-#include <asm/io.h>
-
-extern void u8500_secondary_startup(void);
 
 /*
  * control for which core is the next to come out of the secondary
@@ -29,23 +30,7 @@ volatile int __cpuinitdata pen_release = -1;
 
 static unsigned int __init get_core_count(void)
 {
-	unsigned int ncores;
-
-	ncores = __raw_readl(IO_ADDRESS(UX500_SCU_BASE) + SCU_CONFIG);
-
-	return (ncores & 0x03) + 1;
-}
-
-/*
- * Setup the SCU
- */
-static void scu_enable(void)
-{
-	u32 scu_ctrl;
-
-	scu_ctrl = __raw_readl(IO_ADDRESS(UX500_SCU_BASE) + SCU_CTRL);
-	scu_ctrl |= 1;
-	__raw_writel(scu_ctrl, IO_ADDRESS(UX500_SCU_BASE) + SCU_CTRL);
+	return scu_get_core_count(__io_address(UX500_SCU_BASE));
 }
 
 static DEFINE_SPINLOCK(boot_lock);
@@ -59,14 +44,13 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	 * core (e.g. timer irq), then they will not have been enabled
 	 * for us: do so
 	 */
-	gic_cpu_init(0, (void __iomem *)IO_ADDRESS(UX500_GIC_CPU_BASE));
+	gic_cpu_init(0, __io_address(UX500_GIC_CPU_BASE));
 
 	/*
 	 * let the primary processor know we're out of the
 	 * pen, then head off into the C entry point
 	 */
 	pen_release = -1;
-	smp_wmb();
 
 	/*
 	 * Synchronise with the boot thread.
@@ -89,36 +73,17 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * The secondary processor is waiting to be released from
 	 * the holding pen - release it, then wait for it to flag
 	 * that it has been released by resetting pen_release.
-	 *
-	 * Note that "pen_release" is the hardware CPU ID, whereas
-	 * "cpu" is Linux's internal ID.
 	 */
-	flush_cache_all();
-	outer_clean_range(__pa(&secondary_data), __pa(&secondary_data) + 1);
 	pen_release = cpu;
-	flush_cache_all();
+	__cpuc_flush_dcache_area((void *)&pen_release, sizeof(pen_release));
 	outer_clean_range(__pa(&pen_release), __pa(&pen_release) + 1);
-
-	/*
-	 * XXX
-	 *
-	 * This is a later addition to the booting protocol: the
-	 * bootMonitor now puts secondary cores into WFI, so
-	 * wakeup_secondary() no longer gets the cores moving; we need
-	 * to send a soft interrupt to wake the secondary core.
-	 * Use smp_cross_call() for this, since there's little
-	 * point duplicating the code here
-	 */
-	smp_cross_call(cpumask_of(cpu));
 
 	timeout = jiffies + (1 * HZ);
 	while (time_before(jiffies, timeout)) {
-		smp_rmb();
 		if (pen_release == -1)
 			break;
-
-		udelay(10);
 	}
+
 	/*
 	 * now the secondary core is starting up let it run its
 	 * calibrations, then wait for it to finish
@@ -130,24 +95,26 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 
 static void __init wakeup_secondary(void)
 {
-	extern void secondary_startup(void);
-
 	/* nobody is to be released from the pen yet */
 	pen_release = -1;
-    /*
-     * write the address of secondary startup into the backram0
-     * register at offset 0x1FF4, then write magic number(0xA1FEED01)
-     * to the backram0 register at offset 0x1FF0, which is what
-     * BootMonitor is waiting for
-     */
+
+	/*
+	 * write the address of secondary startup into the backup ram register
+	 * at offset 0x1FF4, then write the magic number 0xA1FEED01 to the
+	 * backup ram register at offset 0x1FF0, which is what boot rom code
+	 * is waiting for. This would wake up the secondary core from WFE
+	 */
 #define U8500_CPU1_JUMPADDR_OFFSET 0x1FF4
 	__raw_writel(virt_to_phys(u8500_secondary_startup),
-		(void __iomem *)IO_ADDRESS(UX500_BACKUPRAM0_BASE) +
+		__io_address(UX500_BACKUPRAM0_BASE) +
 		U8500_CPU1_JUMPADDR_OFFSET);
+
 #define U8500_CPU1_WAKEMAGIC_OFFSET 0x1FF0
 	__raw_writel(0xA1FEED01,
-		(void __iomem *)IO_ADDRESS(UX500_BACKUPRAM0_BASE) +
+		__io_address(UX500_BACKUPRAM0_BASE) +
 		U8500_CPU1_WAKEMAGIC_OFFSET);
+
+	/* make sure write buffer is drained */
 	mb();
 }
 
@@ -160,7 +127,7 @@ void __init smp_init_cpus(void)
 	unsigned int i, ncores = get_core_count();
 
 	for (i = 0; i < ncores; i++)
-		cpu_set(i, cpu_possible_map);
+		set_cpu_possible(i, true);
 }
 
 void __init smp_prepare_cpus(unsigned int max_cpus)
@@ -173,16 +140,15 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	if (ncores == 0) {
 		printk(KERN_ERR
 		       "U8500: strange CM count of 0? Default to 1\n");
-
 		ncores = 1;
 	}
 
-	if (ncores > NR_CPUS) {
+	if (ncores > num_possible_cpus())	{
 		printk(KERN_WARNING
 		       "U8500: no. of cores (%d) greater than configured "
 		       "maximum of %d - clipping\n",
-		       ncores, NR_CPUS);
-		ncores = NR_CPUS;
+		       ncores, num_possible_cpus());
+		ncores = num_possible_cpus();
 	}
 
 	smp_store_cpu_info(cpu);
@@ -192,26 +158,21 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	 */
 	if (max_cpus > ncores)
 		max_cpus = ncores;
+
 	/*
 	 * Initialise the present map, which describes the set of CPUs
 	 * actually populated at the present time.
 	 */
 	for (i = 0; i < max_cpus; i++)
-		cpu_set(i, cpu_present_map);
+		set_cpu_present(i, true);
 
-	/*
-	 * Do we need any more CPUs? If so, then let them know where
-	 * to start. Note that, on modern versions of MILO, the "poke"
-	 * doesn't actually do anything until each individual core is
-	 * sent a soft interrupt to get it out of WFI
-	 */
-	if (max_cpus > 1)	{
+	if (max_cpus > 1) {
 		/*
 		 * Enable the local timer or broadcast device for the
 		 * boot CPU, but only if we have more than one CPU.
 		 */
 		percpu_timer_setup();
-		scu_enable();
+		scu_enable(__io_address(UX500_SCU_BASE));
 		wakeup_secondary();
 	}
 }
