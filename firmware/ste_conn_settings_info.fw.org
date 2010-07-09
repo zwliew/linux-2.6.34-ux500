@@ -22,7 +22,7 @@
 #
 # Factory Settings for ST-Ericsson - CG2900
 #
-0x0700	0x0011  CG2900_1_05_SOC_generic_V11_mod.fw
-0x0700	0x0013  CG2900_1_05_SOC_generic_V11_mod.fw
+0x0700	0x0011	CG2900_1_05_SOC_generic_V11_mod.fw
+0x0700	0x0013	CG2900_1_05_SOC_generic_V11_mod.fw
 #
 #################
