@@ -154,7 +154,7 @@ static struct regulator_init_data ab8500_vaux2_init = {
 		.min_uV = AB8500_VAUXN_LDO_MIN_VOLTAGE,
 		.max_uV = AB8500_VAUXN_LDO_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaux2_consumers),
@@ -185,7 +185,7 @@ static struct regulator_init_data ab8500_vaux3_init = {
 		.min_uV = AB8500_VAUXN_LDO_MIN_VOLTAGE,
 		.max_uV = AB8500_VAUXN_LDO_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaux3_consumers),
@@ -284,7 +284,7 @@ static struct regulator_init_data ab8500_vaudio_init = {
 		.min_uV = AB8500_VAUDIO_REGULATOR_MIN_VOLTAGE,
 		.max_uV = AB8500_VAUDIO_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vaudio_consumers),
@@ -316,7 +316,7 @@ static struct regulator_init_data ab8500_vamic1_init = {
 		.min_uV = AB8500_VAMIC1_REGULATOR_MIN_VOLTAGE,
 		.max_uV = AB8500_VAMIC1_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vamic1_consumers),
@@ -345,7 +345,7 @@ static struct regulator_init_data ab8500_vamic2_init = {
 		.min_uV = AB8500_VAMIC1_REGULATOR_MIN_VOLTAGE,
 		.max_uV = AB8500_VAMIC1_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vamic2_consumers),
@@ -377,7 +377,7 @@ static struct regulator_init_data ab8500_vdmic_init = {
 		.min_uV = AB8500_VDMIC_REGULATOR_MIN_VOLTAGE,
 		.max_uV = AB8500_VDMIC_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vdmic_consumers),
@@ -409,7 +409,7 @@ static struct regulator_init_data ab8500_vintcore_init = {
 		.min_uV = AB8500_VINTCORE_REGULATOR_MIN_VOLTAGE,
 		.max_uV = AB8500_VINTCORE_REGULATOR_MAX_VOLTAGE,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE|
-			REGULATOR_CHANGE_MODE,
+			REGULATOR_CHANGE_MODE | REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask = REGULATOR_MODE_NORMAL|REGULATOR_MODE_IDLE,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(ab8500_vintcore_consumers),
