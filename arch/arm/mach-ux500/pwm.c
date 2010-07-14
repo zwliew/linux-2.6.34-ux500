@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
+#include <linux/slab.h>
 
 /* Register offsets */
 #define PWM_CONTROL_REG_OFFSET  0x00

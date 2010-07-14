@@ -10,6 +10,7 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
 
 static ssize_t mloader_sysfs_addr(struct device *dev,
 				  struct device_attribute *attr,
