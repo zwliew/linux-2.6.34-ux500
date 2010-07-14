@@ -2503,11 +2503,13 @@ int netif_receive_skb(struct sk_buff *skb)
 	if (netpoll_receive_skb(skb))
 		return NET_RX_DROP;
 
+
 	if (!skb->skb_iif)
 		skb->skb_iif = skb->dev->ifindex;
 
 	null_or_orig = NULL;
 	orig_dev = skb->dev;
+#if 0
 	master = ACCESS_ONCE(orig_dev->master);
 	if (master) {
 		if (skb_bond_should_drop(skb, master))
@@ -2515,7 +2517,7 @@ int netif_receive_skb(struct sk_buff *skb)
 		else
 			skb->dev = master;
 	}
-
+#endif
 	__get_cpu_var(netdev_rx_stat).total++;
 
 	skb_reset_network_header(skb);
@@ -2555,7 +2557,7 @@ ncls:
 	skb = handle_macvlan(skb, &pt_prev, &ret, orig_dev);
 	if (!skb)
 		goto out;
-
+#if 0
 	/*
 	 * Make sure frames received on VLAN interfaces stacked on
 	 * bonding interfaces still make their way to any base bonding
@@ -2567,7 +2569,7 @@ ncls:
 	    (vlan_dev_real_dev(skb->dev)->priv_flags & IFF_BONDING)) {
 		null_or_bond = vlan_dev_real_dev(skb->dev);
 	}
-
+#endif
 	type = skb->protocol;
 	list_for_each_entry_rcu(ptype,
 			&ptype_base[ntohs(type) & PTYPE_HASH_MASK], list) {
