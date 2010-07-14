@@ -27,6 +27,7 @@
 #include <linux/uaccess.h>
 #include <asm/atomic.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 
 #include <mach/isa_ioctl.h>
 #include "shrm_driver.h"
