@@ -1,0 +1,4 @@
+addFilter("kernel-u8500-devel.* zero-length /usr/src/kernels/2.6.34-[0-9]*.[0-9]*-u8500/include/config/*")  
+addFilter("kernel-u8500-devel.* hidden-file-or-dir /usr/src/kernels/2.6.34-[0-9]*.[0-9]*-u8500/*") 
+addFilter("perf.* script-without-shebang /usr/libexec/perf-core/scripts/*")
+addFilter("kernel.* name-repeated-in-summary*")
