@@ -21,6 +21,8 @@
 #include <linux/mutex.h>
 #include <linux/ctype.h>
 #include "hdmi_loc.h"
+#include <linux/slab.h>
+#include <linux/sched.h>
 
 #define SYSFS_EVENT_FILENAME "evread"
 
@@ -1843,13 +1845,13 @@ int __init hdmi_init(void)
 
 	hdmidev = hdmi_miscdev.this_device;
 
-	hdmidev->driver_data =
+	hdmi_driver_data =
 		kzalloc(sizeof(struct hdmi_driver_data), GFP_KERNEL);
 
-	if (!hdmidev->driver_data)
+	if (!hdmi_driver_data)
 		return -ENOMEM;
 
-	hdmi_driver_data = dev_get_drvdata(hdmidev);
+	dev_set_drvdata(hdmidev, hdmi_driver_data);
 
 	/* Default sysfs file format is hextext */
 	hdmi_driver_data->store_as_hextext = true;
@@ -1898,6 +1900,8 @@ hdmi_init_out:
 
 void hdmi_exit(void)
 {
+	struct hdmi_driver_data *hdmi_driver_data;
+
 	/* Deregister event callback */
 	av8100_hdmi_event_cb_set(NULL);
 
@@ -1918,7 +1922,8 @@ void hdmi_exit(void)
 	device_remove_file(hdmidev, &dev_attr_evclr);
 	device_remove_file(hdmidev, &dev_attr_audiocfg);
 
-	kfree(hdmidev->driver_data);
+	hdmi_driver_data = dev_get_drvdata(hdmidev);
+	kfree(hdmi_driver_data);
 
 	misc_deregister(&hdmi_miscdev);
 }

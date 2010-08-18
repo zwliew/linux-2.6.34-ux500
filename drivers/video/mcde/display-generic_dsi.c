@@ -13,24 +13,23 @@
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/err.h>
 
 #include <video/mcde_display.h>
 #include <video/mcde_display-generic_dsi.h>
 
 static int generic_platform_enable(struct mcde_display_device *dev)
 {
-	int ret = 0;
 	struct mcde_display_generic_platform_data *pdata =
 		dev->dev.platform_data;
 
 	dev_dbg(&dev->dev, "%s: Reset & power on generic display\n", __func__);
 
 	if (pdata->regulator) {
-		ret = regulator_enable(pdata->regulator);
-		if (ret < 0) {
+		if (regulator_enable(pdata->regulator) < 0) {
 			dev_err(&dev->dev, "%s:Failed to enable regulator\n"
 				, __func__);
-			goto out;
+			return -EINVAL;
 		}
 	}
 	if (pdata->reset_gpio)
@@ -39,24 +38,24 @@ static int generic_platform_enable(struct mcde_display_device *dev)
 	if (pdata->reset_gpio)
 		gpio_set_value(pdata->reset_gpio, !pdata->reset_high);
 out:
-	return ret;
+	return 0;
 }
 
 static int generic_platform_disable(struct mcde_display_device *dev)
 {
-	int ret = 0;
 	struct mcde_display_generic_platform_data *pdata =
 		dev->dev.platform_data;
 
 	dev_dbg(&dev->dev, "%s:Reset & power off generic display\n", __func__);
 
 	if (pdata->regulator) {
-		ret = regulator_disable(pdata->regulator);
-		if (ret < 0)
+		if (regulator_disable(pdata->regulator) < 0) {
 			dev_err(&dev->dev, "%s:Failed to disable regulator\n"
 				, __func__);
+			return -EINVAL;
+		}
 	}
-	return ret;
+	return 0;
 }
 
 static int __devinit generic_probe(struct mcde_display_device *dev)

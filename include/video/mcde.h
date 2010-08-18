@@ -11,13 +11,10 @@
 #ifndef __MCDE__H__
 #define __MCDE__H__
 
-#include <linux/fb.h> /* REVIEW: Remove */
-
 /* Physical interface types */
 enum mcde_port_type {
 	MCDE_PORTTYPE_DSI = 0,
 	MCDE_PORTTYPE_DPI = 1,
-	MCDE_PORTTYPE_DBI = 2, /* REVIEW: Remove */
 };
 
 /* Interface mode */
@@ -78,8 +75,6 @@ enum mcde_chnl_path {
 	MCDE_CHNLPATH_CHNLB_FIFOB_DSI_IFC1_2 = MCDE_CHNLPATH(MCDE_CHNL_B,
 		MCDE_FIFO_B, MCDE_PORTTYPE_DSI, 1, 2),
 	/* Channel C0 */
-	MCDE_CHNLPATH_CHNLC0_FIFOC0_DBI_0 = MCDE_CHNLPATH(MCDE_CHNL_C0,
-		MCDE_FIFO_C0, MCDE_PORTTYPE_DBI, 0, 0),
 	MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC0_0 = MCDE_CHNLPATH(MCDE_CHNL_C0,
 		MCDE_FIFO_A, MCDE_PORTTYPE_DSI, 0, 0),
 	MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC0_1 = MCDE_CHNLPATH(MCDE_CHNL_C0,
@@ -93,8 +88,6 @@ enum mcde_chnl_path {
 	MCDE_CHNLPATH_CHNLC0_FIFOA_DSI_IFC1_2 = MCDE_CHNLPATH(MCDE_CHNL_C0,
 		MCDE_FIFO_A, MCDE_PORTTYPE_DSI, 1, 2),
 	/* Channel C1 */
-	MCDE_CHNLPATH_CHNLC1_FIFOC1_DBI_1 = MCDE_CHNLPATH(MCDE_CHNL_C1,
-		MCDE_FIFO_C1, MCDE_PORTTYPE_DBI, 0, 1),
 	MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC0_0 = MCDE_CHNLPATH(MCDE_CHNL_C1,
 		MCDE_FIFO_B, MCDE_PORTTYPE_DSI, 0, 0),
 	MCDE_CHNLPATH_CHNLC1_FIFOB_DSI_IFC0_1 = MCDE_CHNLPATH(MCDE_CHNL_C1,
@@ -115,19 +108,15 @@ enum mcde_sync_src {
 	MCDE_SYNCSRC_TE0 = 1, /* MCDE ext TE0 */
 	MCDE_SYNCSRC_TE1 = 2, /* MCDE ext TE1 */
 	MCDE_SYNCSRC_BTA = 3, /* DSI BTA */
-	MCDE_SYNCSRC_EXT = 4, /* GPIO, or other outside MCDE control */
-};/* REVIEW: Remove _EXT, not supported */
+};
 
 /* Interface pixel formats (output) */
-/* REVIEW: Define formats */
+/*
+* REVIEW: Define formats
+* Add explanatory comments how the formats are ordered in memory
+*/
 enum mcde_port_pix_fmt {
 	/* MIPI standard formats */
-	MCDE_PORTPIXFMT_DBI_3BPP =         0x11,/* REVIEW: Remove */
-	MCDE_PORTPIXFMT_DBI_8BPP =         0x12,/* REVIEW: Remove */
-	MCDE_PORTPIXFMT_DBI_12BPP =        0x13,/* REVIEW: Remove */
-	MCDE_PORTPIXFMT_DBI_16BPP =        0x15,/* REVIEW: Remove */
-	MCDE_PORTPIXFMT_DBI_18BPP =        0x16,/* REVIEW: Remove */
-	MCDE_PORTPIXFMT_DBI_24BPP =        0x17,/* REVIEW: Remove */
 
 	MCDE_PORTPIXFMT_DPI_16BPP_C1 =     0x21,
 	MCDE_PORTPIXFMT_DPI_16BPP_C2 =     0x22,
@@ -166,8 +155,7 @@ struct mcde_port {
 			bool clk_cont;
 		} dsi;
 		struct {
-			bool chip_select;/* REVIEW: Used? Needed? */
-			u8 num_data_lanes;/* REVIEW: Rename to bus_width? */
+			u8 bus_width;
 		} dpi;
 	} phy;
 };
@@ -215,6 +203,9 @@ enum mcde_display_rotation {
 #define MCDE_PIXFETCH_LARGE_WTRMRKLVL 128
 #define MCDE_PIXFETCH_MEDIUM_WTRMRKLVL 64
 #define MCDE_PIXFETCH_SMALL_WTRMRKLVL 16
+
+/* In seconds */
+#define MCDE_AUTO_SYNC_WATCHDOG 5
 
 /* Video mode descriptor */
 struct mcde_video_mode {/* REVIEW: Join 1 & 2 */
@@ -271,7 +262,7 @@ void mcde_chnl_set_col_convert(struct mcde_chnl_state *chnl,
 					struct mcde_col_convert *col_convert);
 int mcde_chnl_set_video_mode(struct mcde_chnl_state *chnl,
 					struct mcde_video_mode *vmode);
-/* TODO: Remove rotbuf* parameters */
+/* TODO: Remove rotbuf* parameters when ESRAM allocator is implemented*/
 int mcde_chnl_set_rotation(struct mcde_chnl_state *chnl,
 		enum mcde_display_rotation rotation, u32 rotbuf1, u32 rotbuf2);
 int mcde_chnl_enable_synchronized_update(struct mcde_chnl_state *chnl,
@@ -283,6 +274,8 @@ int mcde_chnl_apply(struct mcde_chnl_state *chnl);
 int mcde_chnl_update(struct mcde_chnl_state *chnl,
 					struct mcde_rectangle *update_area);
 void mcde_chnl_put(struct mcde_chnl_state *chnl);
+
+void mcde_chnl_stop_flow(struct mcde_chnl_state *chnl);
 
 /* MCDE overlay */
 struct mcde_ovly_state;
@@ -358,7 +351,7 @@ struct mcde_platform_data {
 	/* DSI */
 	int num_dsilinks;
 
-	/* DBI/DPI */
+	/* DPI */
 	u8 outmux[5]; /* MCDE_CONF0.OUTMUXx */
 	u8 syncmux;   /* MCDE_CONF0.SYNCMUXx */
 
@@ -368,7 +361,7 @@ struct mcde_platform_data {
 	const char *clock_mcde_id;
 };
 
-int mcde_init(void);
+int __init mcde_init(void);
 void mcde_exit(void);
 
 #endif /* __MCDE__H__ */

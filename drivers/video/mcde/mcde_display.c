@@ -205,7 +205,7 @@ static int mcde_display_set_synchronized_update_default(
 	struct mcde_display_device *ddev, bool enable)
 {
 	int ret = 0;
-	if (ddev->port->type == MCDE_PORTTYPE_DSI) {
+	if (ddev->port->type == MCDE_PORTTYPE_DSI && enable) {
 		if (ddev->port->sync_src == MCDE_SYNCSRC_TE0 ||
 			 ddev->port->sync_src == MCDE_SYNCSRC_TE1 ||
 			 ddev->port->sync_src == MCDE_SYNCSRC_BTA) {
@@ -216,7 +216,7 @@ static int mcde_display_set_synchronized_update_default(
 			ret = -EINVAL;
 		}
 	} else {
-		ret = -EINVAL;
+		ret = 0;
 	}
 
 	if (ret < 0) {
@@ -253,6 +253,8 @@ static int mcde_display_apply_config_default(struct mcde_display_device *ddev)
 	}
 
 	if (ddev->update_flags) {
+		if (ddev->update_flags & UPDATE_FLAG_VIDEO_MODE)
+			mcde_chnl_stop_flow(ddev->chnl_state);
 		ret = mcde_chnl_apply(ddev->chnl_state);
 		if (ret < 0) {
 			dev_warn(&ddev->dev, "%s:Failed to apply to channel\n",

@@ -30,6 +30,7 @@
 #include <mach/prcmu-fw-api.h>
 
 static void disable_channel(struct mcde_chnl_state *chnl);
+static void watchdog_auto_sync_timer_function(unsigned long arg);
 
 #define MSEC_TO_JIFFIES(__x) (((__x) * HZ + HZ - 1) / 1000)
 
@@ -47,13 +48,13 @@ static struct clk *clock_dsi;
 static struct clk *clock_mcde;
 static struct clk *clock_dsi_lp;
 
-static inline u32 dsi_rreg(int __i, u32 __reg)
+static inline u32 dsi_rreg(int i, u32 reg)
 {
-	return readl(dsiio[__i] + __reg);
+	return readl(dsiio[i] + reg);
 }
-static inline void dsi_wreg(int __i, u32 __reg, u32 __val)
+static inline void dsi_wreg(int i, u32 reg, u32 val)
 {
-	writel(__val, dsiio[__i] + __reg);
+	writel(val, dsiio[i] + reg);
 }
 #define dsi_rfld(__i, __reg, __fld) \
 	((dsi_rreg(__i, __reg) & __reg##_##__fld##_MASK) >> \
@@ -63,13 +64,13 @@ static inline void dsi_wreg(int __i, u32 __reg, u32 __val)
 	~__reg##_##__fld##_MASK) | (((__val) << __reg##_##__fld##_SHIFT) & \
 		 __reg##_##__fld##_MASK))
 
-static inline u32 mcde_rreg(u32 __reg)
+static inline u32 mcde_rreg(u32 reg)
 {
-	return readl(mcdeio + __reg);
+	return readl(mcdeio + reg);
 }
-static inline void mcde_wreg(u32 __reg, u32 __val)
+static inline void mcde_wreg(u32 reg, u32 val)
 {
-	writel(__val, mcdeio + __reg);
+	writel(val, mcdeio + reg);
 }
 #define mcde_rfld(__reg, __fld) \
 	((mcde_rreg(__reg) & __reg##_##__fld##_MASK) >> \
@@ -200,6 +201,8 @@ struct mcde_chnl_state {
 	u32 transactionid_regs;
 	u32 transactionid_hw;
 	wait_queue_head_t waitq_hw; /* Waitq for transactionid_hw */
+	/* Used as watchdog timer for auto sync feature */
+	struct timer_list auto_sync_timer;
 
 	enum mcde_display_power_mode power_mode;
 
@@ -350,7 +353,6 @@ int mcde_chnl_set_video_mode(struct mcde_chnl_state *chnl,
 	if (chnl == NULL || vmode == NULL)
 		return -EINVAL;
 
-	disable_channel(chnl);
 	chnl->vmode = *vmode;
 
 	return 0;
@@ -367,7 +369,7 @@ static void tv_video_mode_apply(struct mcde_chnl_state *chnl)
 	chnl->tv_regs.fsl2 = chnl->vmode.vbp2;
 	chnl->tv_regs.interlaced_en = chnl->vmode.interlaced;
 
-	if (chnl->port.phy.dpi.num_data_lanes == 4)
+	if (chnl->port.phy.dpi.bus_width == 4)
 		chnl->tv_regs.tv_mode = MCDE_TVCRA_TVMODE_SDTV_656P_BE;
 	else
 		chnl->tv_regs.tv_mode = MCDE_TVCRA_TVMODE_SDTV_656P;
@@ -525,6 +527,8 @@ static irqreturn_t mcde_irq_handler(int irq, void *dev)
 {
 	int i;
 	u32 irq_status;
+	bool trig = false;
+	struct mcde_chnl_state *chnl;
 
 	/* Handle overlay irqs */
 	irq_status = mcde_rfld(MCDE_RISOVL, OVLFDRIS);
@@ -540,32 +544,81 @@ static irqreturn_t mcde_irq_handler(int irq, void *dev)
 	/* Handle channel irqs */
 	irq_status = mcde_rreg(MCDE_RISPP);
 	if (irq_status & MCDE_RISPP_VCMPARIS_MASK) {
-		struct mcde_chnl_state *chnl = &channels[MCDE_CHNL_A];
+		chnl = &channels[MCDE_CHNL_A];
 		chnl->transactionid_hw = chnl->transactionid_regs;
 		wake_up(&chnl->waitq_hw);
 		mcde_wfld(MCDE_RISPP, VCMPARIS, 1);
+		if (chnl->port.update_auto_trig &&
+				chnl->port.sync_src == MCDE_SYNCSRC_OFF &&
+				chnl->port.type == MCDE_PORTTYPE_DSI &&
+				chnl->continous_running) {
+			mcde_wreg(MCDE_CHNL0SYNCHSW +
+				chnl->id * MCDE_CHNL0SYNCHSW_GROUPOFFSET,
+				MCDE_CHNL0SYNCHSW_SW_TRIG(true));
+			mod_timer(&chnl->auto_sync_timer,
+				jiffies +
+				msecs_to_jiffies(MCDE_AUTO_SYNC_WATCHDOG
+								* 1000));
+		}
 	}
 	if (irq_status & MCDE_RISPP_VCMPBRIS_MASK) {
-		struct mcde_chnl_state *chnl = &channels[MCDE_CHNL_B];
+		chnl = &channels[MCDE_CHNL_B];
 		chnl->transactionid_hw = chnl->transactionid_regs;
 		wake_up(&chnl->waitq_hw);
 		mcde_wfld(MCDE_RISPP, VCMPBRIS, 1);
+		if (chnl->port.update_auto_trig &&
+				chnl->port.sync_src == MCDE_SYNCSRC_OFF &&
+				chnl->port.type == MCDE_PORTTYPE_DSI &&
+				chnl->continous_running) {
+			mcde_wreg(MCDE_CHNL0SYNCHSW +
+				chnl->id * MCDE_CHNL0SYNCHSW_GROUPOFFSET,
+				MCDE_CHNL0SYNCHSW_SW_TRIG(true));
+			mod_timer(&chnl->auto_sync_timer,
+				jiffies +
+				msecs_to_jiffies(MCDE_AUTO_SYNC_WATCHDOG
+								* 1000));
+		}
 	}
 	if (irq_status & MCDE_RISPP_VCMPC0RIS_MASK) {
-		struct mcde_chnl_state *chnl = &channels[MCDE_CHNL_C0];
+		chnl = &channels[MCDE_CHNL_C0];
 		chnl->transactionid_hw = chnl->transactionid_regs;
 		wake_up(&chnl->waitq_hw);
 		mcde_wfld(MCDE_RISPP, VCMPC0RIS, 1);
+		if (chnl->port.update_auto_trig &&
+				chnl->port.sync_src == MCDE_SYNCSRC_OFF &&
+				chnl->port.type == MCDE_PORTTYPE_DSI &&
+				chnl->continous_running) {
+			mcde_wreg(MCDE_CHNL0SYNCHSW +
+				chnl->id * MCDE_CHNL0SYNCHSW_GROUPOFFSET,
+				MCDE_CHNL0SYNCHSW_SW_TRIG(true));
+			mod_timer(&chnl->auto_sync_timer,
+				jiffies +
+				msecs_to_jiffies(MCDE_AUTO_SYNC_WATCHDOG
+								* 1000));
+		}
 	}
 	if (irq_status & MCDE_RISPP_VCMPC1RIS_MASK) {
-		struct mcde_chnl_state *chnl = &channels[MCDE_CHNL_C1];
+		chnl = &channels[MCDE_CHNL_C1];
 		chnl->transactionid_hw = chnl->transactionid_regs;
 		wake_up(&chnl->waitq_hw);
 		mcde_wfld(MCDE_RISPP, VCMPC1RIS, 1);
+		if (chnl->port.update_auto_trig &&
+				chnl->port.sync_src == MCDE_SYNCSRC_OFF &&
+				chnl->port.type == MCDE_PORTTYPE_DSI &&
+				chnl->continous_running) {
+			mcde_wreg(MCDE_CHNL0SYNCHSW +
+				chnl->id * MCDE_CHNL0SYNCHSW_GROUPOFFSET,
+				MCDE_CHNL0SYNCHSW_SW_TRIG(true));
+			mod_timer(&chnl->auto_sync_timer,
+				jiffies +
+				msecs_to_jiffies(MCDE_AUTO_SYNC_WATCHDOG
+								* 1000));
+		}
 	}
 	for (i = 0; i < num_dsilinks; i++) {
-		bool trig = false;
-		struct mcde_chnl_state *chnl;
+		struct mcde_chnl_state *chnl_from_dsi;
+
+		trig = false;
 		irq_status = dsi_rfld(i, DSI_DIRECT_CMD_STS_FLAG,
 			TE_RECEIVED_FLAG);
 		if (irq_status) {
@@ -582,13 +635,14 @@ static irqreturn_t mcde_irq_handler(int irq, void *dev)
 		}
 		if (!trig)
 			continue;
-		chnl = find_channel_by_dsilink(i);
-		if (chnl) {
+		chnl_from_dsi = find_channel_by_dsilink(i);
+		if (chnl_from_dsi) {
 			mcde_wreg(MCDE_CHNL0SYNCHSW +
-				chnl->id * MCDE_CHNL0SYNCHSW_GROUPOFFSET,
+				chnl_from_dsi->id *
+				MCDE_CHNL0SYNCHSW_GROUPOFFSET,
 				MCDE_CHNL0SYNCHSW_SW_TRIG(true));
 			dev_vdbg(&mcde_dev->dev, "SW TRIG DSI%d, chnl=%d\n", i,
-				chnl->id);
+				chnl_from_dsi->id);
 		}
 	}
 
@@ -797,6 +851,23 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 #endif /* CONFIG_AV8100_SDTV */
 
 	if (regs->reset_buf_id) {
+		u32 sel_mod = MCDE_EXTSRC0CR_SEL_MOD_SOFTWARE_SEL;
+		if (port->update_auto_trig && port->type == MCDE_PORTTYPE_DSI) {
+			switch (port->sync_src) {
+			case MCDE_SYNCSRC_OFF:
+				sel_mod = MCDE_EXTSRC0CR_SEL_MOD_SOFTWARE_SEL;
+				break;
+			case MCDE_SYNCSRC_TE0:
+			case MCDE_SYNCSRC_TE1:
+			default:
+				sel_mod = MCDE_EXTSRC0CR_SEL_MOD_AUTO_TOGGLE;
+			}
+		} else if (port->type == MCDE_PORTTYPE_DPI) {
+			sel_mod = port->update_auto_trig ?
+					MCDE_EXTSRC0CR_SEL_MOD_AUTO_TOGGLE :
+					MCDE_EXTSRC0CR_SEL_MOD_SOFTWARE_SEL;
+		}
+
 		regs->reset_buf_id = false;
 		mcde_wreg(MCDE_EXTSRC0CONF + idx * MCDE_EXTSRC0CONF_GROUPOFFSET,
 			MCDE_EXTSRC0CONF_BUF_ID(0) |
@@ -807,9 +878,7 @@ static void update_overlay_registers(u8 idx, struct ovly_regs *regs,
 			MCDE_EXTSRC0CONF_BEBO(regs->bebo) |
 			MCDE_EXTSRC0CONF_BEPO(false));
 		mcde_wreg(MCDE_EXTSRC0CR + idx * MCDE_EXTSRC0CR_GROUPOFFSET,
-			MCDE_EXTSRC0CR_SEL_MOD(port->update_auto_trig ?
-				MCDE_EXTSRC0CR_SEL_MOD_AUTO_TOGGLE :
-				MCDE_EXTSRC0CR_SEL_MOD_SOFTWARE_SEL) |
+			MCDE_EXTSRC0CR_SEL_MOD(sel_mod) |
 			MCDE_EXTSRC0CR_MULTIOVL_CTRL_ENUM(PRIMARY) |
 			MCDE_EXTSRC0CR_FS_DIV_DISABLE(false) |
 			MCDE_EXTSRC0CR_FORCE_FS_DIV(false));
@@ -951,6 +1020,42 @@ static void enable_channel(struct mcde_chnl_state *chnl)
 	}
 }
 
+static int is_channel_enabled(struct mcde_chnl_state *chnl)
+{
+	switch (chnl->id) {
+	case MCDE_CHNL_A:
+		return mcde_rfld(MCDE_CRA0, FLOEN);
+	case MCDE_CHNL_B:
+		return mcde_rfld(MCDE_CRB0, FLOEN);
+	case MCDE_CHNL_C0:
+		return mcde_rfld(MCDE_CRC, FLOEN);
+	case MCDE_CHNL_C1:
+		return mcde_rfld(MCDE_CRC, FLOEN);
+	}
+	return 0;
+}
+
+static void watchdog_auto_sync_timer_function(unsigned long arg)
+{
+	int i;
+	for (i = 0; i < ARRAY_SIZE(channels); i++) {
+		struct mcde_chnl_state *chnl = &channels[i];
+		if (chnl->port.update_auto_trig &&
+				chnl->port.sync_src == MCDE_SYNCSRC_OFF &&
+				chnl->port.type == MCDE_PORTTYPE_DSI &&
+				chnl->continous_running) {
+			mcde_wreg(MCDE_CHNL0SYNCHSW +
+				chnl->id
+				* MCDE_CHNL0SYNCHSW_GROUPOFFSET,
+				MCDE_CHNL0SYNCHSW_SW_TRIG(true));
+			mod_timer(&chnl->auto_sync_timer,
+				jiffies +
+				msecs_to_jiffies(MCDE_AUTO_SYNC_WATCHDOG
+								* 1000));
+		}
+	}
+}
+
 /* TODO get from register */
 #define MCDE_CLK_FREQ_MHZ 160
 
@@ -960,14 +1065,30 @@ void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
 {
 	u8 idx = chnl_id;
 	u32 out_synch_src = MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC_FORMATTER;
+	u32 src_synch = MCDE_CHNL0SYNCHMOD_SRC_SYNCH_SOFTWARE;
 
 	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
 	/* Channel */
-	if (port->update_auto_trig && port->type != MCDE_PORTTYPE_DPI) {
-		out_synch_src = port->sync_src == MCDE_SYNCSRC_TE0 ?
-			MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC_VSYNC0 :
-			MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC_VSYNC1;
+	if (port->update_auto_trig && port->type == MCDE_PORTTYPE_DSI) {
+		switch (port->sync_src) {
+		case MCDE_SYNCSRC_TE0:
+			out_synch_src = MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC_VSYNC0;
+			src_synch = MCDE_CHNL0SYNCHMOD_SRC_SYNCH_OUTPUT;
+			break;
+		case MCDE_SYNCSRC_OFF:
+			src_synch = MCDE_CHNL0SYNCHMOD_SRC_SYNCH_SOFTWARE;
+			break;
+		case MCDE_SYNCSRC_TE1:
+		default:
+			out_synch_src = MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC_VSYNC1;
+			src_synch = MCDE_CHNL0SYNCHMOD_SRC_SYNCH_OUTPUT;
+		}
+	} else if (port->type == MCDE_PORTTYPE_DPI) {
+		src_synch = port->update_auto_trig ?
+					MCDE_CHNL0SYNCHMOD_SRC_SYNCH_OUTPUT :
+					MCDE_CHNL0SYNCHMOD_SRC_SYNCH_SOFTWARE;
 	}
+
 	mcde_wreg(MCDE_CHNL0CONF + idx * MCDE_CHNL0CONF_GROUPOFFSET,
 		MCDE_CHNL0CONF_PPL(regs->ppl-1) |
 		MCDE_CHNL0CONF_LPF(regs->lpf-1));
@@ -976,9 +1097,7 @@ void update_channel_registers(enum mcde_chnl chnl_id, struct chnl_regs *regs,
 		MCDE_CHNL0STAT_CHNLRD(true));
 	mcde_wreg(MCDE_CHNL0SYNCHMOD +
 		idx * MCDE_CHNL0SYNCHMOD_GROUPOFFSET,
-		MCDE_CHNL0SYNCHMOD_SRC_SYNCH(port->update_auto_trig ?
-			MCDE_CHNL0SYNCHMOD_SRC_SYNCH_OUTPUT :
-			MCDE_CHNL0SYNCHMOD_SRC_SYNCH_SOFTWARE) |
+		MCDE_CHNL0SYNCHMOD_SRC_SYNCH(src_synch) |
 		MCDE_CHNL0SYNCHMOD_OUT_SYNCH_SRC(out_synch_src));
 	mcde_wreg(MCDE_CHNL0BCKGNDCOL + idx * MCDE_CHNL0BCKGNDCOL_GROUPOFFSET,
 		MCDE_CHNL0BCKGNDCOL_B(255) | /* TODO: Temp */
@@ -1317,7 +1436,9 @@ int mcde_chnl_set_pixel_format(struct mcde_chnl_state *chnl,
 {
 	if (!chnl->inuse)
 		return -EINVAL;
+
 	chnl->pix_fmt = pix_fmt;
+
 	return 0;
 }
 
@@ -1434,8 +1555,19 @@ static void chnl_update_continous(struct mcde_chnl_state *chnl)
 			mcde_wfld(MCDE_CRC, SYCEN0, true);
 		else if (chnl->port.sync_src == MCDE_SYNCSRC_TE1)
 			mcde_wfld(MCDE_CRC, SYCEN1, true);
-
 		chnl->continous_running = true;
+		/*
+		* For main and secondary display,
+		* FLOWEN has to be set before a SOFTWARE TRIG
+		* Otherwise not overlay interrupt is triggerd
+		*/
+		enable_channel(chnl);
+		if (chnl->port.type == MCDE_PORTTYPE_DSI &&
+				chnl->port.sync_src == MCDE_SYNCSRC_OFF) {
+			mod_timer(&chnl->auto_sync_timer,
+					jiffies +
+			msecs_to_jiffies(MCDE_AUTO_SYNC_WATCHDOG * 1000));
+		}
 	}
 }
 
@@ -1445,6 +1577,18 @@ static void chnl_update_non_continous(struct mcde_chnl_state *chnl)
 	wait_for_channel(chnl);
 	if (chnl->transactionid_regs < chnl->transactionid)
 		chnl_update_registers(chnl);
+
+	/*
+	* For main and secondary display,
+	* FLOWEN has to be set before a SOFTWARE TRIG
+	* Otherwise not overlay interrupt is triggerd
+	* However FLOWEN must not be triggered before SOFTWARE TRIG
+	* if rotation is enabled
+	*/
+	if (chnl->power_mode == MCDE_DISPLAY_PM_STANDBY ||
+			(!is_channel_enabled(chnl) && !chnl->regs.roten))
+		enable_channel(chnl);
+
 
 	/* TODO: look at port sync source and synched_update */
 	if (chnl->regs.synchronized_update &&
@@ -1463,6 +1607,8 @@ static void chnl_update_non_continous(struct mcde_chnl_state *chnl)
 		dev_vdbg(&mcde_dev->dev, "Channel update (no sync), chnl=%d\n",
 			chnl->id);
 	}
+	if (chnl->power_mode == MCDE_DISPLAY_PM_ON)
+		enable_channel(chnl);
 }
 
 static void chnl_update_overlay(struct mcde_chnl_state *chnl,
@@ -1474,10 +1620,9 @@ static void chnl_update_overlay(struct mcde_chnl_state *chnl,
 
 	update_overlay_address_registers(ovly->idx, &ovly->regs);
 	if (ovly->regs.reset_buf_id) {
-		if (chnl->continous_running)
-			disable_channel(chnl);
-		else
+		if (!chnl->continous_running)
 			wait_for_overlay(ovly);
+
 		update_overlay_registers(ovly->idx, &ovly->regs, &chnl->port,
 			chnl->fifo, chnl->regs.x, chnl->regs.y,
 			chnl->regs.ppl, chnl->regs.lpf, ovly->stride,
@@ -1521,8 +1666,6 @@ int mcde_chnl_update(struct mcde_chnl_state *chnl,
 	else
 		chnl_update_non_continous(chnl);
 
-	enable_channel(chnl);
-
 	dev_vdbg(&mcde_dev->dev, "Channel updated, chnl=%d\n", chnl->id);
 	return 0;
 }
@@ -1537,6 +1680,11 @@ void mcde_chnl_put(struct mcde_chnl_state *chnl)
 	mcde_chnl_apply(chnl);
 	chnl->inuse = false;
 	update_channel_static_registers(chnl);
+}
+
+void mcde_chnl_stop_flow(struct mcde_chnl_state *chnl)
+{
+	disable_channel(chnl);
 }
 
 /* MCDE overlays */
@@ -1634,7 +1782,7 @@ void mcde_ovly_apply(struct mcde_ovly_state *ovly)
 	ovly->regs.enabled = ovly->paddr != 0;
 	ovly->regs.baseaddress0 = ovly->paddr;
 	ovly->regs.baseaddress1 = ovly->paddr + ovly->stride;
-/*TODO set to true if interlaced *//* REVIEW: Video mode interlaced? */
+	/*TODO set to true if interlaced *//* REVIEW: Video mode interlaced? */
 	ovly->regs.reset_buf_id = !ovly->chnl->continous_running;
 	switch (ovly->pix_fmt) {/* REVIEW: Extract to table */
 	case MCDE_OVLYPIXFMT_RGB565:
@@ -2015,8 +2163,16 @@ out:
 	return ret;
 }
 
+
 static int __devexit mcde_remove(struct platform_device *pdev)
 {
+	struct mcde_chnl_state *chnl = &channels[0];
+	for (; chnl < &channels[ARRAY_SIZE(channels)]; chnl++) {
+		if (del_timer(&chnl->auto_sync_timer))
+			dev_vdbg(&mcde_dev->dev,
+				"%s timer could not be stopped\n"
+				, __func__);
+	}
 	remove_clocks_and_power(pdev);
 	return 0;
 }
@@ -2026,7 +2182,7 @@ static int mcde_resume(struct platform_device *pdev)
 {
 	int ret;
 	struct mcde_chnl_state *chnl = &channels[0];
-	dev_info(&pdev->dev, "Resume is called\n");
+	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
 	ret = enable_clocks_and_power(pdev);
 	if (ret < 0) {
 		dev_dbg(&pdev->dev, "%s: Enable clocks and power failed\n"
@@ -2067,7 +2223,18 @@ clock_err:
 #ifdef CONFIG_PM
 static int mcde_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	dev_info(&pdev->dev, "Suspend is called\n");
+	struct mcde_chnl_state *chnl = &channels[0];
+
+	dev_vdbg(&mcde_dev->dev, "%s\n", __func__);
+
+	/* This is added because of the auto sync feature */
+	for (; chnl < &channels[ARRAY_SIZE(channels)]; chnl++) {
+		mcde_chnl_stop_flow(chnl);
+		if (del_timer(&chnl->auto_sync_timer))
+			dev_vdbg(&mcde_dev->dev,
+				"%s timer could not be stopped\n"
+				, __func__);
+	}
 	return disable_clocks_and_power(pdev);
 }
 #endif
@@ -2087,8 +2254,7 @@ static struct platform_driver mcde_driver = {
 	},
 };
 
-/* REVIEW: __init? */
-int mcde_init(void)
+int __init mcde_init(void)
 {
 	int i;
 	for (i = 0; i < ARRAY_SIZE(channels); i++) {
@@ -2096,6 +2262,9 @@ int mcde_init(void)
 		if (channels[i].ovly1)
 			channels[i].ovly1->chnl = &channels[i];
 		init_waitqueue_head(&channels[i].waitq_hw);
+		init_timer(&channels[i].auto_sync_timer);
+		channels[i].auto_sync_timer.function =
+					watchdog_auto_sync_timer_function;
 	}
 	for (i = 0; i < ARRAY_SIZE(overlays); i++)
 		init_waitqueue_head(&overlays[i].waitq_hw);

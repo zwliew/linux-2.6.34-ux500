@@ -33,6 +33,7 @@ struct mcde_fb {
 	struct mcde_overlay *ovlys[MCDE_FB_MAX_NUM_OVERLAYS];
 	u32 pseudo_palette[17];
 	enum mcde_ovly_pix_fmt pix_fmt;
+	int id;
 };
 
 /* MCDE fbdev API */

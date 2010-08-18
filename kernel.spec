@@ -377,7 +377,10 @@ BuildKernel() {
     # Set config
     make %{?_smp_mflags} mop500$(DEBUG)_power_defconfig
     # STE: Disable multibuffer and multitouch. 
-    scripts/config --file .config --disable FB_MCDE_MULTIBUFFER --disable U8500_TSC_MULTITOUCH
+    scripts/config --file .config --enable DISPLAY_GENERIC_DSI_PRIMARY_AUTO_SYNC --enable DISPLAY_GENERIC_DSI_SECONDARY_AUTO_SYNC 
+    # Does not exist in the 34 kernel yet
+    #scripts/config --file .config --disable U8500_TSC_MULTITOUCH
+
     # STE: Enable conf for external sd-cards. 
     scripts/config --file .config --enable LEVELSHIFTER_HREF_V1_PLUS
     # STE: Enable g_multi USB gadget with RNDIS, CDC Serial and Storage configuration.

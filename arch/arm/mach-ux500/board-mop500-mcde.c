@@ -21,6 +21,10 @@
 #define DSI_UNIT_INTERVAL_1	0x9
 #define DSI_UNIT_INTERVAL_2	0x6
 
+#define PRIMARY_DISPLAY_ID	0
+#define SECONDARY_DISPLAY_ID	1
+#define TERTIARY_DISPLAY_ID	2
+
 static bool rotate_main = true;
 static bool display_initialized_during_boot;
 
@@ -54,8 +58,13 @@ static struct mcde_port port0 = {
 	.pixel_format = MCDE_PORTPIXFMT_DSI_24BPP,
 	.ifc = 1,
 	.link = 0,
+#ifdef CONFIG_DISPLAY_GENERIC_DSI_PRIMARY_AUTO_SYNC
+	.sync_src = MCDE_SYNCSRC_OFF,
+	.update_auto_trig = true,
+#else
 	.sync_src = MCDE_SYNCSRC_BTA,
 	.update_auto_trig = false,
+#endif
 	.phy = {
 		.dsi = {
 			.virt_id = 0,
@@ -78,7 +87,7 @@ struct mcde_display_generic_platform_data generic_display0_pdata = {
 
 struct mcde_display_device generic_display0 = {
 	.name = "mcde_disp_generic",
-	.id = 0,
+	.id = PRIMARY_DISPLAY_ID,
 	.port = &port0,
 	.chnl_id = MCDE_CHNL_A,
 	.fifo = MCDE_FIFO_C0,
@@ -106,8 +115,13 @@ static struct mcde_port subdisplay_port = {
 	.pixel_format = MCDE_PORTPIXFMT_DSI_24BPP,
 	.ifc = 1,
 	.link = 1,
+#ifdef CONFIG_DISPLAY_GENERIC_DSI_SECONDARY_AUTO_SYNC
+	.sync_src = MCDE_SYNCSRC_OFF,
+	.update_auto_trig = true,
+#else
 	.sync_src = MCDE_SYNCSRC_BTA,
 	.update_auto_trig = false,
+#endif
 	.phy = {
 		.dsi = {
 			.virt_id = 0,
@@ -131,7 +145,7 @@ static struct mcde_display_generic_platform_data generic_subdisplay_pdata = {
 
 static struct mcde_display_device generic_subdisplay = {
 	.name = "mcde_disp_generic_subdisplay",
-	.id = 1,
+	.id = SECONDARY_DISPLAY_ID,
 	.port = &subdisplay_port,
 	.chnl_id = MCDE_CHNL_C1,
 	.fifo = MCDE_FIFO_C1,
@@ -237,7 +251,7 @@ alt_func_failed:
 
 static struct mcde_display_device tvout_ab8500_display = {
 	.name = "mcde_tv_ab8500",
-	.id = 2,
+	.id = TERTIARY_DISPLAY_ID,
 	.port = &port_tvout1,
 	.chnl_id = MCDE_CHNL_B,
 	.fifo = MCDE_FIFO_B,
@@ -347,7 +361,7 @@ alt_func_failed:
 
 static struct mcde_display_device av8100_hdmi = {
 	.name = "av8100_hdmi",
-	.id = 2,
+	.id = TERTIARY_DISPLAY_ID,
 	.port = &port2,
 	.chnl_id = MCDE_CHNL_B,
 	.fifo = MCDE_FIFO_B,
@@ -376,29 +390,40 @@ static int display_registered_callback(struct notifier_block *nb,
 {
 	struct mcde_display_device *ddev = dev;
 	u16 width, height;
+	u16 virtual_width, virtual_height;
 	bool rotate;
 
 	if (event != MCDE_DSS_EVENT_DISPLAY_REGISTERED)
 		return 0;
 
-	if (ddev->id < 0 || ddev->id >= ARRAY_SIZE(fbs))
+	if (ddev->id < PRIMARY_DISPLAY_ID || ddev->id >= ARRAY_SIZE(fbs))
 		return 0;
 
 	mcde_dss_get_native_resolution(ddev, &width, &height);
 
-	rotate = (ddev->id == 0 && rotate_main);
-	if (rotate) {
-		u16 tmp = height;
-		height = width;
-		width = tmp;
-	}
+	rotate = (ddev->id == PRIMARY_DISPLAY_ID && rotate_main);
+	if (rotate)
+		swap(width, height);
+
+	virtual_width = width;
+	virtual_height = height * 2;
+#ifdef CONFIG_DISPLAY_GENERIC_DSI_PRIMARY_AUTO_SYNC
+	if (ddev->id == PRIMARY_DISPLAY_ID)
+		virtual_height = height;
+#endif
+
+#ifdef CONFIG_DISPLAY_GENERIC_DSI_SECONDARY_AUTO_SYNC
+	if (ddev->id == SECONDARY_DISPLAY_ID)
+		virtual_height = height;
+#endif
 
 	/* Create frame buffer */
 	fbs[ddev->id] = mcde_fb_create(ddev,
 		width, height,
-		width, height * 2,
+		virtual_width, virtual_height,
 		ddev->default_pixel_format,
 		rotate ? FB_ROTATE_CW : FB_ROTATE_UR);
+
 	if (IS_ERR(fbs[ddev->id]))
 		pr_warning("Failed to create fb for display %s\n", ddev->name);
 	else
@@ -411,6 +436,8 @@ static struct notifier_block display_nb = {
 	.notifier_call = display_registered_callback,
 };
 
+#if defined(CONFIG_DISPLAY_GENERIC_DSI_PRIMARY_AUTO_SYNC) || \
+			defined(CONFIG_DISPLAY_GENERIC_DSI_SECONDARY_AUTO_SYNC)
 static int framebuffer_registered_callback(struct notifier_block *nb,
 	unsigned long event, void *data)
 {
@@ -419,28 +446,85 @@ static int framebuffer_registered_callback(struct notifier_block *nb,
 	struct fb_info *info;
 	struct fb_var_screeninfo var;
 	struct fb_fix_screeninfo fix;
+	struct mcde_fb *mfb;
+	u8 *addr;
+	int i;
 
-	if (event == FB_EVENT_FB_REGISTERED &&
-		!display_initialized_during_boot) {
-		if (event_data) {
-			u8 *addr;
-			info = event_data->info;
-			if (!lock_fb_info(info))
-				return -ENODEV;
-			var = info->var;
-			fix = info->fix;
-			addr = ioremap(fix.smem_start,
-					var.yres_virtual * fix.line_length);
-			memset(addr, 0x00,
-					var.yres_virtual * fix.line_length);
-			var.yoffset = var.yoffset ? 0 : var.yres;
-			if (info->fbops->fb_pan_display)
-				ret = info->fbops->fb_pan_display(&var, info);
-			unlock_fb_info(info);
-		}
+	if (event != FB_EVENT_FB_REGISTERED)
+		return 0;
+
+	if (!event_data)
+		return 0;
+
+	info = event_data->info;
+	mfb = to_mcde_fb(info);
+	var = info->var;
+	fix = info->fix;
+	addr = ioremap(fix.smem_start,
+			var.yres_virtual * fix.line_length);
+	memset(addr, 0x00,
+			var.yres_virtual * fix.line_length);
+	/* Apply overlay info */
+	for (i = 0; i < mfb->num_ovlys; i++) {
+		struct mcde_overlay *ovly = mfb->ovlys[i];
+		struct mcde_overlay_info ovly_info;
+		struct mcde_fb *mfb = to_mcde_fb(info);
+		memset(&ovly_info, 0, sizeof(ovly_info));
+		ovly_info.paddr = fix.smem_start +
+			fix.line_length * var.yoffset;
+		if (ovly_info.paddr + fix.line_length * var.yres
+			 > fix.smem_start + fix.smem_len)
+			ovly_info.paddr = fix.smem_start;
+		ovly_info.fmt = mfb->pix_fmt;
+		ovly_info.stride = fix.line_length;
+		ovly_info.w = var.xres;
+		ovly_info.h = var.yres;
+		ovly_info.dirty.w = var.xres;
+		ovly_info.dirty.h = var.yres;
+		(void) mcde_dss_apply_overlay(ovly, &ovly_info);
+		ret = mcde_dss_update_overlay(ovly);
 	}
+
 	return ret;
 }
+#else
+static int framebuffer_registered_callback(struct notifier_block *nb,
+	unsigned long event, void *data)
+{
+	int ret = 0;
+	struct fb_event *event_data = data;
+	struct fb_info *info;
+	struct fb_var_screeninfo var;
+	struct fb_fix_screeninfo fix;
+	struct mcde_fb *mfb;
+	u8 *addr;
+
+	if (event != FB_EVENT_FB_REGISTERED)
+		return 0;
+
+	if (!event_data)
+		return 0;
+
+	info = event_data->info;
+	mfb = to_mcde_fb(info);
+	if (mfb->id == 0 && display_initialized_during_boot)
+		goto out;
+
+
+	var = info->var;
+	fix = info->fix;
+	addr = ioremap(fix.smem_start,
+			var.yres_virtual * fix.line_length);
+	memset(addr, 0x00,
+			var.yres_virtual * fix.line_length);
+	var.yoffset = var.yoffset ? 0 : var.yres;
+	if (info->fbops->fb_pan_display)
+		ret = info->fbops->fb_pan_display(&var, info);
+out:
+	return ret;
+}
+#endif
+
 
 static struct notifier_block framebuffer_nb = {
 	.notifier_call = framebuffer_registered_callback,

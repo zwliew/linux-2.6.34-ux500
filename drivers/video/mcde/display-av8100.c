@@ -194,6 +194,8 @@ static int hdmi_set_video_mode(
 	if (dev->port->pixel_format == MCDE_PORTPIXFMT_DSI_YCBCR422)
 		mcde_chnl_set_col_convert(dev->chnl_state,
 						&pdata->rgb_2_yCbCr_convert);
+	mcde_chnl_stop_flow(dev->chnl_state);
+
 	ret = mcde_chnl_set_video_mode(dev->chnl_state, &dev->video_mode);
 	if (ret < 0) {
 		dev_warn(&dev->dev, "Failed to set video mode\n");

@@ -24,6 +24,7 @@
 #include <linux/irq.h>
 #include <linux/timer.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 
 #include "av8100_regs.h"
 #include <video/av8100.h>
@@ -80,6 +81,8 @@ DEFINE_MUTEX(av8100_hw_mutex);
 #define AV8100_DEBUG_EXTRA
 #define AV8100_PLUGIN_DETECT_VIA_TIMER_INTERRUPTS
 #define CEC_ADDR_OFFSET 3
+#define AV8100_POWERON_WAITTIME1_MS 1
+#define AV8100_POWERON_WAITTIME2_MS 1
 
 struct av8100_config_t {
 	struct i2c_client *client;
@@ -210,7 +213,7 @@ struct av8100_cea av8100_all_cea[29] = {
 /* cea id
  *	cea_nr	vtot	vact	vsbpp	vslen
  *	vsfp	vpol	htot	hact	hbp	hslen	hfp	freq
- * 	hpol	rld	bd	uix4	pm	pd */
+ *	hpol	rld	bd	uix4	pm	pd */
 { "0  CUSTOM                            ",
 	0,	0,	0,	0,	0,
 	0,	"-",	800,	640,	16,	96,	10,	25200000,
@@ -853,7 +856,7 @@ static int av8100_globals_init(void)
 
 	av8100_globals = kzalloc(sizeof(struct av8100_globals_t), GFP_KERNEL);
 	if (!av8100_globals) {
-		dev_err(av8100dev, "%s: Alloc failure \n", __func__);
+		dev_err(av8100dev, "%s: Alloc failure\n", __func__);
 		return AV8100_FAIL;
 	}
 
@@ -1646,6 +1649,10 @@ static int av8100_powerup1(void)
 
 	/* Reset av8100 */
 	gpio_set_value(GPIO_AV8100_RSTN, 1);
+
+	/* Need to wait before proceeding */
+	mdelay(AV8100_POWERON_WAITTIME1_MS);
+
 	av8100_set_state(AV8100_OPMODE_STANDBY);
 
 	/* Get chip version */
@@ -1695,6 +1702,9 @@ static int av8100_powerup2(void)
 			"Failed to write the value to av8100 register\n");
 		return -EFAULT;
 	}
+
+	/* Need to wait before proceeding */
+	mdelay(AV8100_POWERON_WAITTIME2_MS);
 
 	av8100_set_state(AV8100_OPMODE_SCAN);
 

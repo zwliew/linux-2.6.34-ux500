@@ -376,7 +376,7 @@ static int check_var(struct fb_var_screeninfo *var, struct fb_info *fbi,
 	ret = mcde_dss_try_video_mode(ddev, &vmode);
 	if (ret < 0) {
 		dev_vdbg(&(ddev->dev), "check_var failed "
-			"mcde_dss_try_video_mode with size = %x \n", ret);
+			"mcde_dss_try_video_mode with size = %x\n", ret);
 		return ret;
 	}
 	vmode_to_var(&vmode, var);
@@ -416,7 +416,7 @@ static int apply_var(struct fb_info *fbi, struct mcde_display_device *ddev)
 	ret = reallocate_fb_mem(fbi, size);
 	if (ret) {
 		dev_vdbg(&(ddev->dev), "apply_var failed with"
-				"reallocate mem with size = %d \n", size);
+				"reallocate mem with size = %d\n", size);
 		return ret;
 	}
 	fbi->fix.line_length = line_len;
@@ -578,6 +578,8 @@ struct fb_info *mcde_fb_create(struct mcde_display_device *ddev,
 	ret = mcde_dss_enable_overlay(ovly);
 	if (ret)
 		goto ovly_enable_failed;
+
+	mfb->id = ddev->id;
 
 	/* Register framebuffer */
 	ret = register_framebuffer(fbi);
