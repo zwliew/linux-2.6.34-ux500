@@ -96,14 +96,14 @@ static struct msp_i2s_platform_data msp0_platform_data = {
 };
 static struct resource u8500_msp_0_resources[] = {
 	[0] = {
-	       .start = U8500_MSP0_BASE,
-	       .end = U8500_MSP0_BASE + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
+		.start = U8500_MSP0_BASE,
+		.end = U8500_MSP0_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+		},
 	[1] = {
-	       .start = IRQ_MSP0,
-	       .end = IRQ_MSP0,
-	       .flags = IORESOURCE_IRQ}
+		.start = IRQ_MSP0,
+		.end = IRQ_MSP0,
+		.flags = IORESOURCE_IRQ}
 };
 struct platform_device u8500_msp0_device = {
 	.name = "MSP_I2S",
@@ -127,14 +127,14 @@ static struct msp_i2s_platform_data msp1_platform_data = {
 };
 static struct resource u8500_msp_1_resources[] = {
 	[0] = {
-	       .start = U8500_MSP1_BASE,
-	       .end = U8500_MSP1_BASE + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
+		.start = U8500_MSP1_BASE,
+		.end = U8500_MSP1_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+		},
 	[1] = {
-	       .start = IRQ_MSP1,
-	       .end = IRQ_MSP1,
-	       .flags = IORESOURCE_IRQ}
+		.start = IRQ_MSP1,
+		.end = IRQ_MSP1,
+		.flags = IORESOURCE_IRQ}
 };
 struct platform_device u8500_msp1_device = {
 	.name = "MSP_I2S",
@@ -246,7 +246,7 @@ UX500_I2C_PDEVICE(3);
 
 static struct shrm_plat_data shrm_platform_data = {
 
-       .pshm_dev_data =  0
+	.pshm_dev_data =  0
 };
 
 static struct resource u8500_shrm_resources[] = {
@@ -328,11 +328,13 @@ struct platform_device ux500_b2r2_device = {
 };
 
 #ifdef CONFIG_ANDROID_PMEM
-static void __init early_pmem_generic_parse(char **p, struct android_pmem_platform_data * data)
+static int __init early_pmem_generic_parse(char *p, struct android_pmem_platform_data * data)
 {
-	data->size = memparse(*p, p);
-	if (**p == '@')
-		data->start = memparse(*p + 1, p);
+	data->size = memparse(p, &p);
+	if (*p == '@')
+		data->start = memparse(p + 1, &p);
+
+	return 0;
 }
 
 /********************************************************************************
@@ -347,11 +349,11 @@ static struct android_pmem_platform_data pmem_pdata = {
 	.size = 0,
 };
 
-static void __init early_pmem(char **p)
+static int __init early_pmem(char *p)
 {
-	early_pmem_generic_parse(p, &pmem_pdata);
+	return early_pmem_generic_parse(p, &pmem_pdata);
 }
-__early_param("pmem=", early_pmem);
+early_param("pmem", early_pmem);
 
 struct platform_device u8500_pmem_device = {
 	.name = "android_pmem",
@@ -373,11 +375,11 @@ static struct android_pmem_platform_data pmem_mio_pdata = {
 	.size = 0,
 };
 
-static void __init early_pmem_mio(char **p)
+static int __init early_pmem_mio(char *p)
 {
-	early_pmem_generic_parse(p, &pmem_mio_pdata);
+	return early_pmem_generic_parse(p, &pmem_mio_pdata);
 }
-__early_param("pmem_mio=", early_pmem_mio);
+early_param("pmem_mio", early_pmem_mio);
 
 struct platform_device u8500_pmem_mio_device = {
 	.name = "android_pmem",
@@ -399,11 +401,11 @@ static struct android_pmem_platform_data pmem_hwb_pdata = {
 	.size = 0,
 };
 
-static void __init early_pmem_hwb(char **p)
+static int __init early_pmem_hwb(char *p)
 {
-	early_pmem_generic_parse(p, &pmem_hwb_pdata);
+	return early_pmem_generic_parse(p, &pmem_hwb_pdata);
 }
-__early_param("pmem_hwb=", early_pmem_hwb);
+early_param("pmem_hwb", early_pmem_hwb);
 
 struct platform_device u8500_pmem_hwb_device = {
 	.name = "android_pmem",

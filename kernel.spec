@@ -381,6 +381,9 @@ BuildKernel() {
     # Does not exist in the 34 kernel yet
     #scripts/config --file .config --disable U8500_TSC_MULTITOUCH
 
+    # Enable pmem
+    scripts/config --file .config --enable CONFIG_ANDROID_PMEM
+
     # STE: Enable conf for external sd-cards. 
     scripts/config --file .config --enable LEVELSHIFTER_HREF_V1_PLUS
     # STE: Enable g_multi USB gadget with RNDIS, CDC Serial and Storage configuration.
