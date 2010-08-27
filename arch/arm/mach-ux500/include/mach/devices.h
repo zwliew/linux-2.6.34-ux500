@@ -32,6 +32,7 @@ extern struct platform_device u8500_hsit_device;
 extern struct platform_device u8500_hsir_device;
 extern struct platform_device u8500_shrm_device;
 extern struct platform_device ux500_b2r2_device;
+extern struct platform_device ux500_hwmem_device;
 extern struct platform_device u8500_pmem_device;
 extern struct platform_device u8500_pmem_mio_device;
 extern struct platform_device u8500_pmem_hwb_device;

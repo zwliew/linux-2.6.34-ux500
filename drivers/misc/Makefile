@@ -42,3 +42,4 @@ obj-$(CONFIG_U8500_SHRM)        += shrm/
 obj-$(CONFIG_STE_IRRC)		+= irrc.o
 obj-$(CONFIG_AB8500_DENC)	+= ab8500_denc/
 obj-$(CONFIG_STE_AUDIO_IO_DEV)	+= audio_io_dev/
+obj-$(CONFIG_HWMEM)		+= hwmem/

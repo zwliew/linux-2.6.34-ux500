@@ -1316,6 +1316,7 @@ static struct platform_device *platform_board_devs[] __initdata = {
 	&ab8500_bm_device,
 	&ste_ff_vibra_device,
 	&ux500_musb_device,
+	&ux500_hwmem_device,
 	&ux500_mcde_device,
 	&ux500_b2r2_device,
 #ifdef CONFIG_ANDROID_PMEM

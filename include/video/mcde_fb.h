@@ -17,11 +17,14 @@
 #include <stdint.h>
 #else
 #include <linux/types.h>
+#include <linux/hwmem.h>
 #endif
 
 #ifdef __KERNEL__
 #include "mcde_dss.h"
 #endif
+
+#define MCDE_GET_BUFFER_NAME_IOC _IO('M', 1)
 
 #ifdef __KERNEL__
 #define to_mcde_fb(x) ((struct mcde_fb *)(x)->par)
@@ -34,6 +37,8 @@ struct mcde_fb {
 	u32 pseudo_palette[17];
 	enum mcde_ovly_pix_fmt pix_fmt;
 	int id;
+	struct hwmem_alloc *alloc;
+	int alloc_name;
 };
 
 /* MCDE fbdev API */

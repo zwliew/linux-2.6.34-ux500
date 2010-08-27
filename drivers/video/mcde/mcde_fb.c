@@ -16,6 +16,9 @@
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
 
+#include <linux/hwmem.h>
+#include <linux/io.h>
+
 #include <video/mcde_fb.h>
 
 #define MCDE_FB_BPP_MAX		16
@@ -189,15 +192,32 @@ static int reallocate_fb_mem(struct fb_info *fbi, u32 size)
 	/* TODO: hwmem */
 #ifdef CONFIG_MCDE_FB_AVOID_REALLOC
 	if (!fbi->screen_base) {
+		struct mcde_fb *mfb = to_mcde_fb(fbi);
+		struct hwmem_alloc *alloc;
+		uint32_t phys_addr;
+		int name;
 		size_max = MCDE_FB_BPP_MAX / 8 * MCDE_FB_VXRES_MAX *
 				MCDE_FB_VYRES_MAX;
-		vaddr = dma_alloc_coherent(fbi->dev, size_max, &paddr,
-				GFP_KERNEL|GFP_DMA);
-		if (!vaddr)
-			return -ENOMEM;
+		alloc = hwmem_alloc(size_max, HWMEM_ALLOC_BUFFERED,
+					(HWMEM_ACCESS_READ  | HWMEM_ACCESS_WRITE | HWMEM_ACCESS_IMPORT),
+					HWMEM_MEM_CONTIGUOUS_SYS);
+
+		if (IS_ERR(alloc))
+			return PTR_ERR(alloc);
+		name = hwmem_get_name(alloc);
+		if (name < 0) {
+			hwmem_release(alloc);
+			return name;
+		}
+
+		(void)hwmem_pin(alloc, &phys_addr, NULL);
+		paddr = phys_addr;
+		vaddr = ioremap(phys_addr, size_max);
 
 		fbi->screen_base = vaddr;
 		fbi->fix.smem_start = paddr;
+		mfb->alloc = alloc;
+		mfb->alloc_name = name;
 	}
 #else
 	vaddr = dma_alloc_coherent(fbi->dev, size, &paddr, GFP_KERNEL|GFP_DMA);
@@ -510,6 +530,17 @@ static void mcde_fb_rotate(struct fb_info *fbi, int rotate)
 	dev_vdbg(fbi->dev, "%s\n", __func__);
 }
 
+static int mcde_fb_ioctl(struct fb_info *fbi, unsigned int cmd,
+							 unsigned long arg)
+{
+	struct mcde_fb *mfb = to_mcde_fb(fbi);
+
+	if (cmd == MCDE_GET_BUFFER_NAME_IOC)
+		return mfb->alloc_name;
+
+	return -EINVAL;
+}
+
 static struct fb_ops fb_ops = {
 	/* creg, cmap */
 	.owner          = THIS_MODULE,
@@ -525,6 +556,7 @@ static struct fb_ops fb_ops = {
 	.fb_blank       = mcde_fb_blank,
 	.fb_pan_display = mcde_fb_pan_display,
 	.fb_rotate      = mcde_fb_rotate,
+	.fb_ioctl       = mcde_fb_ioctl,
 };
 
 /* FB driver */

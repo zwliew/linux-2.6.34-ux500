@@ -384,10 +384,16 @@ BuildKernel() {
     # Enable pmem
     scripts/config --file .config --enable CONFIG_ANDROID_PMEM
 
+    # Enable hwmem
+    scripts/config --file .config --enable CONFIG_HWMEM
+
     # STE: Enable conf for external sd-cards. 
     scripts/config --file .config --enable LEVELSHIFTER_HREF_V1_PLUS
     # STE: Enable g_multi USB gadget with RNDIS, CDC Serial and Storage configuration.
     scripts/config --file .config --module CONFIG_USB_G_MULTI --enable CONFIG_USB_G_MULTI_RNDIS --disable USB_G_MULTI_CDC
+    # STE: Enable CONFIG_MCDE_FB_AVOID_REALLOC to avoid reallocations.
+    scripts/config --file .config --enable CONFIG_MCDE_FB_AVOID_REALLOC
+    scripts/config --file .config --enable CONFIG_DISPLAY_GENERIC_DSI_PRIMARY_AUTO_SYNC
 
     Arch="x86"
 %ifarch %{all_arm}
