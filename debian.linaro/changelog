@@ -1,0 +1,8 @@
+linux-ux500 (2.6.34-1000.1) maverick; urgency=low
+
+  [ John Rigby ]
+
+  * Initial checkin
+
+ -- John Rigby <john.rigby@linaro.org>  Thu, 02 Sep 2010 23:51:53 -0600
+
