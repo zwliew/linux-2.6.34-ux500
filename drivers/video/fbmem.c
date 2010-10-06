@@ -1072,6 +1072,10 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = copy_to_user(argp, &fix, sizeof(fix)) ? -EFAULT : 0;
 		break;
 	case FBIOPUTCMAP:
+#if defined(CONFIG_MACH_U8500_MOP)
+        ret = EPERM;
+        break;
+#endif
 		if (copy_from_user(&cmap, argp, sizeof(cmap)))
 			return -EFAULT;
 		ret = fb_set_user_cmap(&cmap, info);
@@ -1306,6 +1310,10 @@ static long fb_compat_ioctl(struct file *file, unsigned int cmd,
 
 	case FBIOGETCMAP:
 	case FBIOPUTCMAP:
+#if defined(CONFIG_MACH_U8500_MOP)
+        ret = EPERM;
+        break;
+#endif
 		ret = fb_getput_cmap(info, cmd, arg);
 		break;
 
